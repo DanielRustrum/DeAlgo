@@ -1,0 +1,4 @@
+<div id="flash"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if ok_message %}<div class="flash flash-ok">{{ ok_message }}</div>{% endif %}
+  {% if error_message %}<div class="flash flash-err">{{ error_message }}</div>{% endif %}
+</div>

@@ -1,0 +1,61 @@
+{% set in_panel = true %}
+{# Re-renders on watched changes so the chips, counts and filtered rows agree. #}
+<section class="panel" id="videos-panel"
+         hx-get="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}"
+         hx-select="#videos-panel" hx-swap="outerHTML"
+         hx-trigger="dealgo:watched-changed from:body, dealgo:sync-finished from:body">
+  <div class="panel-head">
+    <h2>Videos <span class="count">{{ total }}</span></h2>
+    {% include "_watched_actions.html" %}
+  </div>
+  <div class="filterbar">
+    <a class="chip {{ 'chip-on' if not status and watched != '1' }}"
+       hx-get="/videos?channel={{ channel_filter or '' }}"
+       hx-target="#videos-panel" hx-select="#videos-panel" hx-swap="outerHTML" hx-push-url="true"
+       href="/videos?channel={{ channel_filter or '' }}">All</a>
+    {% for name in ['pending', 'added', 'skipped', 'failed', 'ignored'] %}
+      {% set href = '/videos?status=' ~ name ~ '&channel=' ~ (channel_filter or '') %}
+      <a class="chip {{ 'chip-on' if status == name and watched != '1' }}"
+         hx-get="{{ href }}" hx-target="#videos-panel" hx-select="#videos-panel"
+         hx-swap="outerHTML" hx-push-url="true" href="{{ href }}">
+        {{ name }} <span class="chip-count">{{ counts.get(name, 0) }}</span>
+      </a>
+    {% endfor %}
+    {% set watched_href = '/videos?watched=1&channel=' ~ (channel_filter or '') %}
+    <a class="chip {{ 'chip-on' if watched == '1' }}"
+       hx-get="{{ watched_href }}" hx-target="#videos-panel" hx-select="#videos-panel"
+       hx-swap="outerHTML" hx-push-url="true" href="{{ watched_href }}">
+      watched <span class="chip-count">{{ watched_count }}</span>
+    </a>
+    <form class="chip-form" hx-get="/videos" hx-target="#videos-panel" hx-select="#videos-panel"
+          hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+      <input type="hidden" name="status" value="{{ status }}">
+      <input type="hidden" name="watched" value="{{ watched }}">
+      <select name="channel">
+        <option value="">Every channel</option>
+        {% for channel in channels %}
+        <option value="{{ channel.id }}" {{ 'selected' if channel_filter == channel.id }}>{{ channel.title }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  {% include "_video_table.html" %}
+
+  {% if pages > 1 %}
+  {% set base = '/videos?status=' ~ status ~ '&watched=' ~ watched ~ '&channel=' ~ (channel_filter or '') %}
+  <nav class="pager">
+    {% if page > 1 %}
+      <a class="btn btn-quiet" href="{{ base }}&page={{ page - 1 }}"
+         hx-get="{{ base }}&page={{ page - 1 }}" hx-target="#videos-panel" hx-select="#videos-panel"
+         hx-swap="outerHTML" hx-push-url="true">← Newer</a>
+    {% endif %}
+    <span class="muted">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}
+      <a class="btn btn-quiet" href="{{ base }}&page={{ page + 1 }}"
+         hx-get="{{ base }}&page={{ page + 1 }}" hx-target="#videos-panel" hx-select="#videos-panel"
+         hx-swap="outerHTML" hx-push-url="true">Older →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>

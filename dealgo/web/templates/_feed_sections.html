@@ -1,0 +1,40 @@
+<div id="feed-sections"
+     hx-get="/partials/feed?{{ feed_query }}"
+     hx-trigger="dealgo:sync-finished from:body" hx-swap="outerHTML">
+  {% for section in sections %}
+  <section class="panel feed-section">
+    <div class="panel-head">
+      <h2>
+        {% if section.playlist.url %}
+          <a href="{{ section.playlist.url }}" target="_blank" rel="noopener">{{ section.playlist.title }}</a>
+        {% else %}{{ section.playlist.title }}{% endif %}
+        <span class="count">{{ section.videos | length }}{% if show == 'unwatched' and section.total != section.videos | length %} of {{ section.total }}{% endif %}</span>
+      </h2>
+      <span class="section-actions">
+        {% if not section.playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+        {% if section.videos %}
+        <a class="btn btn-quiet" href="/watch?order={{ order }}&playlist={{ section.playlist.id }}"
+           title="Play this playlist through, marking each one watched">Theater ▶</a>
+        {% endif %}
+      </span>
+    </div>
+
+    {% if section.videos %}
+    <div class="card-grid">
+      {% for video in section.videos %}{% include "_feed_card.html" %}{% endfor %}
+    </div>
+    {% elif show == 'unwatched' and section.total %}
+    <p class="empty">All {{ section.total }} watched. Nothing left here.</p>
+    {% else %}
+    <p class="empty">Nothing in this playlist yet.</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="panel">
+    <p class="empty">
+      No playlists to show. <a href="/channels">Add a target playlist and some channels</a>, then
+      press Sync now.
+    </p>
+  </section>
+  {% endfor %}
+</div>

@@ -1,0 +1,122 @@
+{# Guided feed setup, rendered from the ?new flag rather than opened by script,
+   so Cancel and the ✕ are links that simply drop the flag. #}
+{# A real <dialog>: dialog.js promotes it with showModal(), which puts it in the
+   browser's top layer — above everything, immune to any ancestor's overflow or
+   stacking context — and gives Esc and focus trapping for free. Without
+   JavaScript the open attribute still shows it, styled the same way. #}
+<dialog class="modal" id="new-feed" data-modal data-close="/partials/playlists"
+        aria-labelledby="new-feed-title" open>
+    <form class="wizard" method="post" action="/settings/feeds/new"
+          hx-post="/settings/feeds/new" hx-target="#playlist-targets" hx-swap="outerHTML">
+      <div class="modal-head">
+        <h2 id="new-feed-title">New feed</h2>
+        <a class="modal-close" href="/channels" aria-label="Close"
+           hx-get="/partials/playlists" hx-target="#playlist-targets" hx-swap="outerHTML">✕</a>
+      </div>
+
+      <div class="modal-body">
+        <section class="step">
+          <h3><span class="step-number">1</span> Which playlist?</h3>
+          <label class="choice">
+            <input type="radio" name="source" id="source-generic" value="generic"
+                   {{ 'checked' if not state.connected }}>
+            <span class="check-body">
+              <span>Generic feed</span>
+              <span class="hint">
+                No YouTube playlist behind it — watch it on the Feed page instead. Needs no account
+                and spends no API quota.
+              </span>
+            </span>
+          </label>
+
+          <div class="wizard-section section-generic">
+            <label>
+              Name
+              <input type="text" name="generic_title" placeholder="Science, Music, Watch later…">
+            </label>
+          </div>
+
+          <label class="choice">
+            <input type="radio" name="source" id="source-new" value="new"
+                   {{ 'checked' if state.connected }} {{ 'disabled' if not state.connected }}>
+            <span class="check-body">
+              <span>Create a new YouTube playlist</span>
+              <span class="hint">
+                {% if state.connected %}De-Algo makes it on your account and starts filling it.
+                {% else %}Needs a connected Google account.{% endif %}
+              </span>
+            </span>
+          </label>
+
+          <div class="wizard-section section-new">
+            <div class="field-row">
+              <label>
+                Name
+                <input type="text" name="new_title" placeholder="Science, Music, Watch later…">
+              </label>
+              <label>
+                Visibility
+                <select name="privacy">
+                  <option value="private" selected>Private — only you</option>
+                  <option value="unlisted">Unlisted — anyone with the link</option>
+                  <option value="public">Public — listed on your channel</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <label class="choice">
+            <input type="radio" name="source" id="source-existing" value="existing"
+                   {{ 'disabled' if not available or not state.connected }}>
+            <span class="check-body">
+              <span>Use a playlist already on your account</span>
+              <span class="hint">
+                {% if not state.connected %}Needs a connected Google account.
+                {% elif available %}Its existing videos are left alone; De-Algo adds to it.
+                {% else %}Every playlist on your account is already a feed.{% endif %}
+              </span>
+            </span>
+          </label>
+
+          <div class="wizard-section section-existing">
+            <label>
+              Playlist
+              <select name="playlist_id">
+                {% for playlist in available %}
+                <option value="{{ playlist.playlist_id }}">
+                  {{ playlist.title }} ({{ playlist.item_count }} videos{% if playlist.privacy_status %}, {{ playlist.privacy_status }}{% endif %})
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="step">
+          <h3><span class="step-number">2</span> Which channels feed it?</h3>
+          {% if all_channels %}
+          <div class="channel-picker">
+            {% for channel in all_channels %}
+            <label class="chip chip-pick">
+              <input type="checkbox" name="channels" value="{{ channel.id }}">
+              {{ channel.title }}
+            </label>
+            {% endfor %}
+          </div>
+          <p class="hint">
+            Optional — you can link channels later. A channel with no feed stays paused, so linking
+            one here starts it watching. Only future uploads are added.
+          </p>
+          {% else %}
+          <p class="empty">No channels watched yet. Add one first, then link it here or from its page.</p>
+          {% endif %}
+        </section>
+      </div>
+
+      <div class="modal-foot">
+        <a class="btn btn-quiet" href="/channels"
+           hx-get="/partials/playlists" hx-target="#playlist-targets" hx-swap="outerHTML">Cancel</a>
+        <button class="btn btn-primary" type="submit">Create feed</button>
+      </div>
+    </form>
+</dialog>

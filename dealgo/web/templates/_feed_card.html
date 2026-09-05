@@ -1,0 +1,50 @@
+<article class="card {{ 'card-watched' if video.watched }}" id="feed-card-{{ video.id }}">
+  <div class="card-media">
+    {# Clicking swaps the still for the player, so watching stays on the page. #}
+    <button class="card-thumb" type="button"
+            hx-get="/partials/player/{{ video.id }}"
+            hx-target="closest .card-media" hx-swap="innerHTML"
+            title="Play {{ video.title }}">
+      {% if video.thumbnail_url %}
+        <img src="{{ video.thumbnail_url }}" alt="" loading="lazy">
+      {% else %}
+        <span class="card-thumb-blank"></span>
+      {% endif %}
+      <span class="card-play">▶</span>
+      {% if video.duration_sec %}<span class="card-duration">{{ video.duration_sec | duration }}</span>{% endif %}
+    </button>
+  </div>
+
+  <div class="card-body">
+    <h3 class="card-title">
+      <a href="{{ video.url }}" target="_blank" rel="noopener">{{ video.title or video.video_id }}</a>
+    </h3>
+    <div class="card-meta">
+      <a href="/channels/{{ video.channel_pk }}">{{ video.channel.title }}</a>
+      · {{ video.published_at | ago }}
+      {% if video.watched %}· <span class="pill pill-watched">watched</span>{% endif %}
+    </div>
+    <div class="card-actions">
+      {% if video.watched %}
+      <form method="post" action="/videos/{{ video.id }}/unwatched"
+            hx-post="/videos/{{ video.id }}/unwatched"
+            hx-target="#feed-card-{{ video.id }}" hx-swap="outerHTML">
+        <input type="hidden" name="view" value="feed">
+        <input type="hidden" name="back" value="/feed">
+        <button class="btn btn-quiet" type="submit">Unwatch</button>
+      </form>
+      {% else %}
+      <form method="post" action="/videos/{{ video.id }}/watched"
+            hx-post="/videos/{{ video.id }}/watched"
+            hx-target="#feed-card-{{ video.id }}" hx-swap="outerHTML">
+        <input type="hidden" name="view" value="feed">
+        <input type="hidden" name="back" value="/feed">
+        <button class="btn btn-quiet" type="submit">Mark watched</button>
+      </form>
+      {% endif %}
+      <a class="btn btn-quiet" href="/watch?start={{ video.id }}"
+         title="Play from here in theater mode">Theater ▶</a>
+      <a class="btn btn-quiet" href="{{ video.url }}" target="_blank" rel="noopener">YouTube ↗</a>
+    </div>
+  </div>
+</article>

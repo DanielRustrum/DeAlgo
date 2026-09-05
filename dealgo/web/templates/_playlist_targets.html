@@ -1,0 +1,159 @@
+{% from "_macros.html" import explained %}
+<div id="playlist-targets">
+  <div class="panel-head">
+    <h2>Feeds</h2>
+    <a class="btn btn-primary" href="/channels?new=1"
+       hx-get="/partials/playlists?new=1" hx-target="#playlist-targets" hx-swap="outerHTML">
+      New feed
+    </a>
+  </div>
+
+  {% if playlist_error %}<p class="error-note">{{ playlist_error }}</p>{% endif %}
+
+  {% if targets %}
+  <table class="table table-playlists">
+    <thead>
+      <tr><th title="Fill order when quota is short">#</th><th>Feed</th><th>Videos</th>
+          <th>Channels</th><th>Limits</th><th></th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for playlist in targets %}
+      <tr class="{{ 'row-off' if not playlist.enabled }}">
+        <td class="rank">
+          <span class="rank-number">{{ loop.index }}</span>
+          <span class="rank-moves">
+            <form method="post" action="/settings/playlists/{{ playlist.id }}/move"
+                  hx-post="/settings/playlists/{{ playlist.id }}/move"
+                  hx-target="#playlist-targets" hx-swap="outerHTML">
+              <input type="hidden" name="direction" value="up">
+              <button class="btn-move" type="submit" title="Fill earlier"
+                      {{ 'disabled' if loop.first }}>▲</button>
+            </form>
+            <form method="post" action="/settings/playlists/{{ playlist.id }}/move"
+                  hx-post="/settings/playlists/{{ playlist.id }}/move"
+                  hx-target="#playlist-targets" hx-swap="outerHTML">
+              <input type="hidden" name="direction" value="down">
+              <button class="btn-move" type="submit" title="Fill later"
+                      {{ 'disabled' if loop.last }}>▼</button>
+            </form>
+          </span>
+        </td>
+        <td>
+          {% if playlist.url %}
+            <a class="channel-name" href="{{ playlist.url }}" target="_blank" rel="noopener">{{ playlist.title }}</a>
+          {% else %}
+            <span class="channel-name">{{ playlist.title }}</span>
+            <span class="pill" title="A generic feed — no YouTube playlist behind it">generic</span>
+          {% endif %}
+          {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+          {% if playlist.last_error %}<div class="error-note">{{ playlist.last_error }}</div>{% endif %}
+        </td>
+        <td>{{ counts.get(playlist.id, 0) }}</td>
+        <td>
+          {% set shut = open_playlist == playlist.id %}
+          <a class="count-link {{ 'count-link-open' if shut }}"
+             href="/channels?open={{ '' if shut else playlist.id }}"
+             hx-get="/partials/playlists?open={{ '' if shut else playlist.id }}"
+             hx-target="#playlist-targets" hx-swap="outerHTML"
+             title="{{ 'Close' if shut else 'Choose which channels feed this' }}">
+            {{ playlist.channels | length }} <span class="caret">{{ '▴' if shut else '▾' }}</span>
+          </a>
+        </td>
+        <td colspan="2">
+          <form class="row-form" method="post" action="/settings/playlists/{{ playlist.id }}"
+                hx-post="/settings/playlists/{{ playlist.id }}"
+                hx-target="#playlist-targets" hx-swap="outerHTML">
+            {% set tip = "tip-size-" ~ playlist.id %}
+            {% call explained("0 keeps everything. Above that, the oldest videos are removed as
+              new ones arrive, so the playlist stays a rolling window rather than growing forever.", tip) %}
+              <label class="row-field">max size
+                <input type="number" min="0" name="max_items" value="{{ playlist.max_items }}"
+                       aria-describedby="{{ tip }}">
+              </label>
+            {% endcall %}
+            {% set tip = "tip-run-" ~ playlist.id %}
+            {% call explained("Most videos this playlist will take in one run. Anything held back is
+              queued for the next run rather than dropped — useful for spreading a tight API quota
+              across several feeds.", tip) %}
+              <label class="row-field">per sync
+                <input type="number" min="0" name="max_per_run" value="{{ playlist.max_per_run }}"
+                       aria-describedby="{{ tip }}">
+              </label>
+            {% endcall %}
+            {% set tip = "tip-enabled-" ~ playlist.id %}
+            {% call explained("De-Algo adds new videos to this playlist. Untick to pause it — its
+              channels, limits and history stay, and nothing already in the playlist is removed.", tip) %}
+              <label class="check">
+                <input type="checkbox" name="enabled" aria-describedby="{{ tip }}"
+                       {{ 'checked' if playlist.enabled }}> feed it
+              </label>
+            {% endcall %}
+
+            <button class="btn btn-quiet" type="submit">Save</button>
+          </form>
+        </td>
+        <td class="actions">
+          <form method="post" action="/settings/playlists/{{ playlist.id }}/delete"
+                hx-post="/settings/playlists/{{ playlist.id }}/delete"
+                hx-target="#playlist-targets" hx-swap="outerHTML"
+                hx-confirm="Stop feeding {{ playlist.title }}? The playlist stays on YouTube with its videos; De-Algo just stops adding to it.">
+            <button class="btn btn-danger" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+
+      {% if open_playlist == playlist.id %}
+      <tr class="row-editor">
+        <td colspan="7">
+          {% if all_channels %}
+          <div class="channel-picker">
+            <span class="filter-label">Channels feeding {{ playlist.title }}</span>
+            {% for channel in all_channels %}
+            {% set feeding = channel in playlist.channels %}
+            <form method="post" action="/settings/playlists/{{ playlist.id }}/channels"
+                  hx-post="/settings/playlists/{{ playlist.id }}/channels"
+                  hx-target="#playlist-targets" hx-swap="outerHTML">
+              <input type="hidden" name="channel_id" value="{{ channel.id }}">
+              <input type="hidden" name="include" value="{{ '0' if feeding else '1' }}">
+              <input type="hidden" name="open" value="{{ playlist.id }}">
+              <button class="chip {{ 'chip-on' if feeding }}" type="submit"
+                      title="{{ 'Stop this channel feeding ' ~ playlist.title
+                                if feeding else 'Feed ' ~ playlist.title ~ ' from this channel' }}">
+                {{ '✓' if feeding else '+' }} {{ channel.title }}
+              </button>
+            </form>
+            {% endfor %}
+          </div>
+          <p class="hint">
+            Tick a channel to feed this playlist from it. Only future uploads are added — press
+            Queue on an older video to backfill it.
+          </p>
+          {% else %}
+          <p class="empty">No channels are being watched yet. Add one above.</p>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% else %}
+  <p class="empty">No feeds yet. Add a playlist below and videos will start flowing into it.</p>
+  {% endif %}
+
+  {% if state.connected %}
+  <p class="hint">
+    Assign channels to feeds from a feed's channel list above, or from a channel's own page. A
+    channel can feed several at once — the video is inserted into each, so it costs 50 quota units
+    per feed. The order above decides which is filled first when the day's quota runs short, and
+    <em>per sync</em> caps how many any one of them takes in a single run.
+  </p>
+  {% else %}
+  <p class="hint">
+    A generic feed needs no account. Connect one to fill a real YouTube playlist.
+  </p>
+  {% endif %}
+
+  {% if creating %}{% include "_new_feed.html" %}{% endif %}
+</div>

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — {{ channel.title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/channels">← Channels</a></p>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2 class="titled">
+      <span class="channel-avatar">
+        {% if channel.thumbnail_url %}
+          <img src="{{ channel.thumbnail_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        {% else %}
+          <span class="avatar-letter" style="--hue: {{ channel.avatar_hue }}">{{ channel.initial }}</span>
+        {% endif %}
+      </span>
+      {{ channel.title or channel.channel_id }}
+    </h2>
+    <a class="btn btn-quiet" href="{{ channel.url }}" target="_blank" rel="noopener">Open on YouTube</a>
+  </div>
+  <dl class="facts">
+    <dt>Channel id</dt><dd><code>{{ channel.channel_id }}</code></dd>
+    <dt>Added</dt><dd>{{ channel.added_at | stamp }}</dd>
+    <dt>Last checked</dt>
+    <dd>
+      {{ channel.last_checked_at | ago }}
+      {% if channel.next_check_at %} · next {{ channel.next_check_at | ago }}{% endif %}
+    </dd>
+    <dt>Status</dt>
+    <dd>
+      {% if channel.awaiting_feed %}paused — waiting for a feed to be linked
+      {% elif channel.enabled %}watching
+      {% else %}paused{% endif %}
+    </dd>
+  </dl>
+  {% if channel.last_error %}<p class="error-note">{{ channel.last_error }}</p>{% endif %}
+  {% if channel.takes_nothing %}
+  <p class="error-note">Ordinary uploads, Shorts and broadcasts are all switched off, so nothing
+    from this channel will be added.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Playlists and filters</h2>
+  <form method="post" action="/channels/{{ channel.id }}" class="stack-form">
+    <div class="field-row">
+      <fieldset class="playlist-picker">
+        <legend>Feeds these playlists</legend>
+        {% if all_playlists %}
+          {% for playlist in all_playlists %}
+          <label class="check check-with-hint">
+        <input type="checkbox" name="playlists" value="{{ playlist.id }}"
+                   {{ 'checked' if playlist.id in channel_playlist_pks }}>
+        <span class="check-body">
+          <span>{{ playlist.title }}{% if not playlist.enabled %} <span class="muted">(paused)</span>{% endif %}
+          </label>
+          {% endfor %}
+          <p class="hint">
+            Ticking a playlist affects future uploads. To backfill an older video, press Queue on it below.
+          </p>
+        {% else %}
+          <p class="empty">No playlists configured yet — <a href="/channels">add one on the Channels page</a>.</p>
+        {% endif %}
+      </fieldset>
+    </div>
+    <div class="field-row">
+      <label>
+        Title must match
+        <input type="text" name="title_include" value="{{ channel.title_include or '' }}" placeholder="regular expression, optional">
+      </label>
+      <label>
+        Title must not match
+        <input type="text" name="title_exclude" value="{{ channel.title_exclude or '' }}" placeholder="e.g. shorts|teaser|#ad">
+      </label>
+    </div>
+    <div class="field-row">
+      <label>
+        Minimum length (seconds)
+        <input type="number" min="0" name="min_duration_sec" value="{{ channel.min_duration_sec or '' }}" placeholder="no minimum">
+      </label>
+      <label>
+        Maximum length (seconds)
+        <input type="number" min="0" name="max_duration_sec" value="{{ channel.max_duration_sec or '' }}" placeholder="no maximum">
+      </label>
+      <label>
+        Check at most every (minutes)
+        <input type="number" min="0" name="min_pull_minutes" value="{{ channel.min_pull_minutes }}"></span>
+          <span class="hint">0 checks on every sync. Polling is free, so this is about how often you
+          want to hear from this channel.</span>
+        </span>
+      </label>
+      <label>
+        Max added per sync
+        <input type="number" min="0" name="max_per_run" value="{{ channel.max_per_run }}">
+        <span class="hint">0 means no limit.</span>
+      </label>
+    </div>
+    <div class="field-row checks">
+      <label class="check check-with-hint">
+        <input type="checkbox" name="skip_videos" {{ 'checked' if channel.skip_videos }}>
+        <span class="check-body">
+          <span>Skip ordinary uploads</span>
+          <span class="hint">Everything that is not a Short or a broadcast.</span>
+        </span>
+      </label>
+      <label class="check check-with-hint">
+        <input type="checkbox" name="skip_shorts" {{ 'checked' if channel.skip_shorts }}>
+        <span class="check-body">
+          <span>Skip Shorts (≤ {{ settings.shorts_max_seconds }}s)</span>
+          <span class="hint">Unticking this also queues Shorts already skipped from this channel.</span>
+        </span>
+      </label>
+      <label class="check check-with-hint">
+        <input type="checkbox" name="skip_live" {{ 'checked' if channel.skip_live }}>
+        <span class="check-body">
+          <span>Skip live streams and premieres</span>
+          <span class="hint">Unticking this also queues the ones already skipped — usually now finished.</span>
+        </span>
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+  <p class="hint">Length and live checks need API access; without it those rules are skipped rather than guessed.</p>
+</section>
+
+<section class="panel">
+  <h2>Videos from this channel</h2>
+  {% include "_video_table.html" %}
+</section>
+{% endblock %}

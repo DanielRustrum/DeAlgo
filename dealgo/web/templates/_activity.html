@@ -1,0 +1,56 @@
+<div class="columns" id="activity"
+     hx-get="/partials/activity" hx-trigger="dealgo:sync-finished from:body" hx-swap="outerHTML">
+  <section class="panel">
+    <h2>Recently discovered</h2>
+    {% if recent_videos %}
+    <ul class="video-list">
+      {% for video in recent_videos %}
+      <li>
+        {% if video.thumbnail_url %}<img src="{{ video.thumbnail_url }}" alt="" loading="lazy">{% endif %}
+        <div>
+          <a href="{{ video.url }}" target="_blank" rel="noopener">{{ video.title or video.video_id }}</a>
+          <div class="meta">
+            <span class="pill pill-{{ video.status }}">{{ video.status }}</span>
+            {{ video.channel.title }} · {{ video.published_at | ago }}
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing yet. <a href="/channels">Add a channel</a> and run a sync.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Recent runs</h2>
+    {% if recent_runs %}
+    <div class="table-scroll">
+      <table class="table">
+        <thead><tr><th>When</th><th>New</th><th>Added</th><th>Skipped</th><th>Failed</th><th title="Quota units spent">Units</th></tr></thead>
+        <tbody>
+        {% for run in recent_runs %}
+          <tr class="{{ 'row-bad' if not run.ok and run.finished_at }}">
+            <td title="{{ run.started_at | stamp }} · {{ run.trigger }}">
+              {{ run.started_at | ago }}
+              {%- if run.forced %} <span class="pill" title="Minimum gaps ignored">forced</span>{% endif %}
+            </td>
+            <td>{{ run.discovered }}</td>
+            <td>{{ run.added }}</td>
+            <td>{{ run.skipped }}</td>
+            <td>{{ run.failed }}</td>
+            <td>
+              {{ run.quota_spent }}
+              {%- if run.stopped_on_quota %} <span class="pill pill-failed" title="Stopped early: quota">cap</span>{% endif %}
+            </td>
+          </tr>
+          {% if run.message %}<tr class="row-note"><td colspan="6">{{ run.message }}</td></tr>{% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">No sync has run yet.</p>
+    {% endif %}
+  </section>
+</div>

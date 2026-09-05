@@ -1,0 +1,100 @@
+# Dealgo container tasks. Run `make` for the list.
+
+# make <target> CLUSTER=1 adds the reverse-proxy overlay.
+CLUSTER   ?=
+COMPOSE_FILES := $(if $(CLUSTER),-f docker-compose.yml -f compose.cluster.yml,)
+COMPOSE   ?= docker compose $(COMPOSE_FILES)
+SERVICE   ?= dealgo
+REGISTRY  ?= repo.home.app
+IMAGE     ?= $(REGISTRY)/rusty/dealgo
+TAG       ?= latest
+URL     ?= http://localhost:8080
+PY      ?= .venv/bin/python
+
+.DEFAULT_GOAL := help
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test dev clean
+
+help: ## Show this help
+	@echo "Dealgo — usage: make <target>"
+	@echo
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "} {printf "  \033[1m%-15s\033[0m %s\n", $$1, $$2}'
+	@echo
+	@echo "  make add CHANNEL=@handle       watch a channel"
+	@echo "  make watched VIDEO=<id|url>    mark videos watched"
+
+build: ## Build the image
+	$(COMPOSE) build
+
+publish: ## Build and push the image to the registry (IMAGE=, TAG=)
+	docker build -t $(IMAGE):$(TAG) .
+	docker push $(IMAGE):$(TAG)
+	@echo
+	@echo "Pushed $(IMAGE):$(TAG) — Portainer can pull it with DEALGO_IMAGE=$(IMAGE):$(TAG)"
+
+publish-multiarch: ## Build and push for amd64 and arm64 (needs buildx)
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(IMAGE):$(TAG) --push .
+
+config: ## Show the resolved compose configuration
+	$(COMPOSE) config
+
+up: ## Start Dealgo in the background and wait for it to be healthy (CLUSTER=1 for the proxy overlay)
+	$(COMPOSE) up -d
+	@printf 'waiting for %s ' "$(URL)"; \
+	for _ in $$(seq 1 60); do \
+		state=$$($(COMPOSE) ps -q $(SERVICE) | xargs -r docker inspect -f '{{.State.Health.Status}}' 2>/dev/null); \
+		if [ "$$state" = healthy ]; then printf '\n\nDealgo is running at %s\n' "$(URL)"; exit 0; fi; \
+		if [ "$$state" = unhealthy ]; then printf '\n\nContainer is unhealthy. Try: make logs\n'; exit 1; fi; \
+		printf '.'; sleep 1; \
+	done; \
+	printf '\n\nStill not healthy. Try: make logs\n'; exit 1
+
+down: ## Stop Dealgo, keeping its data
+	$(COMPOSE) down
+
+restart: ## Restart the container
+	$(COMPOSE) restart $(SERVICE)
+
+logs: ## Follow the logs
+	$(COMPOSE) logs -f $(SERVICE)
+
+ps: ## Show container state
+	$(COMPOSE) ps
+
+shell: ## Open a shell in the running container
+	$(COMPOSE) exec $(SERVICE) sh
+
+sync: ## Run one sync pass and exit (FORCE=1 ignores channel minimums)
+	$(COMPOSE) run --rm $(SERVICE) sync $(if $(FORCE),--force,)
+
+add: ## Watch a channel (CHANNEL=@handle, a URL, or a UC… id)
+	@test -n "$(CHANNEL)" || { echo "usage: make add CHANNEL=@handle"; exit 2; }
+	$(COMPOSE) run --rm $(SERVICE) add "$(CHANNEL)"
+
+backup: ## Write a JSON backup of the setup to ./de-algo-backup.json
+	$(COMPOSE) run --rm -T $(SERVICE) export > de-algo-backup.json
+	@echo "wrote de-algo-backup.json"
+
+channels: ## List watched channels
+	$(COMPOSE) run --rm $(SERVICE) channels
+
+watched: ## Mark videos watched (VIDEO="id-or-url ...")
+	@test -n "$(VIDEO)" || { echo 'usage: make watched VIDEO="dQw4w9WgXcQ"'; exit 2; }
+	$(COMPOSE) run --rm $(SERVICE) watched $(VIDEO)
+
+remove-watched: ## Remove watched videos from the playlist
+	$(COMPOSE) run --rm $(SERVICE) remove-watched
+
+info: ## Show Dealgo's configuration
+	$(COMPOSE) run --rm $(SERVICE) status
+
+test: ## Run the test suite locally
+	$(PY) -m pytest
+
+dev: ## Run the app locally without Docker
+	$(PY) -m dealgo serve
+
+clean: ## Stop Dealgo and delete its data volume (irreversible)
+	@printf 'This erases every watched channel and all sync history. Type yes to confirm: '; \
+	read answer; [ "$$answer" = yes ] || { echo "aborted"; exit 1; }
+	$(COMPOSE) down -v

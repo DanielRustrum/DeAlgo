@@ -1,0 +1,192 @@
+{% macro feed_chip(label, value, count, active) -%}
+  {% set page = '/channels' ~ ('?feed=' ~ value if value) %}
+  <a class="chip {{ 'chip-on' if active }}" href="{{ page }}"
+     hx-get="/partials/channels{{ '?feed=' ~ value if value }}"
+     hx-target="#channel-list" hx-swap="outerHTML" hx-push-url="{{ page }}">
+    {{ label }} <span class="chip-count">{{ count }}</span>
+  </a>
+{%- endmacro %}
+
+{# One toggle. All three behave identically, so they share this. #}
+{% macro switch(channel, kind, off, feed, on_title, off_title) -%}
+  <form method="post" action="/channels/{{ channel.id }}/{{ kind }}"
+        hx-post="/channels/{{ channel.id }}/{{ kind }}"
+        hx-target="#channel-list" hx-swap="outerHTML">
+    <input type="hidden" name="feed" value="{{ feed }}">
+    <button type="submit" class="toggle {{ 'toggle-on' if not off }}"
+            title="{{ off_title if off else on_title }}">
+      <span class="toggle-track"><span class="toggle-knob"></span></span>
+      <span class="toggle-label">{{ kind }} {{ 'off' if off else 'on' }}</span>
+    </button>
+  </form>
+{%- endmacro %}
+
+<div id="channel-list"
+     hx-get="/partials/channels{{ '?feed=' ~ feed if feed }}"
+     hx-trigger="dealgo:sync-finished from:body" hx-swap="outerHTML">
+
+  {% if feed %}
+  <p class="hint">Reorder from the unfiltered list — the numbers are the order across all channels.</p>
+  {% endif %}
+
+  {% if feed_playlists or unassigned_count %}
+  <div class="filterbar">
+    <span class="filter-label">Feeds</span>
+    {{ feed_chip('any', '', total_channels, not feed) }}
+    {% for playlist in feed_playlists %}
+      {{ feed_chip(playlist.title, playlist.id, counts_by_feed.get(playlist.id, 0), feed == playlist.id | string) }}
+    {% endfor %}
+    {% if unassigned_count %}
+      {{ feed_chip('no playlist', 'none', unassigned_count, feed == 'none') }}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if channels %}
+  <ul class="channel-rows">
+    {% for channel in channels %}
+    <li class="channel-row {{ 'row-off' if not channel.enabled }}">
+
+      {# 1 — who it is #}
+      <div class="channel-head">
+        <span class="rank">
+          <span class="rank-number">{{ loop.index }}</span>
+          {% if not feed %}
+          <span class="rank-moves">
+            {% for direction, glyph, hint, at_end in [
+                 ('up', '▲', 'Fill earlier', loop.first),
+                 ('down', '▼', 'Fill later', loop.last)] %}
+            <form method="post" action="/channels/{{ channel.id }}/move"
+                  hx-post="/channels/{{ channel.id }}/move"
+                  hx-target="#channel-list" hx-swap="outerHTML">
+              <input type="hidden" name="direction" value="{{ direction }}">
+              <input type="hidden" name="feed" value="{{ feed }}">
+              <button class="btn-move" type="submit" title="{{ hint }}"
+                      {{ 'disabled' if at_end }}>{{ glyph }}</button>
+            </form>
+            {% endfor %}
+          </span>
+          {% endif %}
+        </span>
+
+        <span class="channel-avatar">
+          {% if channel.thumbnail_url %}
+            <img src="{{ channel.thumbnail_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+          {% else %}
+            <span class="avatar-letter" style="--hue: {{ channel.avatar_hue }}">{{ channel.initial }}</span>
+          {% endif %}
+        </span>
+        <div class="channel-id">
+          <a class="channel-name" href="/channels/{{ channel.id }}">{{ channel.title or channel.channel_id }}</a>
+          {% if channel.awaiting_feed %}
+            <span class="pill pill-paused" title="Paused until a feed is linked — open a feed's channel list above to link one">
+              waiting for a feed</span>
+          {% elif not channel.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+          {% if channel.enabled and channel.takes_nothing %}
+            <span class="pill pill-failed" title="Videos, Shorts and Live are all off">takes nothing</span>
+          {% endif %}
+          <div class="meta">
+            <a href="{{ channel.url }}" target="_blank" rel="noopener">{{ channel.handle or channel.channel_id }}</a>
+          </div>
+          {% if channel.last_error %}<div class="error-note">{{ channel.last_error }}</div>{% endif %}
+        </div>
+
+        <div class="channel-buttons">
+          <a class="btn btn-quiet" href="/channels/{{ channel.id }}">Edit</a>
+          <form method="post" action="/channels/{{ channel.id }}/toggle"
+                hx-post="/channels/{{ channel.id }}/toggle" hx-target="#channel-list" hx-swap="outerHTML">
+            <input type="hidden" name="feed" value="{{ feed }}">
+            <button class="btn btn-quiet" type="submit">{{ 'Resume' if not channel.enabled else 'Pause' }}</button>
+          </form>
+          <form method="post" action="/channels/{{ channel.id }}/delete"
+                hx-post="/channels/{{ channel.id }}/delete" hx-target="#channel-list" hx-swap="outerHTML"
+                hx-confirm="Stop watching {{ channel.title or channel.channel_id }}? Its history goes too; videos already in a playlist stay put.">
+            <input type="hidden" name="feed" value="{{ feed }}">
+            <button class="btn btn-danger" type="submit">Remove</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="channel-groups">
+
+        {# Everything about what it takes from the channel #}
+        <div class="channel-group">
+          <span class="group-label">Takes</span>
+          <div class="group-body switches">
+            {{ switch(channel, 'videos', channel.skip_videos, feed,
+                      'Ordinary uploads from this channel go into its feeds',
+                      'Ordinary uploads from this channel are skipped') }}
+            {{ switch(channel, 'shorts', channel.skip_shorts, feed,
+                      'Shorts from this channel go into its feeds',
+                      'Shorts from this channel are skipped') }}
+            {{ switch(channel, 'live', channel.skip_live, feed,
+                      'Live streams and premieres go into its feeds',
+                      'Live streams and premieres are skipped') }}
+          </div>
+        </div>
+
+        {# The polling interval belongs with when it was last polled #}
+        <div class="channel-group">
+          <span class="group-label">Checks</span>
+          <div class="group-body">
+            <form method="post" action="/channels/{{ channel.id }}/interval"
+                  hx-post="/channels/{{ channel.id }}/interval"
+                  hx-target="#channel-list" hx-swap="outerHTML" hx-trigger="change from:find select">
+              <input type="hidden" name="feed" value="{{ feed }}">
+              <select name="minutes" class="interval-select">
+                {% set known = pull_intervals | map(attribute=0) | list %}
+                {% for value, label in pull_intervals %}
+                  <option value="{{ value }}" {{ 'selected' if channel.min_pull_minutes == value }}>{{ label }}</option>
+                {% endfor %}
+                {% if channel.min_pull_minutes not in known %}
+                  <option value="{{ channel.min_pull_minutes }}" selected>
+                    every {{ channel.min_pull_minutes }} min
+                  </option>
+                {% endif %}
+              </select>
+            </form>
+            <span class="group-note">
+              last {{ channel.last_checked_at | ago }}
+              {%- if channel.next_check_at and not channel.is_due() %},
+                next {{ channel.next_check_at | ago }}{% endif %}
+            </span>
+          </div>
+        </div>
+
+        {# Where its videos go #}
+        <div class="channel-group">
+          <span class="group-label">Feeds</span>
+          <div class="group-body targets">
+            {% for playlist in channel.playlists %}
+              <a class="pill pill-target" href="/channels?feed={{ playlist.id }}"
+                 hx-get="/partials/channels?feed={{ playlist.id }}" hx-target="#channel-list"
+                 hx-swap="outerHTML" hx-push-url="/channels?feed={{ playlist.id }}">{{ playlist.title }}</a>
+            {% else %}
+              <a class="muted" href="/channels/{{ channel.id }}">link a feed →</a>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# What has come of it #}
+        <div class="channel-group">
+          <span class="group-label">Videos</span>
+          <div class="group-body counts">
+            <a href="/videos?status=added&channel={{ channel.id }}">
+              <strong>{{ added_by_channel.get(channel.id, 0) }}</strong> placed</a>
+            <a href="/videos?status=pending&channel={{ channel.id }}">
+              <strong>{{ pending_by_channel.get(channel.id, 0) }}</strong> pending</a>
+          </div>
+        </div>
+      </div>
+
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  {% if feed %}
+  <p class="empty">No channels feed that playlist yet. Open that feed's channel list above to link one.</p>
+  {% else %}
+  <p class="empty">No channels yet. Add one above — that is the whole point.</p>
+  {% endif %}
+  {% endif %}
+</div>

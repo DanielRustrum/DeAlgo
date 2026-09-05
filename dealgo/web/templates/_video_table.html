@@ -1,0 +1,21 @@
+{# Refreshes itself when a sync lands, by re-fetching this page and keeping
+   only this fragment of the response. #}
+<div id="video-table"
+{% if not in_panel %}
+     hx-get="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}"
+     hx-select="#video-table" hx-swap="outerHTML"
+     hx-trigger="dealgo:sync-finished from:body"
+{% endif %}>
+{% if videos %}
+<div class="table-scroll">
+  <table class="table table-videos">
+    <thead><tr><th></th><th>Video</th><th>Published</th><th>Length</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for video in videos %}{% include "_video_row.html" %}{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">Nothing here yet.</p>
+{% endif %}
+</div>

@@ -1,0 +1,222 @@
+"""Marking videos as watched, and clearing them out of the playlist.
+
+YouTube exposes no watch history to applications — the ``watchHistory``
+playlist has returned nothing since 2016 — so "watched" is state De-Algo keeps
+on the user's say-so, either from the UI or the CLI.
+
+Removal never deletes the video's record. That record is what stops the next
+sync from noticing the upload again and putting it straight back.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
+from ..db import session_scope
+from ..models import Placement, Playlist, SyncRun, Video, utcnow
+from ..youtube.api import QUOTA_COST_DELETE, YouTubeAPIError
+from . import quota
+from .auth import build_client
+from .sync import Busy, http_client, playlist_lock
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class RemovalResult:
+    ok: bool = False
+    started: bool = True
+    removed: int = 0
+    missing: int = 0
+    failed: int = 0
+    stopped_on_quota: bool = False
+    messages: list[str] = field(default_factory=list)
+
+    @property
+    def message(self) -> str:
+        return " ".join(self.messages)
+
+
+def count_watched(session: Session) -> int:
+    return session.scalar(select(func.count(Video.id)).where(Video.watched_at.is_not(None))) or 0
+
+
+def count_removable(session: Session) -> int:
+    """Placements of watched videos that are still in a playlist.
+
+    Counted per placement, not per video: one watched video sitting in three
+    playlists is three deletions.
+    """
+    return (
+        session.scalar(
+            select(func.count(Placement.id))
+            .join(Video, Video.id == Placement.video_pk)
+            .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
+        )
+        or 0
+    )
+
+
+def mark_watched(session: Session, video_ids: list[int]) -> int:
+    videos = list(session.scalars(select(Video).where(Video.id.in_(video_ids))))
+    now = utcnow()
+    changed = 0
+    for video in videos:
+        if video.watched_at is None:
+            video.watched_at = now
+            changed += 1
+    return changed
+
+
+def mark_unwatched(session: Session, video_ids: list[int]) -> int:
+    videos = list(session.scalars(select(Video).where(Video.id.in_(video_ids))))
+    changed = 0
+    for video in videos:
+        if video.watched_at is not None:
+            video.watched_at = None
+            changed += 1
+    return changed
+
+
+def mark_all_in_playlist_watched(session: Session) -> int:
+    """Mark everything currently in the playlist as watched."""
+    videos = list(
+        session.scalars(
+            select(Video)
+            .join(Placement, Placement.video_pk == Video.id)
+            .where(Placement.playlist_item_id.is_not(None), Video.watched_at.is_(None))
+            .distinct()
+        )
+    )
+    now = utcnow()
+    for video in videos:
+        video.watched_at = now
+    return len(videos)
+
+
+def remove_watched(trigger: str = "manual") -> RemovalResult:
+    """Delete every watched video from the playlist. Runs only when asked."""
+    try:
+        with playlist_lock():
+            with http_client() as http, session_scope() as session:
+                return _remove(session, http, trigger)
+    except Busy:
+        return RemovalResult(
+            ok=True, started=False, messages=["Another playlist operation is already running."]
+        )
+    except Exception as exc:  # pragma: no cover - last-resort guard
+        log.exception("removing watched videos failed")
+        return RemovalResult(ok=False, messages=[f"Removal failed: {exc}"])
+
+
+def _remove(session: Session, http, trigger: str) -> RemovalResult:
+    result = RemovalResult()
+    client = build_client(session, http)
+
+    if not session.scalar(select(func.count(Playlist.id)).where(Playlist.enabled.is_(True))):
+        result.messages.append("No feeds are set up.")
+        return result
+    if not client.has_write_access and session.scalar(
+        select(func.count(Playlist.id)).where(
+            Playlist.enabled.is_(True), Playlist.playlist_id.not_like("generic:%")
+        )
+    ):
+        # Only the YouTube feeds need one; a local-only setup carries on.
+        if not session.scalar(
+            select(func.count(Playlist.id)).where(
+                Playlist.enabled.is_(True), Playlist.playlist_id.like("generic:%")
+            )
+        ):
+            result.messages.append("No Google account is connected.")
+            return result
+
+    candidates = list(
+        session.scalars(
+            select(Placement)
+            .options(selectinload(Placement.video), selectinload(Placement.playlist))
+            .join(Video, Video.id == Placement.video_pk)
+            .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
+            .order_by(Video.watched_at.asc(), Placement.id.asc())
+        )
+    )
+    if not candidates:
+        result.ok = True
+        result.messages.append("No watched videos are in a playlist.")
+        return result
+
+    run = SyncRun(trigger=trigger, started_at=utcnow())
+    session.add(run)
+    session.commit()
+
+    for placement in candidates:
+        title = placement.video.title
+
+        if placement.playlist.is_generic:
+            # Nothing to delete anywhere: forgetting the row is the removal.
+            _clear(placement, "removed after watching")
+            result.removed += 1
+            session.flush()
+            continue
+
+        # Removal is charged the same 50 units as an insert; a manual removal
+        # may dip into the reserve, which is what the reserve is for.
+        if not quota.can_afford(session, QUOTA_COST_DELETE, use_reserve=True):
+            result.stopped_on_quota = True
+            result.messages.append(
+                f"Quota ran out; the rest can be removed after the reset {quota.describe_reset()}."
+            )
+            break
+        try:
+            client.delete_playlist_item(placement.playlist_item_id)
+        except YouTubeAPIError as exc:
+            if exc.status == 404 or exc.reason == "playlistItemNotFound":
+                # Already gone from YouTube's side; just reconcile our record.
+                _clear(placement, "watched — already gone from the playlist")
+                result.missing += 1
+                session.flush()
+                continue
+            if exc.is_quota_error:
+                quota.mark_exhausted(session)
+                result.stopped_on_quota = True
+                result.messages.append(
+                    f"YouTube says the daily quota is gone; the rest can be removed after the reset "
+                    f"{quota.describe_reset()}."
+                )
+                log.warning("quota exhausted while removing watched videos")
+                break
+            result.failed += 1
+            result.messages.append(f"Could not remove {title!r} from {placement.playlist.title!r}: {exc}")
+            log.warning("could not remove playlist item for %s: %s", placement.video.video_id, exc)
+            continue
+
+        _clear(placement, "removed from the playlist after watching")
+        result.removed += 1
+        session.flush()
+
+    result.ok = result.failed == 0
+    total = result.removed + result.missing
+    summary = f"Removed {total} watched video{'s' if total != 1 else ''} from playlists."
+    if result.failed:
+        summary += f" {result.failed} could not be removed."
+    result.messages.insert(0, summary)
+
+    run.finished_at = utcnow()
+    run.ok = result.ok
+    run.removed = total
+    run.failed = result.failed
+    run.stopped_on_quota = result.stopped_on_quota
+    run.message = result.message
+    session.commit()
+
+    log.info("removed %d watched placements (%s)", total, trigger)
+    return result
+
+
+def _clear(placement: Placement, reason: str) -> None:
+    placement.playlist_item_id = None
+    placement.removed_at = utcnow()
+    placement.removal_reason = reason

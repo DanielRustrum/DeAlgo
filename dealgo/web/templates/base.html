@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}De-Algo{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
+  <script src="/static/htmx.min.js?v={{ asset_version }}" defer></script>
+  <script src="/static/dialog.js?v={{ asset_version }}" defer></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+</head>
+{# hx-boost turns ordinary links and forms into partial page swaps, so the
+   whole app navigates without full reloads and still works with no JS. #}
+<body hx-boost="true" hx-indicator="#progress">
+<div id="progress" class="progress"></div>
+
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark">▶</span>
+    <span class="brand-name">De-Algo</span>
+  </a>
+  <nav>
+    <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
+    <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
+    <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Channels</a>
+    <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Videos</a>
+    <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
+  </nav>
+  {% include "_sync_controls.html" %}
+</header>
+
+<main>
+  {% include "_flash.html" %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  <span>De-Algo {{ version }}</span>
+  <span>Your feed, in the order it was published.</span>
+</footer>
+</body>
+</html>

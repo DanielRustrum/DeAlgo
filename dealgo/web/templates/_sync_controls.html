@@ -1,0 +1,22 @@
+{# Polls slowly while idle, quickly while a sync is in flight, and fires
+   dealgo:sync-finished at the page when a run lands. #}
+<div id="sync-controls" class="topbar-action"
+     hx-get="/partials/sync-status?seen={{ last_run_id or 0 }}"
+     hx-trigger="every {{ 2 if sync_running else 15 }}s"
+     hx-swap="outerHTML"
+     hx-indicator="#sync-controls">
+  <form method="post" action="/sync" hx-post="/sync" hx-target="#sync-controls" hx-swap="outerHTML">
+    <button type="submit" class="btn btn-primary" {{ 'disabled' if sync_running }}>
+      {% if sync_running %}<span class="spinner"></span>Syncing…{% else %}Sync now{% endif %}
+    </button>
+  </form>
+  {# Separate form rather than a second submit button, so the value is sent
+     whether or not JavaScript is doing the posting. #}
+  <form method="post" action="/sync" hx-post="/sync" hx-target="#sync-controls" hx-swap="outerHTML">
+    <input type="hidden" name="force" value="1">
+    <button type="submit" class="btn btn-quiet" {{ 'disabled' if sync_running }}
+            title="Poll every channel now, ignoring each channel's minimum gap">
+      Force
+    </button>
+  </form>
+</div>

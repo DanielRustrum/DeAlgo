@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Settings{% endblock %}
+{% block content %}
+
+<section class="panel">
+  <h2>Google account</h2>
+  {% if state.connected and state.needs_reconnect %}
+    <p class="error-note">
+      Google will no longer refresh this sign-in: {{ state.reconnect_reason }}
+    </p>
+    <p class="hint">
+      While the OAuth consent screen is in <strong>Testing</strong>, Google expires refresh tokens
+      after seven days. Publishing the consent screen stops that; until then, reconnect here.
+    </p>
+    <p><a class="btn btn-primary" href="/oauth/start" hx-boost="false">Reconnect YouTube account</a></p>
+    <form method="post" action="/oauth/disconnect"
+          hx-confirm="Disconnect the Google account? De-Algo keeps its history but stops updating the playlist.">
+      <button class="btn btn-danger" type="submit">Disconnect</button>
+    </form>
+  {% elif state.connected %}
+    <p class="connected">Connected{% if state.account %} as <strong>{{ state.account }}</strong>{% endif %}.</p>
+    <form method="post" action="/oauth/disconnect"
+          hx-confirm="Disconnect the Google account? De-Algo keeps its history but stops updating the playlist.">
+      <button class="btn btn-danger" type="submit">Disconnect</button>
+    </form>
+  {% elif state.has_client %}
+    <p>De-Algo needs your permission to edit playlists on your behalf.</p>
+    {# hx-boost must not touch this: the response redirects to accounts.google.com,
+       and an XHR cannot follow a cross-origin redirect. #}
+    <a class="btn btn-primary" href="/oauth/start" hx-boost="false">Connect YouTube account</a>
+    <p class="hint">
+      Google compares this against the client's authorized redirect URIs, character for character —
+      if it answers <code>redirect_uri_mismatch</code>, this exact line is what must be registered:
+    </p>
+    <div class="copy-row">
+      <code id="redirect-uri">{{ redirect_uri }}</code>
+      <button class="btn btn-quiet" type="button"
+              onclick="navigator.clipboard.writeText(document.getElementById('redirect-uri').textContent.trim()).then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">
+        Copy
+      </button>
+    </div>
+  {% else %}
+    <p class="muted">Add an OAuth client id and secret below, then come back to connect.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Syncing</h2>
+  <form method="post" action="/settings" class="stack-form">
+    <div class="field-row checks">
+      <label class="check check-with-hint">
+        <input type="checkbox" name="auto_sync" {{ 'checked' if settings.auto_sync }}>
+        <span class="check-body">
+          <span>Poll channels automatically</label>
+    </div>
+    <div class="field-row">
+      <label>
+        Every (minutes)
+        <input type="number" min="1" name="poll_interval_minutes" value="{{ settings.poll_interval_minutes }}">
+      </label>
+      <label>
+        Backfill on a new channel
+        <input type="number" min="0" name="initial_backfill" value="{{ settings.initial_backfill }}"></span>
+          <span class="hint">Recent uploads taken when a channel is first added.</span>
+        </span>
+      </label>
+      <label>
+        Shorts are ≤ (seconds)
+        <input type="number" min="0" name="shorts_max_seconds" value="{{ settings.shorts_max_seconds }}">
+      </label>
+    </div>
+
+    <h3>API quota</h3>
+    <p class="hint">
+      De-Algo counts what it spends and stops writing before YouTube refuses it, resuming after the
+      allowance resets at midnight Pacific — {{ quota_resets_in }} from now.
+      Today: <strong>{{ quota.used }}</strong> of {{ quota.budget }} units.
+    </p>
+    <div class="field-row">
+      <label>
+        Daily allowance (units)
+        <input type="number" min="0" name="daily_quota" value="{{ settings.daily_quota }}">
+        <span class="hint">10,000 unless Google granted you more.</span>
+      </label>
+      <label>
+        Hold back (units)
+        <input type="number" min="0" name="quota_reserve" value="{{ settings.quota_reserve }}">
+        <span class="hint">Kept aside from syncing so manual removals still work late in the day.</span>
+      </label>
+    </div>
+
+    <h3>Google API credentials</h3>
+    <p class="hint">
+      Create an OAuth client (type “Web application”) in the Google Cloud console with the YouTube Data API v3
+      enabled, and add <code>{{ redirect_uri }}</code> as an authorized redirect URI.
+      Values set here override the environment.
+    </p>
+    <div class="field-row">
+      <label>
+        Client id
+        <input type="text" name="client_id" value="{{ settings.client_id or '' }}"
+               placeholder="{{ 'set from environment' if env_client_id else '…apps.googleusercontent.com' }}">
+      </label>
+      <label>
+        Client secret
+        <input type="password" name="client_secret" value="{{ settings.client_secret or '' }}"
+               placeholder="{{ 'set from environment' if env_client_secret else 'GOCSPX-…' }}">
+      </label>
+      <label>
+        API key (optional)
+        <input type="text" name="api_key" value="{{ settings.api_key or '' }}"
+               placeholder="{{ 'set from environment' if env_api_key else 'read-only lookups' }}">
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Save settings</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Backup</h2>
+  <p class="hint">
+    The whole setup as one JSON file: feeds, channels, filters, limits and fill order. Keep it
+    somewhere safe, or carry it to another machine.
+  </p>
+  {# hx-boost must not touch this: a boosted request fetches the file as AJAX
+     and swaps it into the page instead of saving it. #}
+  <form method="get" action="/settings/backup" hx-boost="false">
+    <button class="btn btn-primary" type="submit">Download backup</button>
+  </form>
+
+  <h3>Restore</h3>
+  <p class="hint">
+    Loads a backup back in. Feeds and channels are matched by their YouTube ids, so anything the
+    file names is created or brought up to date — nothing is deleted.
+  </p>
+  {# A file upload needs a real form post, not a boosted fetch. #}
+  <form class="inline-form" method="post" action="/settings/restore"
+        enctype="multipart/form-data" hx-boost="false"
+        onsubmit="return confirm('Load this backup? Feeds, channels and settings it names will be overwritten with the file\'s values.');">
+    <input type="file" name="backup_file" accept="application/json,.json" required>
+    <button class="btn" type="submit">Load backup</button>
+  </form>
+
+  <p class="hint">
+    No credentials are in the file — not the YouTube sign-in, not the Google client id and secret.
+    A backup sits in a Downloads folder for years, and both are re-entered in a minute. On a new
+    machine: restore the file, paste the client id and secret below, then press
+    <strong>Connect YouTube account</strong>.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>How De-Algo spends quota</h2>
+  <p class="hint">
+    Channel polling uses YouTube's public Atom feed and costs nothing, so a short interval is fine.
+    Only playlist writes are expensive: each added video costs 50 of the default 10,000 daily units,
+    which works out to about 200 videos a day.
+  </p>
+</section>
+{% endblock %}

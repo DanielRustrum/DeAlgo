@@ -1,0 +1,70 @@
+# De-Algo as a Portainer stack.
+#
+# Portainer deploys a prebuilt image rather than a build context, so this file
+# has no `build:` and nothing that needs a local checkout. Paste it into
+# Stacks → Add stack → Web editor (or point Portainer at this repository), set
+# the environment variables below in Portainer's own env section, and deploy.
+#
+# Everything here is plain Compose, so `docker compose -f stack.yml up -d`
+# works too.
+
+services:
+  dealgo:
+    image: ${DEALGO_IMAGE:-repo.home.app/rusty/dealgo:latest}
+    restart: unless-stopped
+
+    ports:
+      # Drop this whole block if a reverse proxy on a shared network fronts it.
+      - "${DEALGO_BIND:-0.0.0.0:8080}:8080"
+
+    environment:
+      # Must be the URL people actually open, and <this>/oauth/callback must be
+      # an authorized redirect URI on the Google OAuth client.
+      DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
+      DEALGO_CLIENT_ID: ${DEALGO_CLIENT_ID:-}
+      DEALGO_CLIENT_SECRET: ${DEALGO_CLIENT_SECRET:-}
+      DEALGO_API_KEY: ${DEALGO_API_KEY:-}
+      DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
+      TZ: ${TZ:-UTC}
+
+    volumes:
+      # Keep this on local disk. It is a SQLite database, and NFS/CIFS locking
+      # will corrupt it.
+      - dealgo-data:/data
+
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,urllib.request; sys.exit(0 if urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('DEALGO_PORT','8080')}/healthz\", timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    deploy:
+      # Never scale past one: a single SQLite file and an in-process scheduler.
+      replicas: 1
+      update_config:
+        order: stop-first
+      resources:
+        limits:
+          memory: ${DEALGO_MEMORY_LIMIT:-512M}
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    labels:
+      # Let Watchtower (or Portainer's own image polling) pick up new builds.
+      com.centurylinklabs.watchtower.enable: "true"
+
+volumes:
+  dealgo-data:

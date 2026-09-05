@@ -1,0 +1,60 @@
+{% set back = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+<tr id="video-{{ video.id }}" class="{{ 'row-watched' if video.watched }}">
+  <td class="thumb">{% if video.thumbnail_url %}<img src="{{ video.thumbnail_url }}" alt="" loading="lazy">{% endif %}</td>
+  <td>
+    <a href="{{ video.url }}" target="_blank" rel="noopener">{{ video.title or video.video_id }}</a>
+    <div class="meta">
+      <a href="/channels/{{ video.channel_pk }}">{{ video.channel.title }}</a>
+      {% if video.reason %}· {{ video.reason }}{% endif %}
+    </div>
+    {% if video.placements %}
+    <div class="meta placements">
+      {% for placement in video.placements %}
+        <span class="pill {{ 'pill-target' if placement.playlist_item_id else 'pill-gone' }}"
+              title="{{ placement.removal_reason or placement.error or 'in this playlist' }}">
+          {{ placement.playlist.title }}{% if not placement.playlist_item_id %} ✕{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </td>
+  <td title="{{ video.published_at | stamp }}">{{ video.published_at | ago }}</td>
+  <td>{{ video.duration_sec | duration }}</td>
+  <td>
+    <span class="pill pill-{{ video.status }}">{{ video.status }}</span>
+    {% if video.watched %}
+      <span class="pill pill-watched" title="Marked watched {{ video.watched_at | stamp }}">watched</span>
+    {% elif video.in_playlist %}
+      <span class="pill pill-inlist">in playlist</span>
+    {% endif %}
+  </td>
+  <td class="actions">
+    {% if video.watched %}
+    <form method="post" action="/videos/{{ video.id }}/unwatched" hx-post="/videos/{{ video.id }}/unwatched"
+          hx-target="#video-{{ video.id }}" hx-swap="outerHTML">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="btn btn-quiet" type="submit">Unwatch</button>
+    </form>
+    {% elif video.status == 'added' %}
+    <form method="post" action="/videos/{{ video.id }}/watched" hx-post="/videos/{{ video.id }}/watched"
+          hx-target="#video-{{ video.id }}" hx-swap="outerHTML">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="btn btn-quiet" type="submit">Watched</button>
+    </form>
+    {% endif %}
+    {% if video.status != 'added' %}
+    <form method="post" action="/videos/{{ video.id }}/requeue" hx-post="/videos/{{ video.id }}/requeue"
+          hx-target="#video-{{ video.id }}" hx-swap="outerHTML">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="btn btn-quiet" type="submit">Queue</button>
+    </form>
+    {% endif %}
+    {% if video.status in ('pending', 'failed') %}
+    <form method="post" action="/videos/{{ video.id }}/ignore" hx-post="/videos/{{ video.id }}/ignore"
+          hx-target="#video-{{ video.id }}" hx-swap="outerHTML">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="btn btn-quiet" type="submit">Ignore</button>
+    </form>
+    {% endif %}
+  </td>
+</tr>

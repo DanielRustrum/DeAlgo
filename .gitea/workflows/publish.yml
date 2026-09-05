@@ -1,0 +1,86 @@
+# Build and publish the De-Algo image on every push.
+#
+# Written for Gitea/Forgejo Actions, which reads GitHub Actions syntax — copy
+# this to .github/workflows/ unchanged if the repository ever moves.
+#
+# Pushes to the registry built into the Gitea instance, so nothing external is
+# needed. Portainer then pulls repo.home.app/<owner>/dealgo:latest.
+
+name: publish image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  # The registry built into this Gitea instance. Change to ghcr.io if the
+  # repository ever moves to GitHub.
+  REGISTRY: repo.home.app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Test
+        run: python -m pytest -q
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Work out the image name
+        id: image
+        # Registries reject uppercase, and the repository is "Rusty/Dealgo".
+        run: echo "name=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          # Gitea provides this automatically; on GitHub it is GITHUB_TOKEN.
+          password: ${{ secrets.REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Work out the tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Tell Portainer to redeploy
+        # Optional: set PORTAINER_WEBHOOK to the stack's webhook URL and every
+        # push redeploys it with the new image.
+        if: ${{ secrets.PORTAINER_WEBHOOK != '' }}
+        run: curl -fsSL -X POST "${{ secrets.PORTAINER_WEBHOOK }}"

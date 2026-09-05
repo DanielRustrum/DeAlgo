@@ -1,0 +1,12 @@
+{# Shows a description when the control is hovered or focused.
+
+   There is no icon: the hover target is the control itself. Keyboard and touch
+   still reach it because each of these wraps a focusable input, so :focus-within
+   fires when you tab or tap to it. `tip_id` is what the caller points its input
+   at with aria-describedby, so the text is announced rather than only seen. #}
+{% macro explained(description, tip_id) -%}
+<span class="info">
+  {{ caller() }}
+  <span class="info-bubble" role="tooltip" id="{{ tip_id }}">{{ description }}</span>
+</span>
+{%- endmacro %}

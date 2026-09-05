@@ -1,0 +1,61 @@
+name: dealgo
+
+services:
+  dealgo:
+    build: .
+    # Tag a registry image here to deploy without a build context:
+    #   DEALGO_IMAGE=registry.example.com/dealgo:0.1.0
+    image: ${DEALGO_IMAGE:-dealgo:latest}
+    restart: unless-stopped
+
+    # Set DEALGO_BIND=127.0.0.1:8080 to keep it off the network and let a
+    # reverse proxy on the same host reach it, or use compose.cluster.yml to
+    # drop the published port entirely and go through a shared proxy network.
+    ports:
+      - "${DEALGO_BIND:-0.0.0.0:8080}:8080"
+
+    environment:
+      # The URL people reach De-Algo at. The OAuth redirect URI is this plus
+      # /oauth/callback and must match the Google client exactly, so behind a
+      # proxy this is the public https URL, not the container's own address.
+      DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
+      DEALGO_CLIENT_ID: ${DEALGO_CLIENT_ID:-}
+      DEALGO_CLIENT_SECRET: ${DEALGO_CLIENT_SECRET:-}
+      DEALGO_API_KEY: ${DEALGO_API_KEY:-}
+      DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
+      TZ: ${TZ:-UTC}
+
+    volumes:
+      # Everything De-Algo remembers lives here. Keep it on local disk: this is
+      # a SQLite database, and NFS/CIFS locking will corrupt it.
+      - ${DEALGO_DATA:-dealgo-data}:/data
+
+    # The app writes only to /data, so the rest of the filesystem is read-only.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    deploy:
+      # Never scale this past one. A single SQLite file and an in-process
+      # scheduler mean a second replica would double-post and fight for locks.
+      replicas: 1
+      update_config:
+        # Stop the old task before starting the new one, so two of them never
+        # hold the same database at once.
+        order: stop-first
+      resources:
+        limits:
+          memory: ${DEALGO_MEMORY_LIMIT:-512M}
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  dealgo-data:

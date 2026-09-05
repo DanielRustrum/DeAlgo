@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Theater{% endblock %}
+{% block content %}
+
+<p class="crumbs">
+  <a href="/feed?order={{ order }}&show=unwatched&playlist={{ playlist }}">← Feed</a>
+  {% if playlist_title %} · {{ playlist_title }}{% endif %}
+</p>
+
+{% if queue %}
+<section class="theater" id="theater"
+         data-order="{{ order }}" data-playlist="{{ playlist }}">
+  <script type="application/json" id="theater-queue">{{ queue_json | safe }}</script>
+
+  <div class="theater-stage">
+    {# The player is our own iframe rather than one the IFrame API builds: left
+       to itself it sets allow="…; picture-in-picture; web-share", putting the
+       browser's pop-out button back over the fullscreen control. The API
+       attaches to an existing iframe when it finds one, and allowfullscreen
+       here is what keeps fullscreen working.
+
+       theater.js fills in src, so the origin matches whatever host you browsed
+       to rather than whatever DEALGO_PUBLIC_URL happens to say. #}
+    <iframe id="theater-player"
+            data-src="https://www.youtube-nocookie.com/embed/{{ queue[0].video_id }}?enablejsapi=1&amp;autoplay=1&amp;rel=0"
+            title="{{ queue[0].title }}"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allowfullscreen></iframe>
+    <noscript>
+      <p class="empty">Theater mode needs JavaScript. <a href="/feed">Use the feed instead.</a></p>
+    </noscript>
+  </div>
+
+  <div class="theater-bar">
+    <div class="theater-now">
+      <h2 id="theater-title">{{ queue[0].title }}</h2>
+      <div class="meta">
+        <span id="theater-channel">{{ queue[0].channel }}</span>
+        · <span id="theater-remaining">{{ queue | length }}</span> to watch
+        <span id="theater-status" class="theater-status"></span>
+      </div>
+    </div>
+    <div class="theater-actions">
+      <button class="btn btn-quiet" type="button" id="theater-skip"
+              title="Leave it unwatched and move on">Skip</button>
+      <button class="btn btn-primary" type="button" id="theater-next"
+              title="Mark watched and play the next one">Watched · next ▶</button>
+    </div>
+  </div>
+
+  <div class="panel theater-queue">
+    <h2>Up next <span class="count" id="theater-count">{{ queue | length - 1 }}</span></h2>
+    <ol class="queue-list" id="theater-list">
+      {% for item in queue[1:] %}
+      <li data-video="{{ item.id }}">
+        <span class="queue-title">{{ item.title }}</span>
+        <span class="meta">{{ item.channel }}{% if item.playlist %} · {{ item.playlist }}{% endif %}
+          {%- if item.duration != '—' %} · {{ item.duration }}{% endif %}</span>
+      </li>
+      {% else %}
+      <li class="empty">Nothing after this one.</li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<script src="/static/theater.js?v={{ asset_version }}" defer></script>
+<script src="https://www.youtube.com/iframe_api" defer></script>
+{% else %}
+<section class="panel">
+  <p class="empty">
+    Nothing unwatched to play{% if playlist_title %} in {{ playlist_title }}{% endif %}.
+    <a href="/feed">Back to the feed</a>.
+  </p>
+</section>
+{% endif %}
+{% endblock %}
