@@ -1,0 +1,21 @@
+{# Shown wherever feeds are: De-Algo works without Google, but the YouTube
+   playlists behind these feeds are not being touched, and it should never be
+   a surprise which state you are in. #}
+{% set offline = youtube_offline() %}
+{% if offline %}
+<div class="banner banner-offline">
+  <strong>
+    {% if offline.stale %}
+      The Google account needs reconnecting.
+    {% else %}
+      No Google account is connected.
+    {% endif %}
+  </strong>
+  {{ offline.feeds }} {{ 'feed points' if offline.feeds == 1 else 'feeds point' }} at a YouTube playlist.
+  Until an account is connected they behave like generic feeds:
+  new videos collect inside De-Algo and are watchable here, but nothing is added to,
+  or removed from, YouTube. Whatever collects meanwhile is added to the playlists on the
+  first sync after you connect.
+  <a href="/settings">Settings →</a>
+</div>
+{% endif %}

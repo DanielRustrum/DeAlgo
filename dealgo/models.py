@@ -61,6 +61,8 @@ class Settings(Base):
     daily_quota: Mapped[int] = mapped_column(Integer, default=10000)
     # Units held back from syncing, so manual actions still work late in the day.
     quota_reserve: Mapped[int] = mapped_column(Integer, default=0)
+    # Opt-*out*, so an unticked checkbox means "show it" rather than hiding it.
+    hide_tour: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Optional overrides for the env-supplied Google credentials.
     client_id: Mapped[Optional[str]] = mapped_column(String(255))
@@ -109,6 +111,13 @@ channel_playlist = Table(
 # alter that in place.
 GENERIC_PLAYLIST_PREFIX = "generic:"
 
+# Stand-ins for a YouTube playlistItem id. "generic-" marks a feed that lives
+# only in De-Algo; "offline-" marks a video held in a YouTube-linked feed while
+# no account is connected — same effect for reading the feed, but a later run
+# with an account turns it into a real playlist item.
+GENERIC_ITEM_PREFIX = "generic-"
+OFFLINE_ITEM_PREFIX = "offline-"
+
 
 class Playlist(Base):
     """A feed De-Algo keeps filled — a YouTube playlist, or just a local list."""
@@ -127,6 +136,18 @@ class Playlist(Base):
     # Most videos this playlist may take in one sync run. 0 is unlimited.
     max_per_run: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Free-form labels, stored comma-separated. Searchable on the Feed page.
+    tags: Mapped[Optional[str]] = mapped_column(Text)
+
+    # How this feed is shown on the watch page. server_default as well as
+    # default, so a raw INSERT that omits them still works.
+    view_order: Mapped[str] = mapped_column(
+        String(8), default="oldest", server_default="oldest"
+    )
+    view_show: Mapped[str] = mapped_column(
+        String(10), default="unwatched", server_default="unwatched"
+    )
+
     added_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     last_error: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -136,6 +157,15 @@ class Playlist(Base):
     placements: Mapped[list["Placement"]] = relationship(
         back_populates="playlist", cascade="all, delete-orphan"
     )
+
+    @property
+    def tag_list(self) -> list[str]:
+        return [tag.strip() for tag in (self.tags or "").split(",") if tag.strip()]
+
+    @property
+    def searchable(self) -> str:
+        """Title and tags together, for matching either."""
+        return f"{self.title} {self.tags or ''}".lower()
 
     @property
     def is_generic(self) -> bool:
@@ -157,12 +187,19 @@ class Channel(Base):
     title: Mapped[str] = mapped_column(String(255), default="")
     handle: Mapped[Optional[str]] = mapped_column(String(255))
     thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
+    # The channel's "about" text, as YouTube has it. NULL means nobody has
+    # looked yet; an empty string means we looked and the channel has none,
+    # which stops a sync asking again every run.
+    description: Mapped[Optional[str]] = mapped_column(Text)
 
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # Insert order when quota is short: lower goes first.
     priority: Mapped[int] = mapped_column(Integer, default=0, index=True)
     # Shortest gap between feed checks, in minutes. 0 means every sync.
     min_pull_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    # How much history to take on the first check: None uses the global count,
+    # 0 takes nothing, and a number is how many days back to reach.
+    backfill_days: Mapped[Optional[int]] = mapped_column(Integer)
     added_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     last_checked_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     last_error: Mapped[Optional[str]] = mapped_column(Text)
@@ -303,6 +340,19 @@ class Placement(Base):
 
     video: Mapped[Video] = relationship(back_populates="placements")
     playlist: Mapped[Playlist] = relationship(back_populates="placements")
+
+    @property
+    def is_local(self) -> bool:
+        """True when nothing on YouTube backs this row, so removing it is
+        purely a local matter and costs no quota."""
+        item = self.playlist_item_id or ""
+        return item.startswith((GENERIC_ITEM_PREFIX, OFFLINE_ITEM_PREFIX))
+
+    @property
+    def is_offline(self) -> bool:
+        """Placed while signed out. It reads as filled, and is still owed to
+        the YouTube playlist once an account is connected."""
+        return (self.playlist_item_id or "").startswith(OFFLINE_ITEM_PREFIX)
 
 
 class QuotaUsage(Base):

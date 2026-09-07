@@ -88,27 +88,72 @@ def test_it_works_with_no_google_account_at_all(world, db, monkeypatch):
     assert signed_out.inserted == []
 
 
-def test_a_youtube_feed_still_waits_for_a_sign_in(world, db, monkeypatch):
-    """Generic feeds fill; the YouTube ones are held back, not failed."""
+def test_without_an_account_every_feed_fills_locally(world, db, monkeypatch):
+    """Google is optional. Signed out, a YouTube feed collects inside De-Algo
+    exactly as a generic one does, so the feed is still readable."""
     from fakes import FakeYouTube
 
     signed_out = FakeYouTube(write=False, read=False)
     monkeypatch.setattr(
         sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
     )
-    generic = make_generic(db)  # the channel now feeds both
+    make_generic(db)  # the channel now feeds both
     uploads(world, count=1)
 
     result = sync_service.run_sync()
 
-    assert result.added == 1  # the generic one only
+    assert result.added == 2  # both feeds, not just the generic one
+    assert signed_out.inserted == []
     with db.session_scope() as session:
-        owed = session.scalar(
-            select(Placement).where(Placement.playlist_item_id.is_(None))
-        )
-        assert owed is not None and owed.playlist_pk != generic
-        assert owed.attempts == 0  # waiting on an account, not failing
+        placements = list(session.scalars(select(Placement)))
+        assert all(p.playlist_item_id is not None for p in placements)
+        # One is local for good, the other only until an account turns up.
+        assert sorted(p.is_offline for p in placements) == [False, True]
         assert session.scalar(select(Video)).status == "added"
+
+
+def test_connecting_an_account_hands_the_backlog_to_youtube(world, db, monkeypatch):
+    """What was collected signed out is still owed to the playlist: the run
+    after a sign-in inserts it for real and keeps the item id YouTube gives."""
+    from fakes import FakeYouTube
+
+    signed_out = FakeYouTube(write=False, read=False)
+    monkeypatch.setattr(
+        sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
+    )
+    uploads(world, count=1)
+    sync_service.run_sync()
+
+    with db.session_scope() as session:
+        assert session.scalar(select(Placement)).is_offline
+
+    # An account is connected: back to the signed-in client.
+    monkeypatch.setattr(
+        sync_service,
+        "build_client",
+        lambda session, http: world["client"].bind_meter(quota.meter(session)),
+    )
+    sync_service.run_sync()
+
+    assert world["client"].contents() == ["v0"]
+    with db.session_scope() as session:
+        placement = session.scalar(select(Placement))
+        assert not placement.is_offline
+        assert placement.playlist_item_id.startswith("item-")  # YouTube's own id
+
+
+def test_a_signed_out_run_says_what_it_did_with_the_youtube_feeds(world, db, monkeypatch):
+    from fakes import FakeYouTube
+
+    signed_out = FakeYouTube(write=False, read=False)
+    monkeypatch.setattr(
+        sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
+    )
+    uploads(world, count=1)
+
+    result = sync_service.run_sync()
+
+    assert "collecting inside De-Algo" in result.message
 
 
 def test_a_generic_feed_prunes_itself(world, db):
@@ -168,3 +213,76 @@ def test_it_shows_up_on_the_feed_page_like_any_other(world, db):
         )
         assert placement.playlist_item_id is not None
         assert placement.playlist_item_id.startswith("generic-")
+
+
+def test_unlinking_keeps_the_feed_and_leaves_youtube_alone(world, db):
+    """A middle ground between keeping a feed and deleting it."""
+    uploads(world, count=1)
+    sync_service.run_sync()
+    assert world["client"].contents(MAIN_PLAYLIST) == ["v0"]
+
+    with db.session_scope() as session:
+        feed = session.scalar(select(Playlist).where(Playlist.playlist_id == MAIN_PLAYLIST))
+        feed.max_items = 20
+        was = playlist_service.unlink(session, feed)
+
+        assert was == MAIN_PLAYLIST
+        assert feed.is_generic
+        assert feed.title == "My Feed"          # the feed itself survives
+        assert feed.max_items == 20             # limits and
+        assert [c.title for c in feed.channels] == ["Fake Channel"]  # channels too
+
+    # Nothing was asked of YouTube: the video is still in the real playlist.
+    assert world["client"].deleted == []
+    assert world["client"].contents(MAIN_PLAYLIST) == ["v0"]
+
+
+def test_an_unlinked_feed_keeps_its_videos_but_drops_stale_item_ids(world, db):
+    uploads(world, count=1)
+    sync_service.run_sync()
+
+    with db.session_scope() as session:
+        playlist_service.unlink(session, session.scalar(select(Playlist)))
+
+    with db.session_scope() as session:
+        placement = session.scalar(select(Placement))
+        # Still in the feed, so it still shows on the Feed page…
+        assert placement.playlist_item_id is not None
+        # …but no longer pretending to reference a YouTube item.
+        assert placement.playlist_item_id.startswith("generic-")
+
+
+def test_an_unlinked_feed_is_filled_without_youtube_afterwards(world, db):
+    uploads(world, count=1)
+    sync_service.run_sync()
+    with db.session_scope() as session:
+        playlist_service.unlink(session, session.scalar(select(Playlist)))
+
+    world["client"].inserted.clear()
+    world["entries"] = [entry("v_new", 0)] + world["entries"]
+    world["client"].details["v_new"] = VideoDetails("v_new", "New", 600, "none", "public")
+    result = sync_service.run_sync()
+
+    assert result.added == 1
+    assert world["client"].inserted == []  # nothing written to YouTube
+
+
+def test_a_generic_feed_has_nothing_to_unlink(db):
+    with db.session_scope() as session:
+        feed = playlist_service.create_generic(session, "Kept here")
+        with pytest.raises(playlist_service.PlaylistError) as caught:
+            playlist_service.unlink(session, feed)
+    assert "no YouTube playlist" in str(caught.value)
+
+
+def test_renaming_a_generic_feed_touches_nothing_outside(world, db):
+    import httpx
+
+    with db.session_scope() as session:
+        feed = playlist_service.create_generic(session, "Old name")
+        with httpx.Client() as http:
+            on_youtube = playlist_service.rename(session, feed, "New name", http)
+
+        assert on_youtube is False  # nothing to update
+        assert feed.title == "New name"
+    assert world["client"].inserted == [] and world["client"].deleted == []

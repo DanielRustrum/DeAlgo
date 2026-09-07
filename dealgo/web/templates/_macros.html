@@ -10,3 +10,26 @@
   <span class="info-bubble" role="tooltip" id="{{ tip_id }}">{{ description }}</span>
 </span>
 {%- endmacro %}
+
+{# A search box that narrows a list on the server. Typing re-fetches after a
+   pause rather than on every keystroke. #}
+{% macro search(action, value, placeholder, target, hidden={}) -%}
+<form class="search" method="get" action="{{ action }}">
+  {% for name, field in hidden.items() %}
+    {% if field %}<input type="hidden" name="{{ name }}" value="{{ field }}">{% endif %}
+  {% endfor %}
+  {# The trigger belongs on the input: on the form it never sees the keystrokes,
+     so the list only updated when you pressed Enter. #}
+  <input type="search" name="q" value="{{ value or '' }}" placeholder="{{ placeholder }}"
+         aria-label="{{ placeholder }}" autocomplete="off"
+         hx-get="{{ action }}" hx-include="closest form"
+         hx-target="{{ target }}" hx-select="{{ target }}" hx-swap="outerHTML"
+         hx-push-url="true"
+         hx-trigger="input changed delay:250ms, search, keyup[key=='Enter']">
+  {% if value %}
+  <a class="search-clear" href="{{ action }}" title="Clear"
+     hx-get="{{ action }}" hx-target="{{ target }}" hx-select="{{ target }}"
+     hx-swap="outerHTML" hx-push-url="{{ action }}">✕</a>
+  {% endif %}
+</form>
+{%- endmacro %}

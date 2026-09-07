@@ -8,18 +8,29 @@ added twice.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 
 from ..db import get_settings, session_scope
-from ..models import Channel, Placement, Playlist, SyncRun, Video, to_naive_utc, utcnow
+from ..models import (
+    GENERIC_ITEM_PREFIX,
+    OFFLINE_ITEM_PREFIX,
+    Channel,
+    Placement,
+    Playlist,
+    SyncRun,
+    Video,
+    to_naive_utc,
+    utcnow,
+)
 from ..youtube import feeds
 from ..youtube.api import QUOTA_COST_DELETE, QUOTA_COST_INSERT, YouTubeAPIError, YouTubeClient
 from . import filters
@@ -126,8 +137,11 @@ def _run(session: Session, http: httpx.Client, trigger: str, *, force: bool = Fa
     if not playlists:
         result.messages.append("No feeds are set up — new videos are queued in Pending.")
     elif youtube_feeds and not client.has_write_access:
+        # Not an error: the app is usable without Google. The feeds still fill,
+        # they just fill inside De-Algo until an account is connected.
         result.messages.append(
-            "No Google account connected — videos for YouTube feeds are queued in Pending."
+            f"No Google account connected — {len(youtube_feeds)} YouTube feed(s) are collecting "
+            "inside De-Algo. Nothing is written to YouTube until you connect one."
         )
         _publish(session, client, settings, result)
         session.commit()
@@ -211,10 +225,21 @@ def _discover(
             )
         )
 
+        # A channel can ask for a window of history instead of a count. The
+        # feed only lists the newest ~15 uploads either way, so a long window
+        # reaches as far as that and no further.
+        cutoff = None
+        if first_check and channel.backfill_days is not None:
+            cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
+
         for index, entry in enumerate(feed.entries):
             if entry.video_id in known:
                 continue
-            beyond_backfill = first_check and index >= max(0, backfill)
+            if cutoff is not None:
+                published = to_naive_utc(entry.published_at)
+                beyond_backfill = published is None or published < cutoff
+            else:
+                beyond_backfill = first_check and index >= max(0, backfill)
             session.add(
                 Video(
                     video_id=entry.video_id,
@@ -240,17 +265,20 @@ def _discover(
 
 
 def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncResult) -> None:
-    """Fetch avatars and handles for channels added by bare id.
+    """Fetch avatars, handles and about text for channels added by bare id.
 
     The Atom feed gives a title and nothing else, so a channel added by its
     UC… id has no picture. Fifty of them cost one quota unit, and it only
-    happens once per channel.
+    happens once per channel. A NULL description also counts as missing, so
+    channels tracked before there was such a column get filled in too.
     """
     if not client.can_read:
         return
     missing = list(
         session.scalars(
-            select(Channel).where(Channel.thumbnail_url.is_(None)).order_by(Channel.id)
+            select(Channel)
+            .where(or_(Channel.thumbnail_url.is_(None), Channel.description.is_(None)))
+            .order_by(Channel.id)
         )
     )
     if not missing or not quota.can_afford(session, 1, use_reserve=True):
@@ -269,6 +297,9 @@ def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncR
             continue
         channel.thumbnail_url = info.thumbnail_url
         channel.handle = channel.handle or info.handle
+        # "" is a real answer here — the channel simply has no about text —
+        # so store it rather than leaving NULL and asking again next run.
+        channel.description = info.description or ""
         if info.title:
             channel.title = channel.title or info.title
     session.flush()
@@ -297,7 +328,11 @@ def _retry_deferred(
             .join(Channel, Channel.id == Video.channel_pk)
             .join(Playlist, Playlist.id == Placement.playlist_pk)
             .where(
-                Placement.playlist_item_id.is_(None),
+                or_(
+                    Placement.playlist_item_id.is_(None),
+                    # Filled locally while signed out: still owed to YouTube.
+                    Placement.playlist_item_id.startswith(OFFLINE_ITEM_PREFIX),
+                ),
                 Placement.removed_at.is_(None),
                 Placement.attempts < MAX_INSERT_ATTEMPTS,
                 Playlist.enabled.is_(True),
@@ -307,14 +342,15 @@ def _retry_deferred(
     )
 
     for index, placement in enumerate(open_placements):
+        already_local = placement.is_offline
         cap = placement.playlist.max_per_run or 0
         if cap and added_per_playlist.get(placement.playlist_pk, 0) >= cap:
             continue  # this playlist has had its fill for the run
-        if not placement.playlist.is_generic and not client.has_write_access:
-            continue  # waiting on a sign-in, not on anything it did wrong
 
-        if placement.playlist.is_generic:
-            placement.playlist_item_id = _generic_item_id(placement.video, placement.playlist)
+        if placement.playlist.is_generic or not client.has_write_access:
+            if already_local:
+                continue  # readable in De-Algo already; nothing more to do here
+            placement.playlist_item_id = _local_item_id(placement.video, placement.playlist)
             placement.error = None
             placement.added_at = utcnow()
             added_per_playlist[placement.playlist_pk] = (
@@ -466,15 +502,11 @@ def _publish(session: Session, client: YouTubeClient, settings, result: SyncResu
                 landed = landed or placed[playlist.id].playlist_item_id is not None
                 continue
 
-            if not playlist.is_generic and not client.has_write_access:
-                # Remember what it owes; a later run with an account fills it.
-                session.add(Placement(video_pk=video.id, playlist_pk=playlist.id))
-                deferred += 1
-                session.flush()
-                continue
-
-            if playlist.is_generic:
-                # No API call, no quota: the placement is the whole act.
+            local = playlist.is_generic or not client.has_write_access
+            if local:
+                # No API call, no quota: the placement is the whole act. With
+                # no account that goes for every feed, so the app keeps working
+                # and the videos are readable in De-Algo either way.
                 cap = playlist.max_per_run or 0
                 if cap and added_per_playlist.get(playlist.id, 0) >= cap:
                     session.add(Placement(video_pk=video.id, playlist_pk=playlist.id))
@@ -484,7 +516,7 @@ def _publish(session: Session, client: YouTubeClient, settings, result: SyncResu
                 placement = Placement(
                     video_pk=video.id,
                     playlist_pk=playlist.id,
-                    playlist_item_id=_generic_item_id(video, playlist),
+                    playlist_item_id=_local_item_id(video, playlist),
                     added_at=utcnow(),
                 )
                 session.add(placement)
@@ -610,9 +642,14 @@ def _defer(session: Session, video: Video, targets, placed: dict) -> int:
     return created
 
 
-def _generic_item_id(video: Video, playlist: Playlist) -> str:
-    """A stand-in for the YouTube item id, so a local placement reads as filled."""
-    return f"generic-{playlist.id}-{video.id}"
+def _local_item_id(video: Video, playlist: Playlist) -> str:
+    """A stand-in for the YouTube item id, so a local placement reads as filled.
+
+    A generic feed is local for good. A YouTube feed filled while signed out is
+    local for now, and says so, so a run with an account can finish the job.
+    """
+    prefix = GENERIC_ITEM_PREFIX if playlist.is_generic else OFFLINE_ITEM_PREFIX
+    return f"{prefix}{playlist.id}-{video.id}"
 
 
 def _prune_generic(session: Session, playlist: Playlist, limit: int, result: SyncResult) -> None:
@@ -654,10 +691,10 @@ def _prune(session: Session, client: YouTubeClient, playlists, result: SyncResul
         if limit <= 0:
             continue
 
-        if playlist.is_generic:
+        if playlist.is_generic or not client.has_write_access:
+            # Signed out, the only copy of the feed is the local one, so that
+            # is what the size cap applies to.
             _prune_generic(session, playlist, limit, result)
-            continue
-        if not client.has_write_access:
             continue
 
         try:

@@ -20,13 +20,13 @@
 {% elif not state.has_targets %}
 <div class="banner">
   <strong>Pick a target playlist.</strong> New videos are being queued but have nowhere to go yet.
-  <a href="/channels">Choose one on the Channels page →</a>
+  <a href="/channels">Set one up on the Configuration page →</a>
 </div>
 {% endif %}
 
 {% include "_stats.html" %}
 
-{% include "_feed_target.html" %}
+{% include "_dashboard_state.html" %}
 
 {% include "_activity.html" %}
 {% endblock %}

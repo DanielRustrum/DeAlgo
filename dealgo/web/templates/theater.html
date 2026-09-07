@@ -42,6 +42,11 @@
       </div>
     </div>
     <div class="theater-actions">
+      {# A real page load, not a boosted swap: the point is to rebuild the
+         player from scratch, and the YouTube API only initialises on load. #}
+      <a class="btn btn-quiet" id="theater-reload" hx-boost="false"
+         href="/watch?start={{ queue[0].id }}&order={{ order }}&playlist={{ playlist }}"
+         title="Rebuild the player on this video, keeping your place in the queue">Reload</a>
       <button class="btn btn-quiet" type="button" id="theater-skip"
               title="Leave it unwatched and move on">Skip</button>
       <button class="btn btn-primary" type="button" id="theater-next"

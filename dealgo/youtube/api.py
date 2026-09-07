@@ -29,6 +29,7 @@ QUOTA_COSTS: dict[tuple[str, str], int] = {
     ("GET", "playlistItems"): 1,
     ("GET", "search"): 100,
     ("POST", "playlists"): 50,
+    ("PUT", "playlists"): 50,
     ("POST", "playlistItems"): 50,
     ("DELETE", "playlistItems"): 50,
 }
@@ -67,6 +68,9 @@ class ChannelInfo:
     title: str
     handle: str | None
     thumbnail_url: str | None
+    # Optional so the free Atom-feed path, which carries no about text, can
+    # build one of these without pretending it knows the channel has none.
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -232,6 +236,7 @@ class YouTubeClient:
             title=snippet.get("title", ""),
             handle=snippet.get("customUrl"),
             thumbnail_url=thumb,
+            description=snippet.get("description") or "",
         )
 
     def get_channel(self, channel_id: str) -> ChannelInfo | None:
@@ -355,6 +360,28 @@ class YouTubeClient:
             title=payload.get("snippet", {}).get("title", title),
             item_count=0,
             privacy_status=payload.get("status", {}).get("privacyStatus"),
+        )
+
+    def rename_playlist(self, playlist_id: str, title: str) -> None:
+        """Retitle a playlist on YouTube.
+
+        The update must carry the description as well: YouTube clears any
+        mutable property a request omits, so renaming would otherwise wipe it.
+        """
+        payload = self._request("GET", "playlists", params={"part": "snippet", "id": playlist_id})
+        items = payload.get("items") or []
+        if not items:
+            raise YouTubeAPIError("that playlist no longer exists", status=404)
+        snippet = items[0].get("snippet", {})
+
+        self._request(
+            "PUT",
+            "playlists",
+            params={"part": "snippet"},
+            json={
+                "id": playlist_id,
+                "snippet": {"title": title, "description": snippet.get("description", "")},
+            },
         )
 
     def playlist_items(self, playlist_id: str) -> list[PlaylistItem]:

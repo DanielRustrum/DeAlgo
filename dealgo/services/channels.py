@@ -69,7 +69,9 @@ def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo
     return info
 
 
-def add_channel(session: Session, reference: str, http: httpx.Client) -> Channel:
+def add_channel(
+    session: Session, reference: str, http: httpx.Client, *, backfill_days: int | None = None
+) -> Channel:
     info = resolve(session, reference, http)
     existing = session.scalar(select(Channel).where(Channel.channel_id == info.channel_id))
     if existing is not None:
@@ -80,9 +82,11 @@ def add_channel(session: Session, reference: str, http: httpx.Client) -> Channel
         title=info.title or info.channel_id,
         handle=info.handle,
         thumbnail_url=info.thumbnail_url,
+        description=info.description,
         # Nothing to send videos to yet, so it waits rather than quietly
         # queueing uploads that have nowhere to go.
         enabled=False,
+        backfill_days=backfill_days,
     )
     session.add(channel)
     session.flush()
@@ -92,6 +96,28 @@ def add_channel(session: Session, reference: str, http: httpx.Client) -> Channel
 
 # What the filter wrote as the reason, so a toggle can find exactly what it
 # passed over and nothing else.
+# Offered when a channel is first tracked. None means "use the global count".
+BACKFILL_CHOICES: tuple[tuple[str, str], ...] = (
+    ("", "Default — the newest few"),
+    ("0", "Nothing — only uploads from now on"),
+    ("7", "The last week"),
+    ("30", "The last month"),
+    ("90", "The last three months"),
+    ("3650", "Everything the feed still lists"),
+)
+
+
+def parse_backfill(raw: str | None) -> int | None:
+    """An empty choice means the global default; anything else is a day count."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        return max(0, int(text))
+    except ValueError:
+        return None
+
+
 # Offered in the channel list. 0 means "check on every sync".
 PULL_INTERVALS: tuple[tuple[int, str], ...] = (
     (0, "every sync"),
@@ -200,7 +226,7 @@ def set_live(session: Session, channel: Channel, *, include: bool) -> int:
 
 
 def update_filters(session: Session, channel: Channel, form: dict) -> int:
-    """Apply the filter form. Returns how many Shorts were brought back."""
+    """Apply the filter form: title patterns, durations and the per-run cap."""
     def as_int(key: str) -> int | None:
         raw = (form.get(key) or "").strip()
         if not raw:
@@ -223,13 +249,11 @@ def update_filters(session: Session, channel: Channel, form: dict) -> int:
     channel.title_exclude = title_exclude
     channel.min_duration_sec = as_int("min_duration_sec")
     channel.max_duration_sec = as_int("max_duration_sec")
-    requeued = set_shorts(session, channel, include=not bool(form.get("skip_shorts")))
-    requeued += set_live(session, channel, include=not bool(form.get("skip_live")))
-    requeued += set_videos(session, channel, include=not bool(form.get("skip_videos")))
+    # The Takes toggles and the Checks control own those fields; reading them
+    # from this form too would switch them all off whenever it is submitted.
     channel.max_per_run = as_int("max_per_run") or 0
-    channel.min_pull_minutes = as_int("min_pull_minutes") or 0
     session.flush()
-    return requeued
+    return 0
 
 
 def delete_channel(session: Session, channel: Channel) -> None:

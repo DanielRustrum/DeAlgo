@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from "_macros.html" import explained, search %}
+{% block title %}De-Algo — {{ playlist.title }}{% endblock %}
+{% block content %}
+{% set back = "/feeds/" ~ playlist.id %}
+
+<p class="crumbs"><a href="/channels">← Configuration</a></p>
+
+<section class="panel">
+  <div class="panel-head">
+    {% if renaming %}
+    <form class="rename-form" method="post" action="/settings/playlists/{{ playlist.id }}/rename"
+          hx-boost="false">
+      <input type="hidden" name="back" value="{{ back }}">
+      <input type="text" name="title" value="{{ playlist.title }}" autofocus aria-label="Feed name">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn btn-quiet" href="{{ back }}">Cancel</a>
+    </form>
+    {% else %}
+    <h2 class="titled">
+      {{ playlist.title }}
+      {% if playlist.is_generic %}
+        <span class="pill" title="No YouTube playlist behind it">generic</span>
+      {% elif youtube_offline() %}
+        <span class="pill pill-dormant"
+              title="No Google account, so this one collects inside De-Algo for now">
+          local only</span>
+      {% endif %}
+      {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+    </h2>
+    <div class="row-buttons">
+      <a class="btn btn-quiet" href="{{ back }}?rename=1">Rename</a>
+      {% if playlist.url %}
+      <a class="btn btn-quiet" href="{{ playlist.url }}" target="_blank" rel="noopener">Open on YouTube ↗</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if playlist.last_error %}<p class="error-note">{{ playlist.last_error }}</p>{% endif %}
+
+  <dl class="facts">
+    <dt>Backed by</dt>
+    <dd>
+      {% if playlist.url %}<code>{{ playlist.playlist_id }}</code>
+        {% if youtube_offline() %}
+        <div class="hint">Not being written to: no Google account is connected. New videos
+          collect in De-Algo and go into the playlist on the first sync after you connect.</div>
+        {% endif %}
+      {% else %}nothing — videos live in De-Algo only, costing no API quota{% endif %}
+    </dd>
+    <dt>Holds</dt>
+    <dd><strong>{{ held }}</strong> video{{ 's' if held != 1 }} right now</dd>
+    <dt>Fill order</dt>
+    <dd>
+      {% if position %}{{ position }} of {{ total_feeds }}
+        <span class="muted">— which feed is filled first when the day's quota runs short</span>
+      {% else %}—{% endif %}
+    </dd>
+    <dt>Added</dt><dd>{{ playlist.added_at | stamp }}</dd>
+  </dl>
+
+  <form class="tag-form" method="post" action="/settings/playlists/{{ playlist.id }}/tags"
+        hx-boost="false">
+    <input type="hidden" name="back" value="{{ back }}">
+    <label class="field-block">
+      Tags
+      <input type="text" name="tags" value="{{ playlist.tags or '' }}"
+             placeholder="science, long-form, weekly">
+    </label>
+    <button class="btn btn-quiet" type="submit">Save tags</button>
+  </form>
+  <p class="hint">
+    Comma separated. Searchable alongside the feed's name on the Feed page — handy once you have
+    more feeds than fit on a screen.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Filling</h2>
+  <div class="row-groups">
+    <div class="row-group">
+      <span class="group-label">Active</span>
+      <div class="group-body">
+        <form method="post" action="/settings/playlists/{{ playlist.id }}/filling" hx-boost="false">
+          <input type="hidden" name="back" value="{{ back }}">
+          <button type="submit" class="toggle {{ 'toggle-on' if playlist.enabled }}">
+            <span class="toggle-track"><span class="toggle-knob"></span></span>
+            <span class="toggle-label">{{ 'on' if playlist.enabled else 'off' }}</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="row-group row-group-wide">
+      <span class="group-label">Limits</span>
+      <div class="group-body">
+        <form class="row-form" method="post" action="/settings/playlists/{{ playlist.id }}"
+              hx-boost="false">
+          <input type="hidden" name="back" value="{{ back }}">
+          {% set size_tip = "tip-size" %}
+          {% call explained("0 keeps everything. Above that, the oldest videos are removed as new
+            ones arrive, so the feed stays a rolling window rather than growing forever.", size_tip) %}
+            <label class="row-field">max size
+              <input type="number" min="0" name="max_items" value="{{ playlist.max_items }}"
+                     aria-describedby="{{ size_tip }}">
+            </label>
+          {% endcall %}
+          {% set run_tip = "tip-run" %}
+          {% call explained("Most videos this feed will take in one run. Anything held back is
+            queued for the next run rather than dropped — useful for spreading a tight API quota
+            across several feeds.", run_tip) %}
+            <label class="row-field">per sync
+              <input type="number" min="0" name="max_per_run" value="{{ playlist.max_per_run }}"
+                     aria-describedby="{{ run_tip }}">
+            </label>
+          {% endcall %}
+          <button class="btn btn-primary" type="submit">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Filled by <span class="count">{{ playlist.channels | length }}</span></h2>
+  {# The box sits outside the swapped region, or typing would replace it. #}
+  {{ search(back, query, 'Search channels…', '#feed-channels') }}
+
+  <div id="feed-channels">
+  {% if all_channels %}
+  <div class="channel-picker">
+    {% for channel in all_channels %}
+    {% set filling = channel in playlist.channels %}
+    <form class="pick" method="post" action="/settings/playlists/{{ playlist.id }}/channels" hx-boost="false">
+      <input type="hidden" name="channel_id" value="{{ channel.id }}">
+      <input type="hidden" name="include" value="{{ '0' if filling else '1' }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="chip {{ 'chip-on' if filling }}" type="submit">
+        {{ '✓' if filling else '+' }} {{ channel.title }}
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  <p class="hint">
+    Only future uploads are added — press Queue on an older video to backfill it. A channel with no
+    feed at all stays paused, so linking one here starts it watching.
+  </p>
+  {% elif query %}
+  <p class="empty">No channel matches “{{ query }}”.</p>
+  {% else %}
+  <p class="empty">No channels tracked yet. <a href="/channels">Track one</a> first.</p>
+  {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Retiring it</h2>
+  <div class="row-buttons">
+    {% if not playlist.is_generic %}
+    <form method="post" action="/settings/playlists/{{ playlist.id }}/unlink" hx-boost="false"
+          onsubmit="return confirm('Unlink this feed from its YouTube playlist? It keeps its channels, limits and videos and becomes a generic feed. The playlist on YouTube is left as it is.');">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="btn btn-warn" type="submit">Unlink from YouTube</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/settings/playlists/{{ playlist.id }}/delete" hx-boost="false"
+          onsubmit="return confirm('Remove this feed from De-Algo? Its channel links and the record of what went into it go too. A YouTube playlist stays where it is, with its videos.');">
+      <button class="btn btn-danger" type="submit">Remove feed</button>
+    </form>
+  </div>
+  <p class="hint">
+    <strong>Unlink</strong> keeps the feed and stops writing to YouTube.
+    <strong>Remove</strong> discards the feed itself. Either way the playlist and its videos stay on
+    YouTube.
+  </p>
+</section>
+<section class="panel">
+  <h2>In this feed <span class="count">{{ held }}</span></h2>
+  {% include "_video_table.html" %}
+</section>
+
+{% endblock %}

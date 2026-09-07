@@ -33,9 +33,14 @@ make up                   # builds if needed, then waits until the container is 
 `make` on its own lists every target: `up`, `down`, `restart`, `logs`, `ps`, `shell`, `build`,
 `clean`, and the CLI passthroughs below. Plain `docker compose up -d` works just as well.
 
-Open <http://localhost:8080>. Press **New feed** to make one, add a channel by pasting its URL,
-`@handle`, or bare `UC…` id, and link the two. A Google account is only needed once a feed is backed
-by a real YouTube playlist.
+Open <http://localhost:8080> and press **Tour** in the header for a guided walk from an empty
+install to a daily habit — it ticks off each step as you complete it, and can be hidden from
+Settings once you are done with it.
+
+Or set it up directly. Go to **Configuration**. **New feed** makes somewhere for videos to
+go; **Track content** adds a channel by its URL, `@handle` or bare `UC…` id and links it to that
+feed. Each box does both halves, so either order works. A Google account is only needed once a feed
+is backed by a real YouTube playlist.
 
 To run it without Docker:
 
@@ -46,15 +51,18 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 ## The Feed
 
-The **Feed** tab is where you actually watch. It shows what is in each playlist right now, one
-section per playlist in fill order, as a grid of cards — thumbnail, channel, age and length. Clicking
-a thumbnail swaps it for an embedded player, so watching happens on the page rather than in a tab
-that pulls you back into YouTube's recommendations.
+The **Feed** tab is where you actually watch. Each feed is a collapsed section — open one and you get
+a grid of cards with thumbnail, channel, age and length. **Clicking a thumbnail opens theater mode**
+at that video, inside the feed you clicked from and in that feed's order, so one click starts a
+sitting rather than a single play.
 
-- **Unwatched** is the default view; the section heading shows how many are held back
-  (`2 of 3`). Switch to **everything** to see watched ones dimmed.
+Sections are collapsed by default, so the page opens as an index of your feeds. A search box at the
+top matches feed names and their tags.
+
+- **Unwatched** is each feed's default view; the heading shows how many are held back (`2 of 3`).
+  Switch that feed to **everything** to see watched ones dimmed.
 - **Oldest first** is the default, matching the order the playlist itself reads in. **Newest first**
-  is a click away.
+  is a click away. Both are per feed, and remembered.
 - Mark something watched from its card, then use **Remove watched** to clear those out of the
   playlists for real.
 - A section that is fully caught up says so rather than showing an empty box.
@@ -79,7 +87,7 @@ so and links out rather than showing a blank stage.
 ## Feeds
 
 A **feed** is a list De-Algo keeps filled from the channels you assign to it. Create one with
-**New feed** on the Channels page, which asks three things in one box:
+**New feed** on the Configuration page, which asks three things in one box:
 
 1. **What backs it** — a *generic feed* with no YouTube playlist behind it, a new playlist De-Algo
    creates on your account (you choose private, unlisted or public), or a playlist already there.
@@ -88,8 +96,14 @@ A **feed** is a list De-Algo keeps filled from the channels you assign to it. Cr
 A **generic feed** is the one that needs nothing from Google: its videos are discovered, filtered and
 watchable on the Feed and Theater pages, with the same channels, filters, limits and watched
 tracking as any other. Only the writing to YouTube is skipped — so no account, no API quota, no
-playlist. Mixed setups are fine: with no account connected, generic feeds fill while YouTube ones
-record what they are owed and wait.
+playlist.
+
+**Google is optional throughout.** With no account connected — or one whose grant has lapsed — every
+feed behaves like a generic one: channels are polled, videos are filtered and collected, and the Feed
+and Theater pages work as usual. Nothing is added to or removed from YouTube, and the feeds that point
+at a playlist are greyed out and marked *local only*, with a banner saying so. What they collect
+meanwhile is not lost: it is still owed to the playlist, and goes in on the first sync after you
+connect, paced by the daily quota like any other write.
 
 Assignments go either way round: click a feed's channel count to pick which channels fill it, or open
 a channel and tick the feeds it should fill. The channel list filters by feed, so you can see what
@@ -100,9 +114,19 @@ A channel can fill several feeds at once. For YouTube-backed ones the video is i
 the same playlist twice, and removing it from one does not disturb the others.
 
 Linking a feed applies to future uploads. To backfill an older video, press **Queue** on it in the
-Videos list — it will be added to any linked feed it is not already in.
+**Raw** list — it will be added to any linked feed it is not already in.
 
-Removing a feed only stops De-Algo filling it. A YouTube playlist and its videos stay on YouTube.
+**Rename** retitles a feed at any time. For a YouTube-backed one the playlist itself is renamed too,
+so De-Algo's label and the playlist's own name cannot drift apart; it costs 50 quota units, and if
+YouTube refuses the local name still changes and says so. A generic feed renames instantly with no
+call at all.
+
+**Unlink** cuts a feed loose from its YouTube playlist without losing the feed: it keeps its name,
+channels, limits, fill order and the videos already in it, and carries on as a generic one. The
+playlist over on YouTube is left exactly as it is.
+
+**Remove** discards the feed itself — its channel links and the record of what went into it. Either
+way the YouTube playlist and its videos stay where they are.
 
 ## Connecting YouTube
 
@@ -152,15 +176,15 @@ playlist costs 50 units — roughly 200 videos a day — and reading durations c
 | --- | --- |
 | Poll interval | How often a sync runs. Free, so minutes are fine. |
 | Check at most every (per channel) | The shortest gap between checks for one channel. A daily uploader does not need polling every 15 minutes. |
-| Backfill on a new channel | How many recent uploads a newly added channel contributes. The rest of its feed is marked *ignored* rather than dumped into the playlist. |
+| Backfill on a new channel | How many recent uploads a newly added channel contributes when **Track content** is left on *Default*. The rest of its feed is marked *ignored* rather than dumped into a playlist. |
 | Max size (per playlist) | Above 0, the oldest entries are removed once that playlist passes this — a rolling feed instead of an ever-growing one. |
 | Max added per sync (per playlist) | Most videos that playlist will take in one run. Anything held back is queued for the next run, not dropped. Pairs with the fill order to spread a tight quota across playlists. |
 | New channels (per playlist) | Whether a newly added channel starts feeding this playlist. The first playlist you add is a default; later ones are opt-in. |
 | Shorts threshold | The length at or under which something counts as a Short. Per channel, Shorts are toggled on or off from the Channels list. |
 | Max added per sync | Per channel. Keeps one prolific uploader from flooding the playlist in a single pass. |
 
-Videos can be re-queued or ignored by hand from the **Videos** page, which also explains why anything
-was skipped.
+Videos can be re-queued or ignored by hand from the **Raw** page — every video De-Algo has seen,
+with what it decided and why.
 
 ## What gets taken from a channel
 
@@ -181,6 +205,16 @@ live has usually finished by the next run, so you get the recording rather than 
 two are independent: turning live on leaves skipped Shorts skipped.
 
 Turning either **off** stops future ones and leaves anything already in a playlist alone.
+
+## How much history to take
+
+**Track content** asks how far back to reach on a channel's first check: nothing, the last week,
+month or three months, everything the feed still lists, or the global default count under Settings.
+Anything older is recorded as *ignored* rather than added, so it is never picked up later either.
+
+YouTube's channel feed only lists the newest ~15 uploads, so a long window reaches as far as that and
+no further. The choice applies to the first check only — an older video surfacing afterwards is
+treated as new, as it should be.
 
 ## How often each channel is checked
 
@@ -203,9 +237,9 @@ still published on every run.
 When the quota runs short, what gets in first is a choice, so both lists are ordered explicitly with
 the ▲▼ controls:
 
-- **Channels**, on the Channels page — the order videos are inserted in. The channel you care most
+- **Channels**, on the Configuration page — the order videos are inserted in. The channel you care most
   about gets into the playlist before the budget runs out.
-- **Feeds**, in the Feeds panel on the Channels page — which playlist a video reaches first when it
+- **Feeds**, in the Feeds panel on the Configuration page — which playlist a video reaches first when it
   feeds several.
 
 Within a channel the order stays chronological, so playlists still read oldest-first. With every

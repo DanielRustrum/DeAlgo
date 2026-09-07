@@ -14,6 +14,7 @@
   var playlist = root.dataset.playlist;
   var current = queue[0];
   var player = null;
+  var ready = false;
   var advancing = false;
 
   var titleEl = document.getElementById("theater-title");
@@ -22,6 +23,7 @@
   var statusEl = document.getElementById("theater-status");
   var listEl = document.getElementById("theater-list");
   var countEl = document.getElementById("theater-count");
+  var reloadEl = document.getElementById("theater-reload");
 
   function say(message) {
     statusEl.textContent = message ? " · " + message : "";
@@ -29,6 +31,15 @@
 
   function show(video, remaining) {
     current = video;
+    ready = true;  // the player is alive if it got us this far
+    // Reloading has to come back to the video actually playing, not the one
+    // the page was opened on.
+    if (reloadEl) {
+      reloadEl.href =
+        "/watch?start=" + video.id +
+        "&order=" + encodeURIComponent(order) +
+        "&playlist=" + encodeURIComponent(playlist);
+    }
     titleEl.textContent = video.title;
     channelEl.textContent = video.channel;
     remainingEl.textContent = remaining;
@@ -98,6 +109,10 @@
     // build its own would re-add the pop-out button over fullscreen.
     player = new YT.Player("theater-player", {
       events: {
+        onReady: function () {
+          ready = true;
+          say("");
+        },
         onStateChange: function (event) {
           if (event.data === YT.PlayerState.ENDED) advance(true);
         },
@@ -111,9 +126,9 @@
   };
 
   // If YouTube's script never arrives, say so instead of showing a blank stage.
-  // If YouTube's API script never arrives the video still plays — it just will
-  // not advance by itself, so say so rather than leaving it a mystery.
+  // A player that never reports ready is the failure people actually hit:
+  // say so and point at Reload rather than leaving a blank rectangle.
   setTimeout(function () {
-    if (!player) say("auto-advance unavailable — use Watched · next");
+    if (!ready) say("the player is not responding — try Reload");
   }, 8000);
 })();

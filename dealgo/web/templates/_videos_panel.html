@@ -1,3 +1,4 @@
+{% from "_macros.html" import search %}
 {% set in_panel = true %}
 {# Re-renders on watched changes so the chips, counts and filtered rows agree. #}
 <section class="panel" id="videos-panel"
@@ -5,23 +6,28 @@
          hx-select="#videos-panel" hx-swap="outerHTML"
          hx-trigger="dealgo:watched-changed from:body, dealgo:sync-finished from:body">
   <div class="panel-head">
-    <h2>Videos <span class="count">{{ total }}</span></h2>
+    <h2>Raw videos</h2>
     {% include "_watched_actions.html" %}
   </div>
   <div class="filterbar">
+    {{ search('/videos', query, 'Search videos and channels…', '#video-results',
+              {'status': status, 'watched': watched, 'channel': channel_filter}) }}
+  </div>
+
+  <div class="filterbar">
     <a class="chip {{ 'chip-on' if not status and watched != '1' }}"
-       hx-get="/videos?channel={{ channel_filter or '' }}"
+       hx-get="/videos?channel={{ channel_filter or '' }}{{ '&q=' ~ query if query }}"
        hx-target="#videos-panel" hx-select="#videos-panel" hx-swap="outerHTML" hx-push-url="true"
-       href="/videos?channel={{ channel_filter or '' }}">All</a>
+       href="/videos?channel={{ channel_filter or '' }}{{ '&q=' ~ query if query }}">All</a>
     {% for name in ['pending', 'added', 'skipped', 'failed', 'ignored'] %}
-      {% set href = '/videos?status=' ~ name ~ '&channel=' ~ (channel_filter or '') %}
+      {% set href = '/videos?status=' ~ name ~ '&channel=' ~ (channel_filter or '') ~ ('&q=' ~ query if query) %}
       <a class="chip {{ 'chip-on' if status == name and watched != '1' }}"
          hx-get="{{ href }}" hx-target="#videos-panel" hx-select="#videos-panel"
          hx-swap="outerHTML" hx-push-url="true" href="{{ href }}">
         {{ name }} <span class="chip-count">{{ counts.get(name, 0) }}</span>
       </a>
     {% endfor %}
-    {% set watched_href = '/videos?watched=1&channel=' ~ (channel_filter or '') %}
+    {% set watched_href = '/videos?watched=1&channel=' ~ (channel_filter or '') ~ ('&q=' ~ query if query) %}
     <a class="chip {{ 'chip-on' if watched == '1' }}"
        hx-get="{{ watched_href }}" hx-target="#videos-panel" hx-select="#videos-panel"
        hx-swap="outerHTML" hx-push-url="true" href="{{ watched_href }}">
@@ -31,6 +37,7 @@
           hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
       <input type="hidden" name="status" value="{{ status }}">
       <input type="hidden" name="watched" value="{{ watched }}">
+      <input type="hidden" name="q" value="{{ query or '' }}">
       <select name="channel">
         <option value="">Every channel</option>
         {% for channel in channels %}
@@ -40,10 +47,16 @@
     </form>
   </div>
 
+  {# Only the results swap, so the search box survives its own keystrokes. #}
+  <div id="video-results">
+  <p class="results-count">
+    <strong>{{ total }}</strong> video{{ 's' if total != 1 }}{% if query %} matching “{{ query }}”{% endif %}
+  </p>
+
   {% include "_video_table.html" %}
 
   {% if pages > 1 %}
-  {% set base = '/videos?status=' ~ status ~ '&watched=' ~ watched ~ '&channel=' ~ (channel_filter or '') %}
+  {% set base = '/videos?status=' ~ status ~ '&watched=' ~ watched ~ '&channel=' ~ (channel_filter or '') ~ ('&q=' ~ query if query) %}
   <nav class="pager">
     {% if page > 1 %}
       <a class="btn btn-quiet" href="{{ base }}&page={{ page - 1 }}"
@@ -58,4 +71,5 @@
     {% endif %}
   </nav>
   {% endif %}
+  </div>
 </section>

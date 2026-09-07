@@ -17,9 +17,13 @@
       <div class="modal-body">
         <section class="step">
           <h3><span class="step-number">1</span> Which playlist?</h3>
-          <label class="choice">
-            <input type="radio" name="source" id="source-generic" value="generic"
-                   {{ 'checked' if not state.connected }}>
+          {# Each radio is a sibling of its own fields, so a plain
+             `:checked ~ .section` reveals them. This used to lean on :has(),
+             which hid every section outright where it is unsupported — leaving
+             no way to type a name at all. #}
+          <input class="route-radio" type="radio" name="source" id="source-generic" value="generic"
+                 {{ 'checked' if not state.connected }}>
+          <label class="choice" for="source-generic">
             <span class="check-body">
               <span>Generic feed</span>
               <span class="hint">
@@ -28,17 +32,16 @@
               </span>
             </span>
           </label>
-
           <div class="wizard-section section-generic">
-            <label>
+            <label class="field-block">
               Name
               <input type="text" name="generic_title" placeholder="Science, Music, Watch later…">
             </label>
           </div>
 
-          <label class="choice">
-            <input type="radio" name="source" id="source-new" value="new"
-                   {{ 'checked' if state.connected }} {{ 'disabled' if not state.connected }}>
+          <input class="route-radio" type="radio" name="source" id="source-new" value="new"
+                 {{ 'checked' if state.connected }} {{ 'disabled' if not state.connected }}>
+          <label class="choice" for="source-new">
             <span class="check-body">
               <span>Create a new YouTube playlist</span>
               <span class="hint">
@@ -47,7 +50,6 @@
               </span>
             </span>
           </label>
-
           <div class="wizard-section section-new">
             <div class="field-row">
               <label>
@@ -65,9 +67,9 @@
             </div>
           </div>
 
-          <label class="choice">
-            <input type="radio" name="source" id="source-existing" value="existing"
-                   {{ 'disabled' if not available or not state.connected }}>
+          <input class="route-radio" type="radio" name="source" id="source-existing" value="existing"
+                 {{ 'disabled' if not available or not state.connected }}>
+          <label class="choice" for="source-existing">
             <span class="check-body">
               <span>Use a playlist already on your account</span>
               <span class="hint">
@@ -77,9 +79,8 @@
               </span>
             </span>
           </label>
-
           <div class="wizard-section section-existing">
-            <label>
+            <label class="field-block">
               Playlist
               <select name="playlist_id">
                 {% for playlist in available %}

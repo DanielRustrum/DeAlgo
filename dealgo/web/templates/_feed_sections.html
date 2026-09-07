@@ -2,39 +2,91 @@
      hx-get="/partials/feed?{{ feed_query }}"
      hx-trigger="dealgo:sync-finished from:body" hx-swap="outerHTML">
   {% for section in sections %}
+  {% set unwatched = section.videos | length %}
+  {% set show = section.playlist.view_show %}
   <section class="panel feed-section">
-    <div class="panel-head">
-      <h2>
-        {% if section.playlist.url %}
-          <a href="{{ section.playlist.url }}" target="_blank" rel="noopener">{{ section.playlist.title }}</a>
-        {% else %}{{ section.playlist.title }}{% endif %}
-        <span class="count">{{ section.videos | length }}{% if show == 'unwatched' and section.total != section.videos | length %} of {{ section.total }}{% endif %}</span>
-      </h2>
-      <span class="section-actions">
+    {# A native <details>: collapsed unless asked, keyboard-operable, no script.
+       The summary is only a toggle — links inside one would fire it too, so the
+       playlist link and Theater button sit in the body. #}
+    <details id="feed-{{ section.playlist.id }}">
+      <summary>
+        <span class="section-title">{{ section.playlist.title }}</span>
+        <span class="count">
+          {{ unwatched }}{% if show == 'unwatched' and section.total != unwatched %} of {{ section.total }}{% endif %}
+        </span>
         {% if not section.playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
-        {% if section.videos %}
-        <a class="btn btn-quiet" href="/watch?order={{ order }}&playlist={{ section.playlist.id }}"
-           title="Play this playlist through, marking each one watched">Theater ▶</a>
-        {% endif %}
-      </span>
-    </div>
+        {% for tag in section.playlist.tag_list %}
+          <span class="pill pill-tag">{{ tag }}</span>
+        {% endfor %}
+      </summary>
 
-    {% if section.videos %}
-    <div class="card-grid">
-      {% for video in section.videos %}{% include "_feed_card.html" %}{% endfor %}
-    </div>
-    {% elif show == 'unwatched' and section.total %}
-    <p class="empty">All {{ section.total }} watched. Nothing left here.</p>
-    {% else %}
-    <p class="empty">Nothing in this playlist yet.</p>
-    {% endif %}
+      {# Each feed remembers its own layout, so these sit with the feed. #}
+      <div class="section-view">
+        <span class="filter-label">Show</span>
+        {% for value, label in [('unwatched', 'unwatched'), ('all', 'everything')] %}
+        <form method="post" action="/feeds/{{ section.playlist.id }}/view"
+              hx-post="/feeds/{{ section.playlist.id }}/view"
+              hx-target="#feed-sections" hx-swap="outerHTML">
+          <input type="hidden" name="show" value="{{ value }}">
+          <input type="hidden" name="playlist" value="{{ playlist_filter or '' }}">
+          <button class="chip {{ 'chip-on' if section.playlist.view_show == value }}"
+                  type="submit">{{ label }}</button>
+        </form>
+        {% endfor %}
+
+        <span class="filter-label">Order</span>
+        {% for value, label, hint in [
+             ('oldest', 'oldest first', 'The order the playlist itself reads in'),
+             ('newest', 'newest first', '')] %}
+        <form method="post" action="/feeds/{{ section.playlist.id }}/view"
+              hx-post="/feeds/{{ section.playlist.id }}/view"
+              hx-target="#feed-sections" hx-swap="outerHTML">
+          <input type="hidden" name="order" value="{{ value }}">
+          <input type="hidden" name="playlist" value="{{ playlist_filter or '' }}">
+          <button class="chip {{ 'chip-on' if section.playlist.view_order == value }}"
+                  type="submit" {% if hint %}title="{{ hint }}"{% endif %}>{{ label }}</button>
+        </form>
+        {% endfor %}
+      </div>
+
+      <div class="section-actions">
+        {% if section.videos %}
+        <a class="btn btn-quiet" href="/watch?order={{ section.playlist.view_order }}&playlist={{ section.playlist.id }}"
+           title="Play this feed through, marking each one watched">Theater ▶</a>
+        {% endif %}
+        {% if section.playlist.url %}
+          {% if youtube_offline() %}
+          <span class="pill pill-dormant"
+                title="No Google account, so nothing is being written to this playlist">
+            local only</span>
+          {% else %}
+          <a class="btn btn-quiet" href="{{ section.playlist.url }}" target="_blank" rel="noopener">
+            On YouTube ↗</a>
+          {% endif %}
+        {% endif %}
+        <a class="btn btn-quiet" href="/feeds/{{ section.playlist.id }}">Settings</a>
+      </div>
+
+      {% if section.videos %}
+      <div class="card-grid">
+        {% for video in section.videos %}{% include "_feed_card.html" %}{% endfor %}
+      </div>
+      {% elif show == 'unwatched' and section.total %}
+      <p class="empty">All {{ section.total }} watched. Nothing left here.</p>
+      {% else %}
+      <p class="empty">Nothing in this feed yet.</p>
+      {% endif %}
+    </details>
   </section>
   {% else %}
   <section class="panel">
+    {% if query %}
+    <p class="empty">No feed matches “{{ query }}” — searching names and tags.</p>
+    {% else %}
     <p class="empty">
-      No playlists to show. <a href="/channels">Add a target playlist and some channels</a>, then
-      press Sync now.
+      No feeds to show. <a href="/channels">Set one up and track a channel</a>, then press Sync now.
     </p>
+    {% endif %}
   </section>
   {% endfor %}
 </div>

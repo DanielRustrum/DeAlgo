@@ -120,19 +120,15 @@ def _remove(session: Session, http, trigger: str) -> RemovalResult:
     if not session.scalar(select(func.count(Playlist.id)).where(Playlist.enabled.is_(True))):
         result.messages.append("No feeds are set up.")
         return result
-    if not client.has_write_access and session.scalar(
-        select(func.count(Playlist.id)).where(
-            Playlist.enabled.is_(True), Playlist.playlist_id.not_like("generic:%")
-        )
+    if not client.has_write_access and not session.scalar(
+        select(func.count(Placement.id))
+        .join(Video, Video.id == Placement.video_pk)
+        .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
     ):
-        # Only the YouTube feeds need one; a local-only setup carries on.
-        if not session.scalar(
-            select(func.count(Playlist.id)).where(
-                Playlist.enabled.is_(True), Playlist.playlist_id.like("generic:%")
-            )
-        ):
-            result.messages.append("No Google account is connected.")
-            return result
+        # An account is only needed for rows that really are on YouTube. With
+        # nothing watched at all there is nothing to say but this.
+        result.messages.append("No Google account is connected.")
+        return result
 
     candidates = list(
         session.scalars(
@@ -152,14 +148,23 @@ def _remove(session: Session, http, trigger: str) -> RemovalResult:
     session.add(run)
     session.commit()
 
+    stranded = 0  # really on YouTube, and no account to delete them with
+
     for placement in candidates:
         title = placement.video.title
 
-        if placement.playlist.is_generic:
-            # Nothing to delete anywhere: forgetting the row is the removal.
+        if placement.is_local:
+            # Nothing to delete anywhere — a generic feed, or one filled while
+            # signed out — so forgetting the row is the whole removal.
             _clear(placement, "removed after watching")
             result.removed += 1
             session.flush()
+            continue
+
+        if not client.has_write_access:
+            # A real playlist item, and no account to delete it with. Leave it
+            # alone rather than losing the record of where it is.
+            stranded += 1
             continue
 
         # Removal is charged the same 50 units as an insert; a manual removal
@@ -202,6 +207,11 @@ def _remove(session: Session, http, trigger: str) -> RemovalResult:
     summary = f"Removed {total} watched video{'s' if total != 1 else ''} from playlists."
     if result.failed:
         summary += f" {result.failed} could not be removed."
+    if stranded:
+        summary += (
+            f" {stranded} sit in a YouTube playlist and need a connected account "
+            "before they can be taken out."
+        )
     result.messages.insert(0, summary)
 
     run.finished_at = utcnow()

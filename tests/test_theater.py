@@ -182,3 +182,26 @@ def test_the_feed_offers_a_way_in(client):
     body = client.get("/feed").text
     assert "/watch?order=oldest" in body
     assert "/watch?start=" in body
+
+
+def test_the_page_offers_a_way_to_rebuild_a_stuck_player(client):
+    """An embed that fails to load leaves a blank rectangle; Reload is the way
+    out, and it must be a real page load — the API only initialises on one."""
+    body = client.get("/watch").text
+
+    assert 'id="theater-reload"' in body
+    assert 'hx-boost="false"' in body
+    # It comes back to the video you were on, not the start of the queue.
+    assert "/watch?start=" in body
+
+
+def test_reloading_lands_on_the_video_it_names(client, db):
+    from dealgo.models import Video
+
+    with db.session_scope() as session:
+        second = session.get(Video, 2)
+        second_id = second.id
+
+    body = client.get(f"/watch?start={second_id}").text
+    assert f'href="/watch?start={second_id}' in body
+    assert "Second science" in body

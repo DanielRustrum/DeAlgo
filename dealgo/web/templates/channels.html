@@ -1,27 +1,11 @@
 {% extends "base.html" %}
-{% block title %}De-Algo — Channels{% endblock %}
+{% block title %}De-Algo — Configuration{% endblock %}
 {% block content %}
-<section class="panel">
-  <h2>Watch a channel</h2>
-  <form class="inline-form" method="post" action="/channels/add"
-        hx-post="/channels/add" hx-target="#channel-list" hx-swap="outerHTML"
-        hx-on::after-request="if (event.detail.successful) this.reset()">
-    <input type="text" name="reference" autofocus
-           placeholder="https://youtube.com/@handle, a /channel/UC… URL, or a bare UC… id">
-    <button type="submit" class="btn btn-primary">Add channel</button>
-  </form>
-  <p class="hint">
-    A <code>UC…</code> id works with no credentials at all — polling uses YouTube's public feed.
-    Handles and vanity URLs need API access to resolve once.
-  </p>
-</section>
-
 <section class="panel">
   {% include "_playlist_targets.html" %}
 </section>
 
 <section class="panel">
-  <h2>Channels</h2>
   {% include "_channel_list.html" %}
 </section>
 {% endblock %}

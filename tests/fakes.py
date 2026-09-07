@@ -52,6 +52,7 @@ class FakeYouTube:
                 title="",
                 handle=f"@{channel_id.lower()}",
                 thumbnail_url=f"https://example.test/{channel_id}.jpg",
+                description=f"All about {channel_id}.",
             )
             for channel_id in channel_ids
         }

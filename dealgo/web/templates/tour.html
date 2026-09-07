@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Tour{% endblock %}
+{% block content %}
+
+{# Steps are data so the progress rail and the body cannot drift apart. #}
+{% set steps = [
+  {'key': 'welcome', 'title': 'What this is',            'done': none},
+  {'key': 'feed',    'title': 'Make a feed',             'done': progress.has_feed},
+  {'key': 'channel', 'title': 'Track a channel',         'done': progress.has_channel},
+  {'key': 'link',    'title': 'Link the two',            'done': progress.linked},
+  {'key': 'connect', 'title': 'Connect YouTube (optional)', 'done': progress.connected},
+  {'key': 'sync',    'title': 'Run a sync',              'done': progress.synced},
+  {'key': 'watch',   'title': 'Watch it',                'done': progress.watched_any},
+  {'key': 'daily',   'title': 'Day to day',              'done': none},
+] %}
+{% set current = steps[[step, 1] | max - 1 if step <= steps | length else steps | length - 1] %}
+{% set index = steps.index(current) %}
+
+<div class="tour">
+  <aside class="tour-rail">
+    <h2>Tour</h2>
+    <ol>
+      {% for entry in steps %}
+      <li class="{{ 'tour-here' if loop.index0 == index }} {{ 'tour-done' if entry.done }}">
+        <a href="/tour?step={{ loop.index }}">
+          <span class="tour-mark">{{ '✓' if entry.done else loop.index }}</span>
+          {{ entry.title }}
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="hint">
+      Ticks show what is already set up. You can leave and come back — nothing here changes anything
+      on its own.
+    </p>
+  </aside>
+
+  <section class="panel tour-step">
+    <div class="panel-head">
+      <h2>{{ index + 1 }}. {{ current.title }}</h2>
+      {% if current.done %}<span class="pill pill-added">done</span>{% endif %}
+    </div>
+
+    {% if current.key == 'welcome' %}
+      <p>De-Algo watches the channels you choose and puts their new uploads into a playlist, oldest
+        first. Nothing else gets in: no recommendations, no autoplay trail, no “you might also
+        like”.</p>
+      <p>Four things make it work — a <strong>feed</strong> to collect videos, a
+        <strong>channel</strong> to fill it, a <strong>link</strong> between them, and a
+        <strong>sync</strong> to do the work. The rest of this tour sets those up in order.</p>
+      <p class="hint">Already have some of it? The ticks on the left show what is done.</p>
+
+    {% elif current.key == 'feed' %}
+      <p>A <strong>feed</strong> is the list De-Algo keeps filled. It can be a real YouTube playlist,
+        or a <strong>generic feed</strong> that lives only here — which needs no Google account and
+        spends no API quota.</p>
+      <p>On <a href="/channels">Configuration</a>, press <strong>New feed</strong> and pick one of
+        the three routes.</p>
+      <p class="hint">Start generic if you just want to try it: nothing leaves this machine.</p>
+
+    {% elif current.key == 'channel' %}
+      <p>Press <strong>Track content</strong> on <a href="/channels">Configuration</a> and paste a
+        channel URL, an <code>@handle</code>, or a bare <code>UC…</code> id.</p>
+      <p>The same box asks how far back to reach on the first check, and which feeds to fill. A
+        <code>UC…</code> id needs no credentials at all.</p>
+
+    {% elif current.key == 'link' %}
+      <p>A channel with no feed stays <strong>paused</strong> — polling it would only queue uploads
+        with nowhere to go.</p>
+      <p>Link them from either side: a feed's page lists the channels that fill it, and a channel's
+        page lists the feeds it fills. Linking the first one starts the channel watching.</p>
+
+    {% elif current.key == 'connect' %}
+      <p>Only needed for feeds backed by a real YouTube playlist, and only to write to it. Without an
+        account De-Algo still polls channels, filters them and fills every feed for watching here —
+        it simply leaves YouTube alone until you connect, then catches the playlists up.</p>
+      <p>In <a href="/settings">Settings</a>, add a Google OAuth client, then press
+        <strong>Connect YouTube account</strong>. The page shows the exact redirect URI to register.</p>
+      {% if not progress.has_youtube_feed %}
+      <p class="hint">None of your feeds needs this yet — they are all generic.</p>
+      {% endif %}
+
+    {% elif current.key == 'sync' %}
+      <p>Press <strong>Sync now</strong> in the header. De-Algo reads each channel's public feed —
+        which costs no API quota — filters the new uploads, and puts what survives into your feeds,
+        oldest first.</p>
+      <p><strong>Force</strong> beside it polls every channel regardless of its minimum gap.</p>
+      <p class="hint">After that it runs on its own, every {{ settings.poll_interval_minutes if settings else 30 }} minutes by default.</p>
+
+    {% elif current.key == 'watch' %}
+      <p><a href="/feed">Feed</a> is where you watch. Each feed is a collapsed section; open one and
+        click a thumbnail to play it in place.</p>
+      <p><strong>Theater ▶</strong> plays the unwatched queue straight through, marking each one
+        watched as it ends.</p>
+
+    {% else %}
+      <p>Day to day there is not much to do:</p>
+      <ul>
+        <li>Mark things <strong>watched</strong> as you go, then <strong>Remove watched</strong> to
+          clear them out of the playlists.</li>
+        <li>Use <strong>Raw</strong> to see every video De-Algo has seen and why it was skipped.</li>
+        <li>Watch the <strong>quota</strong> on the dashboard. Polling is free; only playlist writes
+          cost anything, and De-Algo stops before YouTube refuses it.</li>
+        <li>If quota is tight, the <strong>fill order</strong> on Configuration decides who gets in
+          first.</li>
+      </ul>
+      <p class="hint">
+        Done with this? You can hide the Tour button in <a href="/settings">Settings</a>.
+      </p>
+    {% endif %}
+
+    <div class="tour-nav">
+      {% if index > 0 %}
+      <a class="btn btn-quiet" href="/tour?step={{ index }}">← Back</a>
+      {% endif %}
+      {% if index + 1 < steps | length %}
+      <a class="btn btn-primary" href="/tour?step={{ index + 2 }}">Next →</a>
+      {% else %}
+      <a class="btn btn-primary" href="/feed">Start watching</a>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

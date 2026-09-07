@@ -27,7 +27,15 @@ from sqlalchemy.orm import selectinload
 from .. import __version__, scheduler
 from ..config import CONFIG
 from ..db import get_settings, get_token, init_db, session_scope
-from ..models import Channel, Placement, Playlist, SyncRun, Video
+from ..models import (
+    GENERIC_PLAYLIST_PREFIX,
+    Channel,
+    Placement,
+    Playlist,
+    SyncRun,
+    Video,
+    channel_playlist,
+)
 from ..services import backup as backup_service
 from ..services import channels as channel_service
 from ..services import ordering as ordering_service
@@ -122,11 +130,35 @@ def _stamp(value: dt.datetime | None) -> str:
 TEMPLATES.env.filters["ago"] = _ago
 TEMPLATES.env.filters["stamp"] = _stamp
 TEMPLATES.env.filters["duration"] = format_duration
+TEMPLATES.env.globals["youtube_offline"] = lambda: _youtube_offline()
 
 
 def _last_run_id() -> int:
     with session_scope() as session:
         return session.scalar(select(func.max(SyncRun.id))) or 0
+
+
+def _tour_progress(session) -> dict:
+    """What the tour can already tick off, so it guides rather than lectures."""
+    feeds = list(session.scalars(select(Playlist)))
+    return {
+        "has_feed": bool(feeds),
+        "has_youtube_feed": any(not feed.is_generic for feed in feeds),
+        "has_channel": bool(session.scalar(select(func.count(Channel.id)))),
+        "linked": bool(
+            session.scalar(
+                select(func.count()).select_from(channel_playlist)
+            )
+        ),
+        "connected": get_token(session) is not None,
+        "synced": bool(session.scalar(select(func.count(SyncRun.id)))),
+        "watched_any": watched_service.count_watched(session) > 0,
+    }
+
+
+def _tour_offered() -> bool:
+    with session_scope() as session:
+        return not get_settings(session).hide_tour
 
 
 def render(request: Request, template: str, context: dict) -> HTMLResponse:
@@ -137,6 +169,7 @@ def render(request: Request, template: str, context: dict) -> HTMLResponse:
         "error_message": request.query_params.get("err"),
         "sync_running": sync_service.is_running(),
         "last_run_id": _last_run_id(),
+        "show_tour": _tour_offered(),
         **context,
     }
     return TEMPLATES.TemplateResponse(request, template, context)
@@ -222,7 +255,32 @@ def _activity_context(session) -> dict:
     }
 
 
-def _channel_list_context(session, feed: str = "") -> dict:
+def _matching_channels(channels: list, query: str) -> list:
+    """Every word must appear somewhere, in any order — partial words count."""
+    terms = query.lower().split()
+    if not terms:
+        return channels
+    return [
+        channel
+        for channel in channels
+        if all(
+            term
+            in " ".join(filter(None, [channel.title, channel.handle, channel.channel_id])).lower()
+            for term in terms
+        )
+    ]
+
+
+def _matching_feeds(playlists: list, query: str) -> list:
+    terms = query.lower().split()
+    if not terms:
+        return playlists
+    return [p for p in playlists if all(term in (p.title or "").lower() for term in terms)]
+
+
+def _channel_list_context(
+    session, feed: str = "", tracking: bool = False, query: str = ""
+) -> dict:
     def counts_by_channel(*conditions) -> dict:
         return dict(
             session.execute(
@@ -245,9 +303,25 @@ def _channel_list_context(session, feed: str = "") -> dict:
     else:
         feed = ""
 
+    # Each word has to appear somewhere, in any order: "greene daniel" finds
+    # "Daniel Greene", and a partial word still matches.
+    terms = query.lower().split()
+    if terms:
+        def matches(channel) -> bool:
+            haystack = " ".join(
+                filter(None, [channel.title, channel.handle, channel.channel_id])
+            ).lower()
+            return all(term in haystack for term in terms)
+
+        channels = [c for c in channels if matches(c)]
+
     return {
         "channels": channels,
         "pull_intervals": channel_service.PULL_INTERVALS,
+        "tracking": tracking,
+        "query": query,
+        "all_feeds": playlists,
+        "backfill_choices": channel_service.BACKFILL_CHOICES,
         "feed": feed,
         "feed_playlists": playlists,
         "counts_by_feed": counts_by_feed,
@@ -293,7 +367,7 @@ def _forget_account_playlists() -> None:
     _account_playlists_cache["at"] = 0.0
 
 
-def _playlist_context(session, open_pk: str = "", creating: bool = False) -> dict:
+def _playlist_context(session, creating: bool = False) -> dict:
     """Everything the targets panel needs, including the account's own lists."""
     state = _connection_state(session)
     available: list = []
@@ -308,9 +382,30 @@ def _playlist_context(session, open_pk: str = "", creating: bool = False) -> dic
         "available": [p for p in available if p.playlist_id not in known],
         "playlist_error": error,
         "all_channels": channel_service.list_channels(session),
-        "open_playlist": int(open_pk) if str(open_pk).isdigit() else None,
         "creating": creating,
     }
+
+
+def _youtube_offline() -> dict | None:
+    """The state where Google is not available: no usable account, but feeds
+    that point at a YouTube playlist.
+
+    Registered as a template global rather than threaded through every context,
+    because the htmx fragments render outside `render()` and need it too.
+    """
+    with session_scope() as session:
+        token = get_token(session)
+        if token is not None and not token.refresh_error:
+            return None
+        feeds = session.scalar(
+            select(func.count(Playlist.id)).where(
+                Playlist.enabled.is_(True),
+                Playlist.playlist_id.not_like(f"{GENERIC_PLAYLIST_PREFIX}%"),
+            )
+        )
+        if not feeds:
+            return None
+        return {"feeds": feeds, "stale": token is not None}
 
 
 def _connection_state(session) -> dict:
@@ -404,8 +499,8 @@ def partial_activity(request: Request):
     return fragment(request, "_activity.html", context)
 
 
-@app.get("/partials/feed-target", response_class=HTMLResponse)
-def partial_feed_target(request: Request):
+@app.get("/partials/dashboard", response_class=HTMLResponse)
+def partial_dashboard(request: Request):
     with session_scope() as session:
         context = {
             **_stats_context(session),
@@ -414,13 +509,13 @@ def partial_feed_target(request: Request):
             "settings": get_settings(session),
             "next_run": scheduler.next_run_time(),
         }
-    return fragment(request, "_feed_target.html", context)
+    return fragment(request, "_dashboard_state.html", context)
 
 
 @app.get("/partials/channels", response_class=HTMLResponse)
-def partial_channels(request: Request, feed: str = ""):
+def partial_channels(request: Request, feed: str = "", track: str = "", q: str = ""):
     with session_scope() as session:
-        context = _channel_list_context(session, feed)
+        context = _channel_list_context(session, feed, tracking=track == "1", query=q)
     return fragment(request, "_channel_list.html", context)
 
 
@@ -462,43 +557,79 @@ def api_status():
 
 
 @app.get("/channels", response_class=HTMLResponse)
-def channels_page(request: Request, feed: str = "", open: str = "", new: str = ""):
+def channels_page(
+    request: Request, feed: str = "", new: str = "", track: str = "", q: str = ""
+):
     with session_scope() as session:
         context = {
-            **_channel_list_context(session, feed),
-            **_playlist_context(session, open, creating=new == "1"),
+            **_channel_list_context(session, feed, tracking=track == "1", query=q),
+            **_playlist_context(session, creating=new == "1"),
         }
     return render(request, "channels.html", context)
 
 
 def _channel_list_response(
-    request: Request, *, ok: str | None = None, err: str | None = None, feed: str = ""
+    request: Request,
+    *,
+    ok: str | None = None,
+    err: str | None = None,
+    feed: str = "",
+    tracking: bool = False,
+    back: str = "",
+    query: str = "",
 ):
     """Every channel mutation answers with the whole list, freshly counted."""
+    if back:
+        # A channel's own page posts plainly and returns to itself.
+        return redirect(back, ok=ok, err=err)
     if not is_htmx(request):
-        target = f"/channels?feed={feed}" if feed else "/channels"
+        params = {
+            k: v
+            for k, v in (("feed", feed), ("q", query), ("track", "1" if tracking else ""))
+            if v
+        }
+        target = f"/channels?{urlencode(params)}" if params else "/channels"
         return redirect(target, ok=ok, err=err)
     with session_scope() as session:
-        context = _channel_list_context(session, feed)
+        context = _channel_list_context(session, feed, tracking=tracking, query=query)
     return fragment(request, "_channel_list.html", context, ok=ok, err=err)
 
 
 @app.post("/channels/add")
-def add_channel(request: Request, reference: str = Form("")):
+def add_channel(
+    request: Request,
+    reference: str = Form(""),
+    feeds: list[int] = Form(default=[]),
+    backfill: str = Form(""),
+    feed: str = Form(""),
+):
     reference = reference.strip()
     if not reference:
-        return _channel_list_response(request, err="Paste a channel URL, @handle, or UC… id.")
+        # Keep the dialog up rather than dropping what they were doing.
+        return _channel_list_response(
+            request, err="Paste a channel URL, @handle, or UC… id.", feed=feed, tracking=True
+        )
+
     with session_scope() as session, _http_client() as http:
         try:
-            channel = channel_service.add_channel(session, reference, http)
+            channel = channel_service.add_channel(
+                session, reference, http, backfill_days=channel_service.parse_backfill(backfill)
+            )
         except channel_service.ChannelError as exc:
-            return _channel_list_response(request, err=str(exc))
+            return _channel_list_response(request, err=str(exc), feed=feed, tracking=True)
+
+        playlist_service.set_channel_targets(session, channel, feeds)
         title = channel.title
-    return _channel_list_response(request, ok=f"Now watching {title}.")
+        watching = channel.enabled
+
+    message = f"Now watching {title}."
+    if not watching:
+        message = f"Added {title}. It stays paused until a feed is linked."
+    return _channel_list_response(request, ok=message, feed=feed)
 
 
 @app.get("/channels/{channel_id}", response_class=HTMLResponse)
-def channel_detail(request: Request, channel_id: int):
+def channel_detail(request: Request, channel_id: int, q: str = ""):
     with session_scope() as session:
         channel = session.scalar(
             select(Channel).options(selectinload(Channel.playlists)).where(Channel.id == channel_id)
@@ -521,9 +652,22 @@ def channel_detail(request: Request, channel_id: int):
             "channel": channel,
             "videos": videos,
             "settings": get_settings(session),
-            "all_playlists": playlist_service.list_playlists(session),
+            "all_playlists": _matching_feeds(playlist_service.list_playlists(session), q),
+            "query": q,
             "pull_intervals": channel_service.PULL_INTERVALS,
             "channel_playlist_pks": {p.id for p in channel.playlists},
+            "placed": session.scalar(
+                select(func.count(func.distinct(Placement.video_pk)))
+                .join(Video, Video.id == Placement.video_pk)
+                .where(Video.channel_pk == channel_id, Placement.playlist_item_id.is_not(None))
+            )
+            or 0,
+            "pending": session.scalar(
+                select(func.count(Video.id)).where(
+                    Video.channel_pk == channel_id, Video.status == "pending"
+                )
+            )
+            or 0,
         }
     return render(request, "channel_detail.html", context)
 
@@ -579,14 +723,14 @@ def toggle_channel(request: Request, channel_id: int, feed: str = Form("")):
 
 
 def _toggle_filter_response(
-    request: Request, channel_id: int, feed: str, *, kind: str
+    request: Request, channel_id: int, feed: str, *, kind: str, back: str = ""
 ):
     """One-click filter toggles, so they do not live only inside a save form."""
     with session_scope() as session:
         channel = session.get(Channel, channel_id)
         if channel is None:
             return _channel_list_response(
-                request, err="That channel is no longer being watched.", feed=feed
+                request, err="That channel is no longer being watched.", feed=feed, back=back
             )
         if kind == "shorts":
             include = channel.skip_shorts  # flipping it on
@@ -613,44 +757,58 @@ def _toggle_filter_response(
         message = f"Skipping {plural} from {title}. Anything already in a playlist stays put."
         if takes_nothing:
             message += " Nothing from this channel will be added now — all three are off."
-    return _channel_list_response(request, ok=message, feed=feed)
+    return _channel_list_response(request, ok=message, feed=feed, back=back)
 
 
 @app.post("/channels/{channel_id}/shorts")
-def toggle_channel_shorts(request: Request, channel_id: int, feed: str = Form("")):
-    return _toggle_filter_response(request, channel_id, feed, kind="shorts")
+def toggle_channel_shorts(
+    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
+):
+    return _toggle_filter_response(request, channel_id, feed, kind="shorts", back=back)
 
 
 @app.post("/channels/{channel_id}/live")
-def toggle_channel_live(request: Request, channel_id: int, feed: str = Form("")):
-    return _toggle_filter_response(request, channel_id, feed, kind="live")
+def toggle_channel_live(
+    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
+):
+    return _toggle_filter_response(request, channel_id, feed, kind="live", back=back)
 
 
 @app.post("/channels/{channel_id}/videos")
-def toggle_channel_videos(request: Request, channel_id: int, feed: str = Form("")):
-    return _toggle_filter_response(request, channel_id, feed, kind="videos")
+def toggle_channel_videos(
+    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
+):
+    return _toggle_filter_response(request, channel_id, feed, kind="videos", back=back)
 
 
 @app.post("/channels/{channel_id}/interval")
 def set_channel_interval(
-    request: Request, channel_id: int, minutes: str = Form("0"), feed: str = Form("")
+    request: Request,
+    channel_id: int,
+    minutes: str = Form("0"),
+    feed: str = Form(""),
+    back: str = Form(""),
 ):
     """The shortest gap between feed checks for one channel."""
     try:
         value = max(0, int(minutes))
     except ValueError:
-        return _channel_list_response(request, err="That is not a number of minutes.", feed=feed)
+        return _channel_list_response(
+            request, err="That is not a number of minutes.", feed=feed, back=back
+        )
 
     with session_scope() as session:
         channel = session.get(Channel, channel_id)
         if channel is None:
             return _channel_list_response(
-                request, err="That channel is no longer being watched.", feed=feed
+                request, err="That channel is no longer being watched.", feed=feed, back=back
             )
         channel_service.set_pull_interval(session, channel, value)
         title = channel.title
         described = channel_service.describe_interval(value)
-    return _channel_list_response(request, ok=f"Checking {title} {described}.", feed=feed)
+    return _channel_list_response(
+        request, ok=f"Checking {title} {described}.", feed=feed, back=back
+    )
 
 
 @app.post("/channels/{channel_id}/move")
@@ -676,27 +834,33 @@ def remove_channel(request: Request, channel_id: int, feed: str = Form("")):
 # -- feed -----------------------------------------------------------------
 
 
-def _feed_context(session, *, order: str, show: str, playlist: str) -> dict:
-    """What is in each playlist right now, grouped and ready to watch."""
-    order = "newest" if order == "newest" else "oldest"
-    show = "all" if show == "all" else "unwatched"
+def _feed_context(session, *, playlist: str = "", query: str = "") -> dict:
+    """What is in each feed right now, each laid out the way that feed asks."""
     wanted = int(playlist) if playlist.isdigit() else None
 
     playlists = [p for p in playlist_service.list_playlists(session) if p.enabled or wanted]
+    terms = query.lower().split()
+    if terms:
+        # Name or tag, any order, partial words.
+        playlists = [p for p in playlists if all(term in p.searchable for term in terms)]
     sections = []
     for target in playlists:
         if wanted and target.id != wanted:
             continue
-        query = (
+        # Not `query`: that name is the search text on this function.
+        statement = (
             select(Video)
             .join(Placement, Placement.video_pk == Video.id)
             .options(selectinload(Video.channel))
             .where(Placement.playlist_pk == target.id, Placement.playlist_item_id.is_not(None))
         )
-        if show == "unwatched":
-            query = query.where(Video.watched_at.is_(None))
-        direction = Video.published_at.desc() if order == "newest" else Video.published_at.asc()
-        videos = list(session.scalars(query.order_by(direction, Video.id.asc())))
+        if target.view_show != "all":
+            statement = statement.where(Video.watched_at.is_(None))
+        direction = (
+            Video.published_at.desc() if target.view_order == "newest"
+            else Video.published_at.asc()
+        )
+        videos = list(session.scalars(statement.order_by(direction, Video.id.asc())))
 
         total = (
             session.scalar(
@@ -710,26 +874,48 @@ def _feed_context(session, *, order: str, show: str, playlist: str) -> dict:
 
     return {
         "sections": sections,
-        "order": order,
-        "show": show,
         "playlist_filter": wanted,
+        "query": query,
         "all_playlists": playlist_service.list_playlists(session),
-        "feed_query": urlencode({"order": order, "show": show, "playlist": playlist or ""}),
+        "feed_query": urlencode({"playlist": playlist or "", "q": query or ""}),
     }
 
 
 @app.get("/feed", response_class=HTMLResponse)
-def feed_page(request: Request, order: str = "oldest", show: str = "unwatched", playlist: str = ""):
+def feed_page(request: Request, playlist: str = "", q: str = ""):
     with session_scope() as session:
-        context = _feed_context(session, order=order, show=show, playlist=playlist)
+        context = _feed_context(session, playlist=playlist, query=q)
     return render(request, "feed.html", context)
 
 
 @app.get("/partials/feed", response_class=HTMLResponse)
-def partial_feed(request: Request, order: str = "oldest", show: str = "unwatched", playlist: str = ""):
+def partial_feed(request: Request, playlist: str = "", q: str = ""):
     with session_scope() as session:
-        context = _feed_context(session, order=order, show=show, playlist=playlist)
+        context = _feed_context(session, playlist=playlist, query=q)
     return fragment(request, "_feed_sections.html", context)
+
+
+@app.post("/feeds/{playlist_pk}/view")
+def set_feed_view(
+    request: Request,
+    playlist_pk: int,
+    order: str = Form(""),
+    show: str = Form(""),
+    playlist: str = Form(""),
+    q: str = Form(""),
+):
+    """Each feed is laid out its own way, and remembers it."""
+    with session_scope() as session:
+        target = session.get(Playlist, playlist_pk)
+        if target is None:
+            return redirect("/feed", err="That feed is no longer a target.")
+        playlist_service.set_view(session, target, order=order, show=show)
+
+    if is_htmx(request):
+        with session_scope() as session:
+            context = _feed_context(session, playlist=playlist, query=q)
+        return fragment(request, "_feed_sections.html", context)
+    return redirect(f"/feed?{urlencode({'playlist': playlist, 'q': q})}")
 
 
 def _watch_queue(session, *, order: str, playlist: str, start: int | None = None) -> list[dict]:
@@ -841,26 +1027,34 @@ def theater_finished(
     return JSONResponse({"next": queue[0] if queue else None, "remaining": len(queue)})
 
 
-@app.get("/partials/player/{video_id}", response_class=HTMLResponse)
-def partial_player(request: Request, video_id: int):
-    """Swap a thumbnail for an embedded player, so watching stays on the page."""
-    with session_scope() as session:
-        video = session.get(Video, video_id)
-        if video is None:
-            return HTMLResponse("", status_code=404)
-        context = {"video": video}
-    return fragment(request, "_player.html", context)
-
-
 # -- videos ---------------------------------------------------------------
 
 
 @app.get("/videos", response_class=HTMLResponse)
-def videos_page(request: Request, status: str = "", watched: str = "", channel: str = "", page: int = 1):
+def videos_page(
+    request: Request,
+    status: str = "",
+    watched: str = "",
+    channel: str = "",
+    page: int = 1,
+    q: str = "",
+):
     page_size = 60
     page = max(1, page)
     with session_scope() as session:
         query = select(Video)
+        terms = q.split()
+        if terms:
+            # Each word must appear in the title, the channel name or the id —
+            # in any order, and a partial word counts.
+            query = query.join(Channel, Channel.id == Video.channel_pk)
+            for term in terms:
+                like = f"%{term}%"
+                query = query.where(
+                    Video.title.ilike(like)
+                    | Channel.title.ilike(like)
+                    | Video.video_id.ilike(like)
+                )
         if watched == "1":
             query = query.where(Video.watched_at.is_not(None))
         elif status in Video.STATUSES:
@@ -890,6 +1084,7 @@ def videos_page(request: Request, status: str = "", watched: str = "", channel: 
             "removable_count": watched_service.count_removable(session),
             "status": "" if watched == "1" else status,
             "watched": watched,
+            "query": q,
             "channel_filter": channel_pk,
             "channels": channel_service.list_channels(session),
             "page": page,
@@ -1084,6 +1279,7 @@ def save_settings(
     shorts_max_seconds: str = Form("60"),
     daily_quota: str = Form("10000"),
     quota_reserve: str = Form("0"),
+    hide_tour: str = Form(""),
     auto_sync: str = Form(""),
     client_id: str = Form(""),
     client_secret: str = Form(""),
@@ -1102,6 +1298,7 @@ def save_settings(
         settings.shorts_max_seconds = as_int(shorts_max_seconds, 60)
         settings.daily_quota = as_int(daily_quota, 10000)
         settings.quota_reserve = as_int(quota_reserve, 0)
+        settings.hide_tour = bool(hide_tour)
         settings.auto_sync = bool(auto_sync)
         settings.client_id = client_id.strip() or None
         settings.client_secret = client_secret.strip() or None
@@ -1115,15 +1312,17 @@ def _playlists_response(
     *,
     ok: str | None = None,
     err: str | None = None,
-    open_pk: str = "",
     creating: bool = False,
+    back: str = "",
 ):
+    if back:
+        # The detail page posts plainly and returns to itself.
+        return redirect(back, ok=ok, err=err)
     if not is_htmx(request):
-        params = {k: v for k, v in (("open", open_pk), ("new", "1" if creating else "")) if v}
-        target = f"/channels?{urlencode(params)}" if params else "/channels"
+        target = "/channels?new=1" if creating else "/channels"
         return redirect(target, ok=ok, err=err)
     with session_scope() as session:
-        context = _playlist_context(session, open_pk, creating=creating)
+        context = _playlist_context(session, creating=creating)
     return fragment(request, "_playlist_targets.html", context, ok=ok, err=err)
 
 
@@ -1167,49 +1366,165 @@ def save_playlist(
     playlist_pk: int,
     max_items: str = Form("0"),
     max_per_run: str = Form("0"),
-    enabled: str = Form(""),
+    back: str = Form(""),
 ):
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
-            return _playlists_response(request, err="That playlist is no longer a target.")
+            return _playlists_response(request, err="That playlist is no longer a target.", back=back)
         try:
             playlist_service.update(
                 session,
                 playlist,
-                {"max_items": max_items, "max_per_run": max_per_run, "enabled": enabled},
+                {"max_items": max_items, "max_per_run": max_per_run},
             )
         except playlist_service.PlaylistError as exc:
-            return _playlists_response(request, err=str(exc))
+            return _playlists_response(request, err=str(exc), back=back)
         title = playlist.title
-    return _playlists_response(request, ok=f"Saved {title!r}.")
+    return _playlists_response(request, ok=f"Saved {title!r}.", back=back)
 
 
-@app.post("/settings/playlists/{playlist_pk}/delete")
-def delete_playlist(request: Request, playlist_pk: int):
+@app.get("/feeds/{playlist_pk}", response_class=HTMLResponse)
+def feed_detail(request: Request, playlist_pk: int, rename: str = "", q: str = ""):
+    """Everything about one feed, off the list that only needs to be scannable."""
+    with session_scope() as session:
+        playlist = session.scalar(
+            select(Playlist).options(selectinload(Playlist.channels)).where(Playlist.id == playlist_pk)
+        )
+        if playlist is None:
+            return redirect("/channels", err="That feed is no longer a target.")
+
+        videos = list(
+            session.scalars(
+                select(Video)
+                .join(Placement, Placement.video_pk == Video.id)
+                .options(
+                    selectinload(Video.channel),
+                    selectinload(Video.placements).selectinload(Placement.playlist),
+                )
+                .where(Placement.playlist_pk == playlist_pk, Placement.playlist_item_id.is_not(None))
+                .order_by(Video.published_at.desc())
+                .limit(50)
+            )
+        )
+        order = [p.id for p in playlist_service.list_playlists(session)]
+        context = {
+            "playlist": playlist,
+            "videos": videos,
+            "held": playlist_service.item_counts(session).get(playlist_pk, 0),
+            "all_channels": _matching_channels(channel_service.list_channels(session), q),
+            "query": q,
+            "position": order.index(playlist_pk) + 1 if playlist_pk in order else None,
+            "total_feeds": len(order),
+            "renaming": playlist_pk if rename == "1" else None,
+            "state": _connection_state(session),
+        }
+    return render(request, "feed_detail.html", context)
+
+
+@app.post("/settings/playlists/{playlist_pk}/tags")
+def set_playlist_tags(request: Request, playlist_pk: int, tags: str = Form(""), back: str = Form("")):
+    """Free-form labels, searchable on the Feed page."""
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
-            return _playlists_response(request, err="That playlist is no longer a target.")
+            return _playlists_response(request, err="That feed is no longer a target.", back=back)
+        applied = playlist_service.set_tags(session, playlist, tags)
         title = playlist.title
-        playlist_service.remove(session, playlist)
+
+    message = (
+        f"{title} tagged {', '.join(applied)}." if applied else f"Cleared the tags on {title}."
+    )
+    return _playlists_response(request, ok=message, back=back)
+
+
+@app.post("/settings/playlists/{playlist_pk}/filling")
+def toggle_playlist_filling(request: Request, playlist_pk: int, back: str = Form("")):
+    """Pause or resume a feed without disturbing what is already in it."""
+    with session_scope() as session:
+        playlist = session.get(Playlist, playlist_pk)
+        if playlist is None:
+            return _playlists_response(request, err="That feed is no longer a target.", back=back)
+        playlist_service.set_enabled(session, playlist, enabled=not playlist.enabled)
+        title, filling = playlist.title, playlist.enabled
+
+    message = (
+        f"Filling {title} again." if filling
+        else f"Paused {title}. Nothing already in it is removed."
+    )
+    return _playlists_response(request, ok=message, back=back)
+
+
+@app.post("/settings/playlists/{playlist_pk}/rename")
+def rename_playlist(
+    request: Request, playlist_pk: int, title: str = Form(""), back: str = Form("")
+):
+    """Retitle a feed, and the playlist behind it where there is one."""
+    with session_scope() as session, _http_client() as http:
+        playlist = session.get(Playlist, playlist_pk)
+        if playlist is None:
+            return _playlists_response(request, err="That feed is no longer a target.", back=back)
+        try:
+            on_youtube = playlist_service.rename(session, playlist, title, http)
+        except playlist_service.PlaylistError as exc:
+            # The local rename may well have gone through; say so either way.
+            return _playlists_response(request, err=str(exc), back=back)
+        new_title = playlist.title
+
+    _forget_account_playlists()
+    message = f"Renamed to {new_title!r}."
+    if on_youtube:
+        message += " The YouTube playlist was renamed too."
+    return _playlists_response(request, ok=message, back=back)
+
+
+@app.post("/settings/playlists/{playlist_pk}/unlink")
+def unlink_playlist(request: Request, playlist_pk: int, back: str = Form("")):
+    """Keep the feed, drop the YouTube playlist behind it."""
+    with session_scope() as session:
+        playlist = session.get(Playlist, playlist_pk)
+        if playlist is None:
+            return _playlists_response(request, err="That feed is no longer a target.", back=back)
+        try:
+            playlist_service.unlink(session, playlist)
+        except playlist_service.PlaylistError as exc:
+            return _playlists_response(request, err=str(exc), back=back)
+        title = playlist.title
+
     _forget_account_playlists()
     return _playlists_response(
-        request, ok=f"Stopped feeding {title!r}. The playlist itself is untouched on YouTube."
+        request,
+        ok=f"{title} is now a generic feed. Its YouTube playlist and videos are untouched.",
+        back=back,
     )
 
 
+@app.post("/settings/playlists/{playlist_pk}/delete")
+def delete_playlist(request: Request, playlist_pk: int, back: str = Form("")):
+    with session_scope() as session:
+        playlist = session.get(Playlist, playlist_pk)
+        if playlist is None:
+            return _playlists_response(request, err="That playlist is no longer a target.", back=back)
+        title = playlist.title
+        playlist_service.remove(session, playlist)
+    _forget_account_playlists()
+    return _playlists_response(request, ok=f"Stopped feeding {title!r}. The playlist itself is untouched on YouTube."
+    , back=back)
+
+
 @app.post("/settings/playlists/{playlist_pk}/move")
-def move_playlist(request: Request, playlist_pk: int, direction: str = Form("up")):
+def move_playlist(
+    request: Request, playlist_pk: int, direction: str = Form("up"), back: str = Form("")
+):
     with session_scope() as session:
         ordering_service.move_playlist(session, playlist_pk, direction)
-    return _playlists_response(request)
+    return _playlists_response(request, back=back)
 
 
 @app.get("/partials/playlists", response_class=HTMLResponse)
-def partial_playlists(request: Request, open: str = "", new: str = ""):
+def partial_playlists(request: Request, new: str = ""):
     with session_scope() as session:
-        context = _playlist_context(session, open, creating=new == "1")
+        context = _playlist_context(session, creating=new == "1")
     return fragment(request, "_playlist_targets.html", context)
 
 
@@ -1219,19 +1534,19 @@ def set_feed_membership(
     playlist_pk: int,
     channel_id: int = Form(...),
     include: str = Form("1"),
-    open: str = Form(""),
+    back: str = Form(""),
 ):
     """Add or remove one channel from one feed, straight from the feed row."""
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
-            return _playlists_response(request, err="That feed is no longer a target.", open_pk=open)
+            return _playlists_response(request, err="That feed is no longer a target.", back=back)
         try:
             title = playlist_service.set_membership(
                 session, playlist, channel_id, include=include == "1"
             )
         except playlist_service.PlaylistError as exc:
-            return _playlists_response(request, err=str(exc), open_pk=open)
+            return _playlists_response(request, err=str(exc), back=back)
         feed_title = playlist.title
         channel = session.get(Channel, channel_id)
         resumed = include == "1" and channel is not None and channel.enabled
@@ -1243,7 +1558,7 @@ def set_feed_membership(
         message += " It was waiting for a feed, so watching has started."
     elif stranded:
         message += " It feeds nothing now, so it is paused until you link one."
-    return _playlists_response(request, ok=message, open_pk=open)
+    return _playlists_response(request, ok=message, back=back)
 
 
 # -- oauth ----------------------------------------------------------------
@@ -1361,6 +1676,15 @@ def restore_backup(request: Request, backup_file: UploadFile = File(...)):
 
     scheduler.reschedule()
     return redirect("/settings", ok=message)
+
+
+@app.get("/tour", response_class=HTMLResponse)
+def tour(request: Request, step: int = 1):
+    """A guided walk from an empty install to a daily habit."""
+    with session_scope() as session:
+        progress = _tour_progress(session)
+        context = {"progress": progress, "step": step}
+    return render(request, "tour.html", context)
 
 
 @app.get("/healthz")

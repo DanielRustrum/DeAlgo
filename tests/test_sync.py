@@ -188,6 +188,45 @@ def test_a_channel_added_by_bare_id_gets_its_picture_on_the_next_sync(world, db)
         channel = session.scalar(select(Channel))
         assert channel.thumbnail_url == f"https://example.test/{CHANNEL_ID}.jpg"
         assert channel.handle == f"@{CHANNEL_ID.lower()}"
+        assert channel.description == f"All about {CHANNEL_ID}."
+
+
+def test_a_channel_tracked_before_descriptions_existed_gets_one(world, db):
+    """The lookup keys off anything missing, not the avatar alone, so an
+    already-pictured channel from an older database is still filled in."""
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        channel.thumbnail_url = "https://example.test/old.jpg"
+        channel.description = None
+
+    sync_service.run_sync()
+
+    with db.session_scope() as session:
+        assert session.scalar(select(Channel)).description == f"All about {CHANNEL_ID}."
+
+
+def test_a_channel_with_no_about_text_is_not_asked_about_again(world, db, monkeypatch):
+    """An empty description is an answer. Storing NULL would mean every sync
+    spent a lookup on a channel that simply has nothing to say."""
+    from dealgo.models import Channel
+    from dealgo.youtube.api import ChannelInfo
+
+    asked: list[int] = []
+
+    def once(ids):
+        asked.append(len(ids))
+        return {CHANNEL_ID: ChannelInfo(CHANNEL_ID, "Fake Channel", None, "pic.jpg", "")}
+
+    monkeypatch.setattr(world["client"], "get_channels", once)
+
+    sync_service.run_sync()
+    sync_service.run_sync()
+
+    assert asked == [1]
+    with db.session_scope() as session:
+        assert session.scalar(select(Channel)).description == ""
 
 
 def test_a_failed_picture_lookup_does_not_stop_the_sync(world, db, monkeypatch):

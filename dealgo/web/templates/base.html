@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
   <script src="/static/htmx.min.js?v={{ asset_version }}" defer></script>
   <script src="/static/dialog.js?v={{ asset_version }}" defer></script>
+  <script src="/static/sections.js?v={{ asset_version }}" defer></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
 </head>
 {# hx-boost turns ordinary links and forms into partial page swaps, so the
@@ -22,15 +23,20 @@
   <nav>
     <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
     <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
-    <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Channels</a>
-    <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Videos</a>
+    <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
+    <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Raw</a>
     <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
   </nav>
+  {% if show_tour %}
+  <a class="btn btn-quiet tour-button" href="/tour"
+     title="A guided walk from setup to daily use">Tour</a>
+  {% endif %}
   {% include "_sync_controls.html" %}
 </header>
 
 <main>
   {% include "_flash.html" %}
+  {% include "_offline_banner.html" %}
   {% block content %}{% endblock %}
 </main>
 

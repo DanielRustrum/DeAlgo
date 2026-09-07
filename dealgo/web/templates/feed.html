@@ -1,36 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import search %}
 {% block title %}De-Algo — Feed{% endblock %}
 {% block content %}
-{% set base = '/feed?' %}
+{# Show and order live on each feed now; what stays here applies to the page. #}
 <div class="filterbar feed-controls">
-  <span class="filter-label">Show</span>
-  <a class="chip {{ 'chip-on' if show == 'unwatched' }}"
-     href="/feed?order={{ order }}&show=unwatched&playlist={{ playlist_filter or '' }}">unwatched</a>
-  <a class="chip {{ 'chip-on' if show == 'all' }}"
-     href="/feed?order={{ order }}&show=all&playlist={{ playlist_filter or '' }}">everything</a>
-
-  <span class="filter-label">Order</span>
-  <a class="chip {{ 'chip-on' if order == 'oldest' }}"
-     href="/feed?order=oldest&show={{ show }}&playlist={{ playlist_filter or '' }}"
-     title="The order the playlist itself reads in">oldest first</a>
-  <a class="chip {{ 'chip-on' if order == 'newest' }}"
-     href="/feed?order=newest&show={{ show }}&playlist={{ playlist_filter or '' }}">newest first</a>
+  {{ search('/feed', query, 'Search feeds and tags…', '#feed-sections',
+            {'playlist': playlist_filter}) }}
 
   <a class="btn btn-primary theater-link"
-     href="/watch?order={{ order }}&playlist={{ playlist_filter or '' }}">Theater ▶</a>
-
-  {% if all_playlists | length > 1 %}
-  <form class="chip-form" method="get" action="/feed">
-    <input type="hidden" name="order" value="{{ order }}">
-    <input type="hidden" name="show" value="{{ show }}">
-    <select name="playlist" onchange="this.form.requestSubmit()">
-      <option value="">Every playlist</option>
-      {% for playlist in all_playlists %}
-      <option value="{{ playlist.id }}" {{ 'selected' if playlist_filter == playlist.id }}>{{ playlist.title }}</option>
-      {% endfor %}
-    </select>
-  </form>
-  {% endif %}
+     href="/watch{{ '?playlist=' ~ playlist_filter if playlist_filter }}"
+     title="Play everything unwatched straight through">Theater ▶</a>
 </div>
 
 {% include "_feed_sections.html" %}

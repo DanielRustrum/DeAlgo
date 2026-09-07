@@ -11,7 +11,7 @@ from dealgo.services import playlists as playlist_service
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
 from dealgo.youtube.api import VideoDetails, YouTubeAPIError
-from fakes import MAIN_PLAYLIST, entry
+from fakes import MAIN_PLAYLIST, FakeYouTube, entry
 
 SECOND = "PL_second"
 
@@ -218,3 +218,58 @@ def test_a_hand_paused_channel_is_not_resumed_by_a_second_feed(world, add_playli
             session, session.get(Playlist, second_pk), channel.id, include=True
         )
         assert channel.enabled is False  # still paused, as chosen
+
+
+def test_renaming_a_feed_renames_the_playlist_too(world, db, monkeypatch):
+    """De-Algo's label and the playlist's own name should not drift apart."""
+    import httpx
+
+    renamed = {}
+
+    class Renaming(FakeYouTube):
+        has_write_access = True
+
+        def rename_playlist(self, playlist_id, title):
+            renamed[playlist_id] = title
+
+    client = Renaming()
+    monkeypatch.setattr(playlist_service, "build_client", lambda session, http: client)
+
+    with db.session_scope() as session, httpx.Client() as http:
+        feed = session.scalar(select(Playlist))
+        assert playlist_service.rename(session, feed, "Renamed", http) is True
+        assert feed.title == "Renamed"
+
+    assert renamed == {MAIN_PLAYLIST: "Renamed"}
+
+
+def test_a_rename_youtube_refuses_still_lands_locally(world, db, monkeypatch):
+    """Better a name that differs than an edit that silently vanished."""
+    import httpx
+
+    from dealgo.youtube.api import YouTubeAPIError
+
+    class Refusing(FakeYouTube):
+        has_write_access = True
+
+        def rename_playlist(self, playlist_id, title):
+            raise YouTubeAPIError("nope", status=403, reason="forbidden")
+
+    monkeypatch.setattr(playlist_service, "build_client", lambda session, http: Refusing())
+
+    with db.session_scope() as session, httpx.Client() as http:
+        feed = session.scalar(select(Playlist))
+        with pytest.raises(playlist_service.PlaylistError) as caught:
+            playlist_service.rename(session, feed, "Renamed", http)
+        assert feed.title == "Renamed"  # kept here even so
+    assert "YouTube refused" in str(caught.value)
+
+
+def test_a_feed_still_needs_a_name(world, db):
+    import httpx
+
+    with db.session_scope() as session, httpx.Client() as http:
+        feed = session.scalar(select(Playlist))
+        with pytest.raises(playlist_service.PlaylistError):
+            playlist_service.rename(session, feed, "   ", http)
+        assert feed.title == "My Feed"

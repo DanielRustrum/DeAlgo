@@ -48,10 +48,19 @@
   <h2>Syncing</h2>
   <form method="post" action="/settings" class="stack-form">
     <div class="field-row checks">
-      <label class="check check-with-hint">
+      <label class="check">
         <input type="checkbox" name="auto_sync" {{ 'checked' if settings.auto_sync }}>
+        <span>Poll channels automatically</span>
+      </label>
+      {# Opt-out, because an unticked box sends nothing: a "show it" checkbox
+         would switch itself off the first time this form was saved. #}
+      <label class="check check-with-hint">
+        <input type="checkbox" name="hide_tour" value="1" {{ 'checked' if settings.hide_tour }}>
         <span class="check-body">
-          <span>Poll channels automatically</label>
+          <span>Hide the Tour button</span>
+          <span class="hint">The tour stays at <a href="/tour">/tour</a> either way.</span>
+        </span>
+      </label>
     </div>
     <div class="field-row">
       <label>
@@ -60,9 +69,8 @@
       </label>
       <label>
         Backfill on a new channel
-        <input type="number" min="0" name="initial_backfill" value="{{ settings.initial_backfill }}"></span>
-          <span class="hint">Recent uploads taken when a channel is first added.</span>
-        </span>
+        <input type="number" min="0" name="initial_backfill" value="{{ settings.initial_backfill }}">
+        <span class="hint">Recent uploads taken when Track content is left on Default.</span>
       </label>
       <label>
         Shorts are ≤ (seconds)

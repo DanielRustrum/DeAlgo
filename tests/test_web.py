@@ -105,11 +105,11 @@ def test_adding_a_channel_reports_the_error_in_the_flash(client):
     assert 'id="channel-list"' in response.text
 
 
-def test_watched_view_and_feed_target_partial_render(client):
+def test_watched_view_and_dashboard_partial_render(client):
     assert client.get("/videos?watched=1").status_code == 200
-    body = client.get("/partials/feed-target", headers=HX).text
+    body = client.get("/partials/dashboard", headers=HX).text
     assert "<html" not in body.lower()
-    assert "Feed target" in body
+    assert "Status" in body and "Feeds" in body
 
 
 def test_marking_watched_swaps_the_row_and_announces_the_change(client, db):
@@ -320,18 +320,23 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
     assert len(calls) == 2
 
 
-def test_shorts_can_be_toggled_from_the_channel_list(client, db):
+def test_shorts_can_be_toggled_from_the_channel_page(client, db):
     from dealgo.models import Channel
 
-    listing = client.get("/channels").text
-    assert "/channels/1/shorts" in listing
-    assert 'class="toggle "' in listing  # off by default
+    page = client.get("/channels/1").text
+    assert "/channels/1/shorts" in page
+    assert 'class="toggle "' in page  # off by default
+    # The list itself stays scannable.
+    assert "/channels/1/shorts" not in client.get("/channels").text
 
-    on = client.post("/channels/1/shorts", headers=HX)
-    assert "Including Shorts from Fake Channel." in on.text
-    assert "toggle toggle-on" in on.text
+    on = client.post(
+        "/channels/1/shorts", data={"back": "/channels/1"}, follow_redirects=False
+    )
+    assert on.status_code == 303
+    assert on.headers["location"].startswith("/channels/1?ok=")  # back to the page
     with db.session_scope() as session:
         assert session.get(Channel, 1).skip_shorts is False
+    assert "toggle toggle-on" in client.get("/channels/1").text
 
     off = client.post("/channels/1/shorts", headers=HX)
     assert "Skipping Shorts from Fake Channel." in off.text
@@ -344,10 +349,10 @@ def test_toggling_shorts_keeps_the_active_feed_filter(client):
     assert 'hx-push-url="/channels?feed=1"' in response.text
 
 
-def test_live_can_be_toggled_from_the_channel_list(client, db):
+def test_live_can_be_toggled_from_the_channel_page(client, db):
     from dealgo.models import Channel
 
-    assert "/channels/1/live" in client.get("/channels").text
+    assert "/channels/1/live" in client.get("/channels/1").text
 
     on = client.post("/channels/1/live", headers=HX)
     assert "Including live streams and premieres from Fake Channel." in on.text
@@ -370,12 +375,12 @@ def test_the_two_toggles_are_independent(client, db):
         assert channel.skip_shorts is True  # untouched
 
 
-def test_the_pull_interval_can_be_set_from_the_channel_list(client, db):
+def test_the_pull_interval_can_be_set_from_the_channel_page(client, db):
     from dealgo.models import Channel
 
-    listing = client.get("/channels").text
-    assert "/channels/1/interval" in listing
-    assert "every 6 hours" in listing
+    page = client.get("/channels/1").text
+    assert "/channels/1/interval" in page
+    assert "every 6 hours" in page
 
     response = client.post("/channels/1/interval", data={"minutes": "360"}, headers=HX)
     assert "Checking Fake Channel every 6 hours." in response.text
@@ -388,15 +393,15 @@ def test_the_pull_interval_can_be_set_from_the_channel_list(client, db):
         assert session.get(Channel, 1).min_pull_minutes == 0
 
 
-def test_a_custom_interval_is_kept_in_the_list_control(client, db):
+def test_a_custom_interval_is_kept_in_the_control(client, db):
     from dealgo.models import Channel
 
     with db.session_scope() as session:
         session.get(Channel, 1).min_pull_minutes = 45  # not one of the presets
 
-    listing = client.get("/channels").text
-    assert 'value="45" selected' in listing
-    assert "every 45 min" in listing
+    page = client.get("/channels/1").text
+    assert 'value="45" selected' in page
+    assert "every 45 min" in page
 
 
 def test_a_nonsense_interval_is_refused(client, db):
@@ -431,11 +436,10 @@ def test_force_sync_is_offered_and_reported(client, monkeypatch):
     assert [kwargs["force"] for _, kwargs in calls] == [False, True]
 
 
-def test_ordinary_uploads_can_be_toggled_from_the_channel_list(client, db):
+def test_ordinary_uploads_can_be_toggled_from_the_channel_page(client, db):
     from dealgo.models import Channel
 
-    listing = client.get("/channels").text
-    assert "/channels/1/videos" in listing
+    assert "/channels/1/videos" in client.get("/channels/1").text
 
     off = client.post("/channels/1/videos", headers=HX)
     assert "Skipping regular videos from Fake Channel." in off.text
@@ -458,8 +462,7 @@ def test_a_channel_that_takes_nothing_says_so(client, db):
 def test_a_playlists_add_limit_can_be_saved(client, db):
     from dealgo.models import Playlist
 
-    listing = client.get("/channels").text
-    assert 'name="max_per_run"' in listing
+    assert 'name="max_per_run"' in client.get("/feeds/1").text
 
     response = client.post(
         "/settings/playlists/1",
@@ -484,14 +487,11 @@ def test_a_nonsense_add_limit_is_refused(client, db):
         assert session.get(Playlist, 1).max_per_run == 0
 
 
-def test_the_feed_row_controls_are_explained(client):
-    """"feed it" and "new channels" say nothing on their own."""
-    body = client.get("/channels").text
+def test_the_feed_limits_are_explained(client):
+    """"max size" and "per sync" say nothing on their own."""
+    body = client.get("/feeds/1").text
 
-    # One info bubble per control: feed it, max size, per sync.
-    assert body.count('class="info-bubble"') == 3
-    assert "new channels" not in body
-    assert "Untick to pause it" in body
+    assert body.count('class="info-bubble"') == 2
     assert "rolling window" in body
     assert "queued for the next run" in body
 
@@ -499,10 +499,10 @@ def test_the_feed_row_controls_are_explained(client):
 def test_the_descriptions_are_reachable_without_a_mouse(client):
     """With no icon to focus, the description hangs off the control itself:
     :focus-within shows it on tab or tap, and aria-describedby announces it."""
-    body = client.get("/channels").text
+    body = client.get("/feeds/1").text
 
     assert "info-mark" not in body  # no icon
-    assert body.count("aria-describedby=") == 3
+    assert body.count("aria-describedby=") == 2
     assert 'role="tooltip"' in body
 
     # Every bubble is addressable, and every control points at its own.
@@ -519,14 +519,14 @@ def test_a_feed_lists_its_channels_for_editing(client, db):
     with db.session_scope() as session:
         session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Second Channel"))
 
-    closed = client.get("/channels").text
-    assert "channel-picker" not in closed  # collapsed by default
+    # The list stays scannable; the picker lives on the feed's own page.
+    assert "channel-picker" not in client.get("/channels").text
 
-    open_row = client.get("/channels?open=1").text
-    assert "channel-picker" in open_row
-    assert "Channels feeding My Feed" in open_row
-    # Every watched channel is offered, feeding or not.
-    assert "Fake Channel" in open_row and "Second Channel" in open_row
+    page = client.get("/feeds/1").text
+    assert "channel-picker" in page
+    assert "Filled by" in page
+    # Every watched channel is offered, filling or not.
+    assert "Fake Channel" in page and "Second Channel" in page
 
 
 def test_a_channel_can_be_added_to_a_feed_from_its_row(client, db):
@@ -537,24 +537,21 @@ def test_a_channel_can_be_added_to_a_feed_from_its_row(client, db):
 
     response = client.post(
         "/settings/playlists/1/channels",
-        data={"channel_id": "2", "include": "1", "open": "1"},
-        headers=HX,
+        data={"channel_id": "2", "include": "1", "back": "/feeds/1"},
+        follow_redirects=False,
     )
-    assert "Second Channel now feeds My Feed." in response.text
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/feeds/1?ok=")  # back where you were
     with db.session_scope() as session:
         playlist = session.get(Playlist, 1)
         assert {c.title for c in playlist.channels} == {"Fake Channel", "Second Channel"}
-    # The row it was edited from stays open.
-    assert "channel-picker" in response.text
 
 
 def test_a_channel_can_be_removed_from_a_feed(client, db):
     from dealgo.models import Channel, Playlist
 
     response = client.post(
-        "/settings/playlists/1/channels",
-        data={"channel_id": "1", "include": "0", "open": "1"},
-        headers=HX,
+        "/settings/playlists/1/channels", data={"channel_id": "1", "include": "0"}, headers=HX
     )
     assert "Fake Channel no longer feeds My Feed." in response.text
     with db.session_scope() as session:
@@ -567,9 +564,7 @@ def test_editing_membership_leaves_placed_videos_alone(client, db):
     from dealgo.models import Placement
 
     client.post(
-        "/settings/playlists/1/channels",
-        data={"channel_id": "1", "include": "0", "open": "1"},
-        headers=HX,
+        "/settings/playlists/1/channels", data={"channel_id": "1", "include": "0"}, headers=HX
     )
     with db.session_scope() as session:
         placement = session.scalar(select(Placement))
@@ -625,22 +620,19 @@ def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
     assert '<div class="table-scroll">' in client.get("/").text
 
 
-def test_channels_are_grouped_blocks_not_a_wide_table(client):
-    """Eleven columns never fit, and four stacked bands are just as unreadable.
-    Each channel is one block whose parts are grouped by subject."""
-    import re
-
+def test_a_channel_row_is_just_a_name_and_a_way_in(client):
+    """Everything about a channel lives on its page; the list only has to scan."""
     body = client.get("/channels").text
+    section = body.split('id="channel-list"', 1)[1]
 
     assert "table-channels" not in body
     assert '<ul class="channel-rows">' in body
+    assert "row-groups" not in section      # no stats strip
+    assert "group-label" not in section
+    assert 'name="minutes"' not in section  # no interval control
 
-    # Identity and its buttons share the head; the rest is grouped below it.
-    head = body.index('class="channel-head"')
-    assert head < body.index('class="channel-buttons"') < body.index('class="channel-groups"')
-
-    labels = re.findall(r'<span class="group-label">([^<]+)</span>', body)
-    assert labels[:4] == ["Takes", "Checks", "Feeds", "Videos"]
+    assert section.index('class="channel-head"') < section.index('class="channel-buttons"')
+    assert ">Open<" in section
 
 
 def test_a_control_sits_with_the_data_it_affects(client):
@@ -648,7 +640,7 @@ def test_a_control_sits_with_the_data_it_affects(client):
     separate band of fields."""
     import re
 
-    body = client.get("/channels").text
+    body = client.get("/channels/1").text
     checks = re.search(
         r'<span class="group-label">Checks</span>.*?</div>\s*</div>', body, re.S
     ).group(0)
@@ -657,18 +649,14 @@ def test_a_control_sits_with_the_data_it_affects(client):
     assert "last " in checks            # and the reading it governs
 
 
-def test_the_feeds_table_is_not_wrapped_so_its_tooltips_show(client):
-    """A scroll container clips a bubble that renders above its row."""
-    import re
-
+def test_the_feeds_panel_is_not_a_table_at_all(client):
+    """Five columns of controls per feed was unreadable, and a scroll wrapper
+    would have clipped the tooltips it carries."""
     body = client.get("/channels").text
-    feeds_table = re.search(r'<table class="table table-playlists">.*?</table>', body, re.S)
-    assert feeds_table, "feeds table missing"
-    # The bubbles live in this table, and no scroll wrapper encloses it.
-    assert "info-bubble" in feeds_table.group(0)
-    before = body[: body.index(feeds_table.group(0))]
-    assert before.rstrip().endswith(">")
-    assert not before.rstrip().endswith('<div class="table-scroll">')
+
+    assert "table-playlists" not in body
+    assert '<ul class="feed-rows">' in body
+    assert "table-scroll" not in body.split('id="playlist-targets"')[1].split("</ul>")[0]
 
 
 def test_the_channel_picture_shows_beside_the_name(client, db):
@@ -815,3 +803,703 @@ def test_the_new_feed_box_is_a_real_dialog(client, db):
 
     page = client.get("/").text
     assert "/static/dialog.js" in page
+
+
+def test_every_route_in_the_dialog_has_a_reachable_name_field(client, db):
+    """The reveal must not depend on :has(): where it is unsupported every
+    section stayed hidden, leaving no way to name a feed at all."""
+    import re
+
+    from dealgo.models import OAuthToken
+
+    with db.session_scope() as session:
+        session.add(OAuthToken(id=1, access_token="token"))
+
+    body = client.get("/channels?new=1").text
+    assert 'name="generic_title"' in body
+    assert 'name="new_title"' in body
+
+    # Each radio is a sibling of the fields it reveals, in that order.
+    for radio, section in (
+        ("source-generic", "section-generic"),
+        ("source-new", "section-new"),
+        ("source-existing", "section-existing"),
+    ):
+        assert body.index(f'id="{radio}"') < body.index(section), radio
+        assert f'for="{radio}"' in body  # the label still drives the radio
+
+
+def test_naming_a_generic_feed_sticks(client, db):
+    from dealgo.models import Playlist
+
+    response = client.post(
+        "/settings/feeds/new",
+        data={"source": "generic", "generic_title": "My Reading List"},
+        headers=HX,
+    )
+
+    assert "Now feeding" in response.text and "My Reading List" in response.text
+    with db.session_scope() as session:
+        feed = session.scalar(select(Playlist).where(Playlist.title == "My Reading List"))
+        assert feed is not None and feed.is_generic
+
+
+def test_a_generic_feed_still_needs_a_name(client):
+    response = client.post("/settings/feeds/new", data={"source": "generic"}, headers=HX)
+    assert "Give the feed a name." in response.text
+    assert "<dialog" in response.text  # and the box stays open to type one
+
+
+def test_the_dialog_reveal_does_not_depend_on_has(client):
+    css = (
+        __import__("pathlib").Path("dealgo/web/static/app.css").read_text()
+        if __import__("pathlib").Path("dealgo/web/static/app.css").exists()
+        else client.get("/static/app.css").text
+    )
+    assert "#source-generic:checked ~ .section-generic" in css
+    assert "wizard:has" not in css
+
+
+def test_a_feed_can_be_unlinked_from_its_playlist(client, db):
+    from dealgo.models import Playlist
+
+    detail = client.get("/feeds/1").text
+    assert "/settings/playlists/1/unlink" in detail
+    assert "Unlink from YouTube" in detail
+
+    response = client.post("/settings/playlists/1/unlink", headers=HX)
+    assert "is now a generic feed" in response.text
+    assert "untouched" in response.text
+
+    with db.session_scope() as session:
+        feed = session.get(Playlist, 1)
+        assert feed.is_generic
+        assert feed.title == "My Feed"
+
+
+def test_a_generic_feed_offers_no_unlink_button(client, db):
+    from dealgo.models import Playlist
+
+    with db.session_scope() as session:
+        session.get(Playlist, 1).playlist_id = "generic:abc123"
+
+    body = client.get("/feeds/1").text
+    assert "/settings/playlists/1/unlink" not in body
+    # Remove is still there — unlink is the softer of the two.
+    assert "/settings/playlists/1/delete" in body
+
+
+def test_unlink_is_visually_distinct_from_remove(client):
+    """Three different consequences should not look like one button repeated."""
+    import re
+
+    body = client.get("/feeds/1").text
+    retiring = re.search(r'<h2>Retiring it</h2>.*?</div>', body, re.S).group(0)
+
+    assert 'class="btn btn-warn"' in retiring    # unlink: caution
+    assert 'class="btn btn-danger"' in retiring  # remove: destructive
+    assert retiring.index("btn-warn") < retiring.index("btn-danger")
+
+
+def test_the_nav_reads_configuration_and_raw(client):
+    body = client.get("/").text
+
+    assert ">Configuration</a>" in body
+    assert ">Raw</a>" in body
+    assert ">Channels</a>" not in body
+    assert ">Videos</a>" not in body
+
+    # The URLs are unchanged, so links and bookmarks still work.
+    assert 'href="/channels"' in body and 'href="/videos"' in body
+    assert client.get("/channels").status_code == 200
+    assert client.get("/videos").status_code == 200
+
+
+def test_the_pages_are_titled_to_match_their_tab(client):
+    assert "<title>De-Algo — Configuration</title>" in client.get("/channels").text
+    assert "<title>De-Algo — Raw</title>" in client.get("/videos").text
+    assert "Raw videos" in client.get("/videos").text
+
+
+def test_tracking_a_channel_happens_in_a_dialog(client):
+    listing = client.get("/channels").text
+
+    # The standalone panel is gone; the button opens a box instead.
+    assert "Track content" in listing
+    assert "/partials/channels?track=1" in listing
+    assert "<dialog" not in listing
+
+    dialog = client.get("/channels?track=1").text
+    assert '<dialog class="modal" id="track-channel"' in dialog
+    assert 'action="/channels/add"' in dialog
+    assert 'name="reference"' in dialog
+    # Step 2 offers the feeds it could fill.
+    assert 'name="feeds"' in dialog
+    assert "My Feed" in dialog
+
+
+def test_a_channel_can_be_linked_to_a_feed_as_it_is_added(client, db, monkeypatch):
+    """A channel with no feed is paused, so linking here finishes the job."""
+    from dealgo.models import Channel
+    from dealgo.youtube import feeds as feed_module
+
+    monkeypatch.setattr(
+        feed_module,
+        "fetch_feed",
+        lambda channel_id, http: feed_module.FeedResult(
+            channel_id=channel_id, channel_title="Brand New", entries=[]
+        ),
+    )
+
+    response = client.post(
+        "/channels/add",
+        data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb", "feeds": ["1"]},
+        headers=HX,
+    )
+
+    assert "Now watching Brand New." in response.text
+    with db.session_scope() as session:
+        added = session.scalar(select(Channel).where(Channel.title == "Brand New"))
+        assert [p.title for p in added.playlists] == ["My Feed"]
+        assert added.enabled is True  # linking a feed took it off pause
+
+
+def test_adding_with_no_feed_says_it_is_paused(client, monkeypatch):
+    from dealgo.youtube import feeds as feed_module
+
+    monkeypatch.setattr(
+        feed_module,
+        "fetch_feed",
+        lambda channel_id, http: feed_module.FeedResult(
+            channel_id=channel_id, channel_title="Lonely", entries=[]
+        ),
+    )
+
+    response = client.post(
+        "/channels/add", data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb"}, headers=HX
+    )
+    assert "stays paused until a feed is linked" in response.text
+
+
+def test_a_bad_channel_reference_keeps_the_dialog_open(client):
+    response = client.post("/channels/add", data={"reference": ""}, headers=HX)
+
+    assert "Paste a channel URL" in response.text
+    assert "<dialog" in response.text  # still there to correct
+
+
+def test_the_track_dialog_asks_how_far_back(client):
+    body = client.get("/channels?track=1").text
+
+    assert 'name="backfill"' in body
+    for label in ("Default", "Nothing", "The last week", "The last month",
+                  "Everything the feed still lists"):
+        assert label in body, label
+    # And is honest about the ceiling.
+    assert "newest ~15 uploads" in body
+
+
+def test_the_chosen_window_is_stored_on_the_channel(client, db, monkeypatch):
+    from dealgo.models import Channel
+    from dealgo.youtube import feeds as feed_module
+
+    monkeypatch.setattr(
+        feed_module,
+        "fetch_feed",
+        lambda channel_id, http: feed_module.FeedResult(
+            channel_id=channel_id, channel_title="Brand New", entries=[]
+        ),
+    )
+
+    client.post(
+        "/channels/add",
+        data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb", "backfill": "30"},
+        headers=HX,
+    )
+    with db.session_scope() as session:
+        assert session.scalar(select(Channel).where(Channel.title == "Brand New")).backfill_days == 30
+
+
+def test_leaving_the_window_alone_uses_the_global_default(client, db, monkeypatch):
+    from dealgo.models import Channel
+    from dealgo.youtube import feeds as feed_module
+
+    monkeypatch.setattr(
+        feed_module,
+        "fetch_feed",
+        lambda channel_id, http: feed_module.FeedResult(
+            channel_id=channel_id, channel_title="Plain", entries=[]
+        ),
+    )
+
+    client.post("/channels/add", data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb"}, headers=HX)
+    with db.session_scope() as session:
+        assert session.scalar(select(Channel).where(Channel.title == "Plain")).backfill_days is None
+
+
+def test_a_feed_can_be_renamed_from_its_row(client, db):
+    from dealgo.models import Playlist
+
+    listing = client.get("/feeds/1").text
+    assert ">Rename<" in listing
+    assert "rename-form" not in listing  # not until asked
+
+    editing = client.get("/feeds/1?rename=1").text
+    assert 'class="rename-form"' in editing
+    assert 'name="title"' in editing
+    assert 'value="My Feed"' in editing
+
+    # A generic feed renames with no API call at all.
+    with db.session_scope() as session:
+        session.get(Playlist, 1).playlist_id = "generic:abc123"
+
+    response = client.post(
+        "/settings/playlists/1/rename", data={"title": "Reading List"}, headers=HX
+    )
+    assert "Renamed to" in response.text and "Reading List" in response.text
+    with db.session_scope() as session:
+        assert session.get(Playlist, 1).title == "Reading List"
+
+
+def test_an_empty_rename_keeps_the_field_open(client, db):
+    from dealgo.models import Playlist
+
+    with db.session_scope() as session:
+        session.get(Playlist, 1).playlist_id = "generic:abc123"
+
+    response = client.post("/settings/playlists/1/rename", data={"title": "  "}, headers=HX)
+
+    assert "Give the feed a name." in response.text
+    with db.session_scope() as session:
+        assert session.get(Playlist, 1).title == "My Feed"
+
+
+def test_a_feed_row_is_just_a_name_and_a_way_in(client):
+    """Everything about a feed lives on its page; the list only has to scan."""
+    body = client.get("/channels").text
+    panel = body.split('id="playlist-targets"', 1)[1].split('id="channel-list"')[0]
+
+    assert "row-groups" not in panel      # no stats strip
+    assert "group-label" not in panel
+    assert 'name="max_items"' not in panel  # no limits form
+    assert "channel-picker" not in panel
+
+    assert 'href="/feeds/1"' in panel     # the name links through
+    assert ">Open<" in panel and ">Remove<" in panel
+
+
+def test_filling_is_a_toggle_not_a_checkbox_in_the_save_form(client, db):
+    from dealgo.models import Playlist
+
+    body = client.get("/feeds/1").text
+    assert "/settings/playlists/1/filling" in body
+    assert 'name="enabled"' not in body  # no longer part of the limits form
+
+    off = client.post("/settings/playlists/1/filling", headers=HX)
+    assert "Paused My Feed" in off.text
+    assert "Nothing already in it is removed" in off.text
+    with db.session_scope() as session:
+        assert session.get(Playlist, 1).enabled is False
+
+    on = client.post("/settings/playlists/1/filling", headers=HX)
+    assert "Filling My Feed again." in on.text
+
+
+def test_saving_limits_no_longer_pauses_the_feed(client, db):
+    """The checkbox used to live in this form: submitting without it would
+    silently switch the feed off."""
+    from dealgo.models import Playlist
+
+    client.post(
+        "/settings/playlists/1", data={"max_items": "10", "max_per_run": "2"}, headers=HX
+    )
+    with db.session_scope() as session:
+        feed = session.get(Playlist, 1)
+        assert feed.max_items == 10 and feed.max_per_run == 2
+        assert feed.enabled is True  # untouched
+
+
+def test_a_feed_has_its_own_page(client, db):
+    from dealgo.models import Playlist
+
+    # The list links through rather than carrying every control.
+    assert '/feeds/1"' in client.get("/channels").text
+
+    page = client.get("/feeds/1").text
+    assert "<title>De-Algo — My Feed</title>" in page
+    for section in ("Filling", "Filled by", "In this feed", "Retiring it"):
+        assert section in page, section
+    assert "Fill order" in page and "1 of 1" in page
+    assert 'name="max_items"' in page and 'name="max_per_run"' in page
+    assert "Fake Channel" in page  # the membership picker
+
+
+def test_a_feed_page_action_returns_to_that_page(client, db):
+    """The detail page posts plainly, so it must not land back on the list."""
+    from dealgo.models import Playlist
+
+    response = client.post(
+        "/settings/playlists/1/filling", data={"back": "/feeds/1"}, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/feeds/1?ok=")
+    with db.session_scope() as session:
+        assert session.get(Playlist, 1).enabled is False
+
+
+def test_an_unknown_feed_page_says_so(client):
+    response = client.get("/feeds/999", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/channels?err=")
+
+
+def test_the_channel_page_carries_what_the_row_gave_up(client, db):
+    """Takes, Checks, Feeds and Videos moved here; nothing was lost."""
+    import re
+
+    page = client.get("/channels/1").text
+
+    labels = re.findall(r'<span class="group-label">([^<]+)</span>', page)
+    assert labels[:4] == ["Takes", "Checks", "Feeds", "Videos"]
+    assert "/channels/1/videos" in page and "/channels/1/shorts" in page
+    assert "/channels/1/live" in page and "/channels/1/interval" in page
+    assert "placed" in page and "pending" in page
+
+
+def test_the_filter_form_no_longer_fights_the_toggles(client, db):
+    """Those checkboxes used to live in this form: saving it would switch
+    every one of them off, because an unticked box sends nothing."""
+    from dealgo.models import Channel
+
+    page = client.get("/channels/1").text
+    for gone in ('name="skip_videos"', 'name="skip_shorts"', 'name="skip_live"',
+                 'name="min_pull_minutes"'):
+        assert gone not in page, gone
+
+    with db.session_scope() as session:
+        channel = session.get(Channel, 1)
+        channel.skip_shorts = False       # Shorts on
+        channel.min_pull_minutes = 360    # checked every six hours
+
+    client.post("/channels/1", data={"title_exclude": "podcast", "max_per_run": "4"})
+
+    with db.session_scope() as session:
+        channel = session.get(Channel, 1)
+        assert channel.title_exclude == "podcast" and channel.max_per_run == 4
+        assert channel.skip_shorts is False      # untouched
+        assert channel.min_pull_minutes == 360   # untouched
+
+
+def test_only_a_feeds_own_page_says_it_is_generic(client, db):
+    """Whether a feed is backed by a playlist belongs with its settings, not
+    in either list."""
+    from dealgo.models import Playlist
+
+    with db.session_scope() as session:
+        session.get(Playlist, 1).playlist_id = "generic:abc123"
+
+    assert ">generic<" not in client.get("/channels").text
+    assert ">generic<" not in client.get("/feed").text
+
+    page = client.get("/feeds/1").text
+    assert ">generic</span>" in page
+    assert "videos live in De-Algo only" in page
+
+
+def test_channels_can_be_searched_by_name(client, db):
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Cooking Weekly"))
+
+    body = client.get("/channels").text
+    assert 'name="q"' in body  # the box is offered
+
+    hits = client.get("/channels?q=cooking").text
+    assert "Cooking Weekly" in hits
+    assert "Fake Channel" not in hits
+
+    # By handle and id too, and case does not matter.
+    assert "Fake Channel" in client.get("/channels?q=UCzzz").text
+    assert "No channel matches" in client.get("/channels?q=nothinglikethis").text
+
+
+def test_search_and_the_feed_chips_combine(client, db):
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Unlinked Cooking"))
+
+    # feed=1 has only Fake Channel; the search excludes it.
+    both = client.get("/channels?feed=1&q=cooking").text
+    assert "Fake Channel" not in both
+    assert "Unlinked Cooking" not in both  # it feeds nothing, so the chip wins
+
+    # Each chip keeps the search when clicked.
+    assert "q=cooking" in client.get("/channels?q=cooking").text
+
+
+def test_videos_can_be_searched(client, db):
+    body = client.get("/videos").text
+    assert 'name="q"' in body
+
+    hits = client.get("/videos?q=added").text
+    assert "An added video" in hits
+    assert ">A video<" not in hits
+
+    # The channel name matches too.
+    assert "An added video" in client.get("/videos?q=Fake+Channel").text
+
+
+def test_search_survives_paging_and_status_chips(client):
+    body = client.get("/videos?q=video&status=added").text
+    assert "q=video" in body  # chips and pager carry it
+
+
+def test_the_detail_pickers_can_be_searched(client, db):
+    """Client-side hiding was silently doing nothing; this is testable."""
+    from dealgo.models import Channel, Playlist
+
+    with db.session_scope() as session:
+        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Cooking Weekly"))
+        session.add(Playlist(playlist_id="PL_music", title="Music Hour"))
+
+    def picker(body: str, marker: str) -> str:
+        # The page shows channel and feed names elsewhere too, so look only
+        # inside the region the search actually narrows.
+        return body.split(f'id="{marker}"', 1)[1].split("</div>", 1)[0]
+
+    # A feed's page searches the channels that could fill it.
+    body = client.get("/feeds/1?q=cooking").text
+    assert "Cooking Weekly" in picker(body, "feed-channels")
+    assert "Fake Channel" not in picker(body, "feed-channels")
+    assert "No channel matches" in client.get("/feeds/1?q=nothinglikethis").text
+
+    # A channel's page searches the feeds it could fill.
+    body = client.get("/channels/1?q=music").text
+    assert "Music Hour" in picker(body, "channel-feeds")
+    assert "My Feed" not in picker(body, "channel-feeds")
+    assert "No feed matches" in client.get("/channels/1?q=nothinglikethis").text
+
+
+def test_the_detail_search_survives_typing(client):
+    """The box must sit outside the region it swaps, as on the list pages."""
+    for page, target in (("/feeds/1", "feed-channels"), ("/channels/1", "channel-feeds")):
+        body = client.get(page).text
+        assert body.index('name="q"') < body.index(f'id="{target}"'), page
+        assert f'hx-target="#{target}"' in body, page
+
+
+def test_search_matches_words_in_any_order(client, db):
+    """"corruption puerto" should find "Puerto Rico Has A Corruption Problem"."""
+    from dealgo.models import Channel, Video
+
+    with db.session_scope() as session:
+        session.add(
+            Video(
+                video_id="v9",
+                channel_pk=1,
+                title="Puerto Rico Has A Corruption Problem",
+                status="added",
+            )
+        )
+        session.add(Channel(channel_id="UCdanielbbbbbbbbbbbbbbb", title="Daniel Greene"))
+
+    assert "Puerto Rico" in client.get("/videos?q=corruption+puerto").text
+    assert "Puerto Rico" in client.get("/videos?q=puerto+corrupt").text  # partial words too
+    assert "Puerto Rico" not in client.get("/videos?q=puerto+missing").text  # every term counts
+
+    assert "Daniel Greene" in client.get("/channels?q=greene+daniel").text
+    assert "Daniel Greene" in client.get("/channels?q=dani").text
+
+
+def test_typing_narrows_the_list_without_pressing_enter(client):
+    """The trigger has to be on the input; on the form it never sees a keystroke."""
+    import re
+
+    body = client.get("/channels").text
+    box = re.search(r'<input type="search" name="q".*?>', body, re.S).group(0)
+
+    assert "hx-trigger=" in box
+    assert "input changed" in box
+    assert "hx-get=" in box and "hx-include=" in box
+
+
+def test_the_search_box_is_not_inside_what_it_swaps(client):
+    """It was: every keystroke replaced the input and stole the focus."""
+    for page, target in (("/channels", "channel-results"), ("/videos", "video-results")):
+        body = client.get(page).text
+        assert body.index('name="q"') < body.index(f'id="{target}"'), page
+        # And the box points at that inner region, not the whole panel.
+        assert f'hx-target="#{target}"' in body, page
+
+
+def test_hidden_items_are_actually_hidden(client):
+    """Author rules that set `display` outrank the UA's [hidden] rule, which
+    left the pickers' filter doing nothing at all."""
+    css = client.get("/static/app.css").text
+    assert "[hidden] { display: none !important; }" in css
+
+
+def test_searching_a_picker_matches_ids_as_well_as_names(client):
+    """Ids are searchable, which is why an id-shaped needle finds a channel."""
+    body = client.get("/feeds/1?q=UCzzz").text
+    assert "Fake Channel" in body.split('id="feed-channels"', 1)[1].split("</div>", 1)[0]
+
+
+def test_the_tour_walks_from_setup_to_daily_use(client):
+    body = client.get("/").text
+    assert 'href="/tour"' in body and ">Tour</a>" in body
+
+    first = client.get("/tour").text
+    assert "1. What this is" in first
+    assert "Make a feed" in first and "Day to day" in first  # the whole rail
+    assert "Next →" in first and "← Back" not in first  # nowhere to go back to
+
+    last = client.get("/tour?step=8").text
+    assert "8. Day to day" in last
+    assert "Start watching" in last  # the end offers the app, not another step
+
+
+def test_the_tour_ticks_off_what_is_already_done(client, db):
+    """It should guide from where you are, not lecture from zero."""
+    from dealgo.models import OAuthToken
+
+    body = client.get("/tour").text
+    # The fixture has a feed, a channel and a link between them.
+    assert body.count("tour-done") >= 3
+    assert "tour-done" not in body.split("Connect YouTube")[1][:200]  # not connected yet
+
+    with db.session_scope() as session:
+        session.add(OAuthToken(id=1, access_token="token"))
+    assert client.get("/tour").text.count("tour-done") >= 4
+
+
+def test_an_out_of_range_step_lands_somewhere_sensible(client):
+    assert client.get("/tour?step=0").status_code == 200
+    assert client.get("/tour?step=99").status_code == 200
+
+
+def test_the_tour_button_can_be_hidden(client, db):
+    from dealgo.models import Settings
+
+    assert ">Tour</a>" in client.get("/").text
+
+    client.post("/settings", data={"hide_tour": "1", "poll_interval_minutes": "30"})
+    with db.session_scope() as session:
+        assert db.get_settings(session).hide_tour is True
+
+    hidden = client.get("/").text
+    assert ">Tour</a>" not in hidden
+    # The tour itself is still reachable for anyone who wants it.
+    assert client.get("/tour").status_code == 200
+
+
+def test_saving_settings_does_not_hide_the_tour_by_accident(client, db):
+    """The checkbox is opt-out: a "show it" box would switch itself off on the
+    first save, because an unticked box sends nothing."""
+    client.post("/settings", data={"poll_interval_minutes": "45"})
+    with db.session_scope() as session:
+        assert db.get_settings(session).hide_tour is False
+    assert ">Tour</a>" in client.get("/").text
+
+
+def test_the_dashboard_speaks_the_same_language_as_the_rest(client):
+    """It still said "Feed target", "Playlists" and "from playlist"."""
+    body = client.get("/").text
+
+    assert "Feed target" not in body
+    assert "from playlist" not in body
+    assert "Mark playlist watched" not in body
+
+    assert "Remove 0 watched from feeds" in body
+    assert "Mark all watched" in body
+
+
+def test_the_dashboard_links_each_feed_to_its_page(client, db):
+    from dealgo.models import Playlist
+    from dealgo.services import playlists as playlist_service
+
+    with db.session_scope() as session:
+        playlist_service.set_tags(session, session.get(Playlist, 1), "news")
+
+    body = client.get("/").text
+    assert 'href="/feeds/1"' in body      # the name is a way in
+    assert "pill-tag" in body             # tags carry through
+    assert "1 channel" in body            # counts read as words, not bare numbers
+
+
+def test_the_dashboard_status_is_grouped_like_everything_else(client):
+    import re
+
+    body = client.get("/").text
+    panel = body.split('id="dashboard-state"', 1)[1]
+
+    labels = re.findall(r'<span class="group-label">([^<]+)</span>', panel)
+    assert labels == ["Account", "Syncing", "Watched", "API quota"]
+
+
+def test_the_channel_page_shows_the_channel_in_its_own_words(client, db):
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.get(Channel, 1).description = "Woodworking, badly, on a budget."
+
+    body = client.get("/channels/1").text
+    name = body.index("Fake Channel")
+    blurb = body.index("Woodworking, badly, on a budget.")
+    assert name < blurb                       # under the name, not above it
+    assert '<div class="titled-text">' in body
+
+
+def test_a_long_channel_description_folds_away(client, db):
+    """A channel that treats its about box as a blog would otherwise push
+    every control on the page below the fold."""
+    from dealgo.models import Channel
+
+    essay = "I make videos about lathes. " * 40
+    with db.session_scope() as session:
+        session.get(Channel, 1).description = essay
+
+    body = client.get("/channels/1").text
+    assert "blurb-folded" in body
+    assert "blurb-toggle" in body
+    # One copy, folded by CSS rather than shortened: every word is on the page
+    # exactly once, and the toggle only changes how much of it you can see.
+    assert body.count(essay.strip()) == 1
+    text = body.split('class="blurb-text"', 1)[1].split("</p>", 1)[0]
+    assert "…" not in text                    # folded, never abbreviated
+
+
+def test_a_description_of_a_few_short_lines_is_not_folded(client, db):
+    """Folding three lines away behind a toggle costs a click and buys nothing."""
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.get(Channel, 1).description = "Lathes.\nMostly.\nSometimes chisels."
+
+    body = client.get("/channels/1").text
+    assert '<p class="blurb">' in body
+    assert "blurb-folded" not in body
+
+
+def test_a_short_description_of_many_lines_still_folds(client, db):
+    """Length is not the only way to fill the panel — a stack of link lines
+    is short by character count and tall on screen."""
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.get(Channel, 1).description = "\n".join(f"link {n}" for n in range(12))
+
+    body = client.get("/channels/1").text
+    assert "blurb-folded" in body
+
+
+def test_a_channel_without_a_description_shows_no_empty_space(client, db):
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.get(Channel, 1).description = ""
+
+    body = client.get("/channels/1").text
+    assert "blurb" not in body

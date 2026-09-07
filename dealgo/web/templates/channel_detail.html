@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "_macros.html" import search %}
 {% block title %}De-Algo — {{ channel.title }}{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/channels">← Channels</a></p>
+<p class="crumbs"><a href="/channels">← Configuration</a></p>
 
 <section class="panel">
   <div class="panel-head">
-    <h2 class="titled">
+    <div class="titled">
       <span class="channel-avatar">
         {% if channel.thumbnail_url %}
           <img src="{{ channel.thumbnail_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
@@ -13,8 +14,29 @@
           <span class="avatar-letter" style="--hue: {{ channel.avatar_hue }}">{{ channel.initial }}</span>
         {% endif %}
       </span>
-      {{ channel.title or channel.channel_id }}
-    </h2>
+      <div class="titled-text">
+        <h2>{{ channel.title or channel.channel_id }}</h2>
+        {% if channel.description %}
+          {% set lines = channel.description.splitlines() | length %}
+          {% if channel.description | length > 200 or lines > 3 %}
+            {# Long about text would swamp the panel, so it opens on demand.
+               One copy of the text, folded by a max-height rather than cut,
+               so the toggle only changes how much of it you can see. The
+               checkbox is the whole mechanism: no <details>, whose summary
+               swallows the text it is folding, and no line-clamp. It stays
+               focusable rather than hidden so the toggle works from the
+               keyboard. #}
+            <div class="blurb blurb-folded">
+              <input class="blurb-check" type="checkbox" id="blurb-{{ channel.id }}">
+              <p class="blurb-text">{{ channel.description }}</p>
+              <label class="blurb-toggle" for="blurb-{{ channel.id }}"></label>
+            </div>
+          {% else %}
+            <p class="blurb">{{ channel.description }}</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
     <a class="btn btn-quiet" href="{{ channel.url }}" target="_blank" rel="noopener">Open on YouTube</a>
   </div>
   <dl class="facts">
@@ -40,26 +62,111 @@
 </section>
 
 <section class="panel">
-  <h2>Playlists and filters</h2>
+  <h2>What it does</h2>
+
+  {% macro switch(kind, off, on_title, off_title) -%}
+    <form method="post" action="/channels/{{ channel.id }}/{{ kind }}" hx-boost="false">
+      <input type="hidden" name="back" value="/channels/{{ channel.id }}">
+      <button type="submit" class="toggle {{ 'toggle-on' if not off }}"
+              title="{{ off_title if off else on_title }}">
+        <span class="toggle-track"><span class="toggle-knob"></span></span>
+        <span class="toggle-label">{{ kind }} {{ 'off' if off else 'on' }}</span>
+      </button>
+    </form>
+  {%- endmacro %}
+
+  <div class="row-groups">
+    <div class="row-group">
+      <span class="group-label">Takes</span>
+      <div class="group-body switches">
+        {{ switch('videos', channel.skip_videos,
+                  'Ordinary uploads go into its feeds', 'Ordinary uploads are skipped') }}
+        {{ switch('shorts', channel.skip_shorts,
+                  'Shorts go into its feeds', 'Shorts are skipped') }}
+        {{ switch('live', channel.skip_live,
+                  'Live streams and premieres go into its feeds',
+                  'Live streams and premieres are skipped') }}
+      </div>
+    </div>
+
+    <div class="row-group">
+      <span class="group-label">Checks</span>
+      <div class="group-body">
+        <form method="post" action="/channels/{{ channel.id }}/interval" hx-boost="false">
+          <input type="hidden" name="back" value="/channels/{{ channel.id }}">
+          <select name="minutes" class="interval-select" onchange="this.form.requestSubmit()">
+            {% set known = pull_intervals | map(attribute=0) | list %}
+            {% for value, label in pull_intervals %}
+              <option value="{{ value }}" {{ 'selected' if channel.min_pull_minutes == value }}>{{ label }}</option>
+            {% endfor %}
+            {% if channel.min_pull_minutes not in known %}
+              <option value="{{ channel.min_pull_minutes }}" selected>
+                every {{ channel.min_pull_minutes }} min
+              </option>
+            {% endif %}
+          </select>
+          <noscript><button class="btn btn-quiet" type="submit">Set</button></noscript>
+        </form>
+        <span class="group-note">
+          last {{ channel.last_checked_at | ago }}
+          {%- if channel.next_check_at and not channel.is_due() %},
+            next {{ channel.next_check_at | ago }}{% endif %}
+        </span>
+      </div>
+    </div>
+
+    <div class="row-group">
+      <span class="group-label">Feeds</span>
+      <div class="group-body targets">
+        {% for playlist in channel.playlists %}
+          <a class="pill pill-target" href="/feeds/{{ playlist.id }}">{{ playlist.title }}</a>
+        {% else %}
+          <span class="muted">none — paused until one is linked</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="row-group">
+      <span class="group-label">Videos</span>
+      <div class="group-body counts">
+        <a href="/videos?status=added&channel={{ channel.id }}">
+          <strong>{{ placed }}</strong> placed</a>
+        <a href="/videos?status=pending&channel={{ channel.id }}">
+          <strong>{{ pending }}</strong> pending</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Feeds and filters</h2>
   <form method="post" action="/channels/{{ channel.id }}" class="stack-form">
     <div class="field-row">
       <fieldset class="playlist-picker">
-        <legend>Feeds these playlists</legend>
+        <legend>Fills these feeds</legend>
+        {{ search('/channels/' ~ channel.id, query, 'Search feeds…', '#channel-feeds') }}
+
+        <div id="channel-feeds">
         {% if all_playlists %}
-          {% for playlist in all_playlists %}
-          <label class="check check-with-hint">
-        <input type="checkbox" name="playlists" value="{{ playlist.id }}"
-                   {{ 'checked' if playlist.id in channel_playlist_pks }}>
-        <span class="check-body">
-          <span>{{ playlist.title }}{% if not playlist.enabled %} <span class="muted">(paused)</span>{% endif %}
-          </label>
-          {% endfor %}
+          <div class="feed-picker">
+            {% for playlist in all_playlists %}
+            <label class="check pick">
+              <input type="checkbox" name="playlists" value="{{ playlist.id }}"
+                     {{ 'checked' if playlist.id in channel_playlist_pks }}>
+              <span>{{ playlist.title }}{% if not playlist.enabled %}
+                <span class="muted">(paused)</span>{% endif %}</span>
+            </label>
+            {% endfor %}
+          </div>
           <p class="hint">
-            Ticking a playlist affects future uploads. To backfill an older video, press Queue on it below.
+            Ticking a feed affects future uploads. To backfill an older video, press Queue on it below.
           </p>
+        {% elif query %}
+          <p class="empty">No feed matches “{{ query }}”.</p>
         {% else %}
-          <p class="empty">No playlists configured yet — <a href="/channels">add one on the Channels page</a>.</p>
+          <p class="empty">No feeds yet — <a href="/channels">add one on the Configuration page</a>.</p>
         {% endif %}
+        </div>
       </fieldset>
     </div>
     <div class="field-row">
@@ -82,39 +189,9 @@
         <input type="number" min="0" name="max_duration_sec" value="{{ channel.max_duration_sec or '' }}" placeholder="no maximum">
       </label>
       <label>
-        Check at most every (minutes)
-        <input type="number" min="0" name="min_pull_minutes" value="{{ channel.min_pull_minutes }}"></span>
-          <span class="hint">0 checks on every sync. Polling is free, so this is about how often you
-          want to hear from this channel.</span>
-        </span>
-      </label>
-      <label>
         Max added per sync
         <input type="number" min="0" name="max_per_run" value="{{ channel.max_per_run }}">
         <span class="hint">0 means no limit.</span>
-      </label>
-    </div>
-    <div class="field-row checks">
-      <label class="check check-with-hint">
-        <input type="checkbox" name="skip_videos" {{ 'checked' if channel.skip_videos }}>
-        <span class="check-body">
-          <span>Skip ordinary uploads</span>
-          <span class="hint">Everything that is not a Short or a broadcast.</span>
-        </span>
-      </label>
-      <label class="check check-with-hint">
-        <input type="checkbox" name="skip_shorts" {{ 'checked' if channel.skip_shorts }}>
-        <span class="check-body">
-          <span>Skip Shorts (≤ {{ settings.shorts_max_seconds }}s)</span>
-          <span class="hint">Unticking this also queues Shorts already skipped from this channel.</span>
-        </span>
-      </label>
-      <label class="check check-with-hint">
-        <input type="checkbox" name="skip_live" {{ 'checked' if channel.skip_live }}>
-        <span class="check-body">
-          <span>Skip live streams and premieres</span>
-          <span class="hint">Unticking this also queues the ones already skipped — usually now finished.</span>
-        </span>
       </label>
     </div>
     <button type="submit" class="btn btn-primary">Save</button>
