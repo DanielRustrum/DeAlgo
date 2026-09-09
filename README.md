@@ -405,7 +405,7 @@ database if you would rather use Postgres. Schema changes are applied on start, 
 ## Development
 
 ```bash
-.venv/bin/pip install -r requirements.txt pytest
+.venv/bin/pip install -r requirements.txt pytest libsass
 .venv/bin/python -m pytest
 ```
 
@@ -420,15 +420,43 @@ dealgo/
   youtube/     feeds.py (free Atom polling) · api.py (Data API) · oauth.py
   services/    sync.py (the engine) · filters.py · channels.py · playlists.py
                watched.py · auth.py
-  web/         app.py (FastAPI) · templates/ · static/
+  web/         app.py (FastAPI) · templates/ · scss/ (styles) · static/ (served)
   models.py    the whole schema · db.py · scheduler.py
 ```
 
 The frontend is server-rendered HTML driven by [htmx](https://htmx.org) — vendored into
-`dealgo/web/static/`, so the container needs no CDN and no build step. Pages navigate through
-`hx-boost`, the sync button polls its own status and announces a finished run with an `HX-Trigger`
-header, and the panels listening for that event refresh themselves. Every htmx route also answers a
-plain form post with a redirect, so the app still works with JavaScript switched off.
+`dealgo/web/static/`, so the container needs no CDN. Pages navigate through `hx-boost`, the sync
+button polls its own status and announces a finished run with an `HX-Trigger` header, and the panels
+listening for that event refresh themselves. Every htmx route also answers a plain form post with a
+redirect, so the app still works with JavaScript switched off.
+
+### Styling
+
+The stylesheet is written as SCSS partials in `dealgo/web/scss/`, one per area of the app, pulled
+together by `app.scss`. Rebuild after editing any of them:
+
+```bash
+make css          # compile once
+make watch-css    # recompile on save (needs inotify-tools)
+```
+
+`make dev` compiles first, so running locally never serves a stale stylesheet.
+
+**Edit the partials, never `static/app.css`** — it is generated and minified, and `make css`
+overwrites it. The compiled file is committed and ships inside the package, which is why running or
+containerising De-Algo needs no compiler; only restyling does. A test compiles the sources and
+compares, so a partial changed without a rebuild fails the suite rather than reaching the container
+unnoticed. Tests that check a rule reached the stylesheet match on whitespace-stripped CSS, since the
+minifier decides the layout.
+
+Compilation is [libsass](https://sass.github.io/libsass-python/) — a Python wheel, so the toolchain
+stays `pip`-only with no Node. It predates Sass modules, so the partials use `@import` rather than
+`@use`, and `min()` and `hsl()` collide with Sass's own functions where a `var()` or a `calc()` is
+involved (`_dialogs.scss` and `_tokens.scss` show the way around each).
+
+Shared pieces live in `_tokens.scss`: the light and dark custom properties, a `surface` mixin for the
+panel look, and a `still` mixin wrapping `prefers-reduced-motion`. Theming stays in CSS custom
+properties rather than SCSS variables, because the light theme switches at runtime.
 
 ## License
 

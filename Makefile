@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test css watch-css dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -91,7 +91,18 @@ info: ## Show Dealgo's configuration
 test: ## Run the test suite locally
 	$(PY) -m pytest
 
-dev: ## Run the app locally without Docker
+css: ## Compile web/scss into the stylesheet the app serves
+	$(PY) -m dealgo.web.styles
+
+watch-css: ## Recompile the stylesheet whenever a partial changes
+	@command -v inotifywait >/dev/null || { echo "needs inotify-tools"; exit 2; }
+	@echo "watching dealgo/web/scss — ctrl-c to stop"
+	@while true; do \
+		inotifywait -qq -e close_write dealgo/web/scss; \
+		$(PY) -m dealgo.web.styles >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
+	done
+
+dev: css ## Run the app locally without Docker
 	$(PY) -m dealgo serve
 
 clean: ## Stop Dealgo and delete its data volume (irreversible)

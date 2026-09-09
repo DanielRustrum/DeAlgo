@@ -1,0 +1,11 @@
+// The signed-out state: feeds that collect locally for now.
+
+// Feeds that point at a YouTube playlist while signed out. They still work —
+   // they collect locally — so this is greyed, not marked as an error.
+.feed-dormant { opacity: 0.6; }
+.feed-dormant:hover, .feed-dormant:focus-within { opacity: 1; }
+.pill-dormant { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
+
+.banner-offline { border-left-color: var(--warn); font-size: 13px; }
+.banner-offline strong { display: block; margin-bottom: 2px; font-size: 13.5px; }
+.banner-offline a { margin-left: 4px; white-space: nowrap; }

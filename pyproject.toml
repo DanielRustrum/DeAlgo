@@ -16,7 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# libsass compiles web/scss into static/app.css. The app itself never imports
+# it: the compiled stylesheet is committed and ships in the package, so running
+# De-Algo needs no compiler — only restyling it does.
+dev = ["pytest>=8.0", "libsass>=0.22"]
 
 [project.scripts]
 dealgo = "dealgo.__main__:main"
@@ -31,7 +34,7 @@ include = ["dealgo*"]
 # Templates and static assets ship inside the package, so the installed
 # app is self-contained (this is what the container runs).
 [tool.setuptools.package-data]
-dealgo = ["web/templates/*.html", "web/static/*"]
+dealgo = ["web/templates/*.html", "web/static/*", "web/scss/*.scss"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

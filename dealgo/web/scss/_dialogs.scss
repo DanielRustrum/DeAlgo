@@ -1,0 +1,92 @@
+// Guided <dialog> flows.
+
+// A <dialog>. dialog.js calls showModal(), which paints it in the browser's
+   // top layer — nothing in the page can clip or outrank it — and supplies the
+   // ::backdrop. The fixed centring below covers the no-JavaScript path, where the
+   // open attribute alone would otherwise render it inline.
+.modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  z-index: 40;
+  // Sass has its own numeric min(), which cannot take a calc() or mix units.
+  // Interpolating hands the expression to the browser untouched.
+  width: #{"min(620px, calc(100% - 32px))"};
+  max-height: #{"min(86vh, 860px)"};
+  overflow-y: auto;
+  padding: 0;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+.modal::backdrop { background: rgba(0, 0, 0, 0.62); }
+.modal:not([open]) { display: none; }
+
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--line);
+}
+.modal-head h2 { margin: 0; font-size: 16px; }
+.modal-close { text-decoration: none; color: var(--muted); font-size: 15px; line-height: 1; }
+.modal-close:hover { color: var(--accent); }
+.modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 22px; }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px; border-top: 1px solid var(--line);
+}
+
+.step h3 {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 10px; font-size: 13px; color: var(--text);
+  text-transform: none; letter-spacing: 0;
+}
+.step-number {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 19px; height: 19px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+}
+
+// The radio itself is out of the flow; the label draws the dot. That keeps
+   // input, label and fields as siblings, so the rules below need only the
+   // adjacent- and general-sibling combinators — no :has(), which silently hid
+   // every field where it is unsupported.
+.route-radio { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
+
+.choice {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 9px 11px; margin-bottom: 4px;
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  font-size: 14px;
+}
+.choice::before {
+  content: ""; flex: none; width: 14px; height: 14px; margin-top: 3px;
+  border: 1px solid var(--muted); border-radius: 50%; background: var(--bg);
+}
+.choice:hover { border-color: var(--muted); }
+.choice .hint { margin: 0; }
+
+.route-radio:checked + .choice { border-color: var(--accent); background: var(--panel-2); }
+.route-radio:checked + .choice::before {
+  border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--accent);
+}
+.route-radio:disabled + .choice { opacity: 0.55; cursor: default; }
+.route-radio:focus-visible + .choice { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+// Only the chosen route's fields are shown.
+.wizard-section { display: none; padding: 2px 0 12px 30px; }
+#source-generic:checked ~ .section-generic,
+#source-new:checked ~ .section-new,
+#source-existing:checked ~ .section-existing { display: block; }
+.field-block { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
+.field-block select, .field-block input { color: var(--text); font-size: 14px; }
+
+.chip-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.chip-pick input { width: auto; }
+.chip-pick:has(input:checked) { border-color: var(--ok); color: var(--text); }
+
+.modal .channel-picker { max-height: 190px; overflow-y: auto; }
+
+.rename-form { display: flex; gap: 6px; align-items: center; }
+.rename-form input { min-width: 140px; }

@@ -1,0 +1,11 @@
+// Small status labels.
+
+.pill {
+  display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 20px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+  text-transform: lowercase; letter-spacing: 0.3px;
+}
+.pill-added { color: var(--ok); border-color: var(--ok); }
+.pill-pending { color: var(--warn); border-color: var(--warn); }
+.pill-failed { color: var(--bad); border-color: var(--bad); }
+.pill-paused { color: var(--warn); border-color: var(--warn); margin-left: 6px; }

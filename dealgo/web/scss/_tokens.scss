@@ -1,0 +1,55 @@
+// Colour and shape, in one place. Everything else reads these.
+
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1d212a;
+  --line: #272c37;
+  --text: #e6e9ef;
+  --muted: #8b93a5;
+  --accent: #ff4d4d;
+  --accent-dim: #b53131;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --panel-2: #f0f2f5;
+    --line: #dfe3ea;
+    --text: #1a1d23;
+    --muted: #666e7e;
+    // The dark-theme amber is too thin to read on white.
+    --warn: #a45c07;
+  }
+}
+
+// Sass owns the name `hsl()`, and would reject a var() inside it as a missing
+// argument, so the channel-avatar colour is assembled as plain text instead.
+// $hue is a custom property set per channel, which is why it cannot be
+// resolved at compile time.
+@function channel-hue($lightness) {
+  @return unquote("hsl(var(--hue, 0) 45% #{$lightness})");
+}
+
+// The panel look: three declarations that travel together everywhere a raised
+// surface appears. Written out once, so a change to the border or the corner
+// radius does not have to be found in five files.
+@mixin surface {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+// Motion is decoration. Anything that moves wraps its transition in this, so
+// honouring the system preference is one line rather than a media query the
+// next animation forgets to add.
+@mixin still {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+}

@@ -1,0 +1,12 @@
+// Watched videos and the controls that clear them.
+
+.pill-watched { color: var(--muted); border-color: var(--muted); }
+.pill-inlist { color: var(--ok); border-color: var(--line); }
+.row-watched td:not(.actions) { opacity: 0.6; }
+
+.watched-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.watched-actions form { display: inline; }
+.panel-head .watched-actions { margin-left: auto; }
+
+.copy-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.copy-row code { font-size: 13px; padding: 6px 10px; }

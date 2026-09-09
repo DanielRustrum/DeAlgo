@@ -1,0 +1,127 @@
+// Channel rows, avatars, and the feed/channel pickers.
+
+.channel-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.channel-picker form { display: inline; }
+.channel-picker .chip { cursor: pointer; font-family: inherit; }
+.channel-picker .chip-on { border-color: var(--ok); color: var(--text); }
+
+input[type=file] {
+  background: var(--bg); color: var(--muted); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; width: 100%;
+}
+input[type=file]::file-selector-button {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 10px; margin-right: 10px; font: inherit;
+  font-size: 12.5px; cursor: pointer;
+}
+input[type=file]::file-selector-button:hover { border-color: var(--accent); color: var(--accent); }
+
+// Eleven columns never fit a panel. Each channel is one block instead, with
+   // its parts grouped by subject rather than stacked: the poll interval sits
+   // with when it was last polled, the content switches sit together, and so on.
+.channel-rows { list-style: none; margin: 0; padding: 0; }
+.channel-row {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px 0; border-bottom: 1px solid var(--line);
+}
+.channel-row:first-child { padding-top: 4px; }
+.channel-row:last-child { border-bottom: none; padding-bottom: 4px; }
+.channel-row.row-off { opacity: 0.6; }
+.channel-row.row-off:hover { opacity: 1; }
+
+.channel-head { display: flex; gap: 10px; align-items: flex-start; }
+// Keep the number and its arrows tight against the picture.
+.channel-head .rank {
+  display: inline-flex; align-items: center; gap: 1px;
+  align-self: flex-start; margin-top: 4px;
+}
+.channel-head .rank-moves { margin-left: 0; }
+.channel-id { min-width: 0; flex: 1; }
+.channel-id .channel-name { font-size: 15px; }
+.channel-id .pill { margin-left: 6px; vertical-align: 2px; }
+.channel-buttons, .row-buttons { display: flex; gap: 6px; align-items: center; flex: none; }
+.channel-buttons form, .row-buttons form { display: inline; }
+
+.row-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.row-group {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; background: var(--panel-2); min-width: 0;
+}
+.group-label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted);
+}
+.group-body { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; }
+.group-body > a { text-decoration: none; }
+.group-note { color: var(--muted); font-size: 12px; }
+.group-body.switches { gap: 4px 14px; }
+.group-body.targets { gap: 4px; }
+.group-body.counts { flex-direction: column; align-items: flex-start; gap: 2px; }
+.group-body.counts strong { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  .channel-head { flex-wrap: wrap; }
+  .channel-buttons { width: 100%; }
+}
+
+
+// Sized to span both lines of the name block. The line heights below are
+   // fixed so that 22 + 2 + 18 is exactly the picture's height, rather than roughly.
+.channel-id .channel-name { font-size: 15px; line-height: 22px; }
+.channel-id .meta { line-height: 18px; margin-top: 2px; }
+
+.channel-avatar { flex: none; align-self: flex-start; display: block; width: 42px; height: 42px; }
+.channel-avatar img,
+.channel-avatar .avatar-letter {
+  width: 100%; height: 100%; border-radius: 10px; display: block;
+  border: 1px solid var(--line); background: var(--panel-2);
+}
+.channel-avatar img { object-fit: cover; }
+// No picture yet — a channel added by bare id has none until a sync fills it.
+.avatar-letter {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 600; color: #fff;
+  background: channel-hue(42%);
+  border-color: channel-hue(52%);
+}
+
+.titled { display: flex; align-items: center; gap: 10px; }
+.titled .channel-avatar { width: 32px; height: 32px; }
+.titled .channel-avatar img, .titled .channel-avatar .avatar-letter { border-radius: 8px; }
+.titled .avatar-letter { font-size: 14px; }
+.titled-text { min-width: 0; }
+.titled-text h2 { margin: 0; }
+
+// The channel's own words, under its name. pre-line keeps the paragraph
+   // breaks YouTube stores; the max-width stops a wall of text running the
+   // panel wide.
+.blurb {
+  margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted);
+  max-width: 70ch;
+}
+p.blurb, .blurb-text { white-space: pre-line; margin: 0; }
+
+// Folded: three lines high (1.5 line-height x 3), the rest clipped. The
+   // checkbox is the state — visually gone but still focusable, so Tab and
+   // Space reach the toggle.
+.blurb-check {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  overflow: hidden; clip-path: inset(50%);
+}
+.blurb-folded .blurb-text { max-height: 4.5em; overflow: hidden; }
+.blurb-check:checked ~ .blurb-text { max-height: none; }
+.blurb-toggle {
+  display: inline-block; margin-top: 2px; font-size: 12px;
+  color: var(--accent); cursor: pointer;
+}
+.blurb-toggle::after { content: "Show more"; }
+.blurb-check:checked ~ .blurb-toggle::after { content: "Show less"; }
+.blurb-toggle:hover { text-decoration: underline; }
+.blurb-check:focus-visible ~ .blurb-toggle { outline: 2px solid var(--accent); outline-offset: 2px; }

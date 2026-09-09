@@ -1,0 +1,25 @@
+// Request feedback: the progress bar and busy states.
+
+// A thin progress bar for any request that is not the header's own poll.
+.progress {
+  position: fixed; top: 0; left: 0; height: 2px; width: 0;
+  background: var(--accent); opacity: 0; z-index: 50;
+  transition: width 400ms ease-out, opacity 200ms;
+}
+.progress.htmx-request { width: 85%; opacity: 1; }
+
+.spinner {
+  display: inline-block; width: 11px; height: 11px; margin-right: 7px;
+  vertical-align: -1px; border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff; border-radius: 50%; animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+// Content being replaced fades rather than jumping.
+.htmx-swapping { opacity: 0.4; transition: opacity 120ms ease-out; }
+.htmx-settling img { opacity: 1; }
+
+@include still {
+  .progress, .htmx-swapping { transition: none; }
+  .spinner { animation-duration: 2s; }
+}

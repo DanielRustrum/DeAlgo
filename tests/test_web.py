@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from urllib.parse import unquote_plus
 
@@ -12,6 +13,15 @@ from sqlalchemy import select
 from dealgo.models import Channel, Placement, Playlist, SyncRun, Video
 
 HX = {"HX-Request": "true"}
+
+
+def squashed(css: str) -> str:
+    """A whitespace-free view of a stylesheet.
+
+    app.css is compiled from SCSS and minified, so a test that matches on its
+    exact layout is testing the compiler, not the rule it cares about.
+    """
+    return re.sub(r"\s+", "", css)
 
 
 @pytest.fixture
@@ -856,7 +866,7 @@ def test_the_dialog_reveal_does_not_depend_on_has(client):
         if __import__("pathlib").Path("dealgo/web/static/app.css").exists()
         else client.get("/static/app.css").text
     )
-    assert "#source-generic:checked ~ .section-generic" in css
+    assert "#source-generic:checked~.section-generic" in squashed(css)
     assert "wizard:has" not in css
 
 
@@ -1338,7 +1348,7 @@ def test_hidden_items_are_actually_hidden(client):
     """Author rules that set `display` outrank the UA's [hidden] rule, which
     left the pickers' filter doing nothing at all."""
     css = client.get("/static/app.css").text
-    assert "[hidden] { display: none !important; }" in css
+    assert "[hidden]{display:none!important" in squashed(css)
 
 
 def test_searching_a_picker_matches_ids_as_well_as_names(client):
