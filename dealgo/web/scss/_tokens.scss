@@ -13,6 +13,8 @@
   --warn: #d29922;
   --bad: #f85149;
   --radius: 10px;
+  // Behind the menu drawer. Darker than the page, not black.
+  --scrim: rgba(6, 8, 12, 0.62);
 }
 
 @media (prefers-color-scheme: light) {
@@ -25,7 +27,19 @@
     --muted: #666e7e;
     // The dark-theme amber is too thin to read on white.
     --warn: #a45c07;
+    --scrim: rgba(26, 29, 35, 0.42);
   }
+}
+
+// Sass owns the names `min()` and `max()` too, and its versions are numeric:
+// they cannot mix units, take a calc(), or take an env(). These hand the
+// expression to the browser untouched.
+@function css-min($expression) {
+  @return unquote("min(#{$expression})");
+}
+
+@function css-max($expression) {
+  @return unquote("max(#{$expression})");
 }
 
 // Sass owns the name `hsl()`, and would reject a var() inside it as a missing
@@ -50,6 +64,35 @@
 // next animation forgets to add.
 @mixin still {
   @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+}
+
+// -- widths ---------------------------------------------------------------
+
+// Named rather than scattered, so "phone" means the same thing everywhere.
+// Chosen from the layouts themselves: $phone is where the top bar can no
+// longer hold a row of tabs, $tablet where two columns stop being worth it.
+$phone: 640px;
+$tablet: 860px;
+
+@mixin phone {
+  @media (max-width: $phone) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (max-width: $tablet) {
+    @content;
+  }
+}
+
+// A finger is not a mouse pointer. Hit areas grow where there is no hover to
+// aim with, rather than at a width — a tablet with a keyboard keeps the
+// tighter layout, a phone in landscape does not.
+@mixin touch {
+  @media (pointer: coarse) {
     @content;
   }
 }

@@ -270,6 +270,7 @@ def test_all_three_off_takes_nothing(world):
     with world["db"].session_scope() as session:
         channel = session.scalar(select(Channel))
         channel_service.set_videos(session, channel, include=False)
+        channel_service.set_posts(session, channel, include=False)
         assert channel.takes_nothing is True
 
     sync_service.run_sync()

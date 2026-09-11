@@ -9,9 +9,11 @@ added twice.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
 import threading
 from contextlib import contextmanager
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 
 import httpx
@@ -26,16 +28,20 @@ from ..models import (
     Channel,
     Placement,
     Playlist,
+    Settings,
     SyncRun,
     Video,
     to_naive_utc,
     utcnow,
 )
-from ..youtube import feeds
+from ..youtube import community, feeds
 from ..youtube.api import QUOTA_COST_DELETE, QUOTA_COST_INSERT, YouTubeAPIError, YouTubeClient
 from . import filters
 from . import quota
 from .auth import build_client
+
+# How many items each playlist or channel has taken so far this run.
+Tally = dict[int, int]
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +57,7 @@ _run_lock = threading.Lock()
 
 
 @contextmanager
-def playlist_lock():
+def playlist_lock() -> Iterator[None]:
     """Serialize everything that writes to the playlist.
 
     A sync inserting while a removal pass deletes would race over the same
@@ -256,12 +262,69 @@ def _discover(
             if not beyond_backfill:
                 result.discovered += 1
 
+        if not channel.skip_posts:
+            _discover_posts(session, http, channel, result, first_check=first_check, backfill=backfill)
+
         if not channel.title and feed.channel_title:
             channel.title = feed.channel_title
         channel.last_checked_at = utcnow()
         channel.last_error = None
         result.channels_checked += 1
         session.flush()
+
+
+def _discover_posts(
+    session: Session,
+    http: httpx.Client,
+    channel: Channel,
+    result: SyncResult,
+    *,
+    first_check: bool,
+    backfill: int,
+) -> None:
+    """Collect a channel's community posts.
+
+    Scraped, not fetched from an API — there is no API for these — so it is
+    wrapped whole: a channel whose posts cannot be read still keeps its videos.
+    The backfill rules are the video ones, so tracking a channel does not drop
+    a year of its writing into a feed on day one.
+    """
+    try:
+        posts = community.fetch_posts(channel.channel_id, http)
+    except Exception as exc:  # the page shape is not ours to rely on
+        log.warning("could not read posts for %s: %s", channel.title, exc)
+        return
+    if not posts:
+        return
+
+    known = set(
+        session.scalars(
+            select(Video.video_id).where(Video.video_id.in_([p.post_id for p in posts] or [""]))
+        )
+    )
+    for index, post in enumerate(posts):
+        if post.post_id in known:
+            continue
+        beyond_backfill = first_check and index >= max(0, backfill)
+        session.add(
+            Video(
+                video_id=post.post_id,
+                channel_pk=channel.id,
+                kind="post",
+                title=post.title,
+                body=post.text,
+                images=json.dumps(post.image_urls) if post.image_urls else None,
+                # The first image is the post's face in the feed list.
+                thumbnail_url=post.image_urls[0] if post.image_urls else None,
+                published_at=to_naive_utc(post.published_at),
+                status="ignored" if beyond_backfill else "pending",
+                reason="predates the backfill window" if beyond_backfill else None,
+                processed_at=utcnow() if beyond_backfill else None,
+            )
+        )
+        if not beyond_backfill:
+            result.discovered += 1
+    session.flush()
 
 
 def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncResult) -> None:
@@ -309,7 +372,7 @@ def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncR
 
 
 def _retry_deferred(
-    session: Session, client: YouTubeClient, result: SyncResult, added_per_playlist: dict
+    session: Session, client: YouTubeClient, result: SyncResult, added_per_playlist: Tally
 ) -> bool:
     """Finish placements an earlier run started but could not complete.
 
@@ -397,7 +460,9 @@ def _retry_deferred(
     return False
 
 
-def _publish(session: Session, client: YouTubeClient, settings, result: SyncResult) -> None:
+def _publish(
+    session: Session, client: YouTubeClient, settings: Settings, result: SyncResult
+) -> None:
     added_per_playlist: dict[int, int] = {}
     if _retry_deferred(session, client, result, added_per_playlist):
         return
@@ -419,9 +484,10 @@ def _publish(session: Session, client: YouTubeClient, settings, result: SyncResu
         return
 
     details = {}
-    if client.can_read and quota.can_afford(session, 1, use_reserve=True):
+    clips = [v.video_id for v in pending if not v.is_post]
+    if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True):
         try:
-            details = client.video_details([v.video_id for v in pending])
+            details = client.video_details(clips)
         except YouTubeAPIError as exc:
             log.warning("could not load video details: %s", exc)
             result.messages.append("Video details unavailable; duration filters were not applied.")
@@ -461,6 +527,19 @@ def _publish(session: Session, client: YouTubeClient, settings, result: SyncResu
             video.duration_sec = detail.duration_sec
             if detail.title:
                 video.title = detail.title
+
+        if video.is_post:
+            decision = filters.evaluate_post(
+                text=video.body or video.title,
+                skip_posts=channel.skip_posts,
+                title_include=channel.title_include,
+                title_exclude=channel.title_exclude,
+            )
+            if not decision.accept:
+                _reject(video, result, decision.reason or "filtered out")
+                continue
+            _place_locally(session, video, channel, result, added_per_playlist, added_per_channel)
+            continue
 
         if detail is None and client.can_read:
             _reject(video, result, "video is unavailable (private, deleted, or region blocked)")
@@ -628,7 +707,60 @@ def _publish(session: Session, client: YouTubeClient, settings, result: SyncResu
         session.flush()
 
 
-def _defer(session: Session, video: Video, targets, placed: dict) -> int:
+def _place_locally(
+    session: Session,
+    video: Video,
+    channel: Channel,
+    result: SyncResult,
+    added_per_playlist: Tally,
+    added_per_channel: Tally,
+) -> None:
+    """Put a community post into each of its channel's feeds.
+
+    Posts never reach YouTube — there is no playlist that takes them — so this
+    is the whole act: no API call, no quota, no deferral. What is left over
+    after a cap is simply picked up by the next run, like anything else.
+    """
+    targets = sorted(channel.targets, key=lambda p: (p.priority, p.id))
+    if not targets:
+        return  # stays pending until the channel feeds something
+
+    cap = channel.max_per_run or 0
+    if cap and added_per_channel.get(channel.id, 0) >= cap:
+        return
+
+    placed = {p.playlist_pk for p in video.placements}
+    landed = False
+    for playlist in targets:
+        if playlist.id in placed:
+            continue
+        limit = playlist.max_per_run or 0
+        if limit and added_per_playlist.get(playlist.id, 0) >= limit:
+            continue
+        session.add(
+            Placement(
+                video_pk=video.id,
+                playlist_pk=playlist.id,
+                playlist_item_id=_local_item_id(video, playlist),
+                added_at=utcnow(),
+            )
+        )
+        added_per_playlist[playlist.id] = added_per_playlist.get(playlist.id, 0) + 1
+        landed = True
+        result.added += 1
+
+    session.flush()
+    if landed:
+        video.status = "added"
+        video.reason = None
+        video.processed_at = utcnow()
+        added_per_channel[channel.id] = added_per_channel.get(channel.id, 0) + 1
+        session.flush()
+
+
+def _defer(
+    session: Session, video: Video, targets: Sequence[Playlist], placed: dict[int, Placement]
+) -> int:
     """Record the playlists this video was meant to reach but did not."""
     known = set(placed) | {p.playlist_pk for p in video.placements}
     created = 0
@@ -648,7 +780,10 @@ def _local_item_id(video: Video, playlist: Playlist) -> str:
     A generic feed is local for good. A YouTube feed filled while signed out is
     local for now, and says so, so a run with an account can finish the job.
     """
-    prefix = GENERIC_ITEM_PREFIX if playlist.is_generic else OFFLINE_ITEM_PREFIX
+    # A post is local for good: nothing on YouTube can hold one, so it must
+    # never be marked as owed to a playlist the way a signed-out video is.
+    local_for_good = playlist.is_generic or video.is_post
+    prefix = GENERIC_ITEM_PREFIX if local_for_good else OFFLINE_ITEM_PREFIX
     return f"{prefix}{playlist.id}-{video.id}"
 
 
@@ -684,7 +819,9 @@ def _reject(video: Video, result: SyncResult, reason: str) -> None:
 # -- phase 3: keep the playlist to size -----------------------------------
 
 
-def _prune(session: Session, client: YouTubeClient, playlists, result: SyncResult) -> None:
+def _prune(
+    session: Session, client: YouTubeClient, playlists: Sequence[Playlist], result: SyncResult
+) -> None:
     """Trim each playlist back to its own size cap."""
     for playlist in playlists:
         limit = playlist.max_items or 0

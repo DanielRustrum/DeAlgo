@@ -125,3 +125,9 @@ p.blurb, .blurb-text { white-space: pre-line; margin: 0; }
 .blurb-check:checked ~ .blurb-toggle::after { content: "Show less"; }
 .blurb-toggle:hover { text-decoration: underline; }
 .blurb-check:focus-visible ~ .blurb-toggle { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@include phone {
+  .titled { gap: 8px; }
+  .row-groups { grid-template-columns: 1fr; gap: 10px; }
+  .channel-avatar { width: 36px; height: 36px; }
+}

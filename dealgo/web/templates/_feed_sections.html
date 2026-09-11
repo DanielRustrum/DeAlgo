@@ -7,7 +7,7 @@
   <section class="panel feed-section">
     {# A native <details>: collapsed unless asked, keyboard-operable, no script.
        The summary is only a toggle — links inside one would fire it too, so the
-       playlist link and Theater button sit in the body. #}
+       playlist link and Focus button sit in the body. #}
     <details id="feed-{{ section.playlist.id }}">
       <summary>
         <span class="section-title">{{ section.playlist.title }}</span>
@@ -51,8 +51,8 @@
 
       <div class="section-actions">
         {% if section.videos %}
-        <a class="btn btn-quiet" href="/watch?order={{ section.playlist.view_order }}&playlist={{ section.playlist.id }}"
-           title="Play this feed through, marking each one watched">Theater ▶</a>
+        <a class="btn btn-quiet" href="/focus?order={{ section.playlist.view_order }}&playlist={{ section.playlist.id }}"
+           title="Play this feed through, marking each one watched">Focus ▶</a>
         {% endif %}
         {% if section.playlist.url %}
           {% if youtube_offline() %}

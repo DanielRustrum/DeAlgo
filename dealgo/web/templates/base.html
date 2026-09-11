@@ -4,10 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}De-Algo{% endblock %}</title>
+
+  {# Installable, and themed to match the app rather than the browser. #}
+  <meta name="dealgo-build" content="{{ asset_version }}">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="description" content="Your feed, in the order it was published.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="De-Algo">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
   <script src="/static/htmx.min.js?v={{ asset_version }}" defer></script>
   <script src="/static/dialog.js?v={{ asset_version }}" defer></script>
   <script src="/static/sections.js?v={{ asset_version }}" defer></script>
+  <script src="/static/menu.js?v={{ asset_version }}" defer></script>
+  <script src="/static/pwa.js?v={{ asset_version }}" defer></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
 </head>
 {# hx-boost turns ordinary links and forms into partial page swaps, so the
@@ -20,21 +34,63 @@
     <span class="brand-mark">▶</span>
     <span class="brand-name">De-Algo</span>
   </a>
-  <nav>
+
+  {# The tabs become a drawer below tablet width. A checkbox and its label
+     rather than a button, so opening the menu needs no JavaScript at all —
+     the same mechanism the long-description fold uses. It sits before the
+     nav and the scrim because the CSS reaches them as later siblings.
+
+     menu.js improves it where it can: aria-expanded, Esc to close, and
+     holding the page still behind the drawer. #}
+  <input class="menu-check" type="checkbox" id="menu-toggle" aria-label="Menu">
+  <label class="menu-button" for="menu-toggle" title="Menu">
+    <span class="menu-bars" aria-hidden="true"></span>
+    <span class="menu-word">Menu</span>
+  </label>
+  {# Tapping anywhere off the drawer closes it, with no script involved. #}
+  <label class="menu-scrim" for="menu-toggle" aria-hidden="true"></label>
+
+  {# Everything the menu holds. `display: contents` on a wide screen, so these
+     lay out as direct children of the bar exactly as they always have; below
+     tablet width this element becomes the drawer and they stack inside it. #}
+  <div class="menu-panel" id="site-menu">
+    {# Only ever seen in the drawer; the bar has the brand of its own. #}
+    <span class="menu-title">Go to</span>
+
+  <nav id="site-nav">
     <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
     <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
     <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
     <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Raw</a>
     <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
   </nav>
+
   {% if show_tour %}
   <a class="btn btn-quiet tour-button" href="/tour"
      title="A guided walk from setup to daily use">Tour</a>
   {% endif %}
   {% include "_sync_controls.html" %}
+
+    <span class="menu-foot">De-Algo {{ version }}</span>
+  </div>
 </header>
 
 <main>
+  {# Shown by pwa.js when the browser says the connection is gone. #}
+  <p class="banner banner-connection" id="offline-banner" hidden>
+    <strong>Offline.</strong>
+    You can read what has already loaded. Anything that writes — marking watched,
+    syncing, editing — waits until the connection is back.
+  </p>
+
+  {# Raised by pwa.js when the service worker served this page from its cache
+     rather than from the server. #}
+  <p class="banner banner-stored" id="stored-copy-notice" hidden>
+    <strong>Stored copy.</strong>
+    This is the page as it was when you last loaded it. Some of it may have
+    changed since.
+  </p>
+
   {% include "_flash.html" %}
   {% include "_offline_banner.html" %}
   {% block content %}{% endblock %}

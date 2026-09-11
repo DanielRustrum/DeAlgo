@@ -87,3 +87,27 @@ def format_duration(seconds: int | None) -> str:
     if hours:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
+
+
+def evaluate_post(
+    *,
+    text: str,
+    skip_posts: bool = False,
+    title_include: str | None = None,
+    title_exclude: str | None = None,
+) -> Decision:
+    """Decide whether one community post belongs in a feed.
+
+    A post has no duration, is neither a Short nor a broadcast, and cannot be
+    live, so only the switch and the text patterns apply. The patterns are
+    matched against the whole post rather than its first line: a title here is
+    an excerpt De-Algo made up, and filtering on it would be filtering on our
+    own truncation.
+    """
+    if skip_posts:
+        return Decision(False, "community post")
+    if title_include and not _matches(title_include, text):
+        return Decision(False, f"post does not match include pattern /{title_include}/")
+    if title_exclude and _matches(title_exclude, text):
+        return Decision(False, f"post matches exclude pattern /{title_exclude}/")
+    return Decision(True)

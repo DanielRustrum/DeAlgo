@@ -86,6 +86,9 @@
         {{ switch('live', channel.skip_live,
                   'Live streams and premieres go into its feeds',
                   'Live streams and premieres are skipped') }}
+        {{ switch('posts', channel.skip_posts,
+                  'Community posts go into its feeds, and are read in Focus mode',
+                  'Community posts are skipped, and the Posts page is not fetched') }}
       </div>
     </div>
 

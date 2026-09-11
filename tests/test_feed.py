@@ -64,7 +64,7 @@ def order_of(body: str) -> list[str]:
     import re
 
     # The thumbnail links by row id; the fixture's v1..v4 share that numbering.
-    return [f"v{pk}" for pk in re.findall(r"watch\?start=(\d+)", body)]
+    return [f"v{pk}" for pk in re.findall(r"focus\?start=(\d+)", body)]
 
 
 def test_the_feed_is_a_tab(client):
@@ -161,7 +161,7 @@ def test_a_caught_up_playlist_says_so(client, db):
     assert "All 1 watched" in body
 
 
-def test_a_thumbnail_opens_theater_mode(client, db):
+def test_a_thumbnail_opens_focus_mode(client, db):
     """One click starts a sitting rather than a single play."""
     import re
 
@@ -175,7 +175,7 @@ def test_a_thumbnail_opens_theater_mode(client, db):
     body = client.get("/feed").text
     thumb = re.search(r'<a class="card-thumb"[^>]*>', body).group(0)
 
-    assert "/watch?start=" in thumb
+    assert "/focus?start=" in thumb
     # It starts inside the feed you clicked from, in that feed's own order.
     assert f"playlist={science_id}" in thumb
     assert "order=newest" in thumb
@@ -187,14 +187,14 @@ def test_a_thumbnail_opens_theater_mode(client, db):
     assert client.get("/partials/player/1").status_code == 404
 
 
-def test_a_card_outside_a_section_still_opens_theater(client):
-    """A card re-rendered on its own has no section; theater starts from the
+def test_a_card_outside_a_section_still_opens_focus(client):
+    """A card re-rendered on its own has no section; Focus starts from the
     whole queue rather than erroring."""
     response = client.post(
         "/videos/1/watched", data={"view": "feed"}, headers={"HX-Request": "true"}
     )
     assert response.status_code == 200
-    assert "/watch?start=1" in response.text
+    assert "/focus?start=1" in response.text
     assert "playlist=" not in response.text.split("card-thumb")[1][:120]
 
 
@@ -265,7 +265,7 @@ def test_a_section_summary_is_only_a_toggle(client):
 def test_the_actions_moved_into_the_section_body(client):
     body = client.get("/feed").text
 
-    assert "/watch?order=oldest&playlist=" in body   # theater
+    assert "/focus?order=oldest&playlist=" in body   # focus mode
     assert "playlist?list=PL_sci" in body            # the YouTube link
     assert "/feeds/" in body                         # and its settings page
 
@@ -289,7 +289,7 @@ def test_the_controls_sit_inside_each_section(client):
         assert "/view" in section          # posts to that feed
         assert "unwatched" in section and "oldest first" in section
 
-    # And no page-wide pair remains. (The Theater link's tooltip mentions
+    # And no page-wide pair remains. (The Focus link's tooltip mentions
     # "unwatched", so look for the controls themselves, not the word.)
     header = body.split('id="feed-sections"')[0]
     assert 'class="section-view"' not in header
@@ -297,7 +297,7 @@ def test_the_controls_sit_inside_each_section(client):
     assert "oldest first" not in header
 
 
-def test_each_section_launches_theater_its_own_way(client, db):
+def test_each_section_launches_focus_its_own_way(client, db):
     from dealgo.models import Playlist
 
     with db.session_scope() as session:
@@ -306,7 +306,7 @@ def test_each_section_launches_theater_its_own_way(client, db):
         science_id = science.id
 
     body = client.get("/feed").text
-    assert f"/watch?order=newest&playlist={science_id}" in body
+    assert f"/focus?order=newest&playlist={science_id}" in body
 
 
 def test_feeds_can_be_tagged_and_searched_by_tag(client, db):
@@ -367,7 +367,7 @@ def test_tags_are_edited_on_the_feeds_own_page(client, db):
 
 
 def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
-    """Everything else was noise once the thumbnail opens theater."""
+    """Everything else was noise once the thumbnail opens Focus mode."""
     import re
 
     from dealgo.models import Video
@@ -464,3 +464,53 @@ def test_generic_feeds_are_not_greyed_out(client, db):
 
     assert "banner-offline" not in body      # no YouTube feed to warn about
     assert "pill-dormant" not in body
+
+
+def test_leaving_focus_returns_to_every_feed(client, db):
+    """The reported bug: Focus was entered from one feed, and the way back
+    carried that feed as a filter, so the feed list came back holding only the
+    one just watched."""
+    from dealgo.models import Playlist
+
+    with db.session_scope() as session:
+        science_id = session.scalar(select(Playlist).where(Playlist.title == "Science")).id
+
+    body = client.get(f"/focus?playlist={science_id}").text
+    back = body.split('class="crumbs"', 1)[1].split("</p>", 1)[0]
+
+    assert 'href="/feed"' in back
+    assert "playlist=" not in back
+
+    # And following it really does show both feeds.
+    listing = client.get("/feed").text
+    assert "Science" in listing and "Music" in listing
+
+
+def test_a_feed_page_filtered_to_one_feed_says_so(client, db):
+    """The filter is still reachable — changing a feed's view keeps it — so it
+    has to be visible, with a way out."""
+    from dealgo.models import Playlist
+
+    with db.session_scope() as session:
+        music_id = session.scalar(select(Playlist).where(Playlist.title == "Music")).id
+
+    body = client.get(f"/feed?playlist={music_id}").text
+
+    assert "Showing" in body and "Music" in body
+    assert "Show every feed" in body
+    assert 'href="/feed"' in body
+
+
+def test_the_unfiltered_feed_page_says_nothing_about_filtering(client):
+    body = client.get("/feed").text
+    assert "Show every feed" not in body
+
+
+def test_clearing_the_filter_keeps_a_search(client, db):
+    from dealgo.models import Playlist
+
+    with db.session_scope() as session:
+        music_id = session.scalar(select(Playlist).where(Playlist.title == "Music")).id
+
+    body = client.get(f"/feed?playlist={music_id}&q=mus").text
+    assert 'href="/feed?q=mus"' in body

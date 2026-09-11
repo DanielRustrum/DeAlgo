@@ -7,10 +7,17 @@
   {{ search('/feed', query, 'Search feeds and tags…', '#feed-sections',
             {'playlist': playlist_filter}) }}
 
-  <a class="btn btn-primary theater-link"
-     href="/watch{{ '?playlist=' ~ playlist_filter if playlist_filter }}"
-     title="Play everything unwatched straight through">Theater ▶</a>
+  <a class="btn btn-primary focus-link"
+     href="/focus{{ '?playlist=' ~ playlist_filter if playlist_filter }}"
+     title="Play everything unwatched straight through">Focus ▶</a>
 </div>
+
+{% if filtered_feed %}
+<p class="banner banner-filtered">
+  Showing <strong>{{ filtered_feed.title }}</strong> only.
+  <a href="/feed{{ '?q=' ~ query if query }}">Show every feed</a>
+</p>
+{% endif %}
 
 {% include "_feed_sections.html" %}
 {% endblock %}

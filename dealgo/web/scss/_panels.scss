@@ -38,5 +38,18 @@
 .flash-err { border-left: 3px solid var(--bad); background: var(--panel); }
 
 .facts { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; margin: 0; }
+
+@include phone {
+  .panel { padding: 14px; border-radius: 8px; margin-bottom: 14px; }
+  // A 160px label column leaves nothing for the value on a 360px screen.
+  .facts { grid-template-columns: 1fr; gap: 2px; }
+  .facts dt { margin-top: 8px; }
+  .facts dt:first-child { margin-top: 0; }
+  // Title and its button stop fighting for one line.
+  .panel-head { flex-wrap: wrap; gap: 8px; }
+  .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { padding: 12px; }
+  .stat-value { font-size: 21px; }
+}
 .facts dt { color: var(--muted); font-size: 13px; }
 .facts dd { margin: 0; }

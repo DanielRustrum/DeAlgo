@@ -23,7 +23,9 @@ def compile_css() -> str:
 
     # Minified: this file is served, not read. The SCSS partials are the
     # readable copy, and they are what anyone editing the styles works from.
-    css = sass.compile(
+    # libsass ships no type information, so the boundary is stated here
+    # rather than leaking Any through the rest of the module.
+    css: str = sass.compile(
         filename=str(SOURCE),
         output_style="compressed",
         include_paths=[str(SOURCE.parent)],

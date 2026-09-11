@@ -13,6 +13,8 @@ from . import filters
 from . import ordering
 from . import playlists
 from .auth import build_client
+from collections.abc import Mapping
+from sqlalchemy.sql.elements import ColumnElement
 
 
 class ChannelError(RuntimeError):
@@ -152,9 +154,12 @@ def set_pull_interval(session: Session, channel: Channel, minutes: int) -> None:
 SHORTS_REASON = "Short%"
 LIVE_REASONS = ("live stream", "scheduled premiere")
 VIDEO_REASON = "regular video"
+POST_REASON = "community post"
 
 
-def _requeue_skipped(session: Session, channel: Channel, condition) -> int:
+def _requeue_skipped(
+    session: Session, channel: Channel, condition: ColumnElement[bool]
+) -> int:
     """Bring back videos this channel skipped for one particular reason.
 
     Turning a filter off should apply to what it already passed over, not only
@@ -211,6 +216,24 @@ def set_videos(session: Session, channel: Channel, *, include: bool) -> int:
     return 0
 
 
+def requeue_skipped_posts(session: Session, channel: Channel) -> int:
+    return _requeue_skipped(session, channel, Video.reason == POST_REASON)
+
+
+def set_posts(session: Session, channel: Channel, *, include: bool) -> int:
+    """Toggle community posts for a channel.
+
+    Denying them also stops the scrape, which is the expensive half: a Posts
+    page is around a megabyte, and there is no API to ask instead.
+    """
+    was_skipping = channel.skip_posts
+    channel.skip_posts = not include
+    session.flush()
+    if was_skipping and include:
+        return requeue_skipped_posts(session, channel)
+    return 0
+
+
 def set_live(session: Session, channel: Channel, *, include: bool) -> int:
     """Toggle live streams and premieres. Returns how many were brought back.
 
@@ -225,7 +248,7 @@ def set_live(session: Session, channel: Channel, *, include: bool) -> int:
     return 0
 
 
-def update_filters(session: Session, channel: Channel, form: dict) -> int:
+def update_filters(session: Session, channel: Channel, form: Mapping[str, str]) -> int:
     """Apply the filter form: title patterns, durations and the per-run cap."""
     def as_int(key: str) -> int | None:
         raw = (form.get(key) or "").strip()

@@ -9,10 +9,8 @@
   inset: 0;
   margin: auto;
   z-index: 40;
-  // Sass has its own numeric min(), which cannot take a calc() or mix units.
-  // Interpolating hands the expression to the browser untouched.
-  width: #{"min(620px, calc(100% - 32px))"};
-  max-height: #{"min(86vh, 860px)"};
+  width: css-min("620px, calc(100% - 32px)");
+  max-height: css-min("86vh, 860px");
   overflow-y: auto;
   padding: 0;
   color: var(--text);

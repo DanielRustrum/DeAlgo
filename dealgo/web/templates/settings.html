@@ -45,27 +45,25 @@
 </section>
 
 <section class="panel">
-  <h2>Syncing</h2>
+  {# One panel and one form, deliberately. /settings takes every field at once
+     and falls back to a default for anything absent, so a second form here
+     would save its own fields and quietly reset the rest. The headings below
+     are what separates the groups; the form is not split. #}
+  <h2>Preferences</h2>
   <form method="post" action="/settings" class="stack-form">
+
+    <h3>Syncing</h3>
     <div class="field-row checks">
       <label class="check">
         <input type="checkbox" name="auto_sync" {{ 'checked' if settings.auto_sync }}>
         <span>Poll channels automatically</span>
       </label>
-      {# Opt-out, because an unticked box sends nothing: a "show it" checkbox
-         would switch itself off the first time this form was saved. #}
-      <label class="check check-with-hint">
-        <input type="checkbox" name="hide_tour" value="1" {{ 'checked' if settings.hide_tour }}>
-        <span class="check-body">
-          <span>Hide the Tour button</span>
-          <span class="hint">The tour stays at <a href="/tour">/tour</a> either way.</span>
-        </span>
-      </label>
     </div>
     <div class="field-row">
       <label>
-        Every (minutes)
+        Check every (minutes)
         <input type="number" min="1" name="poll_interval_minutes" value="{{ settings.poll_interval_minutes }}">
+        <span class="hint">A channel's own minimum gap can hold it back further.</span>
       </label>
       <label>
         Backfill on a new channel
@@ -75,6 +73,17 @@
       <label>
         Shorts are ≤ (seconds)
         <input type="number" min="0" name="shorts_max_seconds" value="{{ settings.shorts_max_seconds }}">
+        <span class="hint">Anything at or under this counts as a Short, whatever the feed says.</span>
+      </label>
+    </div>
+
+    <h3>Watching</h3>
+    <div class="field-row">
+      <label>
+        Reading time for a post (seconds)
+        <input type="number" min="3" name="post_seconds" value="{{ settings.post_seconds }}">
+        <span class="hint">How long Focus mode holds a community post before moving on. A post has
+          no end of its own. Click the timer while reading to hold it.</span>
       </label>
     </div>
 
@@ -94,6 +103,19 @@
         Hold back (units)
         <input type="number" min="0" name="quota_reserve" value="{{ settings.quota_reserve }}">
         <span class="hint">Kept aside from syncing so manual removals still work late in the day.</span>
+      </label>
+    </div>
+
+    <h3>This interface</h3>
+    <div class="field-row checks">
+      {# Opt-out, because an unticked box sends nothing: a "show it" checkbox
+         would switch itself off the first time this form was saved. #}
+      <label class="check check-with-hint">
+        <input type="checkbox" name="hide_tour" value="1" {{ 'checked' if settings.hide_tour }}>
+        <span class="check-body">
+          <span>Hide the Tour button</span>
+          <span class="hint">The tour stays at <a href="/tour">/tour</a> either way.</span>
+        </span>
       </label>
     </div>
 

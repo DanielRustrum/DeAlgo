@@ -8,7 +8,8 @@ a log of sync runs.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
+import json
+from typing import Optional, overload
 
 from sqlalchemy import (
     Boolean,
@@ -30,7 +31,18 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
 
 
-def to_naive_utc(value: "dt.datetime | None") -> "dt.datetime | None":
+@overload
+def to_naive_utc(value: dt.datetime) -> dt.datetime: ...
+@overload
+def to_naive_utc(value: None) -> None: ...
+
+
+def to_naive_utc(value: dt.datetime | None) -> dt.datetime | None:
+    """Drop a timestamp to naive UTC, which is how every column stores one.
+
+    Overloaded so a caller that has already ruled out None keeps a plain
+    datetime, rather than having to assert what it just checked.
+    """
     if value is None:
         return None
     if value.tzinfo is None:
@@ -57,6 +69,9 @@ class Settings(Base):
     initial_backfill: Mapped[int] = mapped_column(Integer, default=3)
     # Uploads at or under this length count as Shorts.
     shorts_max_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    # How long Focus mode holds a community post before moving on. A post has
+    # no end of its own, so reading time is the only thing that can advance it.
+    post_seconds: Mapped[int] = mapped_column(Integer, default=30)
     # YouTube Data API units per day. 10,000 is Google's default allowance.
     daily_quota: Mapped[int] = mapped_column(Integer, default=10000)
     # Units held back from syncing, so manual actions still work late in the day.
@@ -213,6 +228,7 @@ class Channel(Base):
     skip_live: Mapped[bool] = mapped_column(Boolean, default=True)
     # Everything that is neither a Short nor a broadcast — the ordinary uploads.
     skip_videos: Mapped[bool] = mapped_column(Boolean, default=False)
+    skip_posts: Mapped[bool] = mapped_column(Boolean, default=False)
     max_per_run: Mapped[int] = mapped_column(Integer, default=5)
 
     videos: Mapped[list["Video"]] = relationship(back_populates="channel", cascade="all, delete-orphan")
@@ -242,8 +258,8 @@ class Channel(Base):
 
     @property
     def takes_nothing(self) -> bool:
-        """True when all three content switches are off, so nothing gets in."""
-        return self.skip_shorts and self.skip_live and self.skip_videos
+        """True when every content switch is off, so nothing gets in."""
+        return self.skip_shorts and self.skip_live and self.skip_videos and self.skip_posts
 
     @property
     def next_check_at(self) -> "dt.datetime | None":
@@ -272,16 +288,27 @@ class Video(Base):
     __table_args__ = (UniqueConstraint("video_id", name="uq_video_video_id"),)
 
     STATUSES = ("pending", "added", "skipped", "failed", "ignored")
+    # A row is a video or a community post. Posts share this table because
+    # they travel the same road: discovered from a channel, filtered, placed
+    # in feeds, watched and cleared. What differs is that a post is written
+    # rather than watched, and can never go into a YouTube playlist.
+    KINDS = ("video", "post")
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    video_id: Mapped[str] = mapped_column(String(32), index=True)
+    # A post id is longer than a video id, hence the width.
+    video_id: Mapped[str] = mapped_column(String(64), index=True)
     channel_pk: Mapped[int] = mapped_column(ForeignKey("channel.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(8), default="video", index=True)
 
     title: Mapped[str] = mapped_column(Text, default="")
     published_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, index=True)
     duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
     is_short: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Posts only: the words themselves, and a JSON list of image URLs.
+    body: Mapped[Optional[str]] = mapped_column(Text)
+    images: Mapped[Optional[str]] = mapped_column(Text)
 
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     reason: Mapped[Optional[str]] = mapped_column(Text)
@@ -298,8 +325,25 @@ class Video(Base):
     )
 
     @property
+    def is_post(self) -> bool:
+        return self.kind == "post"
+
+    @property
     def url(self) -> str:
+        if self.is_post:
+            return f"https://www.youtube.com/post/{self.video_id}"
         return f"https://www.youtube.com/watch?v={self.video_id}"
+
+    @property
+    def image_list(self) -> list[str]:
+        """A post's images, in the order it published them."""
+        if not self.images:
+            return []
+        try:
+            loaded = json.loads(self.images)
+        except (TypeError, ValueError):
+            return []
+        return [url for url in loaded if isinstance(url, str)]
 
     @property
     def live_placements(self) -> list["Placement"]:

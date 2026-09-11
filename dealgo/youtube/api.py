@@ -13,6 +13,8 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from .payload import JsonDict
+
 API_BASE = "https://www.googleapis.com/youtube/v3"
 
 CHANNEL_ID_RE = re.compile(r"^UC[\w-]{22}$")
@@ -173,7 +175,9 @@ class YouTubeClient:
     def can_read(self) -> bool:
         return bool(self._access_token or self._api_key)
 
-    def _request(self, method: str, path: str, *, params: dict | None = None, json: Any = None) -> dict:
+    def _request(
+        self, method: str, path: str, *, params: JsonDict | None = None, json: Any = None
+    ) -> JsonDict:
         params = dict(params or {})
         headers = {}
         if self._access_token:
@@ -185,7 +189,7 @@ class YouTubeClient:
 
         response = self._http.request(method, f"{API_BASE}/{path}", params=params, json=json, headers=headers)
 
-        payload: dict = {}
+        payload: JsonDict = {}
         if response.status_code != 204:
             try:
                 payload = response.json()
@@ -213,7 +217,9 @@ class YouTubeClient:
             )
         return payload if response.status_code != 204 else {}
 
-    def _paginate(self, path: str, params: dict, *, max_pages: int = 20) -> Iterator[dict]:
+    def _paginate(
+        self, path: str, params: JsonDict, *, max_pages: int = 20
+    ) -> Iterator[JsonDict]:
         page_token = None
         for _ in range(max_pages):
             page_params = dict(params)
@@ -227,7 +233,7 @@ class YouTubeClient:
 
     # -- channels -------------------------------------------------------
 
-    def _channel_from_item(self, item: dict) -> ChannelInfo:
+    def _channel_from_item(self, item: JsonDict) -> ChannelInfo:
         snippet = item.get("snippet", {})
         thumbs = snippet.get("thumbnails", {})
         thumb = (thumbs.get("medium") or thumbs.get("default") or {}).get("url")
@@ -416,7 +422,7 @@ class YouTubeClient:
                 }
             },
         )
-        return payload["id"]
+        return str(payload["id"])
 
     def delete_playlist_item(self, item_id: str) -> None:
         self._request("DELETE", "playlistItems", params={"id": item_id})

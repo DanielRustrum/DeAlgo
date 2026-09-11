@@ -29,17 +29,30 @@ def db(tmp_path, monkeypatch):
         engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+def no_community_scraping(monkeypatch):
+    """Community posts come from a live page, so no test may reach for one.
+
+    Autouse rather than opt-in: a test that runs a sync without knowing posts
+    exist would otherwise quietly hit YouTube. `world` overrides this with its
+    own controllable list.
+    """
+    from dealgo.youtube import community
+
+    monkeypatch.setattr(community, "fetch_posts", lambda channel_id, _http: [])
+
+
 @pytest.fixture
 def world(db, monkeypatch):
     """A watched channel, a target playlist, and controllable YouTube responses."""
     from dealgo.models import Channel, Playlist
     from dealgo.services import sync as sync_service
     from dealgo.services import watched as watched_service
-    from dealgo.youtube import feeds
+    from dealgo.youtube import community, feeds
 
     from fakes import CHANNEL_ID, MAIN_PLAYLIST, FakeYouTube
 
-    state = {"entries": [], "client": FakeYouTube()}
+    state = {"entries": [], "posts": [], "client": FakeYouTube()}
 
     def fake_fetch_feed(channel_id, _http):
         return feeds.FeedResult(
@@ -47,6 +60,11 @@ def world(db, monkeypatch):
         )
 
     monkeypatch.setattr(feeds, "fetch_feed", fake_fetch_feed)
+    # Posts are scraped from a real page, so the tests must never reach for
+    # one. Nothing is posted unless a test says so.
+    monkeypatch.setattr(
+        community, "fetch_posts", lambda channel_id, _http: list(state["posts"])
+    )
     from dealgo.services import quota
 
     def fake_build_client(session, http):

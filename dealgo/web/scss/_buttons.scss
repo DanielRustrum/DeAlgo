@@ -38,3 +38,21 @@
 .chip-form { margin-left: auto; min-width: 200px; }
 
 .pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 16px; }
+
+// Where there is no pointer to aim with, the small quiet buttons become
+// tappable. 44px is the size a fingertip actually covers.
+@include touch {
+  .btn { padding: 9px 16px; }
+  .btn-quiet, .btn-danger, .btn-warn { padding: 9px 14px; font-size: 13px; }
+  .chip { padding: 8px 14px; }
+  .actions form + form,
+  .actions form + .btn,
+  .actions .btn + .btn { margin-left: 4px; }
+}
+
+@include phone {
+  // Rows of buttons stack rather than overflow.
+  .row-buttons { flex-wrap: wrap; }
+  .filterbar { gap: 6px; }
+  .chip-form { margin-left: 0; width: 100%; min-width: 0; }
+}

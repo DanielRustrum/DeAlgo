@@ -174,3 +174,41 @@ td.rank { width: 58px; }
 .section-view form { display: inline; }
 .section-view .chip { cursor: pointer; font-family: inherit; }
 .section-view .filter-label:not(:first-child) { margin-left: 10px; }
+
+// A text post has no image to lead with, so its own opening words are the
+// tile. Clamped rather than cut, so the card stays the size of every other.
+.card-thumb-words {
+  display: block; height: 100%; padding: 12px 14px;
+  font-size: 12.5px; line-height: 1.45; color: var(--text);
+  background: var(--panel-2);
+  overflow: hidden; white-space: pre-line;
+}
+// Posts are portrait more often than not, and cropping a screenshot of text
+// to 16:9 loses the text. Fit the whole image instead.
+.card-post .card-thumb img { object-fit: contain; background: var(--panel-2); }
+.card-post .card-duration { text-transform: lowercase; }
+
+// The feed page narrowed to a single feed. Without this the other feeds look
+// like they have gone missing rather than been filtered out.
+.banner-filtered {
+  border-left-color: var(--accent);
+  font-size: 13px;
+  padding: 10px 14px;
+}
+.banner-filtered a { margin-left: 4px; }
+
+@include phone {
+  // Two cards across reads better than one huge one on a phone.
+  .card-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .section-view { gap: 4px; }
+  .feed-row { padding: 10px; }
+  .row-head { flex-wrap: wrap; }
+}
+
+// The quick actions on a card are revealed by hover, which a phone has none
+// of, so there they simply stay visible.
+@include touch {
+  .card-quick { opacity: 1; }
+  .card-play { opacity: 0.85; }
+  .card-action { padding: 7px 9px; }
+}

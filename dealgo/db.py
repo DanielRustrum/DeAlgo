@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
+from typing import Any
 from typing import Iterator
 
 from sqlalchemy import create_engine, event, inspect, text
@@ -19,7 +20,7 @@ _engine: Engine | None = None
 _SessionFactory: sessionmaker[Session] | None = None
 
 
-def _connect_args(url: str) -> dict:
+def _connect_args(url: str) -> dict[str, Any]:
     if url.startswith("sqlite"):
         # The scheduler thread and the request threads share one engine.
         return {"check_same_thread": False, "timeout": 30}
@@ -37,7 +38,7 @@ def get_engine() -> Engine:
         if CONFIG.database_url.startswith("sqlite"):
 
             @event.listens_for(_engine, "connect")
-            def _set_sqlite_pragmas(dbapi_conn, _record):  # pragma: no cover - driver glue
+            def _set_sqlite_pragmas(dbapi_conn: Any, _record: Any) -> None:  # pragma: no cover - driver glue
                 cur = dbapi_conn.cursor()
                 cur.execute("PRAGMA journal_mode=WAL")
                 cur.execute("PRAGMA foreign_keys=ON")
@@ -80,6 +81,11 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("channel", "backfill_days", "INTEGER"),
     ("channel", "skip_videos", "BOOLEAN NOT NULL DEFAULT 0"),
     ("channel", "description", "TEXT"),
+    ("channel", "skip_posts", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("video", "kind", "VARCHAR(8) NOT NULL DEFAULT 'video'"),
+    ("video", "body", "TEXT"),
+    ("video", "images", "TEXT"),
+    ("settings", "post_seconds", "INTEGER NOT NULL DEFAULT 30"),
     ("playlist", "priority", "INTEGER NOT NULL DEFAULT 0"),
     ("playlist", "max_per_run", "INTEGER NOT NULL DEFAULT 0"),
     ("playlist", "tags", "TEXT"),

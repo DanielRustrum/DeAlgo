@@ -80,3 +80,17 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .pill-tag { color: var(--muted); border-style: dashed; text-transform: none; }
 .tag-form { display: flex; align-items: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .tag-form .field-block { flex: 1; min-width: 220px; }
+
+@include phone {
+  .inline-form { flex-direction: column; align-items: stretch; }
+  .inline-form .btn { width: 100%; }
+  .field-row { gap: 12px; }
+  .field-row label { min-width: 0; }
+}
+
+// iOS zooms the page in when a field smaller than 16px takes focus, and does
+// not zoom back out. Sizing the fields up is the whole fix.
+@include touch {
+  input[type=text], input[type=password], input[type=number],
+  input[type=search], select, textarea { font-size: 16px; padding: 9px 12px; }
+}

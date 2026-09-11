@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Offline{% endblock %}
+{% block content %}
+{# Precached by the service worker, and shown only for a page that has never
+   been loaded. Everything already visited comes back from the cache instead. #}
+<section class="panel offline-page">
+  <h2>No connection</h2>
+  {# The service worker substitutes the path it was asked for, so this says
+     which page is missing rather than gesturing at the situation. #}
+  <p>
+    <code class="offline-path"><!--OFFLINE-PATH--></code>
+    has not been loaded before, so there is no stored copy to show you.
+  </p>
+
+  <p class="hint">
+    What you have already opened still works: the feed as it was when you last
+    saw it, the pages you have visited, and their thumbnails. Anything that
+    writes — marking watched, syncing, editing a feed — waits for the network,
+    because De-Algo keeps all of that on the server.
+  </p>
+
+  <div class="row-buttons">
+    <a class="btn btn-primary" href="/feed">Go to the feed</a>
+    <a class="btn btn-quiet" href="/">Dashboard</a>
+  </div>
+</section>
+{% endblock %}

@@ -463,9 +463,10 @@ def test_ordinary_uploads_can_be_toggled_from_the_channel_page(client, db):
 
 
 def test_a_channel_that_takes_nothing_says_so(client, db):
-    # Videos off, and Shorts and Live are already off by default.
+    # Shorts and Live are already off by default; posts and videos are not.
+    client.post("/channels/1/posts", headers=HX)
     response = client.post("/channels/1/videos", headers=HX)
-    assert "all three are off" in response.text
+    assert "every kind is off" in response.text
     assert "takes nothing" in client.get("/channels").text
 
 
@@ -1513,3 +1514,503 @@ def test_a_channel_without_a_description_shows_no_empty_space(client, db):
 
     body = client.get("/channels/1").text
     assert "blurb" not in body
+
+
+def test_a_channel_can_refuse_community_posts(client, db):
+    from dealgo.models import Channel
+
+    page = client.get("/channels/1").text
+    assert "/channels/1/posts" in page          # the switch is on its page
+
+    off = client.post("/channels/1/posts", data={"back": "/channels/1"}, follow_redirects=False)
+    assert off.status_code == 303
+    with db.session_scope() as session:
+        assert session.get(Channel, 1).skip_posts is True
+
+    on = client.post("/channels/1/posts", headers=HX)
+    assert "Including community posts" in on.text
+    with db.session_scope() as session:
+        assert session.get(Channel, 1).skip_posts is False
+
+
+def test_the_reading_time_can_be_set(client, db):
+    from dealgo.models import Settings
+
+    assert 'name="post_seconds"' in client.get("/settings").text
+
+    client.post("/settings", data={"post_seconds": "45"}, follow_redirects=False)
+    with db.session_scope() as session:
+        assert session.get(Settings, 1).post_seconds == 45
+
+
+def test_a_reading_time_too_short_to_read_is_refused(client, db):
+    """Zero would flick a post past before anyone could see it."""
+    from dealgo.models import Settings
+
+    client.post("/settings", data={"post_seconds": "0"}, follow_redirects=False)
+    with db.session_scope() as session:
+        assert session.get(Settings, 1).post_seconds == 3
+
+
+def test_the_layout_answers_to_a_phone(client):
+    """A stylesheet with no narrow rules is a desktop site with a viewport tag."""
+    css = squashed(client.get("/static/app.css").text)
+
+    assert "@media(max-width:640px)" in css      # the phone breakpoint
+    assert "@media(pointer:coarse)" in css       # and touch, which is not a width
+    # The top bar's tabs cannot sit on one line with everything else.
+    assert "flex-wrap:wrap" in css
+
+
+def test_the_page_frame_allows_for_a_notch(client):
+    """Installed full-screen, the bar and the content run under the cutout."""
+    css = client.get("/static/app.css").text
+    assert "env(safe-area-inset-top)" in css
+    assert "env(safe-area-inset-bottom)" in css
+
+
+def test_nothing_invites_a_sideways_scroll(client):
+    css = squashed(client.get("/static/app.css").text)
+    assert "overflow-x:hidden" in css
+
+
+def test_the_tabs_become_a_drawer_below_tablet_width(client):
+    """Five tabs, a brand and two sync buttons never shared a row honestly.
+    Below 860px the tabs move behind a hamburger instead."""
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1]
+
+    assert ".menu-button" in tablet          # the hamburger appears
+    assert "translateX(100%)" in tablet      # the drawer waits off-screen
+    assert ".menu-check:checked~.menu-panel" in squashed(tablet)
+
+
+def test_the_hamburger_is_only_there_when_it_is_needed(client):
+    """On a wide screen the tabs are the navigation; a menu button would be a
+    second way to do what is already on screen."""
+    import re
+
+    css = client.get("/static/app.css").text
+    hidden = re.search(r"([^{}]*\.menu-button[^{}]*)\{display:none\}", css)
+
+    assert hidden is not None, "the hamburger is never hidden"
+    assert ".menu-scrim" in hidden.group(1)      # nor is the scrim
+
+
+def test_the_menu_opens_without_javascript(client):
+    """A checkbox and two labels, not a button and a listener: the drawer
+    works with scripting switched off, like every other control here."""
+    body = client.get("/").text
+
+    assert '<input class="menu-check" type="checkbox" id="menu-toggle"' in body
+    assert '<label class="menu-button" for="menu-toggle"' in body
+    # And tapping beside the drawer shuts it, also with no script.
+    assert '<label class="menu-scrim" for="menu-toggle"' in body
+
+
+def test_the_menu_control_precedes_what_it_controls(client):
+    """The CSS reaches the drawer and the scrim as later siblings of the
+    checkbox, so the order in the markup is load-bearing."""
+    body = client.get("/").text
+
+    assert body.index('id="menu-toggle"') < body.index('class="menu-scrim"')
+    assert body.index('id="menu-toggle"') < body.index('id="site-nav"')
+
+
+def test_the_drawer_says_whether_it_is_open(client):
+    """A label for a checkbox announces as a checkbox, which says nothing
+    about a drawer. The script fills that in, and only claims it while it is
+    actually running."""
+    source = (
+        __import__("pathlib").Path("dealgo/web/ts/menu.ts").read_text()
+    )
+
+    assert 'setAttribute("aria-expanded"' in source
+    assert 'setAttribute("aria-controls", "site-menu")' in source
+    assert 'event.key !== "Escape"' in source        # and Escape closes it
+
+
+def test_the_hamburger_stays_reachable_over_the_open_drawer(client):
+    """The drawer is a later sibling with a higher z-index, so without this it
+    paints over the very button that closes it."""
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    import re
+
+    drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet)
+    button = re.search(r"\.menu-button\{([^}]*)\}", tablet)
+    assert drawer and button
+
+    depth = lambda rule: int(re.search(r"z-index:(\d+)", rule).group(1))
+    assert depth(button.group(1)) > depth(drawer.group(1))
+
+    # And the drawer's header reserves the space the button floats in, so the
+    # two read as one row rather than one sitting on top of the other.
+    title = re.search(r"\.menu-title\{([^}]*)\}", tablet)
+    assert title is not None
+    assert "padding:0 46px 10px 0" in title.group(1)
+
+
+def test_the_bar_outranks_the_page_while_the_drawer_is_open(client):
+    """The drawer lives inside the bar, so the bar's stacking context has to
+    sit above content that raises itself — a tooltip is z-index 30."""
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    import re
+
+    bar = re.search(r"\.topbar\{([^}]*)\}", tablet)
+    assert bar and "z-index:40" in bar.group(1)
+
+
+def test_the_drawers_own_furniture_stays_in_the_drawer(client):
+    """The label and the version line belong to the drawer. On a wide screen
+    the tabs are a row in the bar, and stray text in the middle of it would be
+    the whole layout undone."""
+    css = squashed(client.get("/static/app.css").text)
+    assert ".menu-button,.menu-scrim,.menu-title,.menu-foot{display:none}" in css
+
+
+def test_the_current_page_is_marked_the_way_the_app_marks_things(client):
+    """Accent for what is current, the same as a primary button or an open
+    tab — not a different idea invented for the menu."""
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    assert "inset 3px 0 0 var(--accent)" in tablet
+    # Drawn transparent when not current, so arriving at a page moves the mark
+    # rather than nudging the text sideways.
+    assert "inset 3px 0 0 transparent" in tablet
+
+
+def test_the_scrim_is_a_token_so_it_suits_both_themes(client):
+    """A hard black wash looks like a mistake on the light theme."""
+    css = client.get("/static/app.css").text
+
+    assert "background:var(--scrim)" in squashed(css)
+    assert css.count("--scrim:") == 2      # defined for dark and for light
+
+
+def test_the_rows_arrive_a_beat_apart(client):
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    import re
+
+    delays = re.findall(r"nth-child\((\d)\)\{transition-delay:(\d+)ms\}", tablet)
+    assert len(delays) >= 6
+    # Each one a little after the last, in order.
+    steps = [int(ms) for _, ms in delays]
+    assert steps == sorted(steps)
+
+
+def test_nothing_waits_on_an_animation_that_will_not_happen(client):
+    """With motion turned down there is no stagger — so the rows must not be
+    left sitting at zero opacity waiting for one."""
+    css = client.get("/static/app.css").text
+    reduced = css.split("@media (prefers-reduced-motion: reduce){", 1)[1]
+    # Up to the end of this media block, not just its first rule.
+    block = squashed(reduced.split("@media", 1)[0])
+
+    assert "transition-delay:0s" in block
+    assert ".topbarnav>*{opacity:1;transform:none}" in block
+
+
+# -- the tabs, in both shapes ----------------------------------------------
+#
+# The drawer work removed these rules once, which left the desktop tabs as
+# plain underlined links and the drawer's rows the same. Nothing was checking
+# the ordinary case, so nothing said so.
+
+def test_the_desktop_tabs_are_a_styled_row(client):
+    """The default state, which is easy to delete while working on the other
+    one."""
+    css = client.get("/static/app.css").text
+    desktop = css.split("@media (max-width: 860px){", 1)[0]
+
+    import re
+
+    nav = re.search(r"\.topbar nav\{([^}]*)\}", desktop)
+    link = re.search(r"\.topbar nav a\{([^}]*)\}", desktop)
+
+    assert nav is not None, "the tabs have no desktop rule at all"
+    assert "display:flex" in nav.group(1)     # a row, not a stack
+    assert link is not None
+    assert "text-decoration:none" in link.group(1)
+    assert "color:var(--muted)" in link.group(1)
+
+
+def test_both_shapes_of_the_nav_share_their_look(client):
+    """The drawer overrides what it must and inherits the rest, so the tabs
+    are recognisably the same control in either place."""
+    css = client.get("/static/app.css").text
+    base_at = css.index(".topbar nav{display:flex")
+    drawer_at = css.index(".menu-panel{display:flex;position:fixed")
+
+    # The shared rules have to come first, or the drawer loses to them.
+    assert base_at < drawer_at
+
+
+def test_the_drawer_stacks_its_tabs(client):
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tabs = re.search(r"\.topbar nav\{([^}]*)\}", tablet)
+
+    assert tabs is not None
+    assert "flex-direction:column" in tabs.group(1)
+    assert "flex:none" in tabs.group(1)       # not the row's `flex: 1`
+
+
+def test_the_hamburger_matches_the_buttons_beside_it(client):
+    """Three 2px bars in a padded box come out about 20px tall, which stands
+    half as high as the sync buttons it sits next to. It is sized to them."""
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    button = re.search(r"\.menu-button\{([^}]*)\}", tablet).group(1)
+
+    assert "width:38px" in button and "height:38px" in button
+    # The same recipe as .btn: it belongs to that row of controls.
+    assert "border:1px solid var(--line)" in button
+    assert "background:var(--panel-2)" in button
+    assert "border-radius:8px" in button
+
+
+def test_the_hamburger_answers_to_a_pointer(client):
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    assert ".menu-button:hover{border-color:var(--muted)}" in squashed(tablet)
+    assert ".menu-button:active" in tablet
+
+
+def test_an_open_menu_marks_its_own_button(client):
+    """While the drawer is open that button is the live control on screen, so
+    it takes the accent — the same signal the app uses everywhere else."""
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    open_state = re.search(r"\.menu-check:checked~\.menu-button\{([^}]*)\}", squashed(tablet))
+
+    assert open_state is not None
+    assert "border-color:var(--accent)" in open_state.group(1)
+    assert "color:var(--accent)" in open_state.group(1)
+
+
+def test_the_buttons_name_is_readable_even_though_its_word_is_not(client):
+    """The glyph carries no text, so the label keeps a word for anything that
+    cannot see it."""
+    import re
+
+    body = client.get("/").text
+    assert 'class="menu-word">Menu</span>' in body
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    word = re.search(r"\.menu-word\{([^}]*)\}", tablet).group(1)
+    assert "clip-path:inset(50%)" in word      # hidden, not removed
+    assert "display:none" not in word
+
+
+def test_the_sync_controls_move_into_the_drawer(client):
+    """On a phone the bar holds identity and the menu; everything you can do
+    lives behind the hamburger with the tabs."""
+    body = client.get("/").text
+    panel = body.split('class="menu-panel"', 1)[1].split("</div>", 1)[0]
+
+    assert 'id="sync-controls"' in panel
+    assert "Sync now" in panel
+
+
+def test_the_bar_is_unchanged_on_a_wide_screen(client):
+    """`display: contents` takes the wrapper out of the layout, so the tabs,
+    Tour and the sync controls stay direct children of the bar — which is what
+    `flex: 1` on the tabs is written against."""
+    css = squashed(client.get("/static/app.css").text)
+    assert ".menu-panel{display:contents}" in css
+
+
+def test_the_drawers_controls_outrank_their_plain_rules(client):
+    """A media query adds no specificity, and _forms.scss is imported after
+    _base.scss — so an unscoped `.topbar-action` in the drawer would lose to
+    the plain one, silently."""
+    import re
+
+    css = client.get("/static/app.css").text
+    scoped = re.search(r"\.menu-panel \.topbar-action\{([^}]*)\}", css)
+    plain = re.search(r"(?<!\w)(?<!\.menu-panel )\.topbar-action\{([^}]*)\}", css)
+
+    assert scoped is not None, "the drawer does not scope its control rules"
+    assert plain is not None and plain.start() > scoped.start(), (
+        "the plain rule comes first, so scoping is what makes this work"
+    )
+
+
+def test_sync_gets_the_width_and_force_takes_what_it_needs(client):
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    assert re.search(r"\.menu-panel \.topbar-action form:first-child\{flex:1\}", tablet)
+    assert "width:100%" in re.search(r"\.menu-panel \.btn\{([^}]*)\}", tablet).group(1)
+
+
+def test_the_buttons_are_a_second_group_in_the_drawer(client):
+    """A hairline after the tabs, written against whatever follows them —
+    Tour is only there when the setting says so."""
+    css = squashed(client.get("/static/app.css").text)
+    assert ".menu-panel>nav+*{margin-top:6px;padding-top:14px;border-top:1pxsolidvar(--line)}" in css
+
+
+def test_the_drawer_is_a_box_of_its_own(client):
+    """The regression this pins, twice over.
+
+    On a wide screen the panel is `display: contents`, which makes it generate
+    no box at all — deliberately, so its children lay out as children of the
+    bar. In the drawer it must take that back: without a display of its own,
+    `position`, `background`, `width` and `transform` are all ignored, the
+    panel never exists, and the tabs and sync buttons fall back into the bar.
+    """
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet)
+
+    assert drawer is not None
+    declarations = drawer.group(1)
+    assert "display:flex" in declarations, (
+        "the drawer inherits `display: contents` and generates no box"
+    )
+    # And the things that only work because it does.
+    assert "position:fixed" in declarations
+    assert "transform:translateX(100%)" in declarations
+
+
+def test_anything_positioned_declares_its_own_display(client):
+    """A general form of the same trap: `display: contents` anywhere means a
+    later rule that positions that element has to say what kind of box it is."""
+    import re
+
+    css = client.get("/static/app.css").text
+    contents = {
+        selector.strip()
+        for selector, body in re.findall(r"([^{}]+)\{([^}]*)\}", css)
+        if "display:contents" in body
+    }
+    for selector in contents:
+        for other, body in re.findall(r"([^{}]+)\{([^}]*)\}", css):
+            if other.strip() != selector:
+                continue
+            if "position:fixed" in body or "position:absolute" in body:
+                assert "display:" in body, (
+                    f"{selector} is positioned but leaves display as contents"
+                )
+
+
+def test_the_hamburger_sits_at_the_right_of_the_bar(client):
+    """Once the tabs and the sync controls move into the drawer, the brand and
+    this button are all that is left in the bar — so nothing pushes it right
+    unless it pushes itself. Without this it packs against the brand, and the
+    close button then lands over the drawer's label instead of its corner."""
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    button = re.search(r"\.menu-button\{([^}]*)\}", tablet).group(1)
+
+    assert "margin-left:auto" in button
+
+
+def test_the_close_button_lands_on_the_drawers_corner(client):
+    """It is the same element in both states, positioned by the bar. The two
+    right edges line up only because the bar's padding and the drawer's are
+    the same, and the label reserves exactly the button's width plus its gap."""
+    import re
+
+    css = client.get("/static/app.css").text
+    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+
+    bar = re.search(r"\.topbar\{([^}]*)\}", tablet).group(1)
+    drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet).group(1)
+    title = re.search(r"\.menu-title\{([^}]*)\}", tablet).group(1)
+    button = re.search(r"\.menu-button\{([^}]*)\}", tablet).group(1)
+
+    assert "padding:10px 14px" in bar
+    assert "padding:18px 14px" in drawer          # same 14px on the right
+    # 38px of button plus an 8px gap is the 46px the label keeps clear.
+    assert "width:38px" in button
+    assert "padding:0 46px 10px 0" in title
+
+
+# -- the settings page -----------------------------------------------------
+
+def test_every_preference_is_under_a_heading_that_describes_it(client):
+    """The panel was titled Syncing and held eleven fields across five
+    concerns — the Tour toggle sat beside the polling checkbox as though the
+    two were related."""
+    import re
+
+    body = client.get("/settings").text
+    panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
+    groups = re.findall(r"<h3>([^<]*)</h3>", panel)
+
+    assert groups == ["Syncing", "Watching", "API quota", "This interface",
+                      "Google API credentials"]
+
+    # And each field sits under the heading that describes it.
+    def group_of(field: str) -> str:
+        before = panel.split(f'name="{field}"', 1)[0]
+        return re.findall(r"<h3>([^<]*)</h3>", before)[-1]
+
+    assert group_of("auto_sync") == "Syncing"
+    assert group_of("poll_interval_minutes") == "Syncing"
+    assert group_of("initial_backfill") == "Syncing"
+    assert group_of("shorts_max_seconds") == "Syncing"
+    assert group_of("post_seconds") == "Watching"
+    assert group_of("hide_tour") == "This interface"
+    assert group_of("client_secret") == "Google API credentials"
+
+
+def test_the_preferences_stay_in_one_form(client):
+    """Splitting them would be the tidy-looking mistake: /settings reads every
+    field at once and defaults anything absent, so a second form would save
+    its own fields and reset the others without saying so."""
+    body = client.get("/settings").text
+    panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
+
+    assert panel.count("<form") == 1
+    for field in ["auto_sync", "poll_interval_minutes", "shorts_max_seconds",
+                  "post_seconds", "hide_tour", "daily_quota", "client_id"]:
+        assert f'name="{field}"' in panel
+
+
+def test_saving_one_group_keeps_the_others(client, db):
+    """The behaviour that constraint protects."""
+    from dealgo.models import Settings
+
+    with db.session_scope() as session:
+        settings = session.get(Settings, 1)
+        settings.post_seconds = 45
+        settings.daily_quota = 8000
+        settings.hide_tour = True
+
+    body = client.get("/settings").text
+    import re
+
+    # Submit the form exactly as the browser would: every field it contains.
+    fields = dict(re.findall(r'name="([a-z_]+)" value="([^"]*)"', body))
+    fields["poll_interval_minutes"] = "12"
+    client.post("/settings", data=fields, follow_redirects=False)
+
+    with db.session_scope() as session:
+        settings = session.get(Settings, 1)
+        assert settings.poll_interval_minutes == 12    # what was changed
+        assert settings.post_seconds == 45             # and what was not
+        assert settings.daily_quota == 8000

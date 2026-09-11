@@ -6,7 +6,8 @@
      hx-swap="outerHTML"
      hx-indicator="#sync-controls">
   <form method="post" action="/sync" hx-post="/sync" hx-target="#sync-controls" hx-swap="outerHTML">
-    <button type="submit" class="btn btn-primary" {{ 'disabled' if sync_running }}>
+    <button type="submit" class="btn btn-primary" data-needs-network
+            {{ 'disabled' if sync_running }}>
       {% if sync_running %}<span class="spinner"></span>Syncing…{% else %}Sync now{% endif %}
     </button>
   </form>
@@ -14,7 +15,8 @@
      whether or not JavaScript is doing the posting. #}
   <form method="post" action="/sync" hx-post="/sync" hx-target="#sync-controls" hx-swap="outerHTML">
     <input type="hidden" name="force" value="1">
-    <button type="submit" class="btn btn-quiet" {{ 'disabled' if sync_running }}
+    <button type="submit" class="btn btn-quiet" data-needs-network
+            {{ 'disabled' if sync_running }}
             title="Poll every channel now, ignoring each channel's minimum gap">
       Force
     </button>

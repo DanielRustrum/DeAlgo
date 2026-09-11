@@ -1,0 +1,13 @@
+{
+  "name": "dealgo-frontend",
+  "private": true,
+  "description": "TypeScript sources for De-Algo's browser scripts. The compiled JavaScript is committed under dealgo/web/static/, so running De-Algo needs no Node — only editing the scripts does.",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  }
+}

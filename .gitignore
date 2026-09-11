@@ -7,3 +7,9 @@ venv/
 .env
 data/
 *.sqlite3
+
+# TypeScript's compiler and mypy's cache. The *output* of both is committed;
+# the tools that produce it are not part of the app.
+node_modules/
+package-lock.json
+.mypy_cache/

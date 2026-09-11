@@ -12,6 +12,7 @@ from ..models import GENERIC_PLAYLIST_PREFIX, Channel, Placement, Playlist
 from ..youtube.api import YouTubeAPIError
 from . import ordering
 from .auth import build_client
+from collections.abc import Mapping
 
 
 class PlaylistError(RuntimeError):
@@ -38,13 +39,14 @@ def enabled_playlists(session: Session) -> list[Playlist]:
 
 def item_counts(session: Session) -> dict[int, int]:
     """How many videos each playlist currently holds, as De-Algo sees it."""
-    return dict(
-        session.execute(
+    return {
+        playlist_pk: held
+        for playlist_pk, held in session.execute(
             select(Placement.playlist_pk, func.count(Placement.id))
             .where(Placement.playlist_item_id.is_not(None))
             .group_by(Placement.playlist_pk)
         ).all()
-    )
+    }
 
 
 def add_existing(session: Session, playlist_id: str, http: httpx.Client) -> Playlist:
@@ -238,7 +240,7 @@ def unlink(session: Session, playlist: Playlist) -> str:
     return was
 
 
-def update(session: Session, playlist: Playlist, form: dict) -> Playlist:
+def update(session: Session, playlist: Playlist, form: Mapping[str, str]) -> Playlist:
     def as_count(key: str, label: str) -> int:
         raw = (form.get(key) or "").strip()
         if not raw:

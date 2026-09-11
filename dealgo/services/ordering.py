@@ -11,18 +11,23 @@ from sqlalchemy.orm import Session
 
 from ..models import Channel, Playlist
 
+# The two things a user puts in a deliberate order. Both carry `priority` and
+# `id`, which is all this module touches.
+Ordered = Channel | Playlist
+OrderedType = type[Channel] | type[Playlist]
 
-def _ordered(session: Session, model):
+
+def _ordered(session: Session, model: OrderedType) -> list[Ordered]:
     return list(session.scalars(select(model).order_by(model.priority, model.id)))
 
 
-def normalize(session: Session, model) -> None:
+def normalize(session: Session, model: OrderedType) -> None:
     for position, row in enumerate(_ordered(session, model)):
         row.priority = position
     session.flush()
 
 
-def move(session: Session, model, pk: int, direction: str) -> bool:
+def move(session: Session, model: OrderedType, pk: int, direction: str) -> bool:
     """Swap a row with its neighbour. Returns False if it could not move."""
     rows = _ordered(session, model)
     index = next((i for i, row in enumerate(rows) if row.id == pk), None)
@@ -40,7 +45,7 @@ def move(session: Session, model, pk: int, direction: str) -> bool:
     return True
 
 
-def append(session: Session, row) -> None:
+def append(session: Session, row: Ordered) -> None:
     """Put a newly added row at the end of the order."""
     model = type(row)
     highest = session.scalar(select(model.priority).order_by(model.priority.desc()).limit(1))

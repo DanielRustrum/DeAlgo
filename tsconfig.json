@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2017", "DOM", "DOM.Iterable"],
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "rootDir": "dealgo/web/ts",
+    "outDir": "dealgo/web/static",
+    "removeComments": false,
+    "newLine": "lf",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["dealgo/web/ts/**/*.ts"],
+  "exclude": ["dealgo/web/ts/sw.ts"]
+}

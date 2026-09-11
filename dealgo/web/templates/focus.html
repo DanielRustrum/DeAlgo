@@ -1,67 +1,108 @@
 {% extends "base.html" %}
-{% block title %}De-Algo — Theater{% endblock %}
+{% block title %}De-Algo — Focus{% endblock %}
 {% block content %}
 
+{% set clip = queue | selectattr('kind', 'equalto', 'video') | first %}
+{# Back to the whole list. Carrying the playlist through would filter the feed
+   page down to the one feed just watched, which reads as the others having
+   vanished. Order and show were passed too, and the page has ignored both
+   since each feed started keeping its own. #}
 <p class="crumbs">
-  <a href="/feed?order={{ order }}&show=unwatched&playlist={{ playlist }}">← Feed</a>
+  <a href="/feed">← Feed</a>
   {% if playlist_title %} · {{ playlist_title }}{% endif %}
 </p>
 
 {% if queue %}
-<section class="theater" id="theater"
-         data-order="{{ order }}" data-playlist="{{ playlist }}">
-  <script type="application/json" id="theater-queue">{{ queue_json | safe }}</script>
+<section class="focus" id="focus"
+         data-order="{{ order }}" data-playlist="{{ playlist }}"
+         data-post-seconds="{{ post_seconds }}">
+  <script type="application/json" id="focus-queue">{{ queue_json | safe }}</script>
 
-  <div class="theater-stage">
+  <div class="focus-stage" id="focus-stage" {{ 'hidden' if queue[0].kind == 'post' }}>
+    {% if clip %}
     {# The player is our own iframe rather than one the IFrame API builds: left
        to itself it sets allow="…; picture-in-picture; web-share", putting the
        browser's pop-out button back over the fullscreen control. The API
        attaches to an existing iframe when it finds one, and allowfullscreen
        here is what keeps fullscreen working.
 
-       theater.js fills in src, so the origin matches whatever host you browsed
-       to rather than whatever DEALGO_PUBLIC_URL happens to say. #}
-    <iframe id="theater-player"
-            data-src="https://www.youtube-nocookie.com/embed/{{ queue[0].video_id }}?enablejsapi=1&amp;autoplay=1&amp;rel=0"
-            title="{{ queue[0].title }}"
+       focus.js fills in src, so the origin matches whatever host you browsed
+       to rather than whatever DEALGO_PUBLIC_URL happens to say. Autoplay is on
+       only when a video is what opens: starting on a post must not play audio
+       underneath the reading. #}
+    <iframe id="focus-player"
+            data-src="https://www.youtube-nocookie.com/embed/{{ clip.video_id }}?enablejsapi=1&amp;autoplay={{ 1 if queue[0].kind == 'video' else 0 }}&amp;rel=0"
+            title="{{ clip.title }}"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
             referrerpolicy="strict-origin-when-cross-origin"
             allowfullscreen></iframe>
+    {% endif %}
     <noscript>
-      <p class="empty">Theater mode needs JavaScript. <a href="/feed">Use the feed instead.</a></p>
+      <p class="empty">Focus mode needs JavaScript. <a href="/feed">Use the feed instead.</a></p>
     </noscript>
   </div>
 
-  <div class="theater-bar">
-    <div class="theater-now">
-      <h2 id="theater-title">{{ queue[0].title }}</h2>
+  {# Community posts. Filled in by focus.js as the queue moves; rendered here
+     for the one that opens, so it is readable before the script runs. #}
+  <article class="focus-post" id="focus-post" {{ 'hidden' if queue[0].kind != 'post' }}>
+    <div class="focus-tiles" id="focus-tiles">
+      {% if queue[0].kind == 'post' %}
+        {% for image in queue[0].images %}
+        <a class="focus-tile" href="{{ image }}" target="_blank" rel="noopener">
+          <img src="{{ image }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        </a>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <div class="focus-words" id="focus-words">{{ queue[0].body if queue[0].kind == 'post' }}</div>
+    <p class="focus-post-link">
+      <a id="focus-post-url" href="{{ queue[0].url }}" target="_blank" rel="noopener">
+        Open the post on YouTube ↗</a>
+    </p>
+  </article>
+
+  {# The reading timer: a post has no end of its own. Click to hold it. #}
+  <div class="focus-timer" id="focus-timer" {{ 'hidden' if queue[0].kind != 'post' }}>
+    <button class="focus-timer-button" type="button" id="focus-timer-toggle"
+            title="Hold the timer where it is">
+      <span class="focus-timer-count" id="focus-timer-count">{{ post_seconds }}s</span>
+      <span class="focus-timer-word" id="focus-timer-word">until the next one</span>
+    </button>
+    <div class="focus-timer-track"><div class="focus-timer-fill" id="focus-timer-fill"></div></div>
+  </div>
+
+  <div class="focus-bar">
+    <div class="focus-now">
+      <h2 id="focus-title">{{ queue[0].title }}</h2>
       <div class="meta">
-        <span id="theater-channel">{{ queue[0].channel }}</span>
-        · <span id="theater-remaining">{{ queue | length }}</span> to watch
-        <span id="theater-status" class="theater-status"></span>
+        <span id="focus-channel">{{ queue[0].channel }}</span>
+        · <span id="focus-remaining">{{ queue | length }}</span> to go
+        <span id="focus-status" class="focus-status"></span>
       </div>
     </div>
-    <div class="theater-actions">
+    <div class="focus-actions">
       {# A real page load, not a boosted swap: the point is to rebuild the
          player from scratch, and the YouTube API only initialises on load. #}
-      <a class="btn btn-quiet" id="theater-reload" hx-boost="false"
-         href="/watch?start={{ queue[0].id }}&order={{ order }}&playlist={{ playlist }}"
-         title="Rebuild the player on this video, keeping your place in the queue">Reload</a>
-      <button class="btn btn-quiet" type="button" id="theater-skip"
-              title="Leave it unwatched and move on">Skip</button>
-      <button class="btn btn-primary" type="button" id="theater-next"
-              title="Mark watched and play the next one">Watched · next ▶</button>
+      <a class="btn btn-quiet" id="focus-reload" hx-boost="false"
+         href="/focus?start={{ queue[0].id }}&order={{ order }}&playlist={{ playlist }}"
+         title="Rebuild the player on this one, keeping your place in the queue">Reload</a>
+      <button class="btn btn-quiet" type="button" id="focus-skip"
+              title="Leave it unread and move on">Skip</button>
+      <button class="btn btn-primary" type="button" id="focus-next"
+              title="Mark done and go to the next one">Done · next ▶</button>
     </div>
   </div>
 
-  <div class="panel theater-queue">
-    <h2>Up next <span class="count" id="theater-count">{{ queue | length - 1 }}</span></h2>
-    <ol class="queue-list" id="theater-list">
+  <div class="panel focus-queue">
+    <h2>Up next <span class="count" id="focus-count">{{ queue | length - 1 }}</span></h2>
+    <ol class="queue-list" id="focus-list">
       {% for item in queue[1:] %}
       <li data-video="{{ item.id }}">
-        <span class="queue-title">{{ item.title }}</span>
+        <span class="queue-title">
+          {% if item.kind == 'post' %}<span class="pill pill-post">post</span> {% endif %}
+          {{ item.title }}</span>
         <span class="meta">{{ item.channel }}{% if item.playlist %} · {{ item.playlist }}{% endif %}
-          {%- if item.duration != '—' %} · {{ item.duration }}{% endif %}</span>
+          {%- if item.kind == 'video' and item.duration != '—' %} · {{ item.duration }}{% endif %}</span>
       </li>
       {% else %}
       <li class="empty">Nothing after this one.</li>
@@ -70,12 +111,14 @@
   </div>
 </section>
 
-<script src="/static/theater.js?v={{ asset_version }}" defer></script>
-<script src="https://www.youtube.com/iframe_api" defer></script>
+{# focus.js loads the IFrame API itself. A script tag here would be inserted
+   by htmx on a boosted navigation, where `defer` no longer orders anything,
+   and could run before the ready callback exists. #}
+<script src="/static/focus.js?v={{ asset_version }}" defer></script>
 {% else %}
 <section class="panel">
   <p class="empty">
-    Nothing unwatched to play{% if playlist_title %} in {{ playlist_title }}{% endif %}.
+    Nothing unwatched{% if playlist_title %} in {{ playlist_title }}{% endif %}.
     <a href="/feed">Back to the feed</a>.
   </p>
 </section>

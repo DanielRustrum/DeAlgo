@@ -1,18 +1,18 @@
-// Theater mode.
+// Focus mode.
 
-.theater { display: flex; flex-direction: column; gap: 0; }
+.focus { display: flex; flex-direction: column; gap: 0; }
 
-.theater-stage {
+.focus-stage {
   aspect-ratio: 16 / 9;
   background: #000;
   border: 1px solid var(--line);
   border-radius: var(--radius) var(--radius) 0 0;
   overflow: hidden;
 }
-.theater-stage iframe, .theater-stage > div { width: 100%; height: 100%; border: 0; display: block; }
-.theater-stage .empty { padding: 40px; text-align: center; }
+.focus-stage iframe, .focus-stage > div { width: 100%; height: 100%; border: 0; display: block; }
+.focus-stage .empty { padding: 40px; text-align: center; }
 
-.theater-bar {
+.focus-bar {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 14px 18px;
   background: var(--panel);
@@ -20,13 +20,13 @@
   border-radius: 0 0 var(--radius) var(--radius);
   margin-bottom: 20px;
 }
-.theater-now { flex: 1; min-width: 200px; }
-.theater-now h2 { margin: 0 0 3px; font-size: 16px; line-height: 1.3; }
-.theater-actions { display: flex; gap: 8px; }
-.theater-status { color: var(--warn); }
-.theater-done .theater-stage { opacity: 0.4; }
+.focus-now { flex: 1; min-width: 200px; }
+.focus-now h2 { margin: 0 0 3px; font-size: 16px; line-height: 1.3; }
+.focus-actions { display: flex; gap: 8px; }
+.focus-status { color: var(--warn); }
+.focus-done .focus-stage { opacity: 0.4; }
 
-.theater-queue .count { vertical-align: middle; }
+.focus-queue .count { vertical-align: middle; }
 .queue-list { list-style: none; margin: 0; padding: 0; counter-reset: queue; }
 .queue-list li {
   display: flex; flex-direction: column; gap: 2px;
@@ -43,10 +43,119 @@
 .queue-title { font-size: 14px; font-weight: 500; }
 
 .section-actions { display: flex; align-items: center; gap: 8px; }
-.theater-link { margin-left: auto; }
+.focus-link { margin-left: auto; }
 
 .row-field {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--muted); white-space: nowrap;
 }
 .row-field input[type=number] { width: 74px; }
+
+// -- community posts -----------------------------------------------------
+
+// A post is read, not watched, so it gets the stage's footprint rather than
+// the stage: no letterboxing, no black, and room for as many tiles as it has.
+.focus-post {
+  @include surface;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+// Tiles size themselves to how many there are: one image gets the room, a
+// dozen become a contact sheet. auto-fit keeps that from needing a count.
+.focus-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+.focus-tiles:not(:empty) { margin-bottom: 16px; }
+.focus-tile {
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.focus-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.focus-tile:hover { border-color: var(--accent); }
+// On its own, one image should not be cropped square.
+.focus-tiles > .focus-tile:only-child { aspect-ratio: auto; max-height: 52vh; }
+.focus-tiles > .focus-tile:only-child img { height: auto; object-fit: contain; }
+
+.focus-words {
+  white-space: pre-line;
+  line-height: 1.6;
+  font-size: 14.5px;
+  max-width: 74ch;
+}
+.focus-words:empty { display: none; }
+.focus-post-link { margin: 14px 0 0; font-size: 12.5px; }
+
+// -- the reading timer ---------------------------------------------------
+
+.focus-timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: none;
+}
+.focus-timer-button {
+  display: flex; align-items: baseline; gap: 7px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--muted); font: inherit; font-size: 12.5px;
+}
+.focus-timer-button:hover .focus-timer-word { color: var(--text); }
+.focus-timer-count {
+  color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums;
+  min-width: 4ch;
+}
+.focus-timer-track {
+  flex: 1; height: 3px; border-radius: 3px; background: var(--panel-2);
+  overflow: hidden;
+}
+.focus-timer-fill {
+  height: 100%; width: 100%; background: var(--accent);
+  transition: width 100ms linear;
+}
+@include still {
+  .focus-timer-fill { transition: none; }
+}
+
+@include phone {
+  // The player goes edge to edge: a 16:9 stage inside 14px of padding wastes
+  // the only screen dimension a phone has to spare.
+  .focus-stage {
+    margin: -14px -14px 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  .focus-post {
+    margin: -14px -14px 0;
+    border-radius: 0;
+    padding: 14px;
+    max-height: none;
+  }
+  .focus-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-left: -14px;
+    margin-right: -14px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  .focus-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  // The one that ends the item gets the full width beneath the other two.
+  .focus-actions .btn-primary { grid-column: 1 / -1; }
+  .focus-timer { margin: 0 -14px; padding: 8px 14px; }
+  .focus-tiles { grid-template-columns: 1fr 1fr; gap: 6px; }
+}

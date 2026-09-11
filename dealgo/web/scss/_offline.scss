@@ -9,3 +9,44 @@
 .banner-offline { border-left-color: var(--warn); font-size: 13px; }
 .banner-offline strong { display: block; margin-bottom: 2px; font-size: 13.5px; }
 .banner-offline a { margin-left: 4px; white-space: nowrap; }
+
+// The connection banner, raised by pwa.js when the browser loses the network.
+.banner-connection { border-left-color: var(--bad); font-size: 13px; }
+.banner-connection strong { color: var(--bad); }
+
+// What cannot work without a server should not look available.
+.is-offline [data-needs-network] { opacity: 0.5; cursor: not-allowed; }
+
+.offline-page { max-width: 46rem; }
+.offline-page h2 { margin-bottom: 8px; }
+
+// A page the worker served from its cache: readable, possibly out of date.
+.banner-stored { border-left-color: var(--muted); font-size: 13px; }
+.banner-stored strong { color: var(--text); }
+.offline-path { font-size: 13px; }
+
+// A panel that could not refresh. What it holds is still shown — it is simply
+// not current — so this dims it slightly and says so above it, rather than
+// replacing readable content with an error.
+.is-unrefreshed {
+  position: relative;
+  opacity: 0.75;
+}
+.is-unrefreshed::before {
+  content: "not refreshed — offline";
+  position: absolute;
+  top: -9px;
+  right: 10px;
+  z-index: 2;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: var(--warn);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+
+// The service worker draws this in place of a thumbnail it has never seen.
+// Nothing to style on the image itself; the card keeps its shape because the
+// placeholder carries the same aspect ratio.

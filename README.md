@@ -52,9 +52,12 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 ## The Feed
 
 The **Feed** tab is where you actually watch. Each feed is a collapsed section — open one and you get
-a grid of cards with thumbnail, channel, age and length. **Clicking a thumbnail opens theater mode**
-at that video, inside the feed you clicked from and in that feed's order, so one click starts a
+a grid of cards with thumbnail, channel, age and length. **Clicking a thumbnail opens Focus mode**
+at that item, inside the feed you clicked from and in that feed's order, so one click starts a
 sitting rather than a single play.
+
+Community posts sit in the same grid. A post wears its **first image** as its tile — the same one
+Focus mode leads with — and a post with no image at all shows its opening words instead.
 
 Sections are collapsed by default, so the page opens as an index of your feeds. A search box at the
 top matches feed names and their tags.
@@ -67,22 +70,34 @@ top matches feed names and their tags.
   playlists for real.
 - A section that is fully caught up says so rather than showing an empty box.
 
-### Theater mode
+### Focus mode
 
-**Theater ▶** plays the unwatched queue straight through: a full-width player that marks each video
-watched as it ends and starts the next one. Start from the whole feed, from one playlist's section,
-or from a particular card.
+**Focus ▶** goes through the unwatched queue straight through, marking each item done and starting
+the next. Start from the whole feed, from one playlist's section, or from a particular card. (This
+was called Theater mode; the old `/watch` address still redirects here.)
 
-**Skip** moves on without marking watched; **Watched · next** does both by hand. A video that will
-not play — private, deleted, embedding disabled — is skipped rather than stranding the queue on it.
+**Skip** moves on without marking watched; **Done · next** does both by hand. A video that will not
+play — private, deleted, embedding disabled — is skipped rather than stranding the queue on it.
 
-Each advance asks the server for the next video instead of walking the list the page was given, so a
-theater tab left open overnight cannot resurrect something watched or removed since. A video sitting
-in two playlists is queued once.
+Videos and community posts share one queue, and each ends its own way:
+
+- A **video** plays full width and advances when it ends.
+- A **post** is laid out as tiles — its images in a grid, its text below — and advances on a timer,
+  because a post has no end of its own. **Click the timer to hold it** while you are still reading,
+  and click again to carry on. The default is 30 seconds; change it under Settings → *Reading time
+  for a post*. Clicking a tile opens the full image.
+
+Opening on a post does not start audio underneath it: the player is loaded ready for whatever comes
+next, but muted of its own accord until a video's turn. A queue of nothing but posts loads no player
+at all.
+
+Each advance asks the server for the next item instead of walking the list the page was given, so a
+tab left open overnight cannot resurrect something watched or removed since. Anything sitting in two
+playlists is queued once.
 
 This is the one page that loads a script from YouTube: auto-advance needs the IFrame Player API to
 report when a video ends, which a plain embed cannot. If that script does not arrive, the page says
-so and links out rather than showing a blank stage.
+so and points at **Reload** rather than showing a blank stage.
 
 ## Feeds
 
@@ -94,13 +109,13 @@ A **feed** is a list De-Algo keeps filled from the channels you assign to it. Cr
 2. **Which channels fill it** — optional, and editable later either way round.
 
 A **generic feed** is the one that needs nothing from Google: its videos are discovered, filtered and
-watchable on the Feed and Theater pages, with the same channels, filters, limits and watched
+watchable on the Feed and Focus pages, with the same channels, filters, limits and watched
 tracking as any other. Only the writing to YouTube is skipped — so no account, no API quota, no
 playlist.
 
 **Google is optional throughout.** With no account connected — or one whose grant has lapsed — every
 feed behaves like a generic one: channels are polled, videos are filtered and collected, and the Feed
-and Theater pages work as usual. Nothing is added to or removed from YouTube, and the feeds that point
+and Focus pages work as usual. Nothing is added to or removed from YouTube, and the feeds that point
 at a playlist are greyed out and marked *local only*, with a banner saying so. What they collect
 meanwhile is not lost: it is still owed to the playlist, and goes in on the first sync after you
 connect, paced by the daily quota like any other write.
@@ -188,23 +203,45 @@ with what it decided and why.
 
 ## What gets taken from a channel
 
-Every upload is exactly one of three kinds, and each has its own switch in the Channels list:
+Each kind of thing a channel publishes has its own switch on the channel's page:
 
 - **Videos** — ordinary uploads: anything that is neither a Short nor a broadcast. On by default.
 - **Shorts** — off by default. The feed marks them (they link as `/shorts/<id>`), so this works with
   no API credentials at all; the length threshold in Settings catches any the feed does not flag.
 - **Live** — live streams and scheduled premieres. Off by default.
+- **Posts** — community posts. On by default, and read in Focus mode rather than watched.
 
-Follow a channel only for its Shorts by switching Videos off and Shorts on. Switching all three off
-means nothing from that channel is ever added, so the list marks it **takes nothing** rather than
-leaving you to wonder.
+Follow a channel only for its Shorts by switching Videos off and Shorts on, or only for its writing
+by leaving Posts on and the rest off. Switching every kind off means nothing from that channel is
+ever added, so the list marks it **takes nothing** rather than leaving you to wonder.
+
+Posts share the channel's per-run cap with its videos, so a channel that posts heavily can push a
+video to the next run rather than dropping it. Raise that cap on the channel's page if you would
+rather have both in one go.
 
 Turning either **on** also queues what that channel already skipped for that reason, so the switch
 applies to what it passed over rather than only to future uploads. A stream skipped while it was
 live has usually finished by the next run, so you get the recording rather than the broadcast. The
 two are independent: turning live on leaves skipped Shorts skipped.
 
-Turning either **off** stops future ones and leaves anything already in a playlist alone.
+Turning any of them **off** stops future ones and leaves anything already in a playlist alone.
+
+### Community posts
+
+Posts are the one thing De-Algo cannot ask an API for: **there is no Data API for community posts**,
+in v3 or behind any scope. The only way to read them is the page a browser gets, so De-Algo parses
+the `ytInitialData` blob out of a channel's Posts tab. That means:
+
+- **It costs no quota and needs no account** — but it is unofficial, and YouTube can change the page
+  shape without notice. Everything about it fails soft: a page that will not parse yields no posts,
+  never an error, and the channel's videos are collected exactly as before.
+- **It costs bandwidth.** A Posts page is around a megabyte, fetched once per channel per check, so
+  a channel's minimum pull interval applies to its posts as well. Denying posts for a channel skips
+  the fetch entirely.
+- **Dates are approximate.** A post carries "5 days ago" and nothing else, so the timestamp is
+  derived from that. It is precise enough to order a feed and no more.
+- **Posts never reach YouTube.** No playlist can hold one, so a post lives in De-Algo only, whatever
+  its feed is backed by. Marking one done removes it here and asks nothing of YouTube.
 
 ## How much history to take
 
@@ -351,6 +388,80 @@ a named volume, `chown 10001:10001` it first.
 For `docker stack deploy`, build and push the image first and set `DEALGO_IMAGE` — Swarm ignores
 `build:`, and warns about `restart:` in favour of the `deploy:` block that is already there.
 
+## On a phone
+
+The layout answers to narrow screens rather than shrinking the desktop one.
+Below tablet width the tabs move out of the top bar and into a drawer behind a
+hamburger — five tabs, a brand and two sync buttons never shared a row honestly,
+and a scrolling strip of them hides where you can go. The drawer slides in from
+the right, over a scrim that closes it when tapped.
+
+It is a checkbox and two labels, so **it works with JavaScript switched off**,
+like everything else here; `menu.js` adds what CSS cannot — `aria-expanded` on
+the button, Escape to close, and holding the page still behind the drawer.
+
+Panels lose their margins, definition lists drop their label column, and in
+Focus mode the player and the bar go edge to edge, because the only dimension a
+phone has to spare is the one a 16:9 stage wants.
+
+Touch is treated as its own thing, not as a width: `@media (pointer: coarse)`
+grows the hit areas, keeps the card actions visible instead of waiting for a
+hover that never comes, and sizes form fields at 16px, which is what stops iOS
+zooming in when a field takes focus and never zooming back out. A tablet with a
+keyboard keeps the tighter layout; a phone in landscape does not.
+
+Installed to a home screen it runs full-screen, so the frame allows for a notch
+with `env(safe-area-inset-*)`.
+
+## Installing it as an app
+
+De-Algo ships a web app manifest and a service worker, so a browser will offer
+to install it — *Add to Home Screen* on iOS, *Install app* on Android and
+desktop Chrome. It then opens in its own window with no browser chrome, themed
+to match.
+
+**It needs HTTPS.** Service workers only run in a secure context, which means
+`https://` or `localhost`. Reached over plain HTTP at a LAN address, De-Algo
+works exactly as before but installs nothing and caches nothing — no error, just
+no offline. Putting it behind a reverse proxy with a certificate is what turns
+the feature on. See [Running in a cluster](#running-in-a-cluster) for where the
+public URL is set.
+
+### What "offline" means here
+
+Worth being plain about, because it is half of what people expect.
+
+**Reading works offline, and says what it could not get.** The shell, the pages
+you have already visited, and the thumbnails in them are cached, so the app
+opens and the feed is there. Nothing is all-or-nothing:
+
+- A page you have already loaded comes back, with a line saying it is a stored
+  copy and may have moved on since.
+- A page you have never loaded is named — *`/channels/9` has not been loaded
+  before* — rather than a blank apology.
+- A thumbnail that was never cached becomes a drawn *not loaded* tile in the
+  app's own colours, so the card keeps its shape instead of showing a broken
+  image.
+- A panel that cannot refresh — the sync status, the activity list — keeps what
+  it is already showing and gets a small **not refreshed — offline** tag. The
+  content on screen is still true, it is just not current, and replacing it with
+  an error would be strictly worse.
+
+Cached images are capped at a few hundred so the store cannot grow without
+limit, and everything is versioned by build, so a deploy retires the old copies.
+
+**Writing does not.** Marking something watched, syncing, editing a feed — all
+of those need the server, and offline they fail and say so. A banner appears
+when the connection drops, and the buttons that cannot work are disabled rather
+than left to fail on being pressed.
+
+That split is not laziness, it is the architecture: De-Algo renders its pages on
+the server from a database that lives there. The screen you see after marking
+something watched is HTML the server built. A write queued in the browser could
+not produce that screen, so it would either lie about having worked or leave the
+page wrong — and the videos themselves stream from YouTube, which offline is not
+going to do either. Reading what you already have is the honest offering.
+
 ## Backup
 
 **Settings → Backup** downloads one JSON file holding the whole setup: settings, feeds, channels,
@@ -405,8 +516,9 @@ database if you would rather use Postgres. Schema changes are applied on start, 
 ## Development
 
 ```bash
-.venv/bin/pip install -r requirements.txt pytest libsass
+.venv/bin/pip install -r requirements.txt pytest libsass mypy
 .venv/bin/python -m pytest
+make typecheck            # mypy --strict, then tsc --noEmit
 ```
 
 The tests cover feed parsing, channel-reference parsing, the filter rules, the web routes and their
@@ -420,7 +532,7 @@ dealgo/
   youtube/     feeds.py (free Atom polling) · api.py (Data API) · oauth.py
   services/    sync.py (the engine) · filters.py · channels.py · playlists.py
                watched.py · auth.py
-  web/         app.py (FastAPI) · templates/ · scss/ (styles) · static/ (served)
+  web/         app.py (FastAPI) · templates/ · scss/ · ts/ · static/ (both compiled)
   models.py    the whole schema · db.py · scheduler.py
 ```
 
@@ -429,6 +541,93 @@ The frontend is server-rendered HTML driven by [htmx](https://htmx.org) — vend
 button polls its own status and announces a finished run with an `HX-Trigger` header, and the panels
 listening for that event refresh themselves. Every htmx route also answers a plain form post with a
 redirect, so the app still works with JavaScript switched off.
+
+### Types
+
+Both languages are checked strictly, and `make typecheck` runs both.
+
+**Python** is `mypy --strict` over the whole `dealgo` package — no untyped
+definitions, no bare `dict` or `list`, no implicit `Any` leaking out of a
+function. The package ships a `py.typed` marker, so anything importing it gets
+those types too. The settings live in `pyproject.toml`.
+
+Two dependencies ship no type information of their own: `libsass` and
+`apscheduler`. They are named individually in the config rather than waved
+through with a global ignore, so the gap is a listed exception instead of a
+hole. Where a value crosses that boundary its type is stated at the call —
+`css: str = sass.compile(...)` — rather than letting `Any` spread.
+
+What YouTube returns is `JsonDict` (`dict[str, Any]`), defined in
+`youtube/payload.py`. That is deliberate: it is someone else's JSON, and
+strict typing at a boundary means being honest that the contents are unchecked
+rather than inventing a shape for them.
+
+The test suite is not part of the strict run. Annotating four hundred fixtures
+and test functions buys little, and a fixture that builds half an object on
+purpose should not have to describe it in full.
+
+**TypeScript** covers the browser scripts, with `strict` plus the checks it
+leaves out — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+`noImplicitReturns` and the rest, in `tsconfig.json`.
+
+That file is kept as plain JSON with no comments in it. `tsc` reads JSON with
+comments quite happily and nothing else does, so a `//` in there compiles fine
+and then fails in every editor, linter or script that opens the file as JSON —
+which is why the settings are explained here instead.
+
+`"module"` deserves a note. These scripts are plain `<script>` tags the page
+includes, not modules — no bundler, no import map, nothing to resolve at
+runtime. The setting that used to say so, `"module": "none"`, was deprecated in
+TypeScript 6 and **removed in 7**, so it now reads `"esnext"` with
+`"moduleResolution": "bundler"`. That changes nothing about the output: a file
+with no `import` or `export` is a script whatever `module` says, and the emitted
+JavaScript is byte-for-byte the same. It does mean that adding an `import` to one
+of these files would quietly turn it into an ES module that a plain `<script
+src>` cannot load — so if you ever need one, the page's script tag needs
+`type="module"` to match. There are no `!`
+assertions anywhere, and a test enforces that: an element the template always
+renders is fetched through a helper that throws by name if it is missing, so
+the types are proved rather than asserted. htmx and YouTube's IFrame API arrive
+as plain script tags with no packages behind them, so `ts/globals.d.ts`
+declares just the members De-Algo actually calls — anything else has to be
+added there first.
+
+### Scripts
+
+The browser scripts are written as TypeScript in `dealgo/web/ts/` and compiled
+to `dealgo/web/static/`. There are two programs, not one: the service worker has
+no DOM and the page scripts have no worker globals, so `sw.ts` is built by
+`tsconfig.sw.json` and everything else by `tsconfig.json`. `make js` runs both.
+
+```bash
+make js           # compile once
+make watch-js     # recompile on save
+make assets       # both the scripts and the stylesheet
+```
+
+Each file is the same shape: type declarations, named functions, and a single
+call to its entry point at the bottom. No wrapper, no anonymous block. What a
+Focus sitting has to remember — the item open, what has been skipped, the
+player, the timer — lives in one `FocusSitting` object that is passed to each
+function rather than captured in a closure, so any of them can be read on its
+own.
+
+That structure is load-bearing, not taste. These are plain scripts, and htmx
+re-runs one every time it swaps that page in — visit Focus, leave, come back,
+and `focus.js` executes a second time in the same document. A top-level
+`const`, `let` or `class` throws *"already declared"* on that second run and
+takes the page with it; a `function` declaration does not. That is why nothing
+but functions sits at the top level, and a test enforces it.
+
+**Edit the `.ts`, never the `.js` in `static/`** — the JavaScript is generated
+and `make js` overwrites it. As with the stylesheet, the compiled output is
+committed and ships in the package, so **running or containerising De-Algo
+needs no Node** — only editing the scripts does. A test compiles afresh and
+compares, so a source changed without a rebuild fails the suite rather than
+reaching the container unnoticed. It skips where TypeScript is not installed,
+which is every environment that only runs the app.
+
+`htmx.min.js` is vendored, not compiled: it is somebody else's build.
 
 ### Styling
 

@@ -22,6 +22,7 @@ from ..youtube.api import QUOTA_COST_DELETE, YouTubeAPIError
 from . import quota
 from .auth import build_client
 from .sync import Busy, http_client, playlist_lock
+import httpx
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ def remove_watched(trigger: str = "manual") -> RemovalResult:
         return RemovalResult(ok=False, messages=[f"Removal failed: {exc}"])
 
 
-def _remove(session: Session, http, trigger: str) -> RemovalResult:
+def _remove(session: Session, http: httpx.Client, trigger: str) -> RemovalResult:
     result = RemovalResult()
     client = build_client(session, http)
 
@@ -175,8 +176,13 @@ def _remove(session: Session, http, trigger: str) -> RemovalResult:
                 f"Quota ran out; the rest can be removed after the reset {quota.describe_reset()}."
             )
             break
+        item_id = placement.playlist_item_id
+        if item_id is None:
+            # The query asks for rows that have one; belt and braces for a
+            # future caller that does not.
+            continue
         try:
-            client.delete_playlist_item(placement.playlist_item_id)
+            client.delete_playlist_item(item_id)
         except YouTubeAPIError as exc:
             if exc.status == 404 or exc.reason == "playlistItemNotFound":
                 # Already gone from YouTube's side; just reconcile our record.

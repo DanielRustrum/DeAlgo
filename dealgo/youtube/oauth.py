@@ -13,6 +13,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from .payload import JsonDict
+
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke"
@@ -48,7 +50,7 @@ def build_authorization_url(client_id: str, redirect_uri: str, state: str) -> st
     return f"{AUTH_ENDPOINT}?{urlencode(params)}"
 
 
-def _to_token_response(payload: dict, fallback_refresh: str | None = None) -> TokenResponse:
+def _to_token_response(payload: JsonDict, fallback_refresh: str | None = None) -> TokenResponse:
     if "access_token" not in payload:
         raise OAuthError(payload.get("error_description") or payload.get("error") or "no access_token in response")
     expires_in = int(payload.get("expires_in", 3600))
@@ -60,7 +62,7 @@ def _to_token_response(payload: dict, fallback_refresh: str | None = None) -> To
     )
 
 
-def _post(client: httpx.Client, data: dict) -> dict:
+def _post(client: httpx.Client, data: dict[str, str]) -> JsonDict:
     response = client.post(TOKEN_ENDPOINT, data=data)
     try:
         payload = response.json()
@@ -68,7 +70,7 @@ def _post(client: httpx.Client, data: dict) -> dict:
         raise OAuthError(f"token endpoint returned {response.status_code}: {response.text[:200]}") from None
     if response.status_code >= 400:
         raise OAuthError(payload.get("error_description") or payload.get("error") or f"HTTP {response.status_code}")
-    return payload
+    return dict(payload)
 
 
 def exchange_code(

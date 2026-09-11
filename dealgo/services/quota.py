@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
@@ -124,7 +125,7 @@ def can_afford(session: Session, units: int, *, use_reserve: bool = False) -> bo
     return available >= units
 
 
-def meter(session: Session):
+def meter(session: Session) -> Callable[[int], None]:
     """A callback the API client charges each request against."""
 
     def record(units: int) -> None:

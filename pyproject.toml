@@ -19,7 +19,7 @@ dependencies = [
 # libsass compiles web/scss into static/app.css. The app itself never imports
 # it: the compiled stylesheet is committed and ships in the package, so running
 # De-Algo needs no compiler — only restyling it does.
-dev = ["pytest>=8.0", "libsass>=0.22"]
+dev = ["pytest>=8.0", "libsass>=0.22", "mypy>=1.11"]
 
 [project.scripts]
 dealgo = "dealgo.__main__:main"
@@ -34,7 +34,31 @@ include = ["dealgo*"]
 # Templates and static assets ship inside the package, so the installed
 # app is self-contained (this is what the container runs).
 [tool.setuptools.package-data]
-dealgo = ["web/templates/*.html", "web/static/*", "web/scss/*.scss"]
+# These globs are not recursive: `web/static/*` does not reach web/static/icons,
+# which is how the app icons were left out of the image the first time.
+dealgo = [
+    "py.typed",
+    "web/templates/*.html",
+    "web/static/*",
+    "web/static/icons/*",
+    "web/scss/*.scss",
+    "web/ts/*.ts",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["dealgo"]
+# Point at the real line rather than the top of the file.
+pretty = true
+show_error_codes = true
+
+# Two dependencies ship no type information. Naming them here keeps `strict`
+# meaningful everywhere else: the gap is declared, not waved through globally.
+[[tool.mypy.overrides]]
+module = ["sass", "apscheduler.*"]
+ignore_missing_imports = true
+

@@ -149,10 +149,10 @@ def cmd_status(_args: argparse.Namespace) -> int:
         else:
             print("playlist:  none set")
         print(f"auto sync: {'every %d min' % settings.poll_interval_minutes if settings.auto_sync else 'off'}")
-        state = quota_service.state(session)
-        note = " (exhausted)" if state.exhausted else ""
+        quota_state = quota_service.state(session)
+        note = " (exhausted)" if quota_state.exhausted else ""
         print(
-            f"quota:     {state.used}/{state.budget} units used{note}, "
+            f"quota:     {quota_state.used}/{quota_state.budget} units used{note}, "
             f"resets {quota_service.describe_reset()}"
         )
     return 0
@@ -206,7 +206,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
         args = parser.parse_args(["serve"])
-    return args.func(args)
+    exit_code: int = args.func(args)
+    return exit_code
 
 
 if __name__ == "__main__":

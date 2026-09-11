@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test css watch-css dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -91,8 +91,22 @@ info: ## Show Dealgo's configuration
 test: ## Run the test suite locally
 	$(PY) -m pytest
 
+typecheck: ## Check the types, both languages (mypy --strict, tsc --noEmit)
+	$(PY) -m mypy
+	npx tsc --noEmit
+	npx tsc -p tsconfig.sw.json --noEmit
+
 css: ## Compile web/scss into the stylesheet the app serves
 	$(PY) -m dealgo.web.styles
+
+js: ## Compile web/ts into the scripts the app serves
+	npx tsc
+	npx tsc -p tsconfig.sw.json
+
+watch-js: ## Recompile the page scripts on save (the worker needs `make js`)
+	npx tsc --watch
+
+assets: css js ## Rebuild both the stylesheet and the scripts
 
 watch-css: ## Recompile the stylesheet whenever a partial changes
 	@command -v inotifywait >/dev/null || { echo "needs inotify-tools"; exit 2; }
@@ -102,7 +116,7 @@ watch-css: ## Recompile the stylesheet whenever a partial changes
 		$(PY) -m dealgo.web.styles >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
 	done
 
-dev: css ## Run the app locally without Docker
+dev: assets ## Run the app locally without Docker
 	$(PY) -m dealgo serve
 
 clean: ## Stop Dealgo and delete its data volume (irreversible)

@@ -1,18 +1,29 @@
 {# Thumbnail and timestamp, nothing else. The title is not printed but is still
    the link's accessible name, so hovering shows it and a screen reader reads
-   it. Clicking opens theater mode at this video. #}
+   it. Clicking opens Focus mode at this item.
+
+   A community post wears its first image as that thumbnail — the same tile
+   Focus mode leads with — and falls back to its opening words when it has no
+   image at all, which is the only thing a text post can show. #}
 {% set from_feed = '&playlist=' ~ section.playlist.id ~ '&order=' ~ section.playlist.view_order
                    if section is defined else '' %}
-<article class="card {{ 'card-watched' if video.watched }}" id="feed-card-{{ video.id }}">
-  <a class="card-thumb" href="/watch?start={{ video.id }}{{ from_feed }}"
+<article class="card {{ 'card-watched' if video.watched }} {{ 'card-post' if video.is_post }}"
+         id="feed-card-{{ video.id }}">
+  <a class="card-thumb" href="/focus?start={{ video.id }}{{ from_feed }}"
      title="{{ video.title or video.video_id }} — {{ video.channel.title }}">
     {% if video.thumbnail_url %}
-      <img src="{{ video.thumbnail_url }}" alt="{{ video.title or video.video_id }}" loading="lazy">
+      <img src="{{ video.thumbnail_url }}" alt="{{ video.title or video.video_id }}" loading="lazy"
+           referrerpolicy="no-referrer">
+    {% elif video.is_post %}
+      <span class="card-thumb-words">{{ video.body or video.title }}</span>
     {% else %}
       <span class="card-thumb-blank">{{ video.title or video.video_id }}</span>
     {% endif %}
-    <span class="card-play">▶</span>
-    {% if video.duration_sec %}
+    <span class="card-play">{{ '¶' if video.is_post else '▶' }}</span>
+    {% if video.is_post %}
+      <span class="card-duration">post{% if video.image_list | length > 1 %}
+        · {{ video.image_list | length }} images{% endif %}</span>
+    {% elif video.duration_sec %}
       <span class="card-duration">{{ video.duration_sec | duration }}</span>
     {% endif %}
   </a>
