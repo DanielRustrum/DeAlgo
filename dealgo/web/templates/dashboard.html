@@ -12,7 +12,7 @@
   <strong>Google needs you to sign in again.</strong> Videos are still being queued, but nothing can
   reach the playlist until the account is reconnected. <a href="/settings">Reconnect in Settings →</a>
 </div>
-{% elif not state.connected %}
+{% elif not state.connected and show_connect_notice %}
 <div class="banner">
   <strong>Connect your YouTube account</strong> so De-Algo can add videos to a playlist on your behalf.
   <a href="/settings">Connect in Settings →</a>

@@ -388,6 +388,77 @@ a named volume, `chown 10001:10001` it first.
 For `docker stack deploy`, build and push the image first and set `DEALGO_IMAGE` — Swarm ignores
 `build:`, and warns about `restart:` in favour of the `deploy:` block that is already there.
 
+## Accounts
+
+De-Algo asks nobody who they are until you give it an admin. Set both of these
+and restart:
+
+```bash
+DEALGO_ADMIN_USER=rusty
+DEALGO_ADMIN_PASSWORD=something-long-and-not-guessable
+```
+
+Until you do, a banner says so on every page: without an admin, anyone who can
+reach the address can use De-Algo and read the Google credentials in Settings.
+Leaving it open on a private LAN is a choice, not an accident, and the app is
+plain about which one you have made.
+
+### Trying it out
+
+`admin` / `admin` works. De-Algo allows a password that short **only** from the
+environment — it is the operator's own decision, and refusing it would mean
+refusing to start — and never from a form: an account created in the Admin tab
+still needs eight characters. It says so in the log at boot, and on every page
+while the admin is signed in, for as long as it stands.
+
+`make dev` and `docker compose` both read a local `.env`, which is gitignored,
+so the pair can live there without reaching the repository:
+
+```bash
+DEALGO_ADMIN_USER=admin
+DEALGO_ADMIN_PASSWORD=admin
+```
+
+The automated tests sign in with the same pair, so what they exercise is what
+you can sign in with by hand.
+
+**The admin is the environment's account.** That password is read on every
+start, so changing the variable and restarting is the way back in if it is ever
+lost — and the reason the app will not let you change it from inside. Point the
+variable at a different name and the previous admin becomes an ordinary member.
+
+**Everyone else is created in the Admin tab**, which only the admin can see.
+From there you can add an account, set a new password for one, switch one off,
+sign it out of every browser, or delete it. Switching off, deleting, or changing
+a password ends that account's sessions immediately.
+
+**What a member can do**: everything the app is for — the dashboard, the feed,
+Focus mode, tracking channels and arranging feeds. **What only the admin can
+do**: Settings, backups, the Google connection, and the Admin tab. The split is
+about the site's own configuration, not about day-to-day use, which is why
+editing a feed is a member's business and the OAuth client secret is not.
+
+### How it is kept
+
+- Passwords are stored as **scrypt** hashes with a per-password salt — in the
+  standard library, memory-hard, and about 50 ms per attempt, which is what
+  makes guessing expensive. The stored form is `scrypt$<salt>$<key>`; a hash it
+  cannot read is a refusal rather than an error.
+- A signed-in browser holds a random token in an **HttpOnly, SameSite=Lax**
+  cookie, marked Secure whenever the connection is HTTPS. Only the token's
+  SHA-256 is stored, so a copy of the database is not enough to sign in as
+  anyone.
+- Sessions live in a table rather than in a signed cookie, which is what lets
+  "switch this account off" take effect at once instead of whenever the cookie
+  expires.
+- The same answer comes back whichever half of a sign-in was wrong, and a
+  missing account is hashed against anyway so it does not answer faster and give
+  itself away.
+- `SameSite=Lax` is what stands between a cookie and a cross-site form post. It
+  is the whole of the CSRF defence here: there are no per-form tokens. For a
+  self-hosted app behind your own door that is a reasonable place to stand, but
+  it is worth knowing where the line is.
+
 ## On a phone
 
 The layout answers to narrow screens rather than shrinking the desktop one.
@@ -463,6 +534,51 @@ page wrong — and the videos themselves stream from YouTube, which offline is n
 going to do either. Reading what you already have is the honest offering.
 
 ## Backup
+
+There are two, and they are for different jobs.
+
+### Your own setup
+
+**Settings → Back up your setup** gives you your feeds and channels as plain
+JSON. No credentials are in it — not the OAuth grant, not the client id and
+secret. A backup file lives in a Downloads folder for years, and both are
+re-enterable in a minute. It is yours: it holds your account's setup and
+nobody else's, and **Load backup** on the same page puts it back.
+
+### The whole instance
+
+**Admin → Move this instance** gives the admin an encrypted file holding every
+account and every setup at once: who the accounts are, what each of them
+watches, and how each is configured. It is the file for standing De-Algo up on
+another machine.
+
+**No secrets travel in it** — not password hashes, not Google grants, not API
+keys. A migration file gets copied between machines, emailed to oneself and left
+in a Downloads folder, and a credential that has been through all that is one to
+rotate anyway. So the accounts come across and their credentials do not: the
+admin sets a new password for each from the Admin page, and each account
+reconnects its own Google. The restore says by name who needs what.
+
+It is still encrypted, because everyone's usernames and everything they watch is
+nobody else's business.
+
+- **The passphrase is chosen at export time and is the only way in.** It is
+  stretched with scrypt and the file sealed with Fernet, which is
+  authenticated: a file that has been altered fails to open rather than
+  restoring something subtly wrong. Lose the passphrase and the file is lost.
+  There is no recovery, by design.
+- **The envelope is readable, the contents are not.** Anyone finding the file
+  can see it is a De-Algo backup, when it was made, and how many accounts are
+  in it. Nothing else — no feed names, no channel ids, no hashes.
+- **Loading one merges rather than replaces.** Accounts that are not here are
+  created, each account's setup is restored into its own space, and nothing
+  already here is deleted. Restoring twice changes nothing the second time.
+  Restored accounts arrive with no password and cannot be signed in to until
+  the admin sets one.
+- **The admin stays this machine's.** An account marked admin in a file is
+  restored as an ordinary member: who administers an instance comes from
+  `DEALGO_ADMIN_USER`, not from a file someone can hand you.
+
 
 **Settings → Backup** downloads one JSON file holding the whole setup: settings, feeds, channels,
 their filters, limits and fill order, and which feeds each channel fills. Rows reference each other

@@ -35,6 +35,17 @@
     <span class="brand-name">De-Algo</span>
   </a>
 
+  {% if identity %}
+  {# Who you are, and the way to your own settings. A letter rather than a
+     name: the bar has little room, and the same letter-avatar the channel
+     lists use is already the app's way of standing in for someone. #}
+  <a class="account-icon" href="/settings"
+     title="Signed in as {{ identity.username }} — your settings"
+     aria-label="Your settings, signed in as {{ identity.username }}">
+    <span class="avatar-letter" style="--hue: {{ identity.hue }}">{{ identity.initial }}</span>
+  </a>
+  {% endif %}
+
   {# The tabs become a drawer below tablet width. A checkbox and its label
      rather than a button, so opening the menu needs no JavaScript at all —
      the same mechanism the long-description fold uses. It sits before the
@@ -62,7 +73,10 @@
     <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
     <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
     <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Raw</a>
-    <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
+    <a href="/settings" class="{{ 'active' if request.url.path == '/settings' }}">Settings</a>
+    {% if identity and identity.is_admin %}
+    <a href="/admin" class="{{ 'active' if request.url.path.startswith('/admin') }}">Admin</a>
+    {% endif %}
   </nav>
 
   {% if show_tour %}
@@ -90,6 +104,27 @@
     This is the page as it was when you last loaded it. Some of it may have
     changed since.
   </p>
+
+  {% if not auth_enabled and show_open_notice %}
+  <p class="banner banner-open" id="no-auth-banner">
+    <strong>No sign-in required.</strong>
+    Anyone who can reach this address can use De-Algo and read the Google credentials in
+    Settings. Set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code>, then
+    restart, to turn accounts on.
+  </p>
+  {% endif %}
+
+  {# The admin's password comes from the environment and is not held to the
+     length everyone else's is, so a throwaway one is possible — and worth
+     saying, for as long as it stands. Shown only to the admin: nobody else
+     can act on it. #}
+  {% if weak_admin_password and identity and identity.is_admin %}
+  <p class="banner banner-open" id="weak-password-banner">
+    <strong>The admin password is a short one.</strong>
+    Fine while you are trying De-Algo out. Change <code>DEALGO_ADMIN_PASSWORD</code> and restart
+    before this address is reachable by anyone else.
+  </p>
+  {% endif %}
 
   {% include "_flash.html" %}
   {% include "_offline_banner.html" %}

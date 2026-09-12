@@ -40,12 +40,17 @@ function imageCacheName() {
 function imageCacheLimit() {
     return 300;
 }
-/** Fetched on install, so the app opens with no network at all. */
+/** Fetched on install, so the app opens with no network at all.
+ *
+ *  Only what is reachable without signing in. With accounts switched on, a
+ *  page like "/" answers a signed-out request with a redirect to the login
+ *  page — and precaching that would store the login page under the dashboard's
+ *  address, to be served back the first time someone opened the app offline.
+ *  Pages are cached when they are actually visited instead. */
 function shellUrls() {
     return [
-        "/",
         "/offline",
-        "/feed",
+        "/login",
         "/static/app.css",
         "/static/htmx.min.js",
         "/static/dialog.js",
@@ -103,6 +108,16 @@ async function trimImageCache() {
             await cache.delete(oldest);
     }
 }
+/** Whether this answer belongs in the cache under the address that was asked
+ *  for.
+ *
+ *  A redirected response came from somewhere else: with accounts switched on,
+ *  a session that has expired answers every page with the login page. Storing
+ *  that under the original address would serve the login page for the feed,
+ *  offline, long after signing in again. */
+function worthStoring(response) {
+    return response.ok && !response.redirected;
+}
 /** Rebuild an HTML response around changed markup, keeping its headers. */
 async function rewrittenHtml(response, edit) {
     const html = await response.text();
@@ -140,7 +155,7 @@ async function pageOrCachedPage(request) {
     const cache = await caches.open(cacheName());
     try {
         const fresh = await fetch(request);
-        if (fresh.ok)
+        if (worthStoring(fresh))
             await cache.put(request, fresh.clone());
         return fresh;
     }
@@ -218,7 +233,7 @@ async function freshOrCached(request) {
     const cache = await caches.open(cacheName());
     try {
         const fresh = await fetch(request);
-        if (fresh.ok)
+        if (worthStoring(fresh))
             await cache.put(request, fresh.clone());
         return fresh;
     }

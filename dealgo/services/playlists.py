@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import GENERIC_PLAYLIST_PREFIX, Channel, Placement, Playlist
+from .scope import OwnerId, belongs_to, owned
 from ..youtube.api import YouTubeAPIError
 from . import ordering
 from .auth import build_client
@@ -19,45 +20,52 @@ class PlaylistError(RuntimeError):
     pass
 
 
-def list_playlists(session: Session) -> list[Playlist]:
+def list_playlists(session: Session, owner: OwnerId = None) -> list[Playlist]:
     return list(
         session.scalars(
-            select(Playlist)
+            owned(select(Playlist), Playlist, owner)
             .options(selectinload(Playlist.channels))
             .order_by(Playlist.priority.asc(), Playlist.id.asc())
         )
     )
 
 
-def enabled_playlists(session: Session) -> list[Playlist]:
+def enabled_playlists(session: Session, owner: OwnerId = None) -> list[Playlist]:
     return list(
         session.scalars(
-            select(Playlist).where(Playlist.enabled.is_(True)).order_by(Playlist.priority, Playlist.id)
+            owned(select(Playlist), Playlist, owner)
+            .where(Playlist.enabled.is_(True))
+            .order_by(Playlist.priority, Playlist.id)
         )
     )
 
 
-def item_counts(session: Session) -> dict[int, int]:
+def item_counts(session: Session, owner: OwnerId = None) -> dict[int, int]:
     """How many videos each playlist currently holds, as De-Algo sees it."""
     return {
         playlist_pk: held
         for playlist_pk, held in session.execute(
             select(Placement.playlist_pk, func.count(Placement.id))
-            .where(Placement.playlist_item_id.is_not(None))
+            .join(Playlist, Playlist.id == Placement.playlist_pk)
+            .where(Placement.playlist_item_id.is_not(None), belongs_to(Playlist, owner))
             .group_by(Placement.playlist_pk)
         ).all()
     }
 
 
-def add_existing(session: Session, playlist_id: str, http: httpx.Client) -> Playlist:
+def add_existing(
+    session: Session, playlist_id: str, http: httpx.Client, owner: OwnerId = None
+) -> Playlist:
     """Start feeding a playlist that already exists on the account."""
     playlist_id = (playlist_id or "").strip()
     if not playlist_id:
         raise PlaylistError("Choose a playlist.")
-    if session.scalar(select(Playlist).where(Playlist.playlist_id == playlist_id)):
+    if session.scalar(
+        owned(select(Playlist), Playlist, owner).where(Playlist.playlist_id == playlist_id)
+    ):
         raise PlaylistError("That playlist is already a target.")
 
-    client = build_client(session, http)
+    client = build_client(session, http, owner)
     if not client.has_write_access:
         raise PlaylistError("Connect a Google account first.")
     try:
@@ -66,28 +74,35 @@ def add_existing(session: Session, playlist_id: str, http: httpx.Client) -> Play
         raise PlaylistError(f"YouTube API error: {exc}") from exc
     if info is None:
         raise PlaylistError("That playlist could not be found on your account.")
-    return _store(session, info.playlist_id, info.title)
+    return _store(session, info.playlist_id, info.title, owner)
 
 
 PRIVACY_CHOICES = ("private", "unlisted", "public")
 
 
-def create_generic(session: Session, title: str) -> Playlist:
+def create_generic(session: Session, title: str, owner: OwnerId = None) -> Playlist:
     """A generic feed: no YouTube playlist behind it, so no quota and no account."""
     title = (title or "").strip()
     if not title:
         raise PlaylistError("Give the feed a name.")
-    return _store(session, f"{GENERIC_PLAYLIST_PREFIX}{uuid4().hex[:16]}", title)
+    return _store(session, f"{GENERIC_PLAYLIST_PREFIX}{uuid4().hex[:16]}", title, owner)
 
 
-def create(session: Session, title: str, http: httpx.Client, *, privacy: str = "private") -> Playlist:
+def create(
+    session: Session,
+    title: str,
+    http: httpx.Client,
+    *,
+    privacy: str = "private",
+    owner: OwnerId = None,
+) -> Playlist:
     title = (title or "").strip()
     if not title:
         raise PlaylistError("Give the new playlist a name.")
     if privacy not in PRIVACY_CHOICES:
         privacy = "private"
 
-    client = build_client(session, http)
+    client = build_client(session, http, owner)
     if not client.has_write_access:
         raise PlaylistError("Connect a Google account first.")
     try:
@@ -98,7 +113,7 @@ def create(session: Session, title: str, http: httpx.Client, *, privacy: str = "
         )
     except YouTubeAPIError as exc:
         raise PlaylistError(f"YouTube API error: {exc}") from exc
-    return _store(session, info.playlist_id, info.title)
+    return _store(session, info.playlist_id, info.title, owner)
 
 
 def set_up_feed(
@@ -110,14 +125,15 @@ def set_up_feed(
     privacy: str = "private",
     playlist_id: str = "",
     channel_pks: list[int] | None = None,
+    owner: OwnerId = None,
 ) -> tuple[Playlist, int]:
     """Create or adopt a playlist and link the channels that will fill it."""
     if source == "existing":
-        playlist = add_existing(session, playlist_id, http)
+        playlist = add_existing(session, playlist_id, http, owner)
     elif source == "generic":
-        playlist = create_generic(session, title)
+        playlist = create_generic(session, title, owner)
     else:
-        playlist = create(session, title, http, privacy=privacy)
+        playlist = create(session, title, http, privacy=privacy, owner=owner)
 
     linked = 0
     for channel_pk in channel_pks or []:
@@ -129,8 +145,10 @@ def set_up_feed(
     return playlist, linked
 
 
-def _store(session: Session, playlist_id: str, title: str) -> Playlist:
-    playlist = Playlist(playlist_id=playlist_id, title=title or playlist_id)
+def _store(
+    session: Session, playlist_id: str, title: str, owner: OwnerId = None
+) -> Playlist:
+    playlist = Playlist(playlist_id=playlist_id, title=title or playlist_id, owner_pk=owner)
     session.add(playlist)
     session.flush()
     ordering.append(session, playlist)
@@ -159,7 +177,7 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
     from . import quota
     from ..youtube.api import QUOTA_COST_INSERT
 
-    client = build_client(session, http)
+    client = build_client(session, http, playlist.owner_pk)
     if not client.has_write_access:
         raise PlaylistError(
             f"Renamed here, but not on YouTube: no account is connected."

@@ -67,7 +67,7 @@ def world(db, monkeypatch):
     )
     from dealgo.services import quota
 
-    def fake_build_client(session, http):
+    def fake_build_client(session, http, owner=None):
         return state["client"].bind_meter(quota.meter(session))
 
     monkeypatch.setattr(sync_service, "build_client", fake_build_client)

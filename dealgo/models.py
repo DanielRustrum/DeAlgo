@@ -16,11 +16,13 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -54,12 +56,41 @@ class Base(DeclarativeBase):
     pass
 
 
+# Whose row this is. NULL means "the one implicit owner", which is what every
+# row is while sign-in is switched off — De-Algo then behaves exactly as it did
+# before accounts existed. Turning sign-in on adopts those rows into the admin
+# account, so nothing is orphaned by the change.
+#
+# Channels, feeds and videos each carry it. Placements inherit it through both
+# ends, which are always the same owner's.
+def owner_column() -> Mapped[Optional[int]]:
+    return mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True, nullable=True)
+
+
+def owned_unique(table: str, column: str) -> Index:
+    """Unique per owner rather than globally: two accounts may track the same
+    channel, and each keeps its own row for it.
+
+    COALESCE because SQL counts NULLs as distinct from one another, so a plain
+    UNIQUE(owner_pk, …) would let the implicit owner hold duplicates.
+    """
+    return Index(
+        f"uq_{table}_owner_{column}",
+        text("COALESCE(owner_pk, 0)"),
+        column,
+        unique=True,
+    )
+
+
 class Settings(Base):
-    """Singleton row (id=1) holding user-editable configuration."""
+    """One account's configuration. Every account keeps its own."""
 
     __tablename__ = "settings"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    # No default any more: there is a row per account, not a singleton, and a
+    # default of 1 meant every new one collided with the first.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
 
     auto_sync: Mapped[bool] = mapped_column(Boolean, default=True)
     poll_interval_minutes: Mapped[int] = mapped_column(Integer, default=30)
@@ -78,6 +109,10 @@ class Settings(Base):
     quota_reserve: Mapped[int] = mapped_column(Integer, default=0)
     # Opt-*out*, so an unticked checkbox means "show it" rather than hiding it.
     hide_tour: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The standing notices at the top of every page. Hiding one changes
+    # nothing but the notice: the Settings page always states the real state.
+    hide_open_notice: Mapped[bool] = mapped_column(Boolean, default=False)
+    hide_connect_notice: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Optional overrides for the env-supplied Google credentials.
     client_id: Mapped[Optional[str]] = mapped_column(String(255))
@@ -88,11 +123,13 @@ class Settings(Base):
 
 
 class OAuthToken(Base):
-    """Singleton row (id=1) holding the Google OAuth grant."""
+    """One account's Google OAuth grant. Every account connects its own."""
 
     __tablename__ = "oauth_token"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    # One grant per account, so the primary key is its own, not a fixed 1.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
     access_token: Mapped[str] = mapped_column(Text)
     refresh_token: Mapped[Optional[str]] = mapped_column(Text)
     expires_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
@@ -138,9 +175,11 @@ class Playlist(Base):
     """A feed De-Algo keeps filled — a YouTube playlist, or just a local list."""
 
     __tablename__ = "playlist"
+    __table_args__ = (owned_unique("playlist", "playlist_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    playlist_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    playlist_id: Mapped[str] = mapped_column(String(64), index=True)
     title: Mapped[str] = mapped_column(String(255), default="")
 
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -196,9 +235,11 @@ class Playlist(Base):
 
 class Channel(Base):
     __tablename__ = "channel"
+    __table_args__ = (owned_unique("channel", "channel_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    channel_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    channel_id: Mapped[str] = mapped_column(String(64), index=True)
     title: Mapped[str] = mapped_column(String(255), default="")
     handle: Mapped[Optional[str]] = mapped_column(String(255))
     thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
@@ -285,7 +326,9 @@ class Video(Base):
     """Every video De-Algo has ever seen, and what it decided to do with it."""
 
     __tablename__ = "video"
-    __table_args__ = (UniqueConstraint("video_id", name="uq_video_video_id"),)
+    # Per owner: two accounts watching the same channel each keep their own
+    # row for the same upload, with their own watched state and placements.
+    __table_args__ = (owned_unique("video", "video_id"),)
 
     STATUSES = ("pending", "added", "skipped", "failed", "ignored")
     # A row is a video or a community post. Posts share this table because
@@ -295,6 +338,7 @@ class Video(Base):
     KINDS = ("video", "post")
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
     # A post id is longer than a video id, hence the width.
     video_id: Mapped[str] = mapped_column(String(64), index=True)
     channel_pk: Mapped[int] = mapped_column(ForeignKey("channel.id", ondelete="CASCADE"), index=True)
@@ -359,6 +403,157 @@ class Video(Base):
         return self.watched_at is not None
 
 
+class User(Base):
+    """Someone who may sign in.
+
+    The admin comes from the environment and is recreated from it on every
+    start; everyone else is created here by the admin. A password is stored
+    only as a scrypt hash with its own salt — see services/accounts.py.
+    """
+
+    __tablename__ = "user"
+    __table_args__ = (UniqueConstraint("username", name="uq_user_username"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    # Admins manage accounts and the site's own settings. Everyone else uses
+    # the feeds without being able to reach the credentials behind them.
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # A disabled account keeps its history but cannot sign in, and its live
+    # sessions are dropped the moment it is switched off.
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
+
+    sessions: Mapped[list["LoginSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class LoginSession(Base):
+    """One signed-in browser.
+
+    Sessions live here rather than in a signed cookie so that disabling an
+    account, or signing out everywhere, takes effect at once. Only a hash of
+    the token is stored: the cookie is the secret, and a copy of this table is
+    not enough to impersonate anyone.
+    """
+
+    __tablename__ = "login_session"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_session_token"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), index=True)
+    user_pk: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True)
+
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
+    last_used_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
+    # Enough to recognise a session in the list, and nothing identifying.
+    agent: Mapped[Optional[str]] = mapped_column(String(255))
+
+    user: Mapped[User] = relationship(back_populates="sessions")
+
+    @property
+    def expired(self) -> bool:
+        return utcnow() >= to_naive_utc(self.expires_at)
+
+
+class GraphNode(Base):
+    """One box on the Configuration canvas.
+
+    Three kinds, and they differ in what they point at rather than in how they
+    are drawn:
+
+    * ``source`` stands for a Channel — where things come from.
+    * ``feed`` stands for a Playlist — where they end up.
+    * ``filter`` stands for nothing else at all. It sits on the path between
+      them and narrows what gets through, and its columns are the channel's
+      own filter columns over again: NULL means "leave the channel's answer
+      alone", anything else overrides it for paths through this node.
+
+    Positions live here because where someone put a box is part of what they
+    built, and a graph that rearranges itself on every load is unreadable.
+    """
+
+    __tablename__ = "graph_node"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    kind: Mapped[str] = mapped_column(String(8), index=True)
+
+    x: Mapped[int] = mapped_column(Integer, default=0)
+    y: Mapped[int] = mapped_column(Integer, default=0)
+
+    channel_pk: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("channel.id", ondelete="CASCADE"), index=True
+    )
+    playlist_pk: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("playlist.id", ondelete="CASCADE"), index=True
+    )
+    label: Mapped[str] = mapped_column(String(120), default="")
+
+    # Filter nodes only. Every one nullable: NULL is "inherit", which is what
+    # makes a filter node an override rather than a replacement.
+    skip_videos: Mapped[Optional[bool]] = mapped_column(Boolean)
+    skip_shorts: Mapped[Optional[bool]] = mapped_column(Boolean)
+    skip_live: Mapped[Optional[bool]] = mapped_column(Boolean)
+    skip_posts: Mapped[Optional[bool]] = mapped_column(Boolean)
+    title_include: Mapped[Optional[str]] = mapped_column(Text)
+    title_exclude: Mapped[Optional[str]] = mapped_column(Text)
+    min_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
+    max_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
+    max_per_run: Mapped[Optional[int]] = mapped_column(Integer)
+
+    channel: Mapped[Optional[Channel]] = relationship()
+    playlist: Mapped[Optional[Playlist]] = relationship()
+
+    @property
+    def title(self) -> str:
+        """What the box says on it."""
+        if self.kind == "source" and self.channel is not None:
+            return self.channel.title or self.channel.channel_id
+        if self.kind == "feed" and self.playlist is not None:
+            return self.playlist.title or self.playlist.playlist_id
+        return self.label or "Filter"
+
+    @property
+    def overrides(self) -> dict[str, object]:
+        """Only what this node actually decides, so "inherit" stays visible."""
+        named = (
+            "skip_videos", "skip_shorts", "skip_live", "skip_posts",
+            "title_include", "title_exclude",
+            "min_duration_sec", "max_duration_sec", "max_per_run",
+        )
+        return {name: getattr(self, name) for name in named if getattr(self, name) is not None}
+
+
+class GraphEdge(Base):
+    """A wire from one box to another.
+
+    Direction matters: things flow from ``source_pk`` to ``target_pk``. What
+    is a legal pairing is the graph service's business, not the schema's —
+    the schema only refuses the same wire twice.
+    """
+
+    __tablename__ = "graph_edge"
+    __table_args__ = (UniqueConstraint("source_pk", "target_pk", name="uq_edge_source_target"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    source_pk: Mapped[int] = mapped_column(
+        ForeignKey("graph_node.id", ondelete="CASCADE"), index=True
+    )
+    target_pk: Mapped[int] = mapped_column(
+        ForeignKey("graph_node.id", ondelete="CASCADE"), index=True
+    )
+
+    source: Mapped[GraphNode] = relationship(foreign_keys=[source_pk])
+    target: Mapped[GraphNode] = relationship(foreign_keys=[target_pk])
+
+
 class Placement(Base):
     """One video's presence in one playlist.
 
@@ -407,9 +602,13 @@ class QuotaUsage(Base):
     """
 
     __tablename__ = "quota_usage"
+    # Each account spends against its own Google project, so each keeps its
+    # own ledger for the day.
+    __table_args__ = (owned_unique("quota_usage", "day"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    day: Mapped[str] = mapped_column(String(10), unique=True, index=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    day: Mapped[str] = mapped_column(String(10), index=True)
     units: Mapped[int] = mapped_column(Integer, default=0)
     # Set when YouTube itself said the quota is gone, which overrides our count.
     exhausted_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
@@ -420,6 +619,7 @@ class SyncRun(Base):
     __tablename__ = "sync_run"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
     started_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
     finished_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     trigger: Mapped[str] = mapped_column(String(16), default="manual")

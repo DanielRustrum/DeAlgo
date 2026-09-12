@@ -39,6 +39,7 @@ from ..youtube.api import QUOTA_COST_DELETE, QUOTA_COST_INSERT, YouTubeAPIError,
 from . import filters
 from . import quota
 from .auth import build_client
+from .scope import OwnerId, belongs_to, owned
 
 # How many items each playlist or channel has taken so far this run.
 Tally = dict[int, int]
@@ -100,16 +101,21 @@ def http_client() -> httpx.Client:
     return httpx.Client(timeout=HTTP_TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True)
 
 
-def run_sync(trigger: str = "manual", *, force: bool = False) -> SyncResult:
-    """Run one sync pass. Returns immediately if another pass is in flight.
+def run_sync(
+    trigger: str = "manual", *, force: bool = False, owner: OwnerId = None
+) -> SyncResult:
+    """Run one account's sync pass. Returns at once if a pass is in flight.
 
     ``force`` polls every enabled channel regardless of its minimum gap. The
     scheduler never forces; this is for someone pressing the button.
+
+    One account at a time, because everything a pass depends on belongs to
+    one: its channels, its feeds, its Google connection and its quota.
     """
     try:
         with playlist_lock():
             with http_client() as http, session_scope() as session:
-                return _run(session, http, trigger, force=force)
+                return _run(session, http, trigger, force=force, owner=owner)
     except Busy:
         return SyncResult(ok=True, started=False, messages=["A sync is already running."])
     except Exception as exc:  # pragma: no cover - last-resort guard for the scheduler
@@ -117,26 +123,61 @@ def run_sync(trigger: str = "manual", *, force: bool = False) -> SyncResult:
         return SyncResult(ok=False, messages=[f"Sync failed: {exc}"])
 
 
-def _run(session: Session, http: httpx.Client, trigger: str, *, force: bool = False) -> SyncResult:
-    settings = get_settings(session)
-    run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force)
+def owners_with_channels(session: Session) -> list[OwnerId]:
+    """Everyone who has something to sync, the implicit owner included."""
+    return [
+        row for row in session.scalars(select(Channel.owner_pk).distinct().order_by(Channel.owner_pk))
+    ]
+
+
+def run_for_everyone(trigger: str = "scheduled") -> list[SyncResult]:
+    """One pass per account, in turn.
+
+    Sequential on purpose: they share a SQLite file and the lock that guards
+    playlist writes, and one account's YouTube quota has nothing to say about
+    another's. The scheduler calls this; a person pressing Sync now syncs only
+    their own.
+    """
+    with session_scope() as session:
+        owners = owners_with_channels(session)
+
+    results = []
+    for owner in owners:
+        results.append(run_sync(trigger, owner=owner))
+    if not owners:
+        results.append(run_sync(trigger))  # nothing tracked yet; still report
+    return results
+
+
+def _run(
+    session: Session,
+    http: httpx.Client,
+    trigger: str,
+    *,
+    force: bool = False,
+    owner: OwnerId = None,
+) -> SyncResult:
+    settings = get_settings(session, owner)
+    run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force, owner_pk=owner)
     session.add(run)
     session.commit()
 
     result = SyncResult(forced=force)
-    quota_before = quota.state(session).used
-    client = build_client(session, http)
+    quota_before = quota.state(session, owner).used
+    client = build_client(session, http, owner)
 
-    _discover(session, http, result, backfill=settings.initial_backfill, force=force)
-    _fill_missing_details(session, client, result)
+    _discover(session, http, result, backfill=settings.initial_backfill, force=force, owner=owner)
+    _fill_missing_details(session, client, result, owner)
     session.commit()
 
     playlists = list(
         session.scalars(
-            select(Playlist).where(Playlist.enabled.is_(True)).order_by(Playlist.priority, Playlist.id)
+            owned(select(Playlist), Playlist, owner)
+            .where(Playlist.enabled.is_(True))
+            .order_by(Playlist.priority, Playlist.id)
         )
     )
-    quota_state = quota.state(session)
+    quota_state = quota.state(session, owner)
     # Feeds that live only in De-Algo need neither an account nor quota, so a
     # missing sign-in holds back the YouTube ones without stopping the run.
     youtube_feeds = [playlist for playlist in playlists if not playlist.is_generic]
@@ -149,7 +190,7 @@ def _run(session: Session, http: httpx.Client, trigger: str, *, force: bool = Fa
             f"No Google account connected — {len(youtube_feeds)} YouTube feed(s) are collecting "
             "inside De-Algo. Nothing is written to YouTube until you connect one."
         )
-        _publish(session, client, settings, result)
+        _publish(session, client, settings, result, owner)
         session.commit()
     elif youtube_feeds and quota_state.spendable < QUOTA_COST_INSERT:
         # Feeds cost nothing, so discovery already ran; only writing stops.
@@ -159,12 +200,12 @@ def _run(session: Session, http: httpx.Client, trigger: str, *, force: bool = Fa
             f"Queued videos will be added after it resets {quota.describe_reset()}."
         )
         log.info("skipping the insert phase: quota exhausted until %s", quota_state.resets_at)
-        _publish(session, client, settings, result)
+        _publish(session, client, settings, result, owner)
         session.commit()
     else:
-        _publish(session, client, settings, result)
+        _publish(session, client, settings, result, owner)
         session.commit()
-        _prune(session, client, playlists, result)
+        _prune(session, client, playlists, result, owner)
 
     run.finished_at = utcnow()
     run.ok = result.failed == 0 and all("failed" not in m.lower() for m in result.messages)
@@ -174,7 +215,7 @@ def _run(session: Session, http: httpx.Client, trigger: str, *, force: bool = Fa
     run.skipped = result.skipped
     run.failed = result.failed
     run.pruned = result.pruned
-    run.quota_spent = max(0, quota.state(session).used - quota_before)
+    run.quota_spent = max(0, quota.state(session, owner).used - quota_before)
     run.stopped_on_quota = result.stopped_on_quota
     result.quota_spent = run.quota_spent
     run.message = result.message or None
@@ -198,11 +239,19 @@ def _run(session: Session, http: httpx.Client, trigger: str, *, force: bool = Fa
 
 
 def _discover(
-    session: Session, http: httpx.Client, result: SyncResult, *, backfill: int, force: bool = False
+    session: Session,
+    http: httpx.Client,
+    result: SyncResult,
+    *,
+    backfill: int,
+    force: bool = False,
+    owner: OwnerId = None,
 ) -> None:
     channels = list(
         session.scalars(
-            select(Channel).where(Channel.enabled.is_(True)).order_by(Channel.priority, Channel.id)
+            owned(select(Channel), Channel, owner)
+            .where(Channel.enabled.is_(True))
+            .order_by(Channel.priority, Channel.id)
         )
     )
     now = utcnow()
@@ -227,7 +276,9 @@ def _discover(
         first_check = channel.last_checked_at is None
         known = set(
             session.scalars(
-                select(Video.video_id).where(Video.video_id.in_([e.video_id for e in feed.entries] or [""]))
+                owned(select(Video.video_id), Video, owner).where(
+                    Video.video_id.in_([e.video_id for e in feed.entries] or [""])
+                )
             )
         )
 
@@ -248,6 +299,7 @@ def _discover(
                 beyond_backfill = first_check and index >= max(0, backfill)
             session.add(
                 Video(
+                    owner_pk=owner,
                     video_id=entry.video_id,
                     channel_pk=channel.id,
                     title=entry.title,
@@ -263,7 +315,10 @@ def _discover(
                 result.discovered += 1
 
         if not channel.skip_posts:
-            _discover_posts(session, http, channel, result, first_check=first_check, backfill=backfill)
+            _discover_posts(
+                session, http, channel, result,
+                first_check=first_check, backfill=backfill, owner=owner,
+            )
 
         if not channel.title and feed.channel_title:
             channel.title = feed.channel_title
@@ -281,6 +336,7 @@ def _discover_posts(
     *,
     first_check: bool,
     backfill: int,
+    owner: OwnerId = None,
 ) -> None:
     """Collect a channel's community posts.
 
@@ -299,7 +355,9 @@ def _discover_posts(
 
     known = set(
         session.scalars(
-            select(Video.video_id).where(Video.video_id.in_([p.post_id for p in posts] or [""]))
+            owned(select(Video.video_id), Video, owner).where(
+                Video.video_id.in_([p.post_id for p in posts] or [""])
+            )
         )
     )
     for index, post in enumerate(posts):
@@ -308,6 +366,7 @@ def _discover_posts(
         beyond_backfill = first_check and index >= max(0, backfill)
         session.add(
             Video(
+                owner_pk=owner,
                 video_id=post.post_id,
                 channel_pk=channel.id,
                 kind="post",
@@ -327,7 +386,9 @@ def _discover_posts(
     session.flush()
 
 
-def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncResult) -> None:
+def _fill_missing_details(
+    session: Session, client: YouTubeClient, result: SyncResult, owner: OwnerId = None
+) -> None:
     """Fetch avatars, handles and about text for channels added by bare id.
 
     The Atom feed gives a title and nothing else, so a channel added by its
@@ -339,12 +400,12 @@ def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncR
         return
     missing = list(
         session.scalars(
-            select(Channel)
+            owned(select(Channel), Channel, owner)
             .where(or_(Channel.thumbnail_url.is_(None), Channel.description.is_(None)))
             .order_by(Channel.id)
         )
     )
-    if not missing or not quota.can_afford(session, 1, use_reserve=True):
+    if not missing or not quota.can_afford(session, 1, use_reserve=True, owner=owner):
         return
 
     try:
@@ -372,7 +433,11 @@ def _fill_missing_details(session: Session, client: YouTubeClient, result: SyncR
 
 
 def _retry_deferred(
-    session: Session, client: YouTubeClient, result: SyncResult, added_per_playlist: Tally
+    session: Session,
+    client: YouTubeClient,
+    result: SyncResult,
+    added_per_playlist: Tally,
+    owner: OwnerId = None,
 ) -> bool:
     """Finish placements an earlier run started but could not complete.
 
@@ -388,6 +453,7 @@ def _retry_deferred(
             select(Placement)
             .options(selectinload(Placement.video), selectinload(Placement.playlist))
             .join(Video, Video.id == Placement.video_pk)
+            .where(belongs_to(Video, owner))
             .join(Channel, Channel.id == Video.channel_pk)
             .join(Playlist, Playlist.id == Placement.playlist_pk)
             .where(
@@ -423,7 +489,7 @@ def _retry_deferred(
             session.flush()
             continue
 
-        if not quota.can_afford(session, QUOTA_COST_INSERT):
+        if not quota.can_afford(session, QUOTA_COST_INSERT, owner=owner):
             result.stopped_on_quota = True
             result.messages.append(
                 f"YouTube API quota is spent; {len(open_placements) - index} playlist insertion(s) "
@@ -436,7 +502,7 @@ def _retry_deferred(
             )
         except YouTubeAPIError as exc:
             if exc.is_quota_error:
-                quota.mark_exhausted(session)
+                quota.mark_exhausted(session, owner)
                 result.stopped_on_quota = True
                 result.messages.append(
                     f"YouTube refused further writes: the daily quota is gone. Queued videos "
@@ -461,10 +527,14 @@ def _retry_deferred(
 
 
 def _publish(
-    session: Session, client: YouTubeClient, settings: Settings, result: SyncResult
+    session: Session,
+    client: YouTubeClient,
+    settings: Settings,
+    result: SyncResult,
+    owner: OwnerId = None,
 ) -> None:
     added_per_playlist: dict[int, int] = {}
-    if _retry_deferred(session, client, result, added_per_playlist):
+    if _retry_deferred(session, client, result, added_per_playlist, owner):
         return
 
     # Channel priority decides who gets in first when the budget is short;
@@ -473,7 +543,7 @@ def _publish(
     # chronological, which is what it was before priorities existed.
     pending = list(
         session.scalars(
-            select(Video)
+            owned(select(Video), Video, owner)
             .join(Channel, Channel.id == Video.channel_pk)
             .options(selectinload(Video.placements), selectinload(Video.channel).selectinload(Channel.playlists))
             .where(Video.status == "pending")
@@ -485,7 +555,7 @@ def _publish(
 
     details = {}
     clips = [v.video_id for v in pending if not v.is_post]
-    if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True):
+    if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True, owner=owner):
         try:
             details = client.video_details(clips)
         except YouTubeAPIError as exc:
@@ -632,7 +702,7 @@ def _publish(
                 landed = True
                 continue
 
-            if not quota.can_afford(session, QUOTA_COST_INSERT):
+            if not quota.can_afford(session, QUOTA_COST_INSERT, owner=owner):
                 # Stop cleanly on our own ledger rather than being refused, and
                 # leave a marker for every playlist this video still owes so the
                 # next run finishes the job instead of forgetting it.
@@ -650,7 +720,7 @@ def _publish(
                 item_id = client.insert_playlist_item(playlist.playlist_id, video.video_id)
             except YouTubeAPIError as exc:
                 if exc.is_quota_error:
-                    quota.mark_exhausted(session)
+                    quota.mark_exhausted(session, owner)
                     deferred += _defer(session, video, targets, placed)
                     result.stopped_on_quota = True
                     result.messages.append(
@@ -820,7 +890,11 @@ def _reject(video: Video, result: SyncResult, reason: str) -> None:
 
 
 def _prune(
-    session: Session, client: YouTubeClient, playlists: Sequence[Playlist], result: SyncResult
+    session: Session,
+    client: YouTubeClient,
+    playlists: Sequence[Playlist],
+    result: SyncResult,
+    owner: OwnerId = None,
 ) -> None:
     """Trim each playlist back to its own size cap."""
     for playlist in playlists:
@@ -846,7 +920,7 @@ def _prune(
 
         # De-Algo appends oldest-first, so the front of the playlist is the oldest.
         for item in sorted(items, key=lambda i: i.position)[:overflow]:
-            if not quota.can_afford(session, QUOTA_COST_DELETE):
+            if not quota.can_afford(session, QUOTA_COST_DELETE, owner=owner):
                 result.stopped_on_quota = True
                 result.messages.append("Quota ran out before pruning finished.")
                 return
@@ -854,7 +928,7 @@ def _prune(
                 client.delete_playlist_item(item.item_id)
             except YouTubeAPIError as exc:
                 if exc.is_quota_error:
-                    quota.mark_exhausted(session)
+                    quota.mark_exhausted(session, owner)
                     result.stopped_on_quota = True
                     return
                 result.messages.append(f"Could not prune an item from {playlist.title!r}: {exc}")

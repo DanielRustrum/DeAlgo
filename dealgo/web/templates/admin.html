@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Admin{% endblock %}
+{% block content %}
+
+{% if not auth_enabled %}
+<section class="panel">
+  <h2>Accounts are switched off</h2>
+  <p>
+    There is nothing to manage here yet: De-Algo asks nobody who they are, so every
+    visitor can already do everything.
+  </p>
+  <p class="hint">
+    Set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code> and restart.
+    That creates the admin account, and this page becomes where you add everyone else.
+    The password is read from the environment on every start, which is the way back in
+    if it is lost.
+  </p>
+</section>
+{% else %}
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Accounts</h2>
+    <span class="count">{{ users | length }}</span>
+  </div>
+
+  {% if users %}
+  <ul class="feed-rows">
+    {% for user in users %}
+    <li class="feed-row {{ 'row-off' if not user.enabled }}">
+      <div class="row-head">
+        <div class="row-id">
+          <span class="channel-name">{{ user.username }}</span>
+          {% if user.is_admin %}
+            <span class="pill pill-admin" title="Set with DEALGO_ADMIN_USER">admin</span>
+          {% endif %}
+          {% if not user.enabled %}<span class="pill pill-paused">switched off</span>{% endif %}
+          <div class="meta">
+            {{ user.sessions | length }} signed-in
+            {{ 'browser' if user.sessions | length == 1 else 'browsers' }}
+            {% if user.last_seen_at %} · last seen {{ user.last_seen_at | ago }}
+            {% else %} · never signed in{% endif %}
+            · added {{ user.created_at | stamp }}
+          </div>
+        </div>
+
+        <div class="row-buttons">
+          {% if user.sessions %}
+          <form method="post" action="/admin/accounts/{{ user.id }}/sessions">
+            <button class="btn btn-quiet" type="submit"
+                    title="End every session this account has open">Sign out</button>
+          </form>
+          {% endif %}
+          {% if not user.is_admin %}
+          <form method="post" action="/admin/accounts/{{ user.id }}/enabled">
+            <button class="btn {{ 'btn-quiet' if not user.enabled else 'btn-warn' }}" type="submit">
+              {{ 'Switch on' if not user.enabled else 'Switch off' }}
+            </button>
+          </form>
+          <form method="post" action="/admin/accounts/{{ user.id }}/delete"
+                onsubmit="return confirm('Delete {{ user.username }}? Their sessions end immediately.')">
+            <button class="btn btn-danger" type="submit">Delete</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if not user.is_admin %}
+      <form method="post" action="/admin/accounts/{{ user.id }}/password" class="row-form">
+        <label class="inline-label">
+          New password
+          <input type="password" name="password" autocomplete="new-password"
+                 minlength="{{ min_password }}" required>
+        </label>
+        <button class="btn btn-quiet" type="submit">Set</button>
+        <span class="hint">Ends their other sessions.</span>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No accounts yet.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Add an account</h2>
+  <form method="post" action="/admin/accounts" class="stack-form">
+    <div class="field-row">
+      <label>
+        Username
+        <input type="text" name="username" autocapitalize="none" autocorrect="off"
+               spellcheck="false" placeholder="letters, digits, . _ -" required>
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" autocomplete="new-password"
+               minlength="{{ min_password }}" required>
+        <span class="hint">At least {{ min_password }} characters. They cannot change it
+          themselves — set a new one here if they need it.</span>
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Move this instance</h2>
+  <p class="hint">
+    Every account and every setup at once: who the accounts are, what each of them watches,
+    and how each is configured. The file for standing De-Algo up on another machine.
+  </p>
+  <p class="hint">
+    <strong>No secrets are in it</strong> — no passwords, no Google connections, no API keys.
+    A file like this gets copied between machines and left in a Downloads folder, so the
+    accounts come across and their credentials do not: you set a new password for each from
+    this page, and each reconnects its own Google. It is still encrypted, because who your
+    accounts are and what they watch is nobody else's business.
+  </p>
+
+  <form method="post" action="/admin/backup" class="stack-form" hx-boost="false">
+    <div class="field-row">
+      <label>
+        Passphrase
+        <input type="password" name="passphrase" autocomplete="new-password"
+               minlength="{{ min_passphrase }}" required>
+        <span class="hint">
+          At least {{ min_passphrase }} characters. <strong>Keep it.</strong> There is no way
+          into the file without it — not for you, and not for anyone who finds it.
+        </span>
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Download site backup</button>
+  </form>
+
+  <h3>Load one</h3>
+  <p class="hint">
+    Adds to this instance rather than replacing it: accounts that are not here are created, and
+    each account's feeds and channels are restored into its own space. Nothing already here is
+    deleted. The admin account stays this machine's — it comes from the environment, not from a
+    file. Restored accounts arrive without a password and cannot be signed in to until you set
+    one above; De-Algo says which ones when it is done.
+  </p>
+  <form method="post" action="/admin/restore" class="stack-form"
+        enctype="multipart/form-data" hx-boost="false">
+    <div class="field-row">
+      <label>
+        Backup file
+        <input type="file" name="backup_file" accept=".dealgo,application/octet-stream" required>
+      </label>
+      <label>
+        Its passphrase
+        <input type="password" name="passphrase" autocomplete="off" required>
+      </label>
+    </div>
+    <button class="btn" type="submit">Load site backup</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>How accounts work here</h2>
+  <dl class="facts">
+    <dt>The admin</dt>
+    <dd>
+      <code>{{ admin_user }}</code>, set with <code>DEALGO_ADMIN_USER</code> and
+      <code>DEALGO_ADMIN_PASSWORD</code>. De-Algo takes that password from the environment
+      on every start, so changing the variable and restarting is the way back in if it is
+      lost — and the reason it cannot be changed on this page.
+    </dd>
+
+    <dt>Everyone else</dt>
+    <dd>
+      Uses the feeds: the dashboard, the feed, Focus mode, channels and feeds. Settings,
+      backups, the Google connection and this page are the admin's alone.
+    </dd>
+
+    <dt>Sessions</dt>
+    <dd>
+      A signed-in browser holds a random token for {{ session_days }} days. Only a hash of
+      it is stored, so this database is not enough to sign in as anyone. Switching an
+      account off, deleting it, or changing its password ends its sessions at once.
+    </dd>
+  </dl>
+
+  <form method="post" action="/admin/sessions/prune">
+    <button class="btn btn-quiet" type="submit">Clear expired sessions</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

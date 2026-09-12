@@ -12,32 +12,35 @@ from ..db import get_settings, get_token
 from ..models import OAuthToken, to_naive_utc, utcnow
 from ..youtube import oauth
 from ..youtube.api import YouTubeClient
+from .scope import OwnerId
 
 log = logging.getLogger(__name__)
 
 
-def client_credentials(session: Session) -> tuple[str, str]:
-    """The Google OAuth client id/secret, from settings or the environment."""
-    settings = get_settings(session)
+def client_credentials(session: Session, owner: OwnerId = None) -> tuple[str, str]:
+    """This account's Google OAuth client id/secret, or the environment's."""
+    settings = get_settings(session, owner)
     return (
         (settings.client_id or CONFIG.client_id or "").strip(),
         (settings.client_secret or CONFIG.client_secret or "").strip(),
     )
 
 
-def api_key(session: Session) -> str:
-    settings = get_settings(session)
+def api_key(session: Session, owner: OwnerId = None) -> str:
+    settings = get_settings(session, owner)
     return (settings.api_key or CONFIG.api_key or "").strip()
 
 
-def has_client_credentials(session: Session) -> bool:
-    client_id, client_secret = client_credentials(session)
+def has_client_credentials(session: Session, owner: OwnerId = None) -> bool:
+    client_id, client_secret = client_credentials(session, owner)
     return bool(client_id and client_secret)
 
 
-def valid_access_token(session: Session, http: httpx.Client) -> str | None:
-    """Return a usable access token, refreshing and persisting it if stale."""
-    token = get_token(session)
+def valid_access_token(
+    session: Session, http: httpx.Client, owner: OwnerId = None
+) -> str | None:
+    """A usable access token for this account, refreshed and stored if stale."""
+    token = get_token(session, owner)
     if token is None:
         return None
     if not token.is_expired():
@@ -49,7 +52,7 @@ def valid_access_token(session: Session, http: httpx.Client) -> str | None:
         log.warning("access token expired and no refresh token is stored; reconnect required")
         return None
 
-    client_id, client_secret = client_credentials(session)
+    client_id, client_secret = client_credentials(session, owner)
     if not (client_id and client_secret):
         log.warning("cannot refresh access token: no OAuth client configured")
         return None
@@ -80,25 +83,32 @@ def valid_access_token(session: Session, http: httpx.Client) -> str | None:
     return token.access_token
 
 
-def build_client(session: Session, http: httpx.Client) -> YouTubeClient:
-    """A client with whatever credentials are available (possibly none).
+def build_client(session: Session, http: httpx.Client, owner: OwnerId = None) -> YouTubeClient:
+    """A client carrying this account's credentials, if it has any.
 
-    Every request it makes is charged to the day's quota ledger.
+    Every request it makes is charged to that account's own quota ledger:
+    each brings its own Google project, so each spends its own allowance.
     """
     from .quota import meter
 
     return YouTubeClient(
         http=http,
-        access_token=valid_access_token(session, http),
-        api_key=api_key(session),
-        meter=meter(session),
+        access_token=valid_access_token(session, http, owner),
+        api_key=api_key(session, owner),
+        meter=meter(session, owner),
     )
 
 
-def store_token(session: Session, response: oauth.TokenResponse, *, account_title: str | None = None) -> OAuthToken:
-    token = get_token(session)
+def store_token(
+    session: Session,
+    response: oauth.TokenResponse,
+    *,
+    account_title: str | None = None,
+    owner: OwnerId = None,
+) -> OAuthToken:
+    token = get_token(session, owner)
     if token is None:
-        token = OAuthToken(id=1, access_token=response.access_token)
+        token = OAuthToken(owner_pk=owner, access_token=response.access_token)
         session.add(token)
     token.access_token = response.access_token
     if response.refresh_token:

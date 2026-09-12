@@ -23,6 +23,11 @@ services:
       DEALGO_CLIENT_SECRET: ${DEALGO_CLIENT_SECRET:-}
       DEALGO_API_KEY: ${DEALGO_API_KEY:-}
       DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
+      # Setting both of these is what turns sign-in on. Leave them
+      # empty and anyone who can reach the address can use De-Algo.
+      DEALGO_ADMIN_USER: ${DEALGO_ADMIN_USER:-}
+      DEALGO_ADMIN_PASSWORD: ${DEALGO_ADMIN_PASSWORD:-}
+      DEALGO_SESSION_DAYS: ${DEALGO_SESSION_DAYS:-30}
       TZ: ${TZ:-UTC}
 
     volumes:

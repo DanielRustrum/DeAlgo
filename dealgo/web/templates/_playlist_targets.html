@@ -1,5 +1,5 @@
 {% from "_macros.html" import explained %}
-{% set offline = youtube_offline() %}
+{% set offline = youtube_offline(identity.user_pk if identity else none) %}
 <div id="playlist-targets">
   <div class="panel-head">
     <h2>Feeds</h2>

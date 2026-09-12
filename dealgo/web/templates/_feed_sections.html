@@ -55,7 +55,7 @@
            title="Play this feed through, marking each one watched">Focus ▶</a>
         {% endif %}
         {% if section.playlist.url %}
-          {% if youtube_offline() %}
+          {% if youtube_offline(identity.user_pk if identity else none) %}
           <span class="pill pill-dormant"
                 title="No Google account, so nothing is being written to this playlist">
             local only</span>

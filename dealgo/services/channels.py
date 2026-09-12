@@ -13,6 +13,7 @@ from . import filters
 from . import ordering
 from . import playlists
 from .auth import build_client
+from .scope import OwnerId, owned
 from collections.abc import Mapping
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -21,11 +22,11 @@ class ChannelError(RuntimeError):
     pass
 
 
-def list_channels(session: Session) -> list[Channel]:
+def list_channels(session: Session, owner: OwnerId = None) -> list[Channel]:
     # Templates render after the session closes, so the targets come eagerly.
     return list(
         session.scalars(
-            select(Channel)
+            owned(select(Channel), Channel, owner)
             .options(selectinload(Channel.playlists))
             .order_by(Channel.priority.asc(), Channel.id.asc())
         )
@@ -72,14 +73,22 @@ def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo
 
 
 def add_channel(
-    session: Session, reference: str, http: httpx.Client, *, backfill_days: int | None = None
+    session: Session,
+    reference: str,
+    http: httpx.Client,
+    *,
+    backfill_days: int | None = None,
+    owner: OwnerId = None,
 ) -> Channel:
     info = resolve(session, reference, http)
-    existing = session.scalar(select(Channel).where(Channel.channel_id == info.channel_id))
+    existing = session.scalar(
+        owned(select(Channel), Channel, owner).where(Channel.channel_id == info.channel_id)
+    )
     if existing is not None:
         raise ChannelError(f"{existing.title or info.channel_id} is already being watched")
 
     channel = Channel(
+        owner_pk=owner,
         channel_id=info.channel_id,
         title=info.title or info.channel_id,
         handle=info.handle,

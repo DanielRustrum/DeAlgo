@@ -29,10 +29,36 @@ class Config:
     client_secret: str
     api_key: str
     log_level: str
+    # The admin account, and the only account defined outside the database.
+    # Setting both is what switches authentication on at all.
+    admin_user: str
+    admin_password: str
+    session_days: int
 
     @property
     def redirect_uri(self) -> str:
         return f"{self.public_url.rstrip('/')}/oauth/callback"
+
+    @property
+    def auth_enabled(self) -> bool:
+        """Whether De-Algo asks who you are.
+
+        Off unless an admin is configured, so upgrading an existing instance
+        does not lock its owner out of it. The app says so, loudly, on every
+        page until an admin is set.
+        """
+        return bool(self.admin_user and self.admin_password)
+
+    @property
+    def admin_password_weak(self) -> bool:
+        """Whether the admin password would be refused if a person typed it.
+
+        The environment's password is not held to the length the app asks of
+        everyone else: it is the operator's own choice, and refusing it would
+        mean refusing to start. It is said out loud instead — in the log at
+        boot, and on the Admin page for as long as it stands.
+        """
+        return self.auth_enabled and len(self.admin_password) < 8
 
 
 def load_config() -> Config:
@@ -50,6 +76,9 @@ def load_config() -> Config:
         client_secret=os.getenv("DEALGO_CLIENT_SECRET", ""),
         api_key=os.getenv("DEALGO_API_KEY", ""),
         log_level=os.getenv("DEALGO_LOG_LEVEL", "INFO").upper(),
+        admin_user=os.getenv("DEALGO_ADMIN_USER", "").strip(),
+        admin_password=os.getenv("DEALGO_ADMIN_PASSWORD", ""),
+        session_days=max(1, int(os.getenv("DEALGO_SESSION_DAYS", "30"))),
     )
 
 

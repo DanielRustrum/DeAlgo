@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_settings
 from ..models import QuotaUsage, utcnow
+from .scope import OwnerId, owned
 
 log = logging.getLogger(__name__)
 
@@ -73,19 +74,21 @@ class QuotaState:
         return min(100, round(self.used * 100 / self.budget)) if self.budget else 100
 
 
-def _row(session: Session, day: str | None = None) -> QuotaUsage:
+def _row(session: Session, owner: OwnerId = None, day: str | None = None) -> QuotaUsage:
     day = day or quota_day()
-    row = session.scalar(select(QuotaUsage).where(QuotaUsage.day == day))
+    row = session.scalar(
+        owned(select(QuotaUsage), QuotaUsage, owner).where(QuotaUsage.day == day)
+    )
     if row is None:
-        row = QuotaUsage(day=day, units=0)
+        row = QuotaUsage(day=day, units=0, owner_pk=owner)
         session.add(row)
         session.flush()
     return row
 
 
-def state(session: Session) -> QuotaState:
-    settings = get_settings(session)
-    row = _row(session)
+def state(session: Session, owner: OwnerId = None) -> QuotaState:
+    settings = get_settings(session, owner)
+    row = _row(session, owner)
     return QuotaState(
         day=row.day,
         used=row.units,
@@ -96,41 +99,46 @@ def state(session: Session) -> QuotaState:
     )
 
 
-def spend(session: Session, units: int) -> None:
+def spend(session: Session, units: int, owner: OwnerId = None) -> None:
     if units <= 0:
         return
-    row = _row(session)
+    row = _row(session, owner)
     row.units += units
     row.updated_at = utcnow()
     session.flush()
 
 
-def mark_exhausted(session: Session) -> None:
+def mark_exhausted(session: Session, owner: OwnerId = None) -> None:
     """YouTube said no. Believe it over our own arithmetic."""
-    row = _row(session)
+    row = _row(session, owner)
     if row.exhausted_at is None:
         row.exhausted_at = utcnow()
         log.warning("YouTube reports the daily quota is exhausted; pausing writes until reset")
-    settings = get_settings(session)
+    settings = get_settings(session, owner)
     # Keep the ledger honest for the rest of the day.
     row.units = max(row.units, settings.daily_quota or row.units)
     session.flush()
 
 
-def can_afford(session: Session, units: int, *, use_reserve: bool = False) -> bool:
-    current = state(session)
+def can_afford(
+    session: Session, units: int, *, use_reserve: bool = False, owner: OwnerId = None
+) -> bool:
+    current = state(session, owner)
     if current.exhausted:
         return False
     available = current.remaining if use_reserve else current.spendable
     return available >= units
 
 
-def meter(session: Session) -> Callable[[int], None]:
-    """A callback the API client charges each request against."""
+def meter(session: Session, owner: OwnerId = None) -> Callable[[int], None]:
+    """A callback the API client charges each request against.
+
+    Each account brings its own Google project, so each keeps its own ledger.
+    """
 
     def record(units: int) -> None:
         try:
-            spend(session, units)
+            spend(session, units, owner)
         except Exception:  # pragma: no cover - accounting must never break a sync
             log.exception("could not record quota spend")
 

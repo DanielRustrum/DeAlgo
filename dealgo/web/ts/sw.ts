@@ -44,12 +44,17 @@ function imageCacheLimit(): number {
   return 300;
 }
 
-/** Fetched on install, so the app opens with no network at all. */
+/** Fetched on install, so the app opens with no network at all.
+ *
+ *  Only what is reachable without signing in. With accounts switched on, a
+ *  page like "/" answers a signed-out request with a redirect to the login
+ *  page — and precaching that would store the login page under the dashboard's
+ *  address, to be served back the first time someone opened the app offline.
+ *  Pages are cached when they are actually visited instead. */
 function shellUrls(): string[] {
   return [
-    "/",
     "/offline",
-    "/feed",
+    "/login",
     "/static/app.css",
     "/static/htmx.min.js",
     "/static/dialog.js",
@@ -118,6 +123,17 @@ async function trimImageCache(): Promise<void> {
   }
 }
 
+/** Whether this answer belongs in the cache under the address that was asked
+ *  for.
+ *
+ *  A redirected response came from somewhere else: with accounts switched on,
+ *  a session that has expired answers every page with the login page. Storing
+ *  that under the original address would serve the login page for the feed,
+ *  offline, long after signing in again. */
+function worthStoring(response: Response): boolean {
+  return response.ok && !response.redirected;
+}
+
 /** Rebuild an HTML response around changed markup, keeping its headers. */
 async function rewrittenHtml(response: Response, edit: (html: string) => string): Promise<Response> {
   const html = await response.text();
@@ -162,7 +178,7 @@ async function pageOrCachedPage(request: Request): Promise<Response> {
   const cache = await caches.open(cacheName());
   try {
     const fresh = await fetch(request);
-    if (fresh.ok) await cache.put(request, fresh.clone());
+    if (worthStoring(fresh)) await cache.put(request, fresh.clone());
     return fresh;
   } catch {
     const cached = await cache.match(request);
@@ -238,7 +254,7 @@ async function freshOrCached(request: Request): Promise<Response> {
   const cache = await caches.open(cacheName());
   try {
     const fresh = await fetch(request);
-    if (fresh.ok) await cache.put(request, fresh.clone());
+    if (worthStoring(fresh)) await cache.put(request, fresh.clone());
     return fresh;
   } catch {
     const cached = await cache.match(request);

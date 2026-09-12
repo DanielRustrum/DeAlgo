@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import __version__
 from ..db import get_settings
+from .scope import OwnerId, owned
 from ..models import Channel, Placement, Playlist, Video
 
 # Bumped if the shape changes in a way a reader would need to know about.
@@ -43,7 +44,7 @@ def filename(now: dt.datetime | None = None) -> str:
     return f"de-algo-backup-{moment:%Y-%m-%d}.json"
 
 
-def build_export(session: Session) -> dict[str, Any]:
+def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
     """The setup: settings, feeds, channels, and which feeds each channel fills."""
     settings = get_settings(session)
 
@@ -63,7 +64,9 @@ def build_export(session: Session) -> dict[str, Any]:
 
     playlists = list(
         session.scalars(
-            select(Playlist).options(selectinload(Playlist.channels)).order_by(Playlist.priority, Playlist.id)
+            owned(select(Playlist), Playlist, owner)
+            .options(selectinload(Playlist.channels))
+            .order_by(Playlist.priority, Playlist.id)
         )
     )
     exported["feeds"] = [
@@ -81,7 +84,9 @@ def build_export(session: Session) -> dict[str, Any]:
 
     channels = list(
         session.scalars(
-            select(Channel).options(selectinload(Channel.playlists)).order_by(Channel.priority, Channel.id)
+            owned(select(Channel), Channel, owner)
+            .options(selectinload(Channel.playlists))
+            .order_by(Channel.priority, Channel.id)
         )
     )
     exported["channels"] = [
@@ -149,7 +154,7 @@ def _parse_stamp(value: str | None) -> dt.datetime | None:
     return parsed
 
 
-def restore(session: Session, payload: Any) -> RestoreSummary:
+def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSummary:
     """Apply a backup, matching existing rows by their YouTube ids.
 
     The file is the source of truth: anything it names is created or updated to
@@ -182,9 +187,11 @@ def restore(session: Session, payload: Any) -> RestoreSummary:
         playlist_id = entry.get("playlist_id")
         if not playlist_id:
             continue
-        playlist = session.scalar(select(Playlist).where(Playlist.playlist_id == playlist_id))
+        playlist = session.scalar(
+            owned(select(Playlist), Playlist, owner).where(Playlist.playlist_id == playlist_id)
+        )
         if playlist is None:
-            playlist = Playlist(playlist_id=playlist_id, title=entry.get("title") or playlist_id)
+            playlist = Playlist(owner_pk=owner, playlist_id=playlist_id, title=entry.get("title") or playlist_id)
             session.add(playlist)
             session.flush()
             ordering.append(session, playlist)
@@ -207,9 +214,11 @@ def restore(session: Session, payload: Any) -> RestoreSummary:
         channel_id = entry.get("channel_id")
         if not channel_id:
             continue
-        channel = session.scalar(select(Channel).where(Channel.channel_id == channel_id))
+        channel = session.scalar(
+            owned(select(Channel), Channel, owner).where(Channel.channel_id == channel_id)
+        )
         if channel is None:
-            channel = Channel(channel_id=channel_id, title=entry.get("title") or channel_id)
+            channel = Channel(owner_pk=owner, channel_id=channel_id, title=entry.get("title") or channel_id)
             session.add(channel)
             session.flush()
         for key in simple:
@@ -238,9 +247,11 @@ def restore(session: Session, payload: Any) -> RestoreSummary:
                 summary.skipped.append(video_id)
             continue
 
-        video = session.scalar(select(Video).where(Video.video_id == video_id))
+        video = session.scalar(
+            owned(select(Video), Video, owner).where(Video.video_id == video_id)
+        )
         if video is None:
-            video = Video(video_id=video_id, channel_pk=channel.id)
+            video = Video(owner_pk=owner, video_id=video_id, channel_pk=channel.id)
             session.add(video)
             session.flush()
         video.channel_pk = channel.id

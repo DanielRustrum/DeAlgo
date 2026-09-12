@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from dealgo.db import get_settings
 from dealgo.models import Channel, Placement, Playlist, Video, utcnow
 
 
@@ -305,7 +306,7 @@ def test_the_timer_comes_from_settings(client, db):
 
     post_id = make_post(db)
     with db.session_scope() as session:
-        session.get(Settings, 1).post_seconds = 45
+        get_settings(session).post_seconds = 45
 
     body = client.get(f"/focus?start={post_id}").text
 

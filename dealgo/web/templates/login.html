@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Sign in{% endblock %}
+{% block content %}
+<section class="panel sign-in">
+  <h2>Sign in</h2>
+
+  {# Not boosted, deliberately. htmx would send this as an XHR, the XHR would
+     follow the redirect itself, and htmx would push /login as the address —
+     so the browser would sit at /login showing the dashboard, and show the
+     form again on reload. Signing in is a navigation. #}
+  <form method="post" action="/login" class="stack-form" hx-boost="false">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field-row">
+      <label>
+        Username
+        <input type="text" name="username" value="{{ username or '' }}"
+               autocomplete="username" autocapitalize="none" autocorrect="off"
+               spellcheck="false" required autofocus>
+      </label>
+    </div>
+    <div class="field-row">
+      <label>
+        Password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Sign in</button>
+  </form>
+
+  <p class="hint">
+    Accounts are created by the admin, whose own account is set with
+    <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code>.
+  </p>
+</section>
+{% endblock %}

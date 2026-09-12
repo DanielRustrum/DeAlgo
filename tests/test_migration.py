@@ -9,11 +9,17 @@ from __future__ import annotations
 
 from sqlalchemy import select, text
 
+from dealgo.db import get_settings
 from dealgo.models import Channel, Placement, Playlist, Video
 
 
 def make_legacy(db) -> None:
     """Rewind a fresh database to the single-playlist shape and fill it."""
+    # Settings rows are made on demand now, one per account, so an old install
+    # is reproduced by making the implicit owner's first.
+    with db.session_scope() as session:
+        get_settings(session)
+
     engine = db.get_engine()
     with engine.begin() as connection:
         connection.execute(text("DELETE FROM placement"))

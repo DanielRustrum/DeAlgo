@@ -104,6 +104,12 @@ a:hover { color: var(--accent); }
     z-index: 40;
   }
   .brand { flex: 0 0 auto; }
+  // The icon and the hamburger travel together on the right, with the icon
+  // first. Scoped to the bar so it outranks the plain `.account-icon` rule
+  // that orders it last on a wide screen — that one is in a file imported
+  // after this, and a media query adds no specificity of its own.
+  .topbar .account-icon { order: 3; margin-left: auto; }
+  .topbar .account-icon + .menu-check + .menu-button { margin-left: 0; }
 
   // Built to the same recipe as .btn — same border, fill, radius and hover —
   // because it belongs to the row of buttons beside it. Square and sized to
@@ -292,6 +298,11 @@ a:hover { color: var(--accent); }
     font-size: 14px;
   }
   .menu-panel .tour-button { display: block; text-align: center; }
+
+  // In the drawer, the account line is a row like the buttons above it.
+  .menu-panel .signed-in { flex-wrap: wrap; }
+  .menu-panel .signed-in .btn { width: auto; flex: 1; }
+  .menu-panel .signed-in-name { width: 100%; }
 
   // Sits at the bottom of the drawer, the way the page footer does.
   .menu-foot {

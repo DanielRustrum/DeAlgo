@@ -21,7 +21,7 @@
       {{ playlist.title }}
       {% if playlist.is_generic %}
         <span class="pill" title="No YouTube playlist behind it">generic</span>
-      {% elif youtube_offline() %}
+      {% elif youtube_offline(identity.user_pk if identity else none) %}
         <span class="pill pill-dormant"
               title="No Google account, so this one collects inside De-Algo for now">
           local only</span>
@@ -43,7 +43,7 @@
     <dt>Backed by</dt>
     <dd>
       {% if playlist.url %}<code>{{ playlist.playlist_id }}</code>
-        {% if youtube_offline() %}
+        {% if youtube_offline(identity.user_pk if identity else none) %}
         <div class="hint">Not being written to: no Google account is connected. New videos
           collect in De-Algo and go into the playlist on the first sync after you connect.</div>
         {% endif %}

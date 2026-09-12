@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from .db import get_settings, session_scope
-from .services.sync import run_sync
+from .services.sync import run_for_everyone
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +23,9 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _job() -> None:
-    run_sync(trigger="scheduled")
+    # Every account in turn: the schedule belongs to the site, the channels
+    # and feeds it polls belong to whoever set them up.
+    run_for_everyone(trigger="scheduled")
 
 
 def start() -> BackgroundScheduler:

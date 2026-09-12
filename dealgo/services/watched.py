@@ -21,6 +21,7 @@ from ..models import Placement, Playlist, SyncRun, Video, utcnow
 from ..youtube.api import QUOTA_COST_DELETE, YouTubeAPIError
 from . import quota
 from .auth import build_client
+from .scope import OwnerId, belongs_to, owned
 from .sync import Busy, http_client, playlist_lock
 import httpx
 
@@ -42,11 +43,18 @@ class RemovalResult:
         return " ".join(self.messages)
 
 
-def count_watched(session: Session) -> int:
-    return session.scalar(select(func.count(Video.id)).where(Video.watched_at.is_not(None))) or 0
+def count_watched(session: Session, owner: OwnerId = None) -> int:
+    return (
+        session.scalar(
+            owned(select(func.count(Video.id)), Video, owner).where(
+                Video.watched_at.is_not(None)
+            )
+        )
+        or 0
+    )
 
 
-def count_removable(session: Session) -> int:
+def count_removable(session: Session, owner: OwnerId = None) -> int:
     """Placements of watched videos that are still in a playlist.
 
     Counted per placement, not per video: one watched video sitting in three
@@ -56,14 +64,19 @@ def count_removable(session: Session) -> int:
         session.scalar(
             select(func.count(Placement.id))
             .join(Video, Video.id == Placement.video_pk)
+            .where(belongs_to(Video, owner))
             .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
         )
         or 0
     )
 
 
-def mark_watched(session: Session, video_ids: list[int]) -> int:
-    videos = list(session.scalars(select(Video).where(Video.id.in_(video_ids))))
+def mark_watched(session: Session, video_ids: list[int], owner: OwnerId = None) -> int:
+    # Scoped as well as keyed: an id from another account is not this one's to
+    # mark, however it arrived.
+    videos = list(
+        session.scalars(owned(select(Video), Video, owner).where(Video.id.in_(video_ids)))
+    )
     now = utcnow()
     changed = 0
     for video in videos:
@@ -73,8 +86,10 @@ def mark_watched(session: Session, video_ids: list[int]) -> int:
     return changed
 
 
-def mark_unwatched(session: Session, video_ids: list[int]) -> int:
-    videos = list(session.scalars(select(Video).where(Video.id.in_(video_ids))))
+def mark_unwatched(session: Session, video_ids: list[int], owner: OwnerId = None) -> int:
+    videos = list(
+        session.scalars(owned(select(Video), Video, owner).where(Video.id.in_(video_ids)))
+    )
     changed = 0
     for video in videos:
         if video.watched_at is not None:
@@ -83,11 +98,11 @@ def mark_unwatched(session: Session, video_ids: list[int]) -> int:
     return changed
 
 
-def mark_all_in_playlist_watched(session: Session) -> int:
+def mark_all_in_playlist_watched(session: Session, owner: OwnerId = None) -> int:
     """Mark everything currently in the playlist as watched."""
     videos = list(
         session.scalars(
-            select(Video)
+            owned(select(Video), Video, owner)
             .join(Placement, Placement.video_pk == Video.id)
             .where(Placement.playlist_item_id.is_not(None), Video.watched_at.is_(None))
             .distinct()
@@ -99,12 +114,12 @@ def mark_all_in_playlist_watched(session: Session) -> int:
     return len(videos)
 
 
-def remove_watched(trigger: str = "manual") -> RemovalResult:
+def remove_watched(trigger: str = "manual", owner: OwnerId = None) -> RemovalResult:
     """Delete every watched video from the playlist. Runs only when asked."""
     try:
         with playlist_lock():
             with http_client() as http, session_scope() as session:
-                return _remove(session, http, trigger)
+                return _remove(session, http, trigger, owner)
     except Busy:
         return RemovalResult(
             ok=True, started=False, messages=["Another playlist operation is already running."]
@@ -114,16 +129,21 @@ def remove_watched(trigger: str = "manual") -> RemovalResult:
         return RemovalResult(ok=False, messages=[f"Removal failed: {exc}"])
 
 
-def _remove(session: Session, http: httpx.Client, trigger: str) -> RemovalResult:
+def _remove(
+    session: Session, http: httpx.Client, trigger: str, owner: OwnerId = None
+) -> RemovalResult:
     result = RemovalResult()
-    client = build_client(session, http)
+    client = build_client(session, http, owner)
 
-    if not session.scalar(select(func.count(Playlist.id)).where(Playlist.enabled.is_(True))):
+    if not session.scalar(
+        owned(select(func.count(Playlist.id)), Playlist, owner).where(Playlist.enabled.is_(True))
+    ):
         result.messages.append("No feeds are set up.")
         return result
     if not client.has_write_access and not session.scalar(
         select(func.count(Placement.id))
         .join(Video, Video.id == Placement.video_pk)
+        .where(belongs_to(Video, owner))
         .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
     ):
         # An account is only needed for rows that really are on YouTube. With
@@ -136,6 +156,7 @@ def _remove(session: Session, http: httpx.Client, trigger: str) -> RemovalResult
             select(Placement)
             .options(selectinload(Placement.video), selectinload(Placement.playlist))
             .join(Video, Video.id == Placement.video_pk)
+            .where(belongs_to(Video, owner))
             .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
             .order_by(Video.watched_at.asc(), Placement.id.asc())
         )
@@ -145,7 +166,7 @@ def _remove(session: Session, http: httpx.Client, trigger: str) -> RemovalResult
         result.messages.append("No watched videos are in a playlist.")
         return result
 
-    run = SyncRun(trigger=trigger, started_at=utcnow())
+    run = SyncRun(trigger=trigger, started_at=utcnow(), owner_pk=owner)
     session.add(run)
     session.commit()
 

@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from dealgo.db import get_settings
 from dealgo.models import Channel, Placement, Playlist, SyncRun, Video
 
 HX = {"HX-Request": "true"}
@@ -185,7 +186,8 @@ def test_remove_watched_starts_only_on_request(client, db, monkeypatch):
         if called:
             break
         time.sleep(0.02)
-    assert called == [("manual",)]
+    # The owner rides along now: a removal is one account's.
+    assert called == [("manual", None)]
 
 
 def test_mark_playlist_watched_covers_everything_in_the_playlist(client, db):
@@ -316,7 +318,7 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
             calls.append(1)
             return []
 
-    monkeypatch.setattr(web_app, "build_client", lambda session, http: FakeClient())
+    monkeypatch.setattr(web_app, "build_client", lambda session, http, owner=None: FakeClient())
     web_app._forget_account_playlists()
 
     client.get("/channels")
@@ -764,7 +766,7 @@ def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, m
             made["title"], made["privacy"] = title, privacy
             return PlaylistInfo(playlist_id="PL_new", title=title, item_count=0, privacy_status=privacy)
 
-    monkeypatch.setattr(playlist_service, "build_client", lambda session, http: FakeClient())
+    monkeypatch.setattr(playlist_service, "build_client", lambda session, http, owner=None: FakeClient())
 
     with db.session_scope() as session:
         session.get(Channel, 1).playlists = []  # unlinked, so it is paused
@@ -1540,7 +1542,7 @@ def test_the_reading_time_can_be_set(client, db):
 
     client.post("/settings", data={"post_seconds": "45"}, follow_redirects=False)
     with db.session_scope() as session:
-        assert session.get(Settings, 1).post_seconds == 45
+        assert get_settings(session).post_seconds == 45
 
 
 def test_a_reading_time_too_short_to_read_is_refused(client, db):
@@ -1549,7 +1551,7 @@ def test_a_reading_time_too_short_to_read_is_refused(client, db):
 
     client.post("/settings", data={"post_seconds": "0"}, follow_redirects=False)
     with db.session_scope() as session:
-        assert session.get(Settings, 1).post_seconds == 3
+        assert get_settings(session).post_seconds == 3
 
 
 def test_the_layout_answers_to_a_phone(client):
@@ -1639,7 +1641,7 @@ def test_the_hamburger_stays_reachable_over_the_open_drawer(client):
     import re
 
     drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet)
-    button = re.search(r"\.menu-button\{([^}]*)\}", tablet)
+    button = re.search(r"(?:^|[,}])\.menu-button\{([^}]*)\}", tablet)
     assert drawer and button
 
     depth = lambda rule: int(re.search(r"z-index:(\d+)", rule).group(1))
@@ -1771,7 +1773,7 @@ def test_the_hamburger_matches_the_buttons_beside_it(client):
 
     css = client.get("/static/app.css").text
     tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
-    button = re.search(r"\.menu-button\{([^}]*)\}", tablet).group(1)
+    button = re.search(r"(?:^|[,}])\.menu-button\{([^}]*)\}", tablet).group(1)
 
     assert "width:38px" in button and "height:38px" in button
     # The same recipe as .btn: it belongs to that row of controls.
@@ -1923,7 +1925,7 @@ def test_the_hamburger_sits_at_the_right_of_the_bar(client):
 
     css = client.get("/static/app.css").text
     tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
-    button = re.search(r"\.menu-button\{([^}]*)\}", tablet).group(1)
+    button = re.search(r"(?:^|[,}])\.menu-button\{([^}]*)\}", tablet).group(1)
 
     assert "margin-left:auto" in button
 
@@ -1940,7 +1942,7 @@ def test_the_close_button_lands_on_the_drawers_corner(client):
     bar = re.search(r"\.topbar\{([^}]*)\}", tablet).group(1)
     drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet).group(1)
     title = re.search(r"\.menu-title\{([^}]*)\}", tablet).group(1)
-    button = re.search(r"\.menu-button\{([^}]*)\}", tablet).group(1)
+    button = re.search(r"(?:^|[,}])\.menu-button\{([^}]*)\}", tablet).group(1)
 
     assert "padding:10px 14px" in bar
     assert "padding:18px 14px" in drawer          # same 14px on the right
@@ -1996,7 +1998,7 @@ def test_saving_one_group_keeps_the_others(client, db):
     from dealgo.models import Settings
 
     with db.session_scope() as session:
-        settings = session.get(Settings, 1)
+        settings = get_settings(session)
         settings.post_seconds = 45
         settings.daily_quota = 8000
         settings.hide_tour = True
@@ -2010,7 +2012,87 @@ def test_saving_one_group_keeps_the_others(client, db):
     client.post("/settings", data=fields, follow_redirects=False)
 
     with db.session_scope() as session:
-        settings = session.get(Settings, 1)
+        settings = get_settings(session)
         assert settings.poll_interval_minutes == 12    # what was changed
         assert settings.post_seconds == 45             # and what was not
         assert settings.daily_quota == 8000
+
+
+# -- the standing notices --------------------------------------------------
+
+def test_the_notices_can_each_be_switched_off(client, db):
+    from dealgo.models import Settings
+
+    body = client.get("/").text
+    assert "No sign-in required" in body
+    assert "No Google account is connected" in body
+
+    with db.session_scope() as session:
+        settings = get_settings(session)
+        settings.hide_open_notice = True
+        settings.hide_connect_notice = True
+
+    body = client.get("/").text
+    assert "No sign-in required" not in body
+    assert "No Google account is connected" not in body
+    assert "Connect your YouTube account" not in body     # the dashboard's too
+
+
+def test_one_switch_covers_both_google_notices(client, db):
+    """They say the same thing twice — the banner above every page and the one
+    on the dashboard — so they go together."""
+    from dealgo.models import Settings
+
+    with db.session_scope() as session:
+        get_settings(session).hide_connect_notice = True
+
+    body = client.get("/").text
+    assert "banner-offline" not in body
+    assert "Connect your YouTube account" not in body
+
+
+def test_switching_a_notice_off_leaves_the_page_working(client, db):
+    from dealgo.models import Settings
+
+    with db.session_scope() as session:
+        settings = get_settings(session)
+        settings.hide_open_notice = True
+        settings.hide_connect_notice = True
+
+    for path in ["/", "/feed", "/channels", "/settings"]:
+        assert client.get(path).status_code == 200, path
+
+
+def test_the_switches_are_opt_out(client, db):
+    """An unticked checkbox sends nothing, so "hide" has to be what is stored
+    — a "show" checkbox would switch itself off the first time this form was
+    saved."""
+    from dealgo.models import Settings
+
+    body = client.get("/settings").text
+    assert 'name="hide_open_notice" value="1"' in body
+    assert 'name="hide_connect_notice" value="1"' in body
+
+    # Saving the form without them means "show", not "leave as they were".
+    with db.session_scope() as session:
+        get_settings(session).hide_open_notice = True
+
+    fields = dict(__import__("re").findall(r'name="([a-z_]+)" value="([^"]*)"', body))
+    fields.pop("hide_open_notice", None)
+    client.post("/settings", data=fields, follow_redirects=False)
+
+    with db.session_scope() as session:
+        assert get_settings(session).hide_open_notice is False
+
+
+def test_hiding_the_notice_does_not_hide_the_state(client, db):
+    """A security warning you can dismiss must not become a security state you
+    cannot see."""
+    from dealgo.models import Settings
+
+    with db.session_scope() as session:
+        get_settings(session).hide_open_notice = True
+
+    page = client.get("/settings").text
+    assert "Sign-in is off right now" in page
+    assert "No account is connected" in page

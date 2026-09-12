@@ -75,7 +75,7 @@ def test_it_works_with_no_google_account_at_all(world, db, monkeypatch):
 
     signed_out = FakeYouTube(write=False, read=False)
     monkeypatch.setattr(
-        sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
+        sync_service, "build_client", lambda session, http, owner=None: signed_out.bind_meter(quota.meter(session))
     )
     with db.session_scope() as session:
         session.scalar(select(Channel)).playlists = []
@@ -95,7 +95,7 @@ def test_without_an_account_every_feed_fills_locally(world, db, monkeypatch):
 
     signed_out = FakeYouTube(write=False, read=False)
     monkeypatch.setattr(
-        sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
+        sync_service, "build_client", lambda session, http, owner=None: signed_out.bind_meter(quota.meter(session))
     )
     make_generic(db)  # the channel now feeds both
     uploads(world, count=1)
@@ -119,7 +119,7 @@ def test_connecting_an_account_hands_the_backlog_to_youtube(world, db, monkeypat
 
     signed_out = FakeYouTube(write=False, read=False)
     monkeypatch.setattr(
-        sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
+        sync_service, "build_client", lambda session, http, owner=None: signed_out.bind_meter(quota.meter(session))
     )
     uploads(world, count=1)
     sync_service.run_sync()
@@ -131,7 +131,7 @@ def test_connecting_an_account_hands_the_backlog_to_youtube(world, db, monkeypat
     monkeypatch.setattr(
         sync_service,
         "build_client",
-        lambda session, http: world["client"].bind_meter(quota.meter(session)),
+        lambda session, http, owner=None: world["client"].bind_meter(quota.meter(session)),
     )
     sync_service.run_sync()
 
@@ -147,7 +147,7 @@ def test_a_signed_out_run_says_what_it_did_with_the_youtube_feeds(world, db, mon
 
     signed_out = FakeYouTube(write=False, read=False)
     monkeypatch.setattr(
-        sync_service, "build_client", lambda session, http: signed_out.bind_meter(quota.meter(session))
+        sync_service, "build_client", lambda session, http, owner=None: signed_out.bind_meter(quota.meter(session))
     )
     uploads(world, count=1)
 

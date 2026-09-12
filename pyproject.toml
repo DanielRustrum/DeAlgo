@@ -13,6 +13,9 @@ dependencies = [
     "sqlalchemy>=2.0",
     "httpx>=0.27",
     "apscheduler>=3.10,<4",
+    # Fernet, for the encrypted site backup. Nothing else here needs a
+    # cipher, and hand-rolling one to avoid a dependency would be worse.
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +50,11 @@ dealgo = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # The per-owner unique indexes are expression-based (COALESCE), which
+    # SQLAlchemy's reflection skips with a warning. Nothing reads them back.
+    "ignore:Skipped unsupported reflection of expression-based index:Warning",
+]
 
 [tool.mypy]
 python_version = "3.11"

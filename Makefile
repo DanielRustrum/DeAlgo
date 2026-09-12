@@ -116,8 +116,8 @@ watch-css: ## Recompile the stylesheet whenever a partial changes
 		$(PY) -m dealgo.web.styles >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
 	done
 
-dev: assets ## Run the app locally without Docker
-	$(PY) -m dealgo serve
+dev: assets ## Run the app locally without Docker (reads .env if there is one)
+	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
 
 clean: ## Stop Dealgo and delete its data volume (irreversible)
 	@printf 'This erases every watched channel and all sync history. Type yes to confirm: '; \

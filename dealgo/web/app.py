@@ -14,7 +14,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -25,15 +25,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from .. import __version__, scheduler
+from starlette.concurrency import run_in_threadpool
+
 from ..config import CONFIG
 from ..db import get_settings, get_token, init_db, session_scope
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import Any
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from ..models import (
     GENERIC_PLAYLIST_PREFIX,
+    User,
     Channel,
     Placement,
     Playlist,
@@ -41,7 +44,10 @@ from ..models import (
     Video,
     channel_playlist,
 )
+from ..services import accounts
+from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
+from ..services import migration
 from ..services import channels as channel_service
 from ..services import ordering as ordering_service
 from ..services import playlists as playlist_service
@@ -57,6 +63,7 @@ from ..services.auth import (
 )
 from ..services.filters import format_duration
 from ..youtube import oauth
+from . import guard
 from ..youtube.api import PlaylistInfo, YouTubeAPIError
 
 log = logging.getLogger(__name__)
@@ -102,6 +109,80 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="De-Algo", version=__version__, lifespan=lifespan)
+
+
+# Starlette hands the next handler in untyped; naming the shape here keeps
+# the middleware itself honest about what it returns.
+Handler = Callable[[Request], Awaitable[Response]]
+
+
+@app.middleware("http")
+async def require_account(request: Request, call_next: Handler) -> Response:
+    """Decide who this is, before any route runs.
+
+    Middleware rather than a dependency on each route: there are sixty of
+    them, and one that forgets its dependency is a hole nobody notices. Here
+    the default is deny, and the exceptions are a list in guard.py.
+    """
+    path = request.url.path
+    request.state.identity = None
+
+    if not CONFIG.auth_enabled:
+        # No admin configured: the app behaves as it did before there were
+        # accounts, and says so on every page.
+        return await call_next(request)
+
+    token = request.cookies.get(accounts.SESSION_COOKIE)
+
+    if guard.is_public(path):
+        # Public means "no account required", not "do not look". The login
+        # page has to know it is being read by someone already signed in, or
+        # it offers the form again and looks as though signing in failed.
+        # Skipped for assets, which would otherwise cost a query apiece.
+        if token and not path.startswith("/static/"):
+            request.state.identity = await run_in_threadpool(_identify, token)
+        return await call_next(request)
+
+    identity = await run_in_threadpool(_identify, token)
+
+    if identity is None:
+        return _ask_to_sign_in(request)
+    if guard.needs_admin(path) and not identity.is_admin:
+        return _refuse(request)
+
+    request.state.identity = identity
+    return await call_next(request)
+
+
+def _identify(token: str | None) -> accounts.Identity | None:
+    with session_scope() as session:
+        user = accounts.identify(session, token)
+        if user is None:
+            return None
+        return accounts.Identity(username=user.username, is_admin=user.is_admin, user_pk=user.id)
+
+
+def _ask_to_sign_in(request: Request) -> Response:
+    """Send them to the login page, and back here afterwards.
+
+    An htmx request is answered with the header htmx understands: a plain
+    redirect would be followed by the XHR and the login page swapped into
+    whatever panel asked.
+    """
+    target = request.url.path
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    destination = f"/login?next={quote(target, safe='/?=&')}"
+    if is_htmx(request):
+        return Response(status_code=401, headers={"HX-Redirect": destination})
+    return RedirectResponse(destination, status_code=303)
+
+
+def _refuse(request: Request) -> Response:
+    message = "That part of De-Algo belongs to the admin account."
+    if is_htmx(request):
+        return Response(message, status_code=403)
+    return RedirectResponse(f"/?err={quote(message)}", status_code=303)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
@@ -139,7 +220,9 @@ TEMPLATES.env.filters["stamp"] = _stamp
 Context = dict[str, Any]
 
 TEMPLATES.env.filters["duration"] = format_duration
-TEMPLATES.env.globals["youtube_offline"] = lambda: _youtube_offline()
+# Bound late: the function is defined further down, and the template calls it
+# with the owner the page belongs to.
+TEMPLATES.env.globals["youtube_offline"] = lambda owner=None: _youtube_offline(owner)
 
 
 def _last_run_id() -> int:
@@ -147,27 +230,48 @@ def _last_run_id() -> int:
         return session.scalar(select(func.max(SyncRun.id))) or 0
 
 
-def _tour_progress(session: Session) -> Context:
+def _tour_progress(session: Session, owner: OwnerId = None) -> Context:
     """What the tour can already tick off, so it guides rather than lectures."""
-    feeds = list(session.scalars(select(Playlist)))
+    feeds = list(session.scalars(owned(select(Playlist), Playlist, owner)))
     return {
         "has_feed": bool(feeds),
         "has_youtube_feed": any(not feed.is_generic for feed in feeds),
-        "has_channel": bool(session.scalar(select(func.count(Channel.id)))),
+        "has_channel": bool(session.scalar(owned(select(func.count(Channel.id)), Channel, owner))),
         "linked": bool(
             session.scalar(
                 select(func.count()).select_from(channel_playlist)
             )
         ),
-        "connected": get_token(session) is not None,
-        "synced": bool(session.scalar(select(func.count(SyncRun.id)))),
-        "watched_any": watched_service.count_watched(session) > 0,
+        "connected": get_token(session, owner) is not None,
+        "synced": bool(session.scalar(owned(select(func.count(SyncRun.id)), SyncRun, owner))),
+        "watched_any": watched_service.count_watched(session, owner) > 0,
     }
 
 
-def _tour_offered() -> bool:
+def _notices() -> Context:
+    """Which standing notices this instance still wants to see.
+
+    One read for all of them, since every page render asks. Each is stored as
+    "hide", so an unticked checkbox — which sends nothing at all — means show.
+    """
     with session_scope() as session:
-        return not get_settings(session).hide_tour
+        settings = get_settings(session)
+        return {
+            "show_tour": not settings.hide_tour,
+            "show_open_notice": not settings.hide_open_notice,
+            "show_connect_notice": not settings.hide_connect_notice,
+        }
+
+
+def owner_of(request: Request) -> OwnerId:
+    """Whose data this request is about.
+
+    None is the implicit owner — which is everyone, while sign-in is off. With
+    accounts on it is the signed-in one, and never anybody else's: there is no
+    route that reads another account's channels or feeds.
+    """
+    identity = getattr(request.state, "identity", None)
+    return identity.user_pk if identity else None
 
 
 def render(request: Request, template: str, context: Context) -> HTMLResponse:
@@ -178,7 +282,10 @@ def render(request: Request, template: str, context: Context) -> HTMLResponse:
         "error_message": request.query_params.get("err"),
         "sync_running": sync_service.is_running(),
         "last_run_id": _last_run_id(),
-        "show_tour": _tour_offered(),
+        **_notices(),
+        "identity": getattr(request.state, "identity", None),
+        "auth_enabled": CONFIG.auth_enabled,
+        "weak_admin_password": CONFIG.admin_password_weak,
         **context,
     }
     return TEMPLATES.TemplateResponse(request, template, context)
@@ -225,11 +332,11 @@ def _quota_context(session: Session) -> Context:
     return {"quota": state, "quota_resets_in": quota_service.describe_reset()}
 
 
-def _stats_context(session: Session) -> Context:
+def _stats_context(session: Session, owner: OwnerId = None) -> Context:
     counts: dict[str, int] = {
         status: held
         for status, held in session.execute(
-            select(Video.status, func.count(Video.id)).group_by(Video.status)
+            owned(select(Video.status, func.count(Video.id)), Video, owner).group_by(Video.status)
         ).all()
     }
     return {
@@ -237,26 +344,26 @@ def _stats_context(session: Session) -> Context:
         # "added" means it reached the playlist at some point; this is what is
         # actually in there now, after pruning and watched-removals.
         "in_playlist": session.scalar(
-            select(func.count(func.distinct(Placement.video_pk))).where(
-                Placement.playlist_item_id.is_not(None)
-            )
+            select(func.count(func.distinct(Placement.video_pk)))
+            .join(Video, Video.id == Placement.video_pk)
+            .where(Placement.playlist_item_id.is_not(None), belongs_to(Video, owner))
         )
         or 0,
-        "watched_count": watched_service.count_watched(session),
-        "removable_count": watched_service.count_removable(session),
+        "watched_count": watched_service.count_watched(session, owner),
+        "removable_count": watched_service.count_removable(session, owner),
         "enabled_channels": session.scalar(
-            select(func.count(Channel.id)).where(Channel.enabled.is_(True))
+            owned(select(func.count(Channel.id)), Channel, owner).where(Channel.enabled.is_(True))
         )
         or 0,
     }
 
 
-def _activity_context(session: Session) -> Context:
+def _activity_context(session: Session, owner: OwnerId = None) -> Context:
     return {
-        "recent_runs": list(session.scalars(select(SyncRun).order_by(SyncRun.started_at.desc()).limit(8))),
+        "recent_runs": list(session.scalars(owned(select(SyncRun), SyncRun, owner).order_by(SyncRun.started_at.desc()).limit(8))),
         "recent_videos": list(
             session.scalars(
-                select(Video)
+                owned(select(Video), Video, owner)
                 .options(
                     selectinload(Video.channel),
                     selectinload(Video.placements).selectinload(Placement.playlist),
@@ -293,7 +400,12 @@ def _matching_feeds(playlists: Sequence[Playlist], query: str) -> list[Playlist]
 
 
 def _channel_list_context(
-    session: Session, feed: str = "", tracking: bool = False, query: str = ""
+    session: Session,
+    feed: str = "",
+    tracking: bool = False,
+    query: str = "",
+    *,
+    owner: OwnerId = None,
 ) -> Context:
     def counts_by_channel(*conditions: ColumnElement[bool]) -> dict[int, int]:
         return {
@@ -305,8 +417,8 @@ def _channel_list_context(
             ).all()
         }
 
-    channels = channel_service.list_channels(session)
-    playlists = playlist_service.list_playlists(session)
+    channels = channel_service.list_channels(session, owner)
+    playlists = playlist_service.list_playlists(session, owner)
     counts_by_feed = {p.id: sum(1 for c in channels if p in c.playlists) for p in playlists}
     unassigned = sum(1 for c in channels if not c.playlists)
 
@@ -341,7 +453,7 @@ def _channel_list_context(
         "feed_playlists": playlists,
         "counts_by_feed": counts_by_feed,
         "unassigned_count": unassigned,
-        "total_channels": session.scalar(select(func.count(Channel.id))) or 0,
+        "total_channels": session.scalar(owned(select(func.count(Channel.id)), Channel, owner)) or 0,
         "pending_by_channel": counts_by_channel(Video.status == "pending"),
         "added_by_channel": {
             channel_pk: held
@@ -360,7 +472,7 @@ _account_playlists_cache: dict[str, Any] = {"at": 0.0, "items": [], "error": Non
 
 
 def _account_playlists(
-    session: Session, *, refresh: bool = False
+    session: Session, *, refresh: bool = False, owner: OwnerId = None
 ) -> tuple[list[PlaylistInfo], str | None]:
     """The playlists on the connected account, cached for a couple of minutes."""
     now = time.monotonic()
@@ -371,7 +483,7 @@ def _account_playlists(
     items: list[PlaylistInfo] = []
     error: str | None = None
     with _http_client() as http:
-        client = build_client(session, http)
+        client = build_client(session, http, owner)
         if client.has_write_access:
             try:
                 items = client.my_playlists()
@@ -385,13 +497,15 @@ def _forget_account_playlists() -> None:
     _account_playlists_cache["at"] = 0.0
 
 
-def _playlist_context(session: Session, creating: bool = False) -> Context:
+def _playlist_context(
+    session: Session, creating: bool = False, *, owner: OwnerId = None
+) -> Context:
     """Everything the targets panel needs, including the account's own lists."""
     state = _connection_state(session)
     available: list[PlaylistInfo] = []
     error: str | None = None
     if state["connected"]:
-        available, error = _account_playlists(session)
+        available, error = _account_playlists(session, owner=owner)
     known = {p.playlist_id for p in state["playlists"]}
     return {
         "state": state,
@@ -399,12 +513,12 @@ def _playlist_context(session: Session, creating: bool = False) -> Context:
         "counts": state["playlist_counts"],
         "available": [p for p in available if p.playlist_id not in known],
         "playlist_error": error,
-        "all_channels": channel_service.list_channels(session),
+        "all_channels": channel_service.list_channels(session, owner),
         "creating": creating,
     }
 
 
-def _youtube_offline() -> Context | None:
+def _youtube_offline(owner: OwnerId = None) -> Context | None:
     """The state where Google is not available: no usable account, but feeds
     that point at a YouTube playlist.
 
@@ -412,11 +526,11 @@ def _youtube_offline() -> Context | None:
     because the htmx fragments render outside `render()` and need it too.
     """
     with session_scope() as session:
-        token = get_token(session)
+        token = get_token(session, owner)
         if token is not None and not token.refresh_error:
             return None
         feeds = session.scalar(
-            select(func.count(Playlist.id)).where(
+            owned(select(func.count(Playlist.id)), Playlist, owner).where(
                 Playlist.enabled.is_(True),
                 Playlist.playlist_id.not_like(f"{GENERIC_PLAYLIST_PREFIX}%"),
             )
@@ -426,18 +540,22 @@ def _youtube_offline() -> Context | None:
         return {"feeds": feeds, "stale": token is not None}
 
 
-def _connection_state(session: Session) -> Context:
-    token = get_token(session)
+def _connection_state(session: Session, owner: OwnerId = None) -> Context:
+    token = get_token(session, owner)
     return {
         "connected": token is not None,
         "account": token.account_title if token else None,
         "needs_reconnect": bool(token and token.refresh_error),
         "reconnect_reason": token.refresh_error if token else None,
-        "has_client": has_client_credentials(session),
-        "playlists": playlist_service.list_playlists(session),
-        "playlist_counts": playlist_service.item_counts(session),
+        "has_client": has_client_credentials(session, owner),
+        "playlists": playlist_service.list_playlists(session, owner),
+        "playlist_counts": playlist_service.item_counts(session, owner),
         "has_targets": bool(
-            session.scalar(select(func.count(Playlist.id)).where(Playlist.enabled.is_(True)))
+            session.scalar(
+                owned(select(func.count(Playlist.id)), Playlist, owner).where(
+                    Playlist.enabled.is_(True)
+                )
+            )
         ),
     }
 
@@ -447,13 +565,14 @@ def _connection_state(session: Session) -> Context:
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
         context = {
-            **_stats_context(session),
-            **_activity_context(session),
+            **_stats_context(session, owner),
+            **_activity_context(session, owner),
             **_quota_context(session),
-            "state": _connection_state(session),
-            "settings": get_settings(session),
+            "state": _connection_state(session, owner),
+            "settings": get_settings(session, owner),
             "next_run": scheduler.next_run_time(),
         }
     return render(request, "dashboard.html", context)
@@ -505,26 +624,29 @@ def partial_sync_status(request: Request, seen: int = 0) -> HTMLResponse:
 
 @app.get("/partials/stats", response_class=HTMLResponse)
 def partial_stats(request: Request) -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        context = _stats_context(session)
+        context = _stats_context(session, owner)
     return fragment(request, "_stats.html", context)
 
 
 @app.get("/partials/activity", response_class=HTMLResponse)
 def partial_activity(request: Request) -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        context = _activity_context(session)
+        context = _activity_context(session, owner)
     return fragment(request, "_activity.html", context)
 
 
 @app.get("/partials/dashboard", response_class=HTMLResponse)
 def partial_dashboard(request: Request) -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
         context = {
-            **_stats_context(session),
+            **_stats_context(session, owner),
             **_quota_context(session),
-            "state": _connection_state(session),
-            "settings": get_settings(session),
+            "state": _connection_state(session, owner),
+            "settings": get_settings(session, owner),
             "next_run": scheduler.next_run_time(),
         }
     return fragment(request, "_dashboard_state.html", context)
@@ -532,15 +654,19 @@ def partial_dashboard(request: Request) -> HTMLResponse:
 
 @app.get("/partials/channels", response_class=HTMLResponse)
 def partial_channels(request: Request, feed: str = "", track: str = "", q: str = "") -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        context = _channel_list_context(session, feed, tracking=track == "1", query=q)
+        context = _channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner)
     return fragment(request, "_channel_list.html", context)
 
 
 @app.get("/api/status")
-def api_status() -> JSONResponse:
+def api_status(request: Request) -> JSONResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        run = session.scalar(select(SyncRun).order_by(SyncRun.started_at.desc()))
+        run = session.scalar(
+            owned(select(SyncRun), SyncRun, owner).order_by(SyncRun.started_at.desc())
+        )
         counts: dict[str, int] = {
             status: held
             for status, held in session.execute(
@@ -581,10 +707,11 @@ def api_status() -> JSONResponse:
 def channels_page(
     request: Request, feed: str = "", new: str = "", track: str = "", q: str = ""
 ) -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
         context = {
-            **_channel_list_context(session, feed, tracking=track == "1", query=q),
-            **_playlist_context(session, creating=new == "1"),
+            **_channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner),
+            **_playlist_context(session, creating=new == "1", owner=owner),
         }
     return render(request, "channels.html", context)
 
@@ -600,6 +727,7 @@ def _channel_list_response(
     query: str = "",
 ) -> Response:
     """Every channel mutation answers with the whole list, freshly counted."""
+    owner = owner_of(request)
     if back:
         # A channel's own page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)
@@ -612,7 +740,7 @@ def _channel_list_response(
         target = f"/channels?{urlencode(params)}" if params else "/channels"
         return redirect(target, ok=ok, err=err)
     with session_scope() as session:
-        context = _channel_list_context(session, feed, tracking=tracking, query=query)
+        context = _channel_list_context(session, feed, tracking=tracking, query=query, owner=owner)
     return fragment(request, "_channel_list.html", context, ok=ok, err=err)
 
 
@@ -624,6 +752,7 @@ def add_channel(
     backfill: str = Form(""),
     feed: str = Form(""),
 ) -> Response:
+    owner = owner_of(request)
     reference = reference.strip()
     if not reference:
         # Keep the dialog up rather than dropping what they were doing.
@@ -634,7 +763,11 @@ def add_channel(
     with session_scope() as session, _http_client() as http:
         try:
             channel = channel_service.add_channel(
-                session, reference, http, backfill_days=channel_service.parse_backfill(backfill)
+                session,
+                reference,
+                http,
+                backfill_days=channel_service.parse_backfill(backfill),
+                owner=owner,
             )
         except channel_service.ChannelError as exc:
             return _channel_list_response(request, err=str(exc), feed=feed, tracking=True)
@@ -651,15 +784,18 @@ def add_channel(
 
 @app.get("/channels/{channel_id}", response_class=HTMLResponse)
 def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
+    owner = owner_of(request)
     with session_scope() as session:
         channel = session.scalar(
-            select(Channel).options(selectinload(Channel.playlists)).where(Channel.id == channel_id)
+            owned(select(Channel), Channel, owner)
+            .options(selectinload(Channel.playlists))
+            .where(Channel.id == channel_id)
         )
         if channel is None:
             return redirect("/channels", err="That channel is no longer being watched.")
         videos = list(
             session.scalars(
-                select(Video)
+                owned(select(Video), Video, owner)
                 .options(
                     selectinload(Video.channel),
                     selectinload(Video.placements).selectinload(Placement.playlist),
@@ -672,8 +808,8 @@ def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
         context = {
             "channel": channel,
             "videos": videos,
-            "settings": get_settings(session),
-            "all_playlists": _matching_feeds(playlist_service.list_playlists(session), q),
+            "settings": get_settings(session, owner),
+            "all_playlists": _matching_feeds(playlist_service.list_playlists(session, owner), q),
             "query": q,
             "pull_intervals": channel_service.PULL_INTERVALS,
             "channel_playlist_pks": {p.id for p in channel.playlists},
@@ -866,11 +1002,13 @@ def remove_channel(request: Request, channel_id: int, feed: str = Form("")) -> R
 # -- feed -----------------------------------------------------------------
 
 
-def _feed_context(session: Session, *, playlist: str = "", query: str = "") -> Context:
+def _feed_context(
+    session: Session, *, playlist: str = "", query: str = "", owner: OwnerId = None
+) -> Context:
     """What is in each feed right now, each laid out the way that feed asks."""
     wanted = int(playlist) if playlist.isdigit() else None
 
-    playlists = [p for p in playlist_service.list_playlists(session) if p.enabled or wanted]
+    playlists = [p for p in playlist_service.list_playlists(session, owner) if p.enabled or wanted]
     terms = query.lower().split()
     if terms:
         # Name or tag, any order, partial words.
@@ -881,7 +1019,7 @@ def _feed_context(session: Session, *, playlist: str = "", query: str = "") -> C
             continue
         # Not `query`: that name is the search text on this function.
         statement = (
-            select(Video)
+            owned(select(Video), Video, owner)
             .join(Placement, Placement.video_pk == Video.id)
             .options(selectinload(Video.channel))
             .where(Placement.playlist_pk == target.id, Placement.playlist_item_id.is_not(None))
@@ -909,25 +1047,27 @@ def _feed_context(session: Session, *, playlist: str = "", query: str = "") -> C
         "playlist_filter": wanted,
         # Named, so a page showing one feed can say which — an unexplained
         # single section looks like the other feeds have gone.
-        "filtered_feed": next((p for p in playlist_service.list_playlists(session)
+        "filtered_feed": next((p for p in playlist_service.list_playlists(session, owner)
                                if p.id == wanted), None) if wanted else None,
         "query": query,
-        "all_playlists": playlist_service.list_playlists(session),
+        "all_playlists": playlist_service.list_playlists(session, owner),
         "feed_query": urlencode({"playlist": playlist or "", "q": query or ""}),
     }
 
 
 @app.get("/feed", response_class=HTMLResponse)
 def feed_page(request: Request, playlist: str = "", q: str = "") -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        context = _feed_context(session, playlist=playlist, query=q)
+        context = _feed_context(session, playlist=playlist, query=q, owner=owner)
     return render(request, "feed.html", context)
 
 
 @app.get("/partials/feed", response_class=HTMLResponse)
 def partial_feed(request: Request, playlist: str = "", q: str = "") -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        context = _feed_context(session, playlist=playlist, query=q)
+        context = _feed_context(session, playlist=playlist, query=q, owner=owner)
     return fragment(request, "_feed_sections.html", context)
 
 
@@ -941,6 +1081,7 @@ def set_feed_view(
     q: str = Form(""),
 ) -> Response:
     """Each feed is laid out its own way, and remembers it."""
+    owner = owner_of(request)
     with session_scope() as session:
         target = session.get(Playlist, playlist_pk)
         if target is None:
@@ -949,7 +1090,7 @@ def set_feed_view(
 
     if is_htmx(request):
         with session_scope() as session:
-            context = _feed_context(session, playlist=playlist, query=q)
+            context = _feed_context(session, playlist=playlist, query=q, owner=owner)
         return fragment(request, "_feed_sections.html", context)
     return redirect(f"/feed?{urlencode({'playlist': playlist, 'q': q})}")
 
@@ -973,7 +1114,7 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
 
 
 def _focus_queue(
-    session: Session, *, order: str, playlist: str, start: int | None = None
+    session: Session, *, order: str, playlist: str, start: int | None = None, owner: OwnerId = None
 ) -> list[Context]:
     """The unwatched items to go through, flattened across playlists.
 
@@ -987,11 +1128,11 @@ def _focus_queue(
 
     queue: list[Context] = []
     seen: set[int] = set()
-    for target in playlist_service.list_playlists(session):
+    for target in playlist_service.list_playlists(session, owner):
         if not target.enabled or (wanted and target.id != wanted):
             continue
         videos = session.scalars(
-            select(Video)
+            owned(select(Video), Video, owner)
             .join(Placement, Placement.video_pk == Video.id)
             .options(selectinload(Video.channel))
             .where(
@@ -1014,7 +1155,7 @@ def _focus_queue(
         else:
             # Starting from something already watched: play it, then carry on.
             opened_on = session.scalar(
-                select(Video).options(selectinload(Video.channel)).where(Video.id == start)
+                owned(select(Video), Video, owner).options(selectinload(Video.channel)).where(Video.id == start)
             )
             if opened_on is not None:
                 queue.insert(0, _focus_item(opened_on))
@@ -1023,18 +1164,19 @@ def _focus_queue(
 
 @app.get("/focus", response_class=HTMLResponse)
 def focus(request: Request, order: str = "oldest", playlist: str = "", start: str = "") -> HTMLResponse:
+    owner = owner_of(request)
     start_id = int(start) if start.isdigit() else None
     with session_scope() as session:
-        queue = _focus_queue(session, order=order, playlist=playlist, start=start_id)
+        queue = _focus_queue(session, order=order, playlist=playlist, start=start_id, owner=owner)
         context = {
             "queue": queue,
             "queue_json": json.dumps(queue),
             "order": "newest" if order == "newest" else "oldest",
             "playlist": playlist,
             # A post never ends by itself, so reading time is what moves it on.
-            "post_seconds": get_settings(session).post_seconds,
+            "post_seconds": get_settings(session, owner).post_seconds,
             "playlist_title": next(
-                (p.title for p in playlist_service.list_playlists(session) if str(p.id) == playlist),
+                (p.title for p in playlist_service.list_playlists(session, owner) if str(p.id) == playlist),
                 None,
             ),
         }
@@ -1070,12 +1212,13 @@ def focus_finished(
     queue is read before it is marked watched: once watched it drops out of
     the queue, and there is no longer a place in it to carry on from.
     """
+    owner = owner_of(request)
     with session_scope() as session:
         video = session.get(Video, video_id)
         if video is None:
             return JSONResponse({"error": "unknown video"}, status_code=404)
 
-        queue = _focus_queue(session, order=order, playlist=playlist, start=video_id)
+        queue = _focus_queue(session, order=order, playlist=playlist, start=video_id, owner=owner)
         # Everything after the one just finished — the sitting carries on
         # rather than starting again.
         rest = queue[1:] if queue and queue[0]["id"] == video_id else queue
@@ -1087,7 +1230,7 @@ def focus_finished(
         rest = [item for item in rest if item["id"] not in passed_over]
 
         if watched == "1":
-            watched_service.mark_watched(session, [video_id])
+            watched_service.mark_watched(session, [video_id], owner)
 
     return JSONResponse(
         {
@@ -1112,10 +1255,11 @@ def videos_page(
     page: int = 1,
     q: str = "",
 ) -> HTMLResponse:
+    owner = owner_of(request)
     page_size = 60
     page = max(1, page)
     with session_scope() as session:
-        query = select(Video)
+        query = owned(select(Video), Video, owner)
         terms = q.split()
         if terms:
             # Each word must appear in the title, the channel name or the id —
@@ -1156,13 +1300,13 @@ def videos_page(
         context = {
             "videos": videos,
             "counts": counts,
-            "watched_count": watched_service.count_watched(session),
-            "removable_count": watched_service.count_removable(session),
+            "watched_count": watched_service.count_watched(session, owner),
+            "removable_count": watched_service.count_removable(session, owner),
             "status": "" if watched == "1" else status,
             "watched": watched,
             "query": q,
             "channel_filter": channel_pk,
-            "channels": channel_service.list_channels(session),
+            "channels": channel_service.list_channels(session, owner),
             "page": page,
             "pages": max(1, -(-total // page_size)),
             "total": total,
@@ -1185,9 +1329,10 @@ def _video_row_response(
     # Panels that count watched videos listen for this and re-render themselves.
     headers = {"HX-Trigger": "dealgo:watched-changed"} if watched_changed else None
     template = "_feed_card.html" if view == "feed" else "_video_row.html"
+    owner = owner_of(request)
     with session_scope() as session:
         video = session.scalar(
-            select(Video)
+            owned(select(Video), Video, owner)
             .options(
                 selectinload(Video.channel),
                 selectinload(Video.placements).selectinload(Placement.playlist),
@@ -1217,11 +1362,12 @@ def requeue_video(request: Request, video_id: int, back: str = Form("/videos")) 
 
 @app.post("/videos/{video_id}/watched")
 def mark_video_watched(request: Request, video_id: int, back: str = Form("/videos"), view: str = Form("list")) -> Response:
+    owner = owner_of(request)
     with session_scope() as session:
         video = session.get(Video, video_id)
         if video is None:
             return redirect(back, err="That video is no longer tracked.")
-        watched_service.mark_watched(session, [video_id])
+        watched_service.mark_watched(session, [video_id], owner)
         title = video.title
     return _video_row_response(
         request, video_id, ok=f"Marked {title!r} watched.", back=back, watched_changed=True, view=view
@@ -1230,11 +1376,12 @@ def mark_video_watched(request: Request, video_id: int, back: str = Form("/video
 
 @app.post("/videos/{video_id}/unwatched")
 def mark_video_unwatched(request: Request, video_id: int, back: str = Form("/videos"), view: str = Form("list")) -> Response:
+    owner = owner_of(request)
     with session_scope() as session:
         video = session.get(Video, video_id)
         if video is None:
             return redirect(back, err="That video is no longer tracked.")
-        watched_service.mark_unwatched(session, [video_id])
+        watched_service.mark_unwatched(session, [video_id], owner)
         title = video.title
     return _video_row_response(
         request,
@@ -1248,8 +1395,9 @@ def mark_video_unwatched(request: Request, video_id: int, back: str = Form("/vid
 
 @app.post("/playlist/mark-all-watched")
 def mark_all_watched(request: Request) -> Response:
+    owner = owner_of(request)
     with session_scope() as session:
-        changed = watched_service.mark_all_in_playlist_watched(session)
+        changed = watched_service.mark_all_in_playlist_watched(session, owner)
     message = (
         f"Marked {changed} video{'s' if changed != 1 else ''} watched."
         if changed
@@ -1269,10 +1417,15 @@ def mark_all_watched(request: Request) -> Response:
 @app.post("/playlist/remove-watched")
 def remove_watched(request: Request) -> Response:
     """Clear watched videos out of the playlist, on the user's instruction."""
+    owner = owner_of(request)
     with session_scope() as session:
-        removable = watched_service.count_removable(session)
-        connected = get_token(session) is not None
-        feeds = list(session.scalars(select(Playlist).where(Playlist.enabled.is_(True))))
+        removable = watched_service.count_removable(session, owner)
+        connected = get_token(session, owner) is not None
+        feeds = list(
+            session.scalars(
+                owned(select(Playlist), Playlist, owner).where(Playlist.enabled.is_(True))
+            )
+        )
         blocker = None
         if not feeds:
             blocker = "No feeds are set up."
@@ -1305,7 +1458,9 @@ def remove_watched(request: Request) -> Response:
 
     # Each removal is a round trip to YouTube, so it runs in the background and
     # reports itself through the run log like a sync does.
-    threading.Thread(target=watched_service.remove_watched, args=("manual",), daemon=True).start()
+    threading.Thread(
+        target=watched_service.remove_watched, args=("manual", owner), daemon=True
+    ).start()
     message = f"Removing {removable} watched video{'s' if removable != 1 else ''} from the playlist…"
     if is_htmx(request):
         return fragment(
@@ -1334,11 +1489,12 @@ def ignore_video(request: Request, video_id: int, back: str = Form("/videos")) -
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request) -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
         context = {
             **_quota_context(session),
-            "state": _connection_state(session),
-            "settings": get_settings(session),
+            "state": _connection_state(session, owner),
+            "settings": get_settings(session, owner),
             "env_client_id": bool(CONFIG.client_id),
             "env_client_secret": bool(CONFIG.client_secret),
             "env_api_key": bool(CONFIG.api_key),
@@ -1357,6 +1513,8 @@ def save_settings(
     daily_quota: str = Form("10000"),
     quota_reserve: str = Form("0"),
     hide_tour: str = Form(""),
+    hide_open_notice: str = Form(""),
+    hide_connect_notice: str = Form(""),
     auto_sync: str = Form(""),
     client_id: str = Form(""),
     client_secret: str = Form(""),
@@ -1379,6 +1537,8 @@ def save_settings(
         settings.daily_quota = as_int(daily_quota, 10000)
         settings.quota_reserve = as_int(quota_reserve, 0)
         settings.hide_tour = bool(hide_tour)
+        settings.hide_open_notice = bool(hide_open_notice)
+        settings.hide_connect_notice = bool(hide_connect_notice)
         settings.auto_sync = bool(auto_sync)
         settings.client_id = client_id.strip() or None
         settings.client_secret = client_secret.strip() or None
@@ -1395,6 +1555,7 @@ def _playlists_response(
     creating: bool = False,
     back: str = "",
 ) -> Response:
+    owner = owner_of(request)
     if back:
         # The detail page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)
@@ -1402,7 +1563,7 @@ def _playlists_response(
         target = "/channels?new=1" if creating else "/channels"
         return redirect(target, ok=ok, err=err)
     with session_scope() as session:
-        context = _playlist_context(session, creating=creating)
+        context = _playlist_context(session, creating=creating, owner=owner)
     return fragment(request, "_playlist_targets.html", context, ok=ok, err=err)
 
 
@@ -1417,6 +1578,7 @@ def create_feed(
     channels: list[int] = Form(default=[]),
 ) -> Response:
     """Set up a feed in one step: the playlist, then what fills it."""
+    owner = owner_of(request)
     with session_scope() as session, _http_client() as http:
         try:
             playlist, linked = playlist_service.set_up_feed(
@@ -1427,6 +1589,7 @@ def create_feed(
                 privacy=privacy,
                 playlist_id=playlist_id,
                 channel_pks=channels,
+                owner=owner,
             )
         except playlist_service.PlaylistError as exc:
             # Keep the dialog open with what they typed still on screen.
@@ -1467,16 +1630,19 @@ def save_playlist(
 @app.get("/feeds/{playlist_pk}", response_class=HTMLResponse)
 def feed_detail(request: Request, playlist_pk: int, rename: str = "", q: str = "") -> Response:
     """Everything about one feed, off the list that only needs to be scannable."""
+    owner = owner_of(request)
     with session_scope() as session:
         playlist = session.scalar(
-            select(Playlist).options(selectinload(Playlist.channels)).where(Playlist.id == playlist_pk)
+            owned(select(Playlist), Playlist, owner)
+            .options(selectinload(Playlist.channels))
+            .where(Playlist.id == playlist_pk)
         )
         if playlist is None:
             return redirect("/channels", err="That feed is no longer a target.")
 
         videos = list(
             session.scalars(
-                select(Video)
+                owned(select(Video), Video, owner)
                 .join(Placement, Placement.video_pk == Video.id)
                 .options(
                     selectinload(Video.channel),
@@ -1487,17 +1653,17 @@ def feed_detail(request: Request, playlist_pk: int, rename: str = "", q: str = "
                 .limit(50)
             )
         )
-        order = [p.id for p in playlist_service.list_playlists(session)]
+        order = [p.id for p in playlist_service.list_playlists(session, owner)]
         context = {
             "playlist": playlist,
             "videos": videos,
-            "held": playlist_service.item_counts(session).get(playlist_pk, 0),
-            "all_channels": _matching_channels(channel_service.list_channels(session), q),
+            "held": playlist_service.item_counts(session, owner).get(playlist_pk, 0),
+            "all_channels": _matching_channels(channel_service.list_channels(session, owner), q),
             "query": q,
             "position": order.index(playlist_pk) + 1 if playlist_pk in order else None,
             "total_feeds": len(order),
             "renaming": playlist_pk if rename == "1" else None,
-            "state": _connection_state(session),
+            "state": _connection_state(session, owner),
         }
     return render(request, "feed_detail.html", context)
 
@@ -1603,8 +1769,9 @@ def move_playlist(
 
 @app.get("/partials/playlists", response_class=HTMLResponse)
 def partial_playlists(request: Request, new: str = "") -> HTMLResponse:
+    owner = owner_of(request)
     with session_scope() as session:
-        context = _playlist_context(session, creating=new == "1")
+        context = _playlist_context(session, creating=new == "1", owner=owner)
     return fragment(request, "_playlist_targets.html", context)
 
 
@@ -1662,7 +1829,12 @@ def oauth_start(request: Request) -> Response:
 
 
 @app.get("/oauth/callback")
-def oauth_callback(code: str = "", state: str = "", error: str = "") -> RedirectResponse:
+def oauth_callback(
+    request: Request, code: str = "", state: str = "", error: str = ""
+) -> RedirectResponse:
+    # Google sends the browser back here, so the session cookie says which
+    # account the grant belongs to.
+    owner = owner_of(request)
     if error:
         explanations = {
             "access_denied": (
@@ -1700,14 +1872,14 @@ def oauth_callback(code: str = "", state: str = "", error: str = "") -> Redirect
         except oauth.OAuthError as exc:
             return redirect("/settings", err=f"Could not complete sign-in: {exc}")
 
-        store_token(session, token)
+        store_token(session, token, owner=owner)
         client = build_client(session, http)
         try:
             account = client.my_channel_title()
         except YouTubeAPIError:
             account = None
         if account:
-            store_token(session, token, account_title=account)
+            store_token(session, token, account_title=account, owner=owner)
     return redirect("/settings", ok="Google account connected.")
 
 
@@ -1721,8 +1893,9 @@ def oauth_disconnect() -> RedirectResponse:
 @app.get("/settings/backup")
 def download_backup(request: Request) -> Response:
     """The setup, as a JSON file the browser saves."""
+    owner = owner_of(request)
     with session_scope() as session:
-        data = backup_service.build_export(session)
+        data = backup_service.build_export(session, owner)
     body = json.dumps(data, indent=2, ensure_ascii=False)
     return Response(
         content=body,
@@ -1737,6 +1910,7 @@ def download_backup(request: Request) -> Response:
 @app.post("/settings/restore")
 def restore_backup(request: Request, backup_file: UploadFile = File(...)) -> RedirectResponse:
     """Load a backup file back in, matching rows by their YouTube ids."""
+    owner = owner_of(request)
     raw = backup_file.file.read()
     if len(raw) > 32 * 1024 * 1024:
         return redirect("/settings", err="That file is too large to be a De-Algo backup.")
@@ -1747,7 +1921,7 @@ def restore_backup(request: Request, backup_file: UploadFile = File(...)) -> Red
 
     with session_scope() as session:
         try:
-            summary = backup_service.restore(session, payload)
+            summary = backup_service.restore(session, payload, owner)
         except backup_service.RestoreError as exc:
             return redirect("/settings", err=str(exc))
         message = summary.describe()
@@ -1761,10 +1935,242 @@ def restore_backup(request: Request, backup_file: UploadFile = File(...)) -> Red
 @app.get("/tour", response_class=HTMLResponse)
 def tour(request: Request, step: int = 1) -> HTMLResponse:
     """A guided walk from an empty install to a daily habit."""
+    owner = owner_of(request)
     with session_scope() as session:
-        progress = _tour_progress(session)
+        progress = _tour_progress(session, owner)
         context = {"progress": progress, "step": step}
     return render(request, "tour.html", context)
+
+
+# -- signing in -----------------------------------------------------------
+
+
+def _set_session_cookie(response: Response, request: Request, token: str) -> None:
+    """Http-only so no script can read it, Lax so it does not ride along with
+    a cross-site form post, Secure wherever the connection can carry it."""
+    response.set_cookie(
+        accounts.SESSION_COOKIE,
+        token,
+        max_age=CONFIG.session_days * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+        path="/",
+    )
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "") -> Response:
+    if not CONFIG.auth_enabled:
+        return redirect("/")
+    if getattr(request.state, "identity", None) is not None:
+        return redirect(guard.safe_next(next))
+    return render(request, "login.html", {"next": guard.safe_next(next)})
+
+
+@app.post("/login")
+def sign_in(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    next: str = Form(""),
+) -> Response:
+    if not CONFIG.auth_enabled:
+        return redirect("/")
+
+    destination = guard.safe_next(next)
+    with session_scope() as session:
+        try:
+            user = accounts.authenticate(session, username, password)
+        except accounts.AccountError as exc:
+            log.info("failed sign-in for %r", username.strip()[:64])
+            return render(
+                request,
+                "login.html",
+                {"next": destination, "username": username, "error_message": str(exc)},
+            )
+        token = accounts.start_session(
+            session, user, agent=request.headers.get("user-agent", "")
+        )
+
+    response = redirect(destination, ok=f"Signed in as {username.strip().lower()}.")
+    _set_session_cookie(response, request, token)
+    return response
+
+
+@app.post("/logout")
+def sign_out(request: Request) -> Response:
+    with session_scope() as session:
+        accounts.end_session(session, request.cookies.get(accounts.SESSION_COOKIE))
+    response = redirect("/login", ok="Signed out.")
+    response.delete_cookie(accounts.SESSION_COOKIE, path="/")
+    return response
+
+
+@app.get("/logout")
+def sign_out_link(request: Request) -> Response:
+    """So the menu can offer it as a plain link with no JavaScript."""
+    return sign_out(request)
+
+
+# -- the admin's tab ------------------------------------------------------
+
+
+def _admin_context(session: Session) -> Context:
+    return {
+        "users": accounts.list_users(session),
+        "admin_user": CONFIG.admin_user,
+        "session_days": CONFIG.session_days,
+        "min_password": accounts.MIN_PASSWORD_LENGTH,
+        "min_passphrase": migration.MIN_PASSPHRASE,
+    }
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request) -> HTMLResponse:
+    # Reachable by address even with accounts switched off, where an empty
+    # list of them would explain nothing. Say what would turn it on instead.
+    if not CONFIG.auth_enabled:
+        return render(
+            request,
+            "admin.html",
+            {
+                "users": [],
+                "admin_user": "",
+                "session_days": CONFIG.session_days,
+                "min_password": accounts.MIN_PASSWORD_LENGTH,
+                "min_passphrase": migration.MIN_PASSPHRASE,
+            },
+        )
+    with session_scope() as session:
+        context = _admin_context(session)
+    return render(request, "admin.html", context)
+
+
+@app.post("/admin/accounts")
+def add_account(
+    request: Request, username: str = Form(""), password: str = Form("")
+) -> Response:
+    with session_scope() as session:
+        try:
+            accounts.create_user(session, username, password)
+        except accounts.AccountError as exc:
+            return redirect("/admin", err=str(exc))
+    return redirect("/admin", ok=f"Account {username.strip().lower()} created.")
+
+
+@app.post("/admin/accounts/{user_pk}/password")
+def reset_account_password(request: Request, user_pk: int, password: str = Form("")) -> Response:
+    with session_scope() as session:
+        user = session.get(User, user_pk)
+        if user is None:
+            return redirect("/admin", err="That account no longer exists.")
+        if user.is_admin:
+            return redirect(
+                "/admin",
+                err="The admin password comes from DEALGO_ADMIN_PASSWORD; change it there.",
+            )
+        try:
+            accounts.set_password(session, user, password)
+        except accounts.AccountError as exc:
+            return redirect("/admin", err=str(exc))
+        name = user.username
+    return redirect("/admin", ok=f"New password set for {name}. Their other sessions ended.")
+
+
+@app.post("/admin/accounts/{user_pk}/enabled")
+def set_account_enabled(request: Request, user_pk: int) -> Response:
+    with session_scope() as session:
+        user = session.get(User, user_pk)
+        if user is None:
+            return redirect("/admin", err="That account no longer exists.")
+        if user.is_admin:
+            return redirect("/admin", err="The admin account cannot switch itself off.")
+        accounts.set_enabled(session, user, enabled=not user.enabled)
+        name, now_on = user.username, user.enabled
+    word = "can sign in again" if now_on else "is switched off, and signed out everywhere"
+    return redirect("/admin", ok=f"{name} {word}.")
+
+
+@app.post("/admin/accounts/{user_pk}/delete")
+def remove_account(request: Request, user_pk: int) -> Response:
+    with session_scope() as session:
+        user = session.get(User, user_pk)
+        if user is None:
+            return redirect("/admin", err="That account no longer exists.")
+        name = user.username
+        try:
+            accounts.delete_user(session, user)
+        except accounts.AccountError as exc:
+            return redirect("/admin", err=str(exc))
+    return redirect("/admin", ok=f"Account {name} deleted.")
+
+
+@app.post("/admin/accounts/{user_pk}/sessions")
+def end_account_sessions(request: Request, user_pk: int) -> Response:
+    with session_scope() as session:
+        user = session.get(User, user_pk)
+        if user is None:
+            return redirect("/admin", err="That account no longer exists.")
+        accounts.revoke_all(session, user)
+        name = user.username
+    return redirect("/admin", ok=f"{name} has been signed out everywhere.")
+
+
+@app.post("/admin/backup")
+def download_site_backup(request: Request, passphrase: str = Form("")) -> Response:
+    """The whole instance, encrypted, for standing it up somewhere else.
+
+    A POST rather than a link, because it needs the passphrase — and because a
+    file holding every account's credentials should not be one click from a
+    bookmark.
+    """
+    owner = owner_of(request)
+    try:
+        migration.check_passphrase(passphrase)
+        with session_scope() as session:
+            blob = migration.build_site_export(session, passphrase)
+    except migration.MigrationError as exc:
+        return redirect("/admin", err=str(exc))
+
+    return Response(
+        blob,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{migration.filename()}"'},
+    )
+
+
+@app.post("/admin/restore")
+def restore_site_backup(
+    request: Request, passphrase: str = Form(""), backup_file: UploadFile = File(...)
+) -> Response:
+    owner = owner_of(request)
+    blob = backup_file.file.read()
+    if not blob:
+        return redirect("/admin", err="Choose a site backup to load.")
+    try:
+        with session_scope() as session:
+            summary = migration.restore_site(session, blob, passphrase)
+    except migration.MigrationError as exc:
+        return redirect("/admin", err=str(exc))
+    except Exception as exc:  # a file that opened but did not make sense
+        log.exception("site restore failed")
+        return redirect("/admin", err=f"That backup opened but could not be applied: {exc}")
+
+    message = (
+        f"Restored {summary.accounts} new account(s), {summary.feeds} feed(s) and "
+        f"{summary.channels} channel(s)."
+    )
+    if summary.notes:
+        message += " " + " ".join(summary.notes)
+    return redirect("/admin", ok=message)
+
+
+@app.post("/admin/sessions/prune")
+def prune_sessions(request: Request) -> Response:
+    with session_scope() as session:
+        cleared = accounts.clear_expired(session)
+    return redirect("/admin", ok=f"Cleared {cleared} expired session(s).")
 
 
 # -- installing as an app -------------------------------------------------

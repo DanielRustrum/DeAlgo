@@ -2,6 +2,33 @@
 {% block title %}De-Algo — Settings{% endblock %}
 {% block content %}
 
+{% if identity %}
+<section class="panel account-panel">
+  <div class="panel-head">
+    <h2 class="titled">
+      <span class="account-icon account-icon-large">
+        <span class="avatar-letter" style="--hue: {{ identity.hue }}">{{ identity.initial }}</span>
+      </span>
+      {{ identity.username }}
+    </h2>
+    {# A navigation, not a swap: see the note on the login form. #}
+    <form method="post" action="/logout" hx-boost="false">
+      <button class="btn btn-quiet" type="submit">Sign out</button>
+    </form>
+  </div>
+
+  <p class="hint">
+    {% if identity.is_admin %}
+      This account manages the others in <a href="/admin">Admin</a>. Its password comes from
+      <code>DEALGO_ADMIN_PASSWORD</code>, so it is changed there rather than here.
+    {% else %}
+      Everything on this page is yours: your channels, your feeds and your Google connection
+      are separate from every other account's.
+    {% endif %}
+  </p>
+</section>
+{% endif %}
+
 <section class="panel">
   <h2>Google account</h2>
   {% if state.connected and state.needs_reconnect %}
@@ -107,14 +134,58 @@
     </div>
 
     <h3>This interface</h3>
-    <div class="field-row checks">
-      {# Opt-out, because an unticked box sends nothing: a "show it" checkbox
-         would switch itself off the first time this form was saved. #}
+    {# All opt-out, because an unticked box sends nothing: a "show it"
+       checkbox would switch itself off the first time this form was saved.
+
+       These hide notices, not the things they are about. The state of each
+       one is written beside its switch, so this page still tells the truth
+       when the banners are gone. #}
+    <div class="field-row checks-stacked">
       <label class="check check-with-hint">
         <input type="checkbox" name="hide_tour" value="1" {{ 'checked' if settings.hide_tour }}>
         <span class="check-body">
           <span>Hide the Tour button</span>
           <span class="hint">The tour stays at <a href="/tour">/tour</a> either way.</span>
+        </span>
+      </label>
+
+      {# Only worth offering while there is a notice to hide. With sign-in on
+         the banner never appears, and a switch for it would be a control that
+         does nothing with a note explaining that it does nothing. #}
+      {% if not auth_enabled %}
+      <label class="check check-with-hint">
+        <input type="checkbox" name="hide_open_notice" value="1"
+               {{ 'checked' if settings.hide_open_notice }}>
+        <span class="check-body">
+          <span>Hide the “no sign-in required” notice</span>
+          <span class="hint">
+            <strong>Sign-in is off right now</strong> — anyone who can reach this address can
+            use De-Algo and read the credentials below. Hiding the banner does not change that;
+            set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code> to.
+          </span>
+        </span>
+      </label>
+      {% elif settings.hide_open_notice %}
+      {# Not shown, but not forgotten: this form saves every field at once, so
+         leaving the switch out entirely would quietly clear what was set the
+         last time sign-in was off. #}
+      <input type="hidden" name="hide_open_notice" value="1">
+      {% endif %}
+
+      <label class="check check-with-hint">
+        <input type="checkbox" name="hide_connect_notice" value="1"
+               {{ 'checked' if settings.hide_connect_notice }}>
+        <span class="check-body">
+          <span>Hide the “connect a Google account” notices</span>
+          <span class="hint">
+            Both of them: the one on the dashboard and the one above every page.
+            {% if state.connected %}
+              An account is connected, so neither is being shown.
+            {% else %}
+              No account is connected — feeds collect inside De-Algo and nothing is written
+              to YouTube.
+            {% endif %}
+          </span>
         </span>
       </label>
     </div>
@@ -147,7 +218,12 @@
 </section>
 
 <section class="panel">
-  <h2>Backup</h2>
+  <h2>Back up your setup</h2>
+  <p class="hint">
+    Your feeds and channels, as plain JSON, with no credentials in it. The admin can take an
+    encrypted backup of the whole instance — every account — from the Admin page; this one is
+    yours alone.
+  </p>
   <p class="hint">
     The whole setup as one JSON file: feeds, channels, filters, limits and fill order. Keep it
     somewhere safe, or carry it to another machine.

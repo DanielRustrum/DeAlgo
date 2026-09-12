@@ -7,9 +7,10 @@ from contextlib import contextmanager
 from typing import Any
 from typing import Iterator
 
-from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy import create_engine, event, inspect, text, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 from .config import CONFIG
 from .models import Base, OAuthToken, Settings, utcnow
@@ -94,16 +95,36 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("settings", "daily_quota", "INTEGER NOT NULL DEFAULT 10000"),
     ("settings", "quota_reserve", "INTEGER NOT NULL DEFAULT 0"),
     ("settings", "hide_tour", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("settings", "hide_open_notice", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("settings", "hide_connect_notice", "BOOLEAN NOT NULL DEFAULT 0"),
     ("sync_run", "forced", "BOOLEAN NOT NULL DEFAULT 0"),
     ("sync_run", "quota_spent", "INTEGER NOT NULL DEFAULT 0"),
     ("sync_run", "stopped_on_quota", "BOOLEAN NOT NULL DEFAULT 0"),
+    # Ownership. Nullable, so every existing row becomes the implicit
+    # owner's — which is exactly what it was before accounts existed.
+    ("settings", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    ("oauth_token", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    ("channel", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    ("playlist", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    ("video", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    ("quota_usage", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    ("sync_run", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
 )
 
 
 # Columns removed after the first release. An existing table still has them,
 # and they are NOT NULL with no SQL default, so leaving them would break every
 # insert once the model stops supplying a value.
-_DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (("playlist", "default_target"),)
+_DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("playlist", "default_target"),
+    # From before feeds could be fanned out. They are NOT NULL with no SQL
+    # default, so they were harmless only while `settings` held exactly one
+    # row that already had them — the moment a second account needed a row of
+    # its own, the insert failed and the app would not start.
+    ("settings", "max_playlist_items"),
+    ("settings", "playlist_id"),
+    ("settings", "playlist_title"),
+)
 
 
 def _drop_removed_columns() -> None:
@@ -133,6 +154,113 @@ def _add_missing_columns() -> None:
                 continue
             connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
             log.info("added column %s.%s to an existing database", table, column)
+
+
+# Uniqueness that used to be global and is now per owner. Each was declared
+# `unique=True, index=True`, so SQLite holds it as a plain index that can be
+# swapped — no table rebuild for these three.
+_REPLACED_INDEXES: tuple[tuple[str, str, str], ...] = (
+    ("channel", "ix_channel_channel_id", "channel_id"),
+    ("playlist", "ix_playlist_playlist_id", "playlist_id"),
+    ("quota_usage", "ix_quota_usage_day", "day"),
+)
+
+
+def _scope_uniqueness_to_owners() -> None:
+    """Two accounts may track the same channel, so uniqueness follows the owner.
+
+    COALESCE stands in for the implicit owner, because SQL counts NULLs as
+    distinct and a plain UNIQUE(owner_pk, …) would let duplicates through.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    with engine.begin() as connection:
+        for table, old_index, column in _REPLACED_INDEXES:
+            if table not in tables:
+                continue
+            names = {index["name"] for index in inspector.get_indexes(table)}
+            if old_index in names:
+                connection.execute(text(f"DROP INDEX {old_index}"))
+                # Keep a non-unique one: the column is still looked up by value.
+                connection.execute(text(f"CREATE INDEX {old_index} ON {table} ({column})"))
+                log.info("uniqueness on %s.%s now follows the owner", table, column)
+            wanted = f"uq_{table}_owner_{column}"
+            if wanted not in names:
+                connection.execute(
+                    text(
+                        f"CREATE UNIQUE INDEX IF NOT EXISTS {wanted}"
+                        f" ON {table} (COALESCE(owner_pk, 0), {column})"
+                    )
+                )
+
+
+def _rebuild_video_uniqueness() -> None:
+    """The one uniqueness rule that cannot be swapped.
+
+    `video` carries UNIQUE(video_id) inside its CREATE TABLE, and SQLite can
+    only change that by building the table again.
+
+    Two pragmas make this safe, and both are needed:
+
+    * `legacy_alter_table=ON`, because since SQLite 3.25 a RENAME rewrites
+      other tables' references to follow it — `placement` would end up
+      pointing at `video_old`, and every one of its rows would be left
+      dangling the moment that table was dropped.
+    * `foreign_keys=OFF`, so the copy is not checked row by row against a
+      table that is mid-rebuild.
+
+    Neither takes effect inside a transaction, which is why this works the
+    driver directly rather than going through SQLAlchemy's transactions.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    if "video" not in set(inspector.get_table_names()):
+        return
+    if "uq_video_video_id" not in {c["name"] for c in inspector.get_unique_constraints("video")}:
+        return  # already rebuilt, or created on the new shape
+
+    table = Base.metadata.tables["video"]
+    # Only what both shapes have: an old database can carry columns the model
+    # dropped long ago, and the new table has ones it has never seen.
+    wanted = {column.name for column in table.columns}
+    columns = [c["name"] for c in inspector.get_columns("video") if c["name"] in wanted]
+    names = ", ".join(columns)
+    statements = [str(CreateTable(table).compile(engine))]
+    statements += [str(CreateIndex(index).compile(engine)) for index in table.indexes]
+
+    log.info("rebuilding video so its uniqueness follows the owner")
+    raw = engine.raw_connection()
+    try:
+        # Manual transactions, so the pragmas land outside one. The pooled
+        # wrapper does not declare the driver's own attribute, which is what
+        # this reaches through to.
+        raw.driver_connection.isolation_level = None  # type: ignore[union-attr]
+        cursor = raw.cursor()
+        cursor.execute("PRAGMA foreign_keys=OFF")
+        cursor.execute("PRAGMA legacy_alter_table=ON")
+        cursor.execute("BEGIN")
+        try:
+            cursor.execute("ALTER TABLE video RENAME TO video_old")
+            cursor.execute(statements[0])       # the table, without its indexes
+            cursor.execute(f"INSERT INTO video ({names}) SELECT {names} FROM video_old")
+            # Index names are unique across the database and a rename does not
+            # change them, so the old ones have to go before the new ones can
+            # be made. Dropping the old table takes them with it.
+            cursor.execute("DROP TABLE video_old")
+            for statement in statements[1:]:
+                cursor.execute(statement)
+            cursor.execute("COMMIT")
+        except Exception:
+            cursor.execute("ROLLBACK")
+            raise
+        finally:
+            cursor.execute("PRAGMA legacy_alter_table=OFF")
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+    finally:
+        raw.close()
 
 
 def _rename_local_feed_prefix() -> None:
@@ -219,22 +347,47 @@ def _migrate_single_playlist() -> None:
 def init_db() -> None:
     Base.metadata.create_all(get_engine())
     _add_missing_columns()
-    _drop_removed_columns()
+    _rebuild_video_uniqueness()
+    _scope_uniqueness_to_owners()
     _rename_local_feed_prefix()
     _migrate_single_playlist()
+    # After the migration above, not before: it reads two of the columns this
+    # drops, and it is the last thing that needs them.
+    _drop_removed_columns()
+
+    # The admin account is the environment's, so it is reconciled on every
+    # start rather than only when the database is first made. Imported here
+    # rather than at the top: accounts reads the models this module defines.
+    from .services import accounts
+
     with session_scope() as session:
-        if session.get(Settings, 1) is None:
-            session.add(Settings(id=1))
+        accounts.ensure_admin(session)
+        accounts.clear_expired(session)
 
 
-def get_settings(session: Session) -> Settings:
-    settings = session.get(Settings, 1)
+def get_settings(session: Session, owner: int | None = None) -> Settings:
+    """This account's settings, made on first use.
+
+    Every account keeps its own — the poll interval, the backfill, the quota
+    and the Google credentials all belong to whoever set them. `owner=None` is
+    the implicit account, which is what everything is while sign-in is off.
+    """
+    settings = session.scalar(
+        select(Settings).where(
+            Settings.owner_pk.is_(None) if owner is None else Settings.owner_pk == owner
+        )
+    )
     if settings is None:
-        settings = Settings(id=1)
+        settings = Settings(owner_pk=owner)
         session.add(settings)
         session.flush()
     return settings
 
 
-def get_token(session: Session) -> OAuthToken | None:
-    return session.get(OAuthToken, 1)
+def get_token(session: Session, owner: int | None = None) -> OAuthToken | None:
+    """This account's Google grant. Each connects their own."""
+    return session.scalar(
+        select(OAuthToken).where(
+            OAuthToken.owner_pk.is_(None) if owner is None else OAuthToken.owner_pk == owner
+        )
+    )

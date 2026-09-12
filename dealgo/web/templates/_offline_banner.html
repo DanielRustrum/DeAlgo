@@ -1,7 +1,7 @@
 {# Shown wherever feeds are: De-Algo works without Google, but the YouTube
    playlists behind these feeds are not being touched, and it should never be
    a surprise which state you are in. #}
-{% set offline = youtube_offline() %}
+{% set offline = youtube_offline(identity.user_pk if identity else none) if show_connect_notice else none %}
 {% if offline %}
 <div class="banner banner-offline">
   <strong>
