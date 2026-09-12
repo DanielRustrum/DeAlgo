@@ -87,12 +87,6 @@ def test_sync_finished_event_fires_once_per_run(client, db):
     assert "HX-Trigger" not in current.headers
 
 
-def test_plain_browser_post_still_redirects(client):
-    response = client.post("/channels/1/toggle", follow_redirects=False)
-    assert response.status_code == 303
-    assert response.headers["location"].startswith("/channels?ok=")
-
-
 def test_video_action_swaps_only_that_row(client, db):
     response = client.post("/videos/1/ignore", headers=HX)
     assert response.status_code == 200
@@ -278,94 +272,6 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
     assert len(calls) == 2
 
 
-def test_shorts_can_be_toggled_from_the_channel_page(client, db):
-    from dealgo.models import Channel
-
-    page = client.get("/channels/1").text
-    assert "/channels/1/shorts" in page
-    assert 'class="toggle "' in page  # off by default
-    # The list itself stays scannable.
-    assert "/channels/1/shorts" not in client.get("/channels").text
-
-    on = client.post(
-        "/channels/1/shorts", data={"back": "/channels/1"}, follow_redirects=False
-    )
-    assert on.status_code == 303
-    assert on.headers["location"].startswith("/channels/1?ok=")  # back to the page
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_shorts is False
-    assert "toggle toggle-on" in client.get("/channels/1").text
-
-    off = client.post("/channels/1/shorts", headers=HX)
-    assert "Skipping Shorts from Fake Channel." in off.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_shorts is True
-
-
-def test_live_can_be_toggled_from_the_channel_page(client, db):
-    from dealgo.models import Channel
-
-    assert "/channels/1/live" in client.get("/channels/1").text
-
-    on = client.post("/channels/1/live", headers=HX)
-    assert "Including live streams and premieres from Fake Channel." in on.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_live is False
-
-    off = client.post("/channels/1/live", headers=HX)
-    assert "Skipping live streams and premieres from Fake Channel." in off.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_live is True
-
-
-def test_the_two_toggles_are_independent(client, db):
-    from dealgo.models import Channel
-
-    client.post("/channels/1/live", headers=HX)
-    with db.session_scope() as session:
-        channel = session.get(Channel, 1)
-        assert channel.skip_live is False
-        assert channel.skip_shorts is True  # untouched
-
-
-def test_the_pull_interval_can_be_set_from_the_channel_page(client, db):
-    from dealgo.models import Channel
-
-    page = client.get("/channels/1").text
-    assert "/channels/1/interval" in page
-    assert "every 6 hours" in page
-
-    response = client.post("/channels/1/interval", data={"minutes": "360"}, headers=HX)
-    assert "Checking Fake Channel every 6 hours." in response.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).min_pull_minutes == 360
-
-    back_to_always = client.post("/channels/1/interval", data={"minutes": "0"}, headers=HX)
-    assert "every sync" in back_to_always.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).min_pull_minutes == 0
-
-
-def test_a_custom_interval_is_kept_in_the_control(client, db):
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        session.get(Channel, 1).min_pull_minutes = 45  # not one of the presets
-
-    page = client.get("/channels/1").text
-    assert 'value="45" selected' in page
-    assert "every 45 min" in page
-
-
-def test_a_nonsense_interval_is_refused(client, db):
-    from dealgo.models import Channel
-
-    response = client.post("/channels/1/interval", data={"minutes": "soon"}, headers=HX)
-    assert "not a number" in response.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).min_pull_minutes == 0
-
-
 def test_force_sync_is_offered_and_reported(client, monkeypatch):
     from dealgo.services import sync as sync_service
 
@@ -387,22 +293,6 @@ def test_force_sync_is_offered_and_reported(client, monkeypatch):
             break
         time.sleep(0.02)
     assert [kwargs["force"] for _, kwargs in calls] == [False, True]
-
-
-def test_ordinary_uploads_can_be_toggled_from_the_channel_page(client, db):
-    from dealgo.models import Channel
-
-    assert "/channels/1/videos" in client.get("/channels/1").text
-
-    off = client.post("/channels/1/videos", headers=HX)
-    assert "Skipping regular videos from Fake Channel." in off.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_videos is True
-
-    on = client.post("/channels/1/videos", headers=HX)
-    assert "Including regular videos from Fake Channel." in on.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_videos is False
 
 
 def test_a_playlists_add_limit_can_be_saved(client, db):
@@ -534,20 +424,6 @@ def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
     assert '<div class="table-scroll">' in client.get("/").text
 
 
-def test_a_control_sits_with_the_data_it_affects(client):
-    """The poll interval belongs beside when it was last polled, not in a
-    separate band of fields."""
-    import re
-
-    body = client.get("/channels/1").text
-    checks = re.search(
-        r'<span class="group-label">Checks</span>.*?</div>\s*</div>', body, re.S
-    ).group(0)
-
-    assert 'name="minutes"' in checks   # the control
-    assert "last " in checks            # and the reading it governs
-
-
 def test_the_letter_colour_is_stable_for_a_channel(db):
     from dealgo.models import Channel
 
@@ -606,16 +482,6 @@ def test_naming_a_generic_feed_sticks(client, db):
     with db.session_scope() as session:
         feed = session.scalar(select(Playlist).where(Playlist.title == "My Reading List"))
         assert feed is not None and feed.is_generic
-
-
-def test_the_dialog_reveal_does_not_depend_on_has(client):
-    css = (
-        __import__("pathlib").Path("dealgo/web/static/app.css").read_text()
-        if __import__("pathlib").Path("dealgo/web/static/app.css").exists()
-        else client.get("/static/app.css").text
-    )
-    assert "#source-generic:checked~.section-generic" in squashed(css)
-    assert "wizard:has" not in css
 
 
 def test_a_feed_can_be_unlinked_from_its_playlist(client, db):
@@ -780,43 +646,6 @@ def test_an_unknown_feed_page_says_so(client):
     assert response.headers["location"].startswith("/channels?err=")
 
 
-def test_the_channel_page_carries_what_the_row_gave_up(client, db):
-    """Takes, Checks, Feeds and Videos moved here; nothing was lost."""
-    import re
-
-    page = client.get("/channels/1").text
-
-    labels = re.findall(r'<span class="group-label">([^<]+)</span>', page)
-    assert labels[:4] == ["Takes", "Checks", "Feeds", "Videos"]
-    assert "/channels/1/videos" in page and "/channels/1/shorts" in page
-    assert "/channels/1/live" in page and "/channels/1/interval" in page
-    assert "placed" in page and "pending" in page
-
-
-def test_the_filter_form_no_longer_fights_the_toggles(client, db):
-    """Those checkboxes used to live in this form: saving it would switch
-    every one of them off, because an unticked box sends nothing."""
-    from dealgo.models import Channel
-
-    page = client.get("/channels/1").text
-    for gone in ('name="skip_videos"', 'name="skip_shorts"', 'name="skip_live"',
-                 'name="min_pull_minutes"'):
-        assert gone not in page, gone
-
-    with db.session_scope() as session:
-        channel = session.get(Channel, 1)
-        channel.skip_shorts = False       # Shorts on
-        channel.min_pull_minutes = 360    # checked every six hours
-
-    client.post("/channels/1", data={"title_exclude": "podcast", "max_per_run": "4"})
-
-    with db.session_scope() as session:
-        channel = session.get(Channel, 1)
-        assert channel.title_exclude == "podcast" and channel.max_per_run == 4
-        assert channel.skip_shorts is False      # untouched
-        assert channel.min_pull_minutes == 360   # untouched
-
-
 def test_only_a_feeds_own_page_says_it_is_generic(client, db):
     """Whether a feed is backed by a playlist belongs with its settings, not
     in either list."""
@@ -848,40 +677,6 @@ def test_videos_can_be_searched(client, db):
 def test_search_survives_paging_and_status_chips(client):
     body = client.get("/videos?q=video&status=added").text
     assert "q=video" in body  # chips and pager carry it
-
-
-def test_the_detail_pickers_can_be_searched(client, db):
-    """Client-side hiding was silently doing nothing; this is testable."""
-    from dealgo.models import Channel, Playlist
-
-    with db.session_scope() as session:
-        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Cooking Weekly"))
-        session.add(Playlist(playlist_id="PL_music", title="Music Hour"))
-
-    def picker(body: str, marker: str) -> str:
-        # The page shows channel and feed names elsewhere too, so look only
-        # inside the region the search actually narrows.
-        return body.split(f'id="{marker}"', 1)[1].split("</div>", 1)[0]
-
-    # A feed's page searches the channels that could fill it.
-    body = client.get("/feeds/1?q=cooking").text
-    assert "Cooking Weekly" in picker(body, "feed-channels")
-    assert "Fake Channel" not in picker(body, "feed-channels")
-    assert "No channel matches" in client.get("/feeds/1?q=nothinglikethis").text
-
-    # A channel's page searches the feeds it could fill.
-    body = client.get("/channels/1?q=music").text
-    assert "Music Hour" in picker(body, "channel-feeds")
-    assert "My Feed" not in picker(body, "channel-feeds")
-    assert "No feed matches" in client.get("/channels/1?q=nothinglikethis").text
-
-
-def test_the_detail_search_survives_typing(client):
-    """The box must sit outside the region it swaps, as on the list pages."""
-    for page, target in (("/feeds/1", "feed-channels"), ("/channels/1", "channel-feeds")):
-        body = client.get(page).text
-        assert body.index('name="q"') < body.index(f'id="{target}"'), page
-        assert f'hx-target="#{target}"' in body, page
 
 
 def test_hidden_items_are_actually_hidden(client):
@@ -1053,23 +848,6 @@ def test_a_channel_without_a_description_shows_no_empty_space(client, db):
 
     body = client.get("/channels/1").text
     assert "blurb" not in body
-
-
-def test_a_channel_can_refuse_community_posts(client, db):
-    from dealgo.models import Channel
-
-    page = client.get("/channels/1").text
-    assert "/channels/1/posts" in page          # the switch is on its page
-
-    off = client.post("/channels/1/posts", data={"back": "/channels/1"}, follow_redirects=False)
-    assert off.status_code == 303
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_posts is True
-
-    on = client.post("/channels/1/posts", headers=HX)
-    assert "Including community posts" in on.text
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).skip_posts is False
 
 
 def test_the_reading_time_can_be_set(client, db):

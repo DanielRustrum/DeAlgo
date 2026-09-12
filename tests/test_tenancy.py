@@ -218,12 +218,14 @@ def as_account(client, username, password):
 
 
 def test_a_new_account_starts_with_an_empty_configuration(two_accounts):
+    """Asked of the canvas's own data rather than the page: the page is a
+    blank canvas for everybody, so a leak would not show in its HTML."""
     client, _, _ = two_accounts
     as_account(client, "sam", "member-password")
 
-    channels = client.get("/channels").text
-    assert "AdminChannel" not in channels
-    assert "AdminFeed" not in channels
+    assert client.get("/channels").status_code == 200
+    drawn = [node["title"] for node in client.get("/api/graph").json()["nodes"]]
+    assert drawn == []
 
 
 def test_a_new_account_starts_with_no_feeds(two_accounts):
@@ -306,7 +308,8 @@ def test_the_owner_still_sees_their_own(two_accounts):
     client, _, _ = two_accounts
     as_account(client, *ADMIN)
 
-    assert "AdminChannel" in client.get("/channels").text
+    drawn = [node["title"] for node in client.get("/api/graph").json()["nodes"]]
+    assert "AdminChannel" in drawn and "AdminFeed" in drawn
     assert "AdminFeed" in client.get("/feed").text
 
 
@@ -461,15 +464,6 @@ def test_another_accounts_wire_cannot_be_cut(two_accounts):
     assert len(client.get("/api/graph").json()["wires"]) == 1
 
 
-def test_another_accounts_item_cannot_be_followed(two_accounts, db):
-    client, _, _ = two_accounts
-    with db.session_scope() as session:
-        video_pk = session.scalar(select(Video.id).where(Video.video_id == "vid-admin"))
-
-    as_account(client, "sam", "member-password")
-    assert client.get(f"/graph/trace/{video_pk}").status_code == 404
-
-
 def test_another_accounts_trigger_cannot_be_pressed(two_accounts):
     """A pulse polls channels. Pressing somebody else's would be reaching into
     their account to make it fetch."""
@@ -492,3 +486,78 @@ def test_a_new_accounts_canvas_has_no_triggers_either(two_accounts):
 
     as_account(client, "sam", "member-password")
     assert client.get("/api/graph").json()["nodes"] == []
+
+
+def test_another_accounts_run_is_not_reported(two_accounts, db):
+    """The run state names boxes and counts. Reporting one account's run to
+    another would say which channels they watch and how much each brought in."""
+    from dealgo.services import sync as sync_service
+
+    client, admin_pk, _ = two_accounts
+    as_account(client, *ADMIN)
+    client.get("/api/graph")  # the admin's boxes exist
+
+    with db.session_scope() as session:
+        channel_pk = session.scalar(select(Channel.id).where(Channel.owner_pk == admin_pk))
+    sync_service._start_progress(admin_pk, "pulse")
+    sync_service._note(stage="polling", channel_pk=channel_pk)
+
+    as_account(client, "sam", "member-password")
+    answer = client.get("/api/graph/run").json()
+    assert answer["nodes"] == {}
+    assert answer["stage"] is None
+
+
+def test_another_accounts_filter_cannot_be_read(two_accounts):
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    added = client.post("/graph/nodes", data={"kind": "filter"}).json()
+    theirs = next(node for node in added["nodes"] if node["kind"] == "filter")
+
+    as_account(client, "sam", "member-password")
+    assert client.get(f"/graph/nodes/{theirs['id']}/filtered").status_code == 400
+
+
+def test_another_accounts_group_cannot_be_taken(two_accounts):
+    """A group file is a piece of somebody's setup — the channels they watch
+    and what they do with them. Exporting one is theirs to do."""
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    added = client.post("/graph/nodes", data={"kind": "group"}).json()
+    theirs = next(node for node in added["nodes"] if node["kind"] == "group")
+
+    as_account(client, "sam", "member-password")
+    assert client.get(f"/graph/nodes/{theirs['id']}/export").status_code == 400
+    assert client.post(
+        f"/graph/nodes/{theirs['id']}/move", data={"x": 5, "y": 5, "carries": "1"}
+    ).status_code == 400
+    assert client.post(
+        f"/graph/nodes/{theirs['id']}/resize", data={"width": 900, "height": 900}
+    ).json() == {"resized": False}
+
+
+def test_a_loaded_group_belongs_to_whoever_loaded_it(two_accounts, db):
+    import json as json_module
+
+    from dealgo.models import Channel as ChannelModel
+
+    client, _, sam_pk = two_accounts
+    as_account(client, "sam", "member-password")
+
+    packed = {
+        "de_algo_group": 1,
+        "name": "A gift",
+        "nodes": [{"ref": 0, "kind": "source", "x": 0, "y": 0,
+                   "channel_id": "UCgifted", "title": "A gift"}],
+        "wires": [],
+    }
+    client.post(
+        "/graph/groups",
+        files={"file": ("group.json", json_module.dumps(packed), "application/json")},
+    )
+
+    with db.session_scope() as session:
+        gifted = session.scalar(
+            select(ChannelModel).where(ChannelModel.channel_id == "UCgifted")
+        )
+        assert gifted is not None and gifted.owner_pk == sam_pk

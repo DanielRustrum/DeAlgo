@@ -353,9 +353,9 @@ a:hover { color: var(--accent); }
   .brand-name { font-size: 15px; }
 }
 
-// Set by menu.js while the drawer is open: the page behind it should not
-// scroll away underneath.
-.menu-open { overflow: hidden; }
+// Set while something is open over the page — the tab drawer, a modal — so
+// the page behind it cannot scroll away underneath.
+.page-held { overflow: hidden; }
 
 // Sliding is decoration; being able to reach the tabs is not.
 @include still {

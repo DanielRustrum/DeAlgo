@@ -67,7 +67,15 @@
         <a class="btn btn-quiet" href="/feeds/{{ section.playlist.id }}">Settings</a>
       </div>
 
-      {% if section.videos %}
+      {% if section.shut %}
+      {# A window on this feed's second input, and it is not open. Shown as
+         shut rather than hidden: a feed that vanished would read as a feed
+         that had gone. #}
+      <p class="empty shut-note">
+        This feed is shut. You set it to be
+        {% for window in section.shut %}{{ window }}{% if not loop.last %}, and {% endif %}{% endfor %}.
+      </p>
+      {% elif section.videos %}
       <div class="card-grid">
         {% for video in section.videos %}{% include "_feed_card.html" %}{% endfor %}
       </div>

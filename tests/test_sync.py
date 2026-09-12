@@ -350,3 +350,88 @@ def test_only_narrows_a_pass_to_the_channels_named(world, db):
 
     result = sync_service.run_sync("pulse", force=True, only={wanted})
     assert result.channels_checked == 1
+
+
+# -- what a sort box does --------------------------------------------------
+#
+# Insertion order is the order things appear in a feed, so a sort box's whole
+# effect is on the order this batch is walked in.
+
+
+def wire_sort(db, *, sort_by: str, newest_first: bool = True):
+    """Put a sort box between the channel and the feed."""
+    from dealgo.services import graph
+
+    with db.session_scope() as session:
+        graph.load(session)
+        source = next(n for n in graph.nodes(session) if n.kind == "source")
+        feed = next(n for n in graph.nodes(session) if n.kind == "feed")
+        order = graph.add_sort(session, sort_by=sort_by, newest_first=newest_first)
+        graph.connect(session, source, order)
+        graph.connect(session, order, feed)
+        graph.unlink(session, source, feed)  # the direct wire would skip the sort
+
+
+def three_videos(world):
+    """Three uploads, with the middle one the longest and the most watched."""
+    world["entries"] = [entry("v0", minutes_ago=30), entry("v1", minutes_ago=20),
+                        entry("v2", minutes_ago=10)]
+    world["client"].details = {
+        "v0": VideoDetails("v0", "Video v0", 600, "none", "public", view_count=10, like_count=5),
+        "v1": VideoDetails("v1", "Video v1", 9000, "none", "public", view_count=900, like_count=1),
+        "v2": VideoDetails("v2", "Video v2", 300, "none", "public", view_count=50, like_count=90),
+    }
+
+
+def test_without_a_sort_box_the_oldest_goes_in_first(world):
+    """A feed reads chronologically, which is what it did before sort boxes."""
+    three_videos(world)
+    sync_service.run_sync()
+
+    assert world["client"].inserted_into() == ["v0", "v1", "v2"]
+
+
+def test_a_sort_box_puts_the_newest_in_first(world):
+    three_videos(world)
+    wire_sort(world["db"], sort_by="published")
+
+    sync_service.run_sync()
+    assert world["client"].inserted_into() == ["v2", "v1", "v0"]
+
+
+def test_a_sort_box_can_order_by_length(world):
+    three_videos(world)
+    wire_sort(world["db"], sort_by="duration")
+
+    sync_service.run_sync()
+    assert world["client"].inserted_into() == ["v1", "v0", "v2"]  # 9000, 600, 300
+
+
+def test_a_sort_box_can_order_by_views(world):
+    three_videos(world)
+    wire_sort(world["db"], sort_by="views", newest_first=False)  # least watched first
+
+    sync_service.run_sync()
+    assert world["client"].inserted_into() == ["v0", "v2", "v1"]  # 10, 50, 900
+
+
+def test_a_sort_box_can_order_by_likes(world):
+    three_videos(world)
+    wire_sort(world["db"], sort_by="likes")
+
+    sync_service.run_sync()
+    assert world["client"].inserted_into() == ["v2", "v0", "v1"]  # 90, 5, 1
+
+
+def test_the_counts_are_kept_so_the_next_run_need_not_ask_again(world, db):
+    from dealgo.models import Video as VideoModel
+
+    three_videos(world)
+    sync_service.run_sync()
+
+    with db.session_scope() as session:
+        counts = {
+            v.video_id: (v.view_count, v.like_count)
+            for v in session.scalars(select(VideoModel))
+        }
+    assert counts["v1"] == (900, 1)

@@ -105,6 +105,16 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "trigger_kind", "VARCHAR(10)"),
     ("graph_node", "every_minutes", "INTEGER"),
     ("graph_node", "cron", "VARCHAR(120)"),
+    ("graph_node", "enabled", "BOOLEAN NOT NULL DEFAULT 1"),
+    ("graph_node", "duration_minutes", "INTEGER"),
+    ("graph_node", "width", "INTEGER"),
+    ("graph_node", "height", "INTEGER"),
+    ("graph_node", "sort_by", "VARCHAR(16)"),
+    ("graph_node", "sort_dir", "VARCHAR(4)"),
+    # Counts, so a sort box can order by them. Backfilled as the details are
+    # next fetched; NULL until then, which the ordering treats as unknown.
+    ("video", "view_count", "INTEGER"),
+    ("video", "like_count", "INTEGER"),
     ("graph_node", "last_fired_at", "DATETIME"),
     # Ownership. Nullable, so every existing row becomes the implicit
     # owner's — which is exactly what it was before accounts existed.

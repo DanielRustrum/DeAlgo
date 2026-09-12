@@ -347,7 +347,9 @@ def wire(session, source, target):
     graph.connect(session, source, target)
 
 
-def test_a_trigger_can_only_feed_a_channel(db):
+def test_a_trigger_feeds_a_channel_or_a_feed_and_nothing_else(db):
+    """Into a channel it says when to poll; into a feed it says when that feed
+    may be read. It carries no content either way, so nothing feeds it."""
     build(db)
     with db.session_scope() as session:
         trigger = graph.add_trigger(session, trigger_kind="schedule")
@@ -355,10 +357,9 @@ def test_a_trigger_can_only_feed_a_channel(db):
         source = node_for(session, "source", "UCone")
 
         with pytest.raises(graph.GraphError):
-            graph.connect(session, trigger, feed)
-        with pytest.raises(graph.GraphError):
             graph.connect(session, source, trigger)
         assert graph.connect(session, trigger, source) is not None
+        assert graph.connect(session, trigger, feed) is not None
 
 
 def test_a_channel_with_no_trigger_keeps_the_accounts_own_settings(db):
@@ -679,45 +680,6 @@ def test_both_kinds_of_wire_come_out_the_same_way(canvas):
     assert nothing == []
 
 
-def test_following_an_item_says_where_it_went_and_why(canvas, db):
-    graph_now = canvas.get("/api/graph").json()
-    source, feed = only(graph_now, "source"), only(graph_now, "feed")
-    canvas.post("/graph/connect", data={"source": source["id"], "target": feed["id"]})
-
-    trace = canvas.get("/graph/trace/1").json()
-    assert trace["item"]["title"] == "A clip"
-    assert len(trace["steps"]) == 1
-    assert trace["steps"][0]["accepted"] is True
-    assert trace["steps"][0]["nodes"] == [source["id"], feed["id"]]
-
-    with db.session_scope() as session:
-        session.get(Channel, 1).skip_videos = True
-
-    blocked = canvas.get("/graph/trace/1").json()["steps"][0]
-    assert blocked["accepted"] is False
-    assert "video" in blocked["reason"].lower()
-
-
-def test_following_an_item_lights_the_wires_it_actually_travelled(canvas):
-    """The trace names wires by the ids the canvas draws them under. Made-up
-    ids would light nothing, and look exactly like a path nobody took."""
-    added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
-    source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
-    canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
-    canvas.post("/graph/connect", data={"source": middle["id"], "target": feed["id"]})
-
-    drawn = {wire["id"] for wire in canvas.get("/api/graph").json()["wires"]}
-    step = canvas.get("/graph/trace/1").json()["steps"][0]
-
-    assert step["nodes"] == [source["id"], middle["id"], feed["id"]]
-    assert len(step["wires"]) == 2
-    assert set(step["wires"]) <= drawn, "the trace named wires that are not on the canvas"
-
-
-def test_following_an_item_nobody_owns_is_a_flat_no(canvas):
-    assert canvas.get("/graph/trace/999").status_code == 404
-
-
 def test_the_canvas_is_the_whole_configuration_page(canvas):
     body = canvas.get("/channels").text
     assert "data-graph" in body
@@ -797,6 +759,235 @@ def test_a_box_may_sit_anywhere_including_off_to_the_left(canvas):
     assert (moved["x"], moved["y"]) == (-640, -220)
 
 
+def test_a_channel_box_carries_what_the_channel_does(canvas, db):
+    """The same things its own page says under "What it does", so the canvas
+    is a place to work rather than a place to look before going elsewhere."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel.skip_shorts = True
+        channel.min_pull_minutes = 60
+        session.add(VideoModel(video_id="v9", channel_pk=channel.id, title="Placed",
+                               status="added"))
+
+    node = only(canvas.get("/api/graph").json(), "source")
+    facts = node["channel"]
+    assert facts["takes"] == {"videos": True, "shorts": False, "live": False, "posts": True}
+    assert facts["placed"] == 1 and facts["pending"] == 1
+    assert facts["checked"] is None  # never polled in this test
+    # When it is next looked at belongs to the trigger, and is said once.
+    assert "feeds" not in facts
+    assert "interval" not in facts
+    assert node["polled"]
+
+
+def test_a_channels_switches_can_be_set_from_its_box(canvas, db):
+    node_id = only(canvas.get("/api/graph").json(), "source")["id"]
+    saved = canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "takes_videos": "1", "takes_posts": "1"},
+    ).json()
+
+    facts = only(saved, "source")["channel"]
+    assert facts["takes"] == {"videos": True, "shorts": False, "live": False, "posts": True}
+
+
+def test_a_channel_box_does_not_offer_to_set_its_own_interval(canvas, db):
+    """A trigger wired into it decides when it is polled. An interval offered
+    in two places is an interval that will disagree with itself."""
+    from dealgo.models import Channel as ChannelModel
+
+    with db.session_scope() as session:
+        session.scalars(select(ChannelModel)).one().min_pull_minutes = 60
+
+    node_id = only(canvas.get("/api/graph").json(), "source")["id"]
+    canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "interval": "180", "takes_videos": "1"},
+    )
+
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().min_pull_minutes == 60
+
+
+def test_turning_a_switch_back_on_brings_back_what_it_skipped(canvas, db):
+    """Through the same service the channel's own page uses. Writing the
+    column directly would leave the skipped ones skipped for ever."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel.skip_shorts = True
+        session.add(VideoModel(video_id="s1", channel_pk=channel.id, title="A short",
+                               is_short=True, status="skipped", reason="Short (30s)"))
+
+    node_id = only(canvas.get("/api/graph").json(), "source")["id"]
+    canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "active": "1", "takes_videos": "1", "takes_shorts": "1",
+              "takes_posts": "1"},
+    )
+
+    with db.session_scope() as session:
+        brought_back = session.scalar(select(VideoModel).where(VideoModel.video_id == "s1"))
+        assert brought_back.status == "pending"
+
+
+def test_saving_a_box_without_touching_a_switch_requeues_nothing(canvas, db):
+    """Each switch is only applied when the answer changed, so pressing Save
+    after a rename does not drag back everything that was ever skipped."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel.skip_shorts = True
+        session.add(VideoModel(video_id="s1", channel_pk=channel.id, title="A short",
+                               is_short=True, status="skipped", reason="Short (30s)"))
+
+    node_id = only(canvas.get("/api/graph").json(), "source")["id"]
+    canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "label": "Renamed", "takes_videos": "1",
+              "takes_posts": "1"},
+    )
+
+    with db.session_scope() as session:
+        stayed = session.scalar(select(VideoModel).where(VideoModel.video_id == "s1"))
+        assert stayed.status == "skipped"
+
+
+def test_a_feed_box_carries_how_it_fills(canvas, db):
+    """The same two things its own page calls Filling."""
+    from dealgo.models import Playlist as PlaylistModel
+
+    with db.session_scope() as session:
+        playlist = session.scalars(select(PlaylistModel)).one()
+        playlist.max_items = 50
+        playlist.max_per_run = 3
+
+    facts = only(canvas.get("/api/graph").json(), "feed")["feed"]
+    assert facts == {
+        "enabled": True, "max_items": 50, "max_per_run": 3, "generic": False,
+        # Nothing on its second input, so it is always open.
+        "windows": [], "open": True,
+    }
+
+
+def test_a_feeds_limits_can_be_set_from_its_box(canvas, db):
+    from dealgo.models import Playlist as PlaylistModel
+
+    node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
+    saved = canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "active": "1", "max_items": "80", "feed_max_per_run": "2"},
+    ).json()
+
+    assert only(saved, "feed")["feed"]["max_items"] == 80
+    with db.session_scope() as session:
+        playlist = session.scalars(select(PlaylistModel)).one()
+        assert playlist.max_items == 80 and playlist.max_per_run == 2
+
+
+def test_a_feed_can_be_stopped_from_filling(canvas, db):
+    from dealgo.models import Playlist as PlaylistModel
+
+    node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
+    canvas.post(f"/graph/nodes/{node_id}", data={"box_form": "1"})  # Active unticked
+
+    with db.session_scope() as session:
+        assert session.scalars(select(PlaylistModel)).one().enabled is False
+
+
+def test_an_unreadable_limit_means_no_limit_not_a_limit_of_nothing(canvas, db):
+    """Zero means no limit for both of these. Reading rubbish as a limit of
+    zero would quietly stop the feed filling at all."""
+    from dealgo.models import Playlist as PlaylistModel
+
+    node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
+    canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "active": "1", "max_items": "lots", "feed_max_per_run": "-4"},
+    )
+
+    with db.session_scope() as session:
+        playlist = session.scalars(select(PlaylistModel)).one()
+        assert playlist.max_items == 0 and playlist.max_per_run == 0
+
+
+def test_a_rename_cannot_stop_a_feed_filling(canvas, db):
+    """The same hazard as the channel switches: an unticked box and an absent
+    one arrive looking identical."""
+    from dealgo.models import Playlist as PlaylistModel
+
+    node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
+    canvas.post(f"/graph/nodes/{node_id}", data={"label": "Renamed"})
+
+    with db.session_scope() as session:
+        assert session.scalars(select(PlaylistModel)).one().enabled is True
+
+
+def test_a_channel_box_does_not_offer_to_filter(canvas, db):
+    """Narrowing by title or length is a filter box's job. Offering it here as
+    well would be two places to look for one answer, and two places for them
+    to disagree."""
+    from dealgo.models import Channel as ChannelModel
+
+    with db.session_scope() as session:
+        session.scalars(select(ChannelModel)).one().title_include = "weekly"
+
+    node = only(canvas.get("/api/graph").json(), "source")
+    assert "rules" not in node["channel"]
+
+    canvas.post(
+        f"/graph/nodes/{node['id']}",
+        data={"box_form": "1", "takes_videos": "1", "channel_title_include": "changed"},
+    )
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().title_include == "weekly"
+
+
+def test_a_channel_can_be_paused_from_its_box(canvas, db):
+    """Pausing is the first thing to reach for when a channel is too much
+    rather than the wrong kind, and its box is the only place left to do it."""
+    from dealgo.models import Channel as ChannelModel
+
+    node_id = only(canvas.get("/api/graph").json(), "source")["id"]
+    canvas.post(
+        f"/graph/nodes/{node_id}", data={"box_form": "1", "takes_videos": "1"}
+    )  # Active unticked
+
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().enabled is False
+
+    canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "active": "1", "takes_videos": "1"},
+    )
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().enabled is True
+
+
+def test_a_form_that_never_showed_a_switch_cannot_turn_it_off(canvas, db):
+    """An unticked box sends nothing, so "off" and "not on this form" arrive
+    looking identical. The form says which it is; without that marker a rename
+    would switch off everything the channel takes."""
+    from dealgo.models import Channel as ChannelModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).one()
+        channel.enabled = True
+        channel.skip_shorts = False
+
+    node_id = only(canvas.get("/api/graph").json(), "source")["id"]
+    canvas.post(f"/graph/nodes/{node_id}", data={"label": "Just a rename"})
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).one()
+        assert channel.enabled is True
+        assert channel.skip_shorts is False
+
+
 # -- triggers over HTTP ----------------------------------------------------
 
 
@@ -804,7 +995,7 @@ def test_a_trigger_can_be_added_and_says_which_kind_it_is(canvas):
     payload = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
     box = only(payload, "trigger")
     assert box["trigger"]["kind"] == "pulse"
-    assert box["note"] == "every 60 minutes"  # the default, until it is changed
+    assert box["note"] == "every 1 hour"  # sixty minutes, said the way it reads
 
     both = canvas.post("/graph/nodes", data={"kind": "schedule"}).json()
     assert [b["trigger"]["kind"] for b in boxes(both, "trigger")] == ["pulse", "schedule"]
@@ -814,7 +1005,7 @@ def test_a_trigger_can_be_added_and_says_which_kind_it_is(canvas):
 def test_a_trigger_that_is_neither_is_refused(canvas):
     answer = canvas.post("/graph/nodes", data={"kind": "whenever"})
     assert answer.status_code == 400
-    assert "no whenever box" in answer.json()["error"]
+    assert "no whenever node" in answer.json()["error"]
 
 
 def test_a_pulse_keeps_the_gap_it_is_given(canvas):
@@ -828,6 +1019,60 @@ def test_a_pulse_keeps_the_gap_it_is_given(canvas):
     assert box["title"] == "Quarter hourly"
     assert box["trigger"]["every_minutes"] == 15
     assert box["note"] == "every 15 minutes"
+
+
+def test_a_gap_reads_back_in_the_unit_it_needs_no_fraction_to_say(db):
+    """The unit it was typed in is not stored, so the one that comes back is
+    the one that says it whole: 120 is two hours, 90 is ninety minutes."""
+    assert graph.split_every(120) == (2, "hours")
+    assert graph.split_every(90) == (90, "minutes")
+    assert graph.split_every(1440) == (1, "days")
+    assert graph.split_every(10080) == (1, "weeks")
+    assert graph.split_every(43200) == (1, "months")
+    assert graph.split_every(1) == (1, "minutes")
+
+
+def test_a_gap_is_stored_in_minutes_whatever_it_was_typed_in(db):
+    assert graph.every_minutes_from(2, "hours") == 120
+    assert graph.every_minutes_from(1, "weeks") == 10080
+    # A unit nobody offered counts as minutes rather than as nothing.
+    assert graph.every_minutes_from(5, "fortnights") == 5
+    # And a gap of nothing is a gap of one: zero would poll for ever.
+    assert graph.every_minutes_from(0, "hours") == 60
+
+
+def test_a_gap_is_said_the_way_it_was_most_likely_meant(db):
+    assert graph.every_words(60) == "1 hour"
+    assert graph.every_words(120) == "2 hours"
+    assert graph.every_words(90) == "90 minutes"
+
+
+def test_a_pulse_takes_its_gap_in_whatever_unit_suits(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    node_id = only(added, "trigger")["id"]
+
+    saved = canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "active": "1", "every_minutes": "2", "every_unit": "days"},
+    ).json()
+
+    box = only(saved, "trigger")
+    assert box["trigger"]["every_minutes"] == 2880
+    assert box["trigger"]["every"]["amount"] == 2
+    assert box["trigger"]["every"]["unit"] == "days"
+    assert box["note"] == "every 2 days"
+
+
+def test_a_pulse_with_no_unit_at_all_is_still_minutes(canvas):
+    """An older form, or one that lost its dropdown, means what it always did."""
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    node_id = only(added, "trigger")["id"]
+
+    saved = canvas.post(
+        f"/graph/nodes/{node_id}",
+        data={"box_form": "1", "active": "1", "every_minutes": "45"},
+    ).json()
+    assert only(saved, "trigger")["trigger"]["every_minutes"] == 45
 
 
 def test_a_schedule_keeps_the_cron_it_is_given(canvas):
@@ -863,7 +1108,7 @@ def test_a_pulse_wired_to_a_channel_says_so_on_the_channel(canvas):
     wired = canvas.post(
         "/graph/connect", data={"source": trigger["id"], "target": source["id"]}
     ).json()
-    assert only(wired, "source")["polled"] == "Polled by a pulse every 60 minutes."
+    assert only(wired, "source")["polled"] == "Polled by a pulse every 1 hour."
 
 
 def test_a_schedule_wired_to_a_channel_says_the_time(canvas):
@@ -888,18 +1133,24 @@ def test_a_channel_under_two_triggers_names_them_both(canvas):
     ).json()
 
     assert only(wired, "source")["polled"] == (
-        "Polled by a pulse every 60 minutes and a schedule on “0 9 * * *”."
+        "Polled by a pulse every 1 hour and a schedule on “0 9 * * *”."
     )
 
 
-def test_a_trigger_cannot_be_wired_to_a_feed(canvas):
+def test_a_trigger_wired_to_a_feed_opens_a_window_on_it(canvas):
+    """The feed's second input: when it may be read, rather than what goes
+    into it."""
     added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
-    answer = canvas.post(
-        "/graph/connect",
-        data={"source": only(added, "trigger")["id"], "target": only(added, "feed")["id"]},
-    )
-    assert answer.status_code == 400
-    assert "cannot feed" in answer.json()["error"]
+    trigger, feed = only(added, "trigger"), only(added, "feed")
+
+    wired = canvas.post(
+        "/graph/connect", data={"source": trigger["id"], "target": feed["id"]}
+    ).json()
+
+    assert only(wired, "feed")["feed"]["windows"] == ["open 30 min in every 1 hour"]
+    # And the trigger says what it opens rather than what it sets off.
+    assert only(wired, "trigger")["note"] == "open 30 min in every 1 hour"
+    assert only(wired, "trigger")["trigger"]["opens"] is True
 
 
 def test_pressing_a_pulse_with_nothing_wired_to_it_says_so(canvas):
@@ -969,10 +1220,708 @@ def test_the_palette_is_reachable_with_nothing_on_the_canvas(canvas, db):
     assert "canvas.hidden" not in script
 
 
-def test_the_palette_offers_every_kind_of_box(canvas):
+def test_the_palette_offers_every_kind_of_node(canvas):
     body = canvas.get("/channels").text
-    for kind in ("source", "feed", "filter", "pulse", "schedule"):
+    for kind in ("source", "feed", "filter", "sort", "pulse", "schedule"):
         assert f'data-palette="{kind}"' in body, f"the palette has no {kind}"
+
+
+def test_the_palette_folds_away_what_is_optional(canvas):
+    """A channel and a feed are what every graph is made of, so they are not
+    filed under anything. The rest is folded, and folded shut: the panel
+    should open as a short list rather than a long one."""
+    body = canvas.get("/channels").text
+
+    assert "<summary>Operations</summary>" in body
+    assert "<summary>Triggers</summary>" in body
+    assert body.count('<details class="palette-group">') == 3  # operations, triggers, layout
+    assert "palette-group\" open" not in body
+
+    # Channel and Feed are above the folds, not inside one.
+    before = body.split('<details class="palette-group">', 1)[0]
+    assert 'data-palette="source"' in before and 'data-palette="feed"' in before
+    assert 'data-palette="filter"' not in before
+
+
+def test_loading_a_group_is_asked_for_in_a_dialog(canvas):
+    """Next to the button that adds one, because both put something on the
+    canvas — and in a dialog, because a file picker sitting in a panel is a
+    control nobody was looking for."""
+    body = canvas.get("/channels").text
+    assert "data-graph-load-open" in body
+    assert '<dialog class="modal graph-load"' in body
+    assert "data-graph-load-file" in body
+    # And no longer loose in the palette.
+    assert "palette-load" not in body
+
+
+def test_adding_a_node_is_a_plus(canvas):
+    """It sits over the drawing, and every pixel it takes is canvas."""
+    body = canvas.get("/channels").text
+    assert 'class="graph-add"' in body
+    assert 'aria-label="Add a node"' in body
+    assert "Add a box" not in body
+
+
+# -- putting the batch in order --------------------------------------------
+
+
+def test_a_sort_box_sits_on_the_path_and_says_which_way(db):
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        order = graph.add_sort(session, sort_by="views")
+        graph.connect(session, source, order)
+        graph.connect(session, order, feed)
+
+        path = graph.routes(session)[0]
+        assert path.order is not None
+        assert path.order.sort_by == "views"
+        assert path.filters == []  # a sort narrows nothing
+
+
+def test_the_sort_nearest_the_feed_has_the_last_word(db):
+    """As with filters: the one closest to the end is the one describing what
+    actually arrives."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        first = graph.add_sort(session, sort_by="published")
+        second = graph.add_sort(session, sort_by="likes")
+        graph.connect(session, source, first)
+        graph.connect(session, first, second)
+        graph.connect(session, second, feed)
+
+        assert graph.routes(session)[0].order.sort_by == "likes"
+
+
+def test_a_switched_off_sort_stops_the_flow_like_any_other_box(db):
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        order = graph.add_sort(session)
+        graph.connect(session, source, order)
+        graph.connect(session, order, feed)
+        order.enabled = False
+        session.flush()
+
+        assert graph.routes(session) == []
+
+
+def test_a_sort_by_nothing_in_particular_is_refused(db):
+    build(db)
+    with db.session_scope() as session:
+        with pytest.raises(graph.GraphError):
+            graph.add_sort(session, sort_by="vibes")
+
+
+def test_a_sort_box_can_be_made_and_set_from_the_canvas(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "sort"}).json()
+    box = only(added, "sort")
+    assert box["sort"]["by"] == "published"
+    assert box["note"] == "Newest first"
+
+    saved = canvas.post(
+        f"/graph/nodes/{box['id']}",
+        data={"box_form": "1", "active": "1", "sort_by": "duration", "sort_dir": "asc"},
+    ).json()
+    changed = only(saved, "sort")
+    assert changed["sort"] == {
+        "by": "duration",
+        "desc": False,
+        "keys": changed["sort"]["keys"],
+    }
+    assert changed["note"] == "Shortest first"
+
+
+def test_the_palette_offers_a_sort_box(canvas):
+    assert 'data-palette="sort"' in canvas.get("/channels").text
+
+
+# -- trying it without running it ------------------------------------------
+
+
+def wire_trigger(canvas, channel="One Channel"):
+    """A pulse wired to one channel, which is what a trial is asked of."""
+    drawn = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    trigger = boxes(drawn, "trigger")[-1]
+    wanted = [node for node in boxes(drawn, "source") if node["title"] == channel][0]
+    canvas.post("/graph/connect", data={"source": trigger["id"], "target": wanted["id"]})
+    return trigger["id"]
+
+
+def test_a_trial_says_where_everything_would_land(canvas, db):
+    """A run with the consequences taken out: nothing is written, nothing is
+    sent, and the answer is the same one a run would give."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
+                               is_short=True, duration_sec=30, status="pending"))
+
+    drawn = canvas.get("/api/graph").json()
+    source, feed = only(drawn, "source"), only(drawn, "feed")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": feed["id"]})
+
+    trial = canvas.get(f"/graph/nodes/{wire_trigger(canvas)}/test").json()
+
+    # Every box carries its own share, so each can answer for itself.
+    landing = trial["items"][str(feed["id"])]
+    assert [item["title"] for item in landing["through"]] == ["A clip"]
+
+    # The short was turned away by the channel's own settings, and it is the
+    # channel's box that reports holding it.
+    at_source = trial["items"][str(source["id"])]
+    assert [item["title"] for item in at_source["held"]] == ["A short"]
+    assert trial["nodes"][str(source["id"])] == {
+        "state": "done", "count": 1, "stopped": 1, "ends": False,
+    }
+
+
+def test_a_trial_writes_nothing(canvas, db):
+    """The whole point: it answers the question without doing the thing."""
+    from dealgo.models import Placement as PlacementModel, Video as VideoModel
+
+    drawn = canvas.get("/api/graph").json()
+    canvas.post(
+        "/graph/connect",
+        data={"source": only(drawn, "source")["id"], "target": only(drawn, "feed")["id"]},
+    )
+    with db.session_scope() as session:
+        before = {v.video_id: v.status for v in session.scalars(select(VideoModel))}
+
+    canvas.get(f"/graph/nodes/{wire_trigger(canvas)}/test")
+
+    with db.session_scope() as session:
+        after = {v.video_id: v.status for v in session.scalars(select(VideoModel))}
+        assert after == before
+        assert session.scalars(select(PlacementModel)).all() == []
+
+
+def test_a_trial_names_the_filter_that_held_something(canvas, db):
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
+                               is_short=True, duration_sec=30, status="pending"))
+        channel.skip_shorts = False  # the channel lets them by; the filter will not
+
+    added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "No shorts"}).json()
+    source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
+    canvas.post("/graph/connect", data={"source": middle["id"], "target": feed["id"]})
+    canvas.post(
+        f"/graph/nodes/{middle['id']}",
+        data={"box_form": "1", "active": "1", "label": "No shorts", "skip_shorts": "1"},
+    )
+
+    trial = canvas.get(f"/graph/nodes/{wire_trigger(canvas)}/test").json()
+
+    # The filter reports holding it, not the channel it came through.
+    held = trial["items"][str(middle["id"])]["held"]
+    assert [item["title"] for item in held] == ["A short"]
+    assert held[0]["box"] == "No shorts"
+    # It got past the channel on its way, and the channel is credited with it.
+    assert trial["nodes"][str(source["id"])]["count"] == 2
+
+
+def test_a_trial_puts_a_feeds_items_in_the_sorted_order(canvas, db):
+    from dealgo.models import Video as VideoModel
+    from dealgo.models import utcnow
+
+    import datetime as dt
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        session.add(VideoModel(video_id="older", channel_pk=channel.id, title="Older",
+                               duration_sec=600, status="pending",
+                               published_at=utcnow() - dt.timedelta(days=2)))
+        session.scalars(select(VideoModel)).all()[0].published_at = utcnow()
+
+    added = canvas.post("/graph/nodes", data={"kind": "sort"}).json()
+    source, feed, order = only(added, "source"), only(added, "feed"), only(added, "sort")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": order["id"]})
+    canvas.post("/graph/connect", data={"source": order["id"], "target": feed["id"]})
+    canvas.post(
+        f"/graph/nodes/{order['id']}",
+        data={"box_form": "1", "active": "1", "sort_by": "published", "sort_dir": "asc"},
+    )
+
+    trial = canvas.get(f"/graph/nodes/{wire_trigger(canvas)}/test").json()
+    landing = trial["items"][str(feed["id"])]["through"]
+    assert [item["title"] for item in landing] == ["Older", "A clip"]
+
+
+def test_every_box_the_trial_touched_gets_its_own_share(canvas, db):
+    """Asked while looking at a filter, the question is what that filter did —
+    not what the trigger three wires back did."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel.skip_shorts = False
+        session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
+                               is_short=True, duration_sec=30, status="pending"))
+
+    added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "No shorts"}).json()
+    source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
+    canvas.post("/graph/connect", data={"source": middle["id"], "target": feed["id"]})
+    canvas.post(
+        f"/graph/nodes/{middle['id']}",
+        data={"box_form": "1", "active": "1", "label": "No shorts", "skip_shorts": "1"},
+    )
+    trigger_id = wire_trigger(canvas)
+
+    items = canvas.get(f"/graph/nodes/{trigger_id}/test").json()["items"]
+    assert {str(source["id"]), str(middle["id"]), str(feed["id"]), str(trigger_id)} <= set(items)
+
+    # The channel passed both; the filter passed one and held one; the feed
+    # sees only what survived.
+    assert len(items[str(source["id"])]["through"]) == 2
+    assert len(items[str(middle["id"])]["through"]) == 1
+    assert len(items[str(middle["id"])]["held"]) == 1
+    assert len(items[str(feed["id"])]["through"]) == 1
+    # And the trigger answers for the whole of it.
+    assert len(items[str(trigger_id)]["through"]) == 1
+    assert len(items[str(trigger_id)]["held"]) == 1
+
+
+def test_a_box_the_trial_never_reached_carries_no_share(canvas, db):
+    from dealgo.models import Playlist as PlaylistModel
+
+    with db.session_scope() as session:
+        session.add(PlaylistModel(playlist_id="PLidle", title="Idle"))
+
+    drawn = canvas.get("/api/graph").json()
+    canvas.post(
+        "/graph/connect",
+        data={"source": only(drawn, "source")["id"],
+              "target": [n for n in boxes(drawn, "feed") if n["title"] == "One Feed"][0]["id"]},
+    )
+    trigger_id = wire_trigger(canvas)
+    idle = [n for n in boxes(canvas.get("/api/graph").json(), "feed") if n["title"] == "Idle"][0]
+
+    items = canvas.get(f"/graph/nodes/{trigger_id}/test").json()["items"]
+    assert str(idle["id"]) not in items
+
+
+def test_only_a_trigger_can_be_asked_what_a_run_would_do(canvas):
+    """A trigger is what starts a run, so it is the thing worth asking."""
+    drawn = canvas.get("/api/graph").json()
+    refused = canvas.get(f"/graph/nodes/{only(drawn, 'source')['id']}/test")
+    assert refused.status_code == 400
+    assert "not a trigger" in refused.json()["error"]
+
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    lonely = canvas.get(f"/graph/nodes/{only(added, 'trigger')['id']}/test")
+    assert lonely.status_code == 400
+    assert "Nothing is wired" in lonely.json()["error"]
+
+
+def test_a_switched_off_trigger_can_still_be_asked(canvas):
+    """Being able to ask what it would do is most of the point of testing one,
+    and refusing would be worst at the moment it is most wanted."""
+    trigger_id = wire_trigger(canvas)
+    canvas.post(f"/graph/nodes/{trigger_id}", data={"box_form": "1"})  # switched off
+
+    assert canvas.get(f"/graph/nodes/{trigger_id}/test").status_code == 200
+
+
+def test_a_trial_covers_only_the_channels_that_trigger_sets_off(canvas, db):
+    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        other = ChannelModel(channel_id="UCother", title="Other")
+        feed = session.scalars(select(PlaylistModel)).one()
+        other.playlists.append(feed)
+        session.add(other)
+        session.flush()
+        session.add(VideoModel(video_id="o1", channel_pk=other.id, title="Theirs",
+                               status="pending"))
+
+    drawn = canvas.get("/api/graph").json()
+    mine = [n for n in boxes(drawn, "source") if n["title"] == "One Channel"][0]
+    canvas.post("/graph/connect", data={"source": mine["id"], "target": only(drawn, "feed")["id"]})
+    trigger_id = wire_trigger(canvas)
+
+    trial = canvas.get(f"/graph/nodes/{trigger_id}/test").json()
+    landing = trial["items"][str(only(drawn, "feed")["id"])]["through"]
+    assert [item["title"] for item in landing] == ["A clip"]  # not "Theirs"
+
+
+# -- switching a box off ---------------------------------------------------
+
+
+def test_a_switched_off_filter_stops_the_flow(db):
+    """Off is not "no opinion": nothing goes through it, so the path ends
+    there rather than carrying on unfiltered."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        middle = graph.add_filter(session, label="Trim")
+        graph.connect(session, source, middle)
+        graph.connect(session, middle, feed)
+        assert len(graph.routes(session)) == 1
+
+        middle.enabled = False
+        session.flush()
+        assert graph.routes(session) == []
+
+
+def test_a_switched_off_trigger_sets_nothing_off(db):
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        trigger = graph.add_trigger(session, trigger_kind="pulse", every_minutes=15)
+        graph.connect(session, trigger, source)
+        assert graph.polling_plan(session)
+
+        trigger.enabled = False
+        session.flush()
+        # Back to the account's own settings, which is what no trigger means.
+        assert graph.polling_plan(session) == {}
+
+
+def test_a_switched_off_trigger_cannot_be_pressed(db):
+    build(db)
+    with db.session_scope() as session:
+        trigger = graph.add_trigger(session, trigger_kind="pulse")
+        graph.connect(session, trigger, node_for(session, "source", "UCone"))
+        trigger.enabled = False
+        session.flush()
+
+        with pytest.raises(graph.GraphError):
+            graph.pulse_targets(session, trigger.id)
+
+
+def test_every_box_says_whether_it_is_on(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "filter"}).json()
+    canvas.post("/graph/nodes", data={"kind": "pulse"})
+    drawn = canvas.get("/api/graph").json()["nodes"]
+
+    assert {node["kind"] for node in drawn} >= {"source", "feed", "filter", "trigger"}
+    assert all(node["enabled"] is True for node in drawn)
+
+    # And each kind can be switched off, wherever it keeps the answer.
+    for node in drawn:
+        canvas.post(f"/graph/nodes/{node['id']}", data={"box_form": "1"})
+    after = {node["id"]: node["enabled"] for node in canvas.get("/api/graph").json()["nodes"]}
+    assert set(after.values()) == {False}
+    assert added  # the filter was among them
+
+
+def test_a_switched_off_filter_holds_everything_and_says_why(canvas, db):
+    added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
+    source, middle = only(added, "source"), only(added, "filter")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
+    canvas.post(f"/graph/nodes/{middle['id']}", data={"box_form": "1"})  # switched off
+
+    report = canvas.get(f"/graph/nodes/{middle['id']}/filtered").json()
+    assert report["through"] == []
+    assert [item["reason"] for item in report["held"]] == ["this filter is switched off"]
+
+
+# -- what a filter catches -------------------------------------------------
+
+
+def test_a_filter_says_what_it_lets_through_and_what_it_holds_back(canvas, db):
+    """Worked out from the rules as they stand, over everything upstream —
+    not a log, which would show what an older version of the rules did."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel_pk = session.scalars(select(Channel)).one().id
+        session.add(VideoModel(video_id="short1", channel_pk=channel_pk, title="A short",
+                               is_short=True, duration_sec=30, status="pending"))
+
+    added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "No shorts"}).json()
+    source, middle = only(added, "source"), only(added, "filter")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
+    canvas.post(f"/graph/nodes/{middle['id']}", data={"label": "No shorts", "skip_shorts": "1"})
+
+    report = canvas.get(f"/graph/nodes/{middle['id']}/filtered").json()
+    assert [item["title"] for item in report["through"]] == ["A clip"]
+    held = report["held"]
+    assert [item["title"] for item in held] == ["A short"]
+    assert "short" in held[0]["reason"].lower()
+
+
+def test_a_filter_wired_to_nothing_catches_nothing(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "filter"}).json()
+    report = canvas.get(f"/graph/nodes/{only(added, 'filter')['id']}/filtered").json()
+
+    assert report["through"] == [] and report["held"] == []
+
+
+def test_only_a_filter_is_asked_what_it_catches(canvas):
+    source = only(canvas.get("/api/graph").json(), "source")
+    answer = canvas.get(f"/graph/nodes/{source['id']}/filtered")
+
+    assert answer.status_code == 400
+    assert "filter node" in answer.json()["error"]
+
+
+def test_an_earlier_filter_on_the_path_still_counts(canvas, db):
+    """Two filters in a row: the second judges what the first let through, so
+    its answer depends on the path, not just on its own rules."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel_pk = session.scalars(select(Channel)).one().id
+        session.add(VideoModel(video_id="short1", channel_pk=channel_pk, title="A short",
+                               is_short=True, duration_sec=30, status="pending"))
+
+    first = canvas.post("/graph/nodes", data={"kind": "filter", "title": "First"}).json()
+    first_id = [n for n in boxes(first, "filter") if n["title"] == "First"][0]["id"]
+    second = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Second"}).json()
+    second_id = [n for n in boxes(second, "filter") if n["title"] == "Second"][0]["id"]
+    source = only(second, "source")
+
+    canvas.post("/graph/connect", data={"source": source["id"], "target": first_id})
+    canvas.post("/graph/connect", data={"source": first_id, "target": second_id})
+    # The first one blocks shorts; the second says nothing about them.
+    canvas.post(f"/graph/nodes/{first_id}", data={"label": "First", "skip_shorts": "1"})
+
+    report = canvas.get(f"/graph/nodes/{second_id}/filtered").json()
+    assert [item["title"] for item in report["held"]] == ["A short"]
+
+
+# -- watching a run go through ---------------------------------------------
+
+
+def test_nothing_is_running_to_begin_with(canvas):
+    answer = canvas.get("/api/graph/run").json()
+    assert answer["running"] is False
+    assert answer["nodes"] == {}
+
+
+def test_a_run_says_which_box_it_is_working_on(canvas, db, monkeypatch):
+    """The canvas draws from this, so what it names has to be boxes."""
+    from dealgo.services import sync as sync_service
+
+    with db.session_scope() as session:
+        channel_pk = session.scalars(select(Channel)).one().id
+        playlist_pk = session.scalars(select(Playlist)).one().id
+
+    # The canvas is drawn first, as the browser does it: this route reports on
+    # the boxes that exist rather than making any, since a GET should not
+    # write.
+    source = only(canvas.get("/api/graph").json(), "source")
+
+    sync_service._start_progress(None, "pulse")
+    sync_service._note(stage="polling", channel_pk=channel_pk)
+    answer = canvas.get("/api/graph/run").json()
+    assert answer["stage"] == "polling"
+    assert answer["nodes"][str(source["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False}
+
+    # Finished with it, and a feed has taken something.
+    sync_service._note_polled(channel_pk, 3)
+    sync_service._note_placed(playlist_pk)
+    sync_service._note(stage="filling")
+    answer = canvas.get("/api/graph/run").json()
+    feed = only(canvas.get("/api/graph").json(), "feed")
+
+    # The channel found three; how many left it is a separate question, and
+    # nothing has said yet, so none have.
+    assert answer["nodes"][str(source["id"])]["stopped"] == 3
+    assert answer["nodes"][str(feed["id"])] == {"state": "done", "count": 1, "stopped": 0,
+                                                "ends": False}
+
+
+def test_a_filter_that_lets_nothing_through_is_where_the_flow_stops(world, db):
+    """The run says which box the items stopped at, not just that they did."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import graph, sync as sync_service
+    from fakes import CHANNEL_ID, entry
+    from dealgo.youtube.api import VideoDetails
+
+    with db.session_scope() as session:
+        graph.load(session)
+        source = next(n for n in graph.nodes(session) if n.kind == "source")
+        feed = next(n for n in graph.nodes(session) if n.kind == "feed")
+        middle = graph.add_filter(session, label="Only long ones")
+        middle.min_duration_sec = 3600  # nothing will be this long
+        graph.connect(session, source, middle)
+        graph.connect(session, middle, feed)
+        # The direct wire would let everything past the filter.
+        graph.unlink(session, source, feed)
+        node_pk = middle.id
+
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+    sync_service.run_sync("pulse", force=True)
+
+    state = sync_service.progress()
+    assert state is not None
+    assert state.through.get(node_pk, 0) == 0
+    assert state.stopped.get(node_pk, 0) == 1
+
+
+def test_a_channel_with_nothing_new_leaves_its_feed_alone(world, db):
+    """The flow stops at the channel, so the boxes after it took no part in
+    the run. Marking them would say the run did something there, and reading
+    "nothing new" on a feed that was never reached is worse than reading
+    nothing at all."""
+    from dealgo.services import graph, sync as sync_service
+
+    with db.session_scope() as session:
+        graph.load(session)
+        feed_pk = next(n for n in graph.nodes(session) if n.kind == "feed").id
+        source_pk = next(n for n in graph.nodes(session) if n.kind == "source").id
+
+    world["entries"] = []  # the channel has nothing new
+    sync_service.run_sync("pulse", force=True)
+
+    state = sync_service.progress()
+    assert state is not None
+    assert sum(state.polled.values()) == 0
+    assert state.placed == {}
+
+    # Which is what the canvas is told: the channel was polled, and nothing
+    # downstream of it was touched.
+    from dealgo.web import app as web_app
+
+    with db.session_scope() as session:
+        marks = web_app._run_marks(session, state, None)
+    assert marks[str(source_pk)] == {"state": "done", "count": 0, "stopped": 0, "ends": False}
+    assert str(feed_pk) not in marks
+
+
+def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
+    """Found three, let none out: the channel's own settings are the reason,
+    and the channel is the box to point at."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import graph, sync as sync_service
+    from dealgo.youtube.api import VideoDetails
+    from fakes import entry
+
+    with db.session_scope() as session:
+        session.scalars(select(ChannelModel)).one().skip_videos = True
+        graph.load(session)
+        source_pk = next(n for n in graph.nodes(session) if n.kind == "source").id
+        feed_pk = next(n for n in graph.nodes(session) if n.kind == "feed").id
+
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+    sync_service.run_sync("pulse", force=True)
+
+    from dealgo.web import app as web_app
+
+    state = sync_service.progress()
+    with db.session_scope() as session:
+        marks = web_app._run_marks(session, state, None)
+
+    assert marks[str(source_pk)]["count"] == 0
+    assert marks[str(source_pk)]["stopped"] == 1
+    assert marks[str(source_pk)]["ends"] is True
+    assert str(feed_pk) not in marks
+
+
+def test_a_trigger_wired_to_a_switched_off_channel_says_it_stopped_there(canvas, db):
+    """It never looked, so it cannot report having found nothing. The count
+    is of its own channels, not of whatever else the run was doing."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import sync as sync_service
+
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    trigger, source = only(added, "trigger"), only(added, "source")
+    canvas.post("/graph/connect", data={"source": trigger["id"], "target": source["id"]})
+
+    with db.session_scope() as session:
+        channel_pk = session.scalars(select(ChannelModel)).one().id
+
+    # The run polled nothing: its only channel is switched off.
+    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service._note(stage="done", finished=True)
+    idle = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
+    assert idle == {"state": "done", "count": 0, "stopped": 0, "ends": True}
+
+    # And when its channel was polled, it counts that one.
+    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service._note_polled(channel_pk, 2)
+    sync_service._note(stage="done", finished=True)
+    ran = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
+    assert ran == {"state": "done", "count": 1, "stopped": 0, "ends": False}
+
+
+def test_a_trigger_does_not_count_channels_that_are_not_its_own(canvas, db):
+    """Two triggers, one run: each says what it set off, not what the run did."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import sync as sync_service
+
+    with db.session_scope() as session:
+        session.add(ChannelModel(channel_id="UCother", title="Other"))
+
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    trigger = only(added, "trigger")
+    mine = [node for node in boxes(added, "source") if node["title"] == "One Channel"][0]
+    canvas.post("/graph/connect", data={"source": trigger["id"], "target": mine["id"]})
+
+    with db.session_scope() as session:
+        others = session.scalar(select(ChannelModel.id).where(ChannelModel.channel_id == "UCother"))
+
+    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service._note_polled(others, 7)  # somebody else's channel
+    sync_service._note(stage="done", finished=True)
+
+    idle = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
+    assert idle["count"] == 0 and idle["ends"] is True
+
+
+def test_the_trigger_that_was_pressed_stays_lit_for_the_whole_run(canvas, db):
+    """The run has to read as coming out of the box somebody pressed, not as
+    starting in the middle of the drawing."""
+    from dealgo.services import sync as sync_service
+
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    trigger, source = only(added, "trigger"), only(added, "source")
+    canvas.post("/graph/connect", data={"source": trigger["id"], "target": source["id"]})
+
+    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service._note(stage="polling")
+    marks = canvas.get("/api/graph/run").json()["nodes"]
+    assert marks[str(trigger["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False}
+
+    # It stops pulsing when the run ends, and keeps what it set off.
+    sync_service._note(stage="done", finished=True)
+    settled = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
+    assert settled["state"] == "done"
+
+
+def test_pressing_a_pulse_tells_the_run_which_box_did_it(canvas, monkeypatch):
+    from dealgo.web import app as web_app
+
+    asked: dict[str, object] = {}
+
+    class Recorder:
+        def __init__(self, target, args, kwargs, daemon):
+            asked["kwargs"] = kwargs
+
+        def start(self) -> None:
+            pass
+
+    monkeypatch.setattr(web_app.threading, "Thread", Recorder)
+
+    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
+    trigger, source = only(added, "trigger"), only(added, "source")
+    canvas.post("/graph/connect", data={"source": trigger["id"], "target": source["id"]})
+    canvas.post(f"/graph/nodes/{trigger['id']}/fire")
+
+    assert asked["kwargs"]["fired_by"] == trigger["id"]
+
+
+def test_the_canvas_no_longer_offers_to_follow_one_item(canvas):
+    body = canvas.get("/channels").text
+    assert "data-graph-trace" not in body
+    assert canvas.get("/graph/trace/1").status_code == 404
 
 
 # -- the script that draws it ----------------------------------------------
@@ -1022,17 +1971,673 @@ def test_each_box_says_which_of_the_four_it_is(canvas_report):
 
 
 @needs_node
-def test_a_schedules_clock_survives_the_trip_to_utc_and_back(canvas_report):
-    """It is stored in UTC and typed on the viewer's clock, so the conversion
-    runs on every save. An hour lost in it would move somebody's schedule."""
-    assert canvas_report["clockRoundTrip"] == canvas_report["clockRoundTripWanted"]
-    assert canvas_report["clockReads"] == len("09:00")
+def test_zooming_keeps_what_is_under_the_pointer_under_the_pointer(canvas_report):
+    """Zooming about the corner instead would send the thing being looked at
+    off the edge, which is the difference between a zoom and a surprise."""
+    held = canvas_report["zoomHoldsThePointer"]
+    assert held["before"] == held["after"]
+    assert held["zoom"] == 2
 
 
 @needs_node
-def test_the_verdict_counts_the_paths_and_gives_the_reasons(canvas_report):
-    assert "got into 1 of 2 paths" in canvas_report["landedSome"]
-    assert "Short (30s)" in canvas_report["landedSome"]
-    assert "nowhere to go" in canvas_report["landedNowhere"]
-    # Two paths, one reason: saying it twice reads as two different problems.
-    assert canvas_report["saysEachReasonOnce"].count("Short (30s)") == 1
+def test_the_zoom_stops_at_both_ends(canvas_report):
+    limits = canvas_report["zoomLimits"]
+    assert canvas_report["zoomedRightIn"] == limits["most"]
+    assert canvas_report["zoomedRightOut"] == limits["least"]
+
+
+@needs_node
+def test_the_canvas_reads_what_a_run_is_doing(canvas_report):
+    """Boxes are marked from this, so a mark that cannot be read is a box that
+    silently never lights up."""
+    run = canvas_report["run"]
+    assert run["running"] is True
+    assert run["stage"] == "polling"
+    # The rubbish entry is dropped rather than drawn as a blank mark.
+    assert run["marks"] == [
+        [3, {"state": "busy", "count": 0, "stopped": 0, "ends": False}],
+        [7, {"state": "done", "count": 2, "stopped": 0, "ends": False}],
+    ]
+
+
+@needs_node
+def test_a_run_that_is_not_one_is_refused(canvas_report):
+    assert canvas_report["runRefusesRubbish"] is True
+
+
+@needs_node
+def test_the_run_lights_the_wire_out_of_the_box_it_is_working_on(canvas_report):
+    """Pressing Run now on a trigger should show the run leaving it. Only the
+    channel was ever marked busy, so the trigger's own wire stayed dark."""
+    assert canvas_report["wiresLitByTheTrigger"] == ["edge:1"]
+
+
+@needs_node
+def test_a_wire_is_found_by_name_not_by_where_it_sits(canvas_report):
+    """It used to be found as the sibling of its own hit area, which would
+    stop working the day anything else was drawn between them."""
+    assert '[data-line="edge:1"]' in canvas_report["wireSelectors"]
+
+
+@needs_node
+def test_a_box_that_passed_nothing_on_says_so(canvas_report):
+    """Four different answers that all used to look like a blank box: this
+    brought something, there was nothing to bring, something was held here,
+    and this never looked at all."""
+    tallies = canvas_report["tallies"]
+    assert tallies["idle"]["text"] == "stops here"
+    assert tallies["found"]["text"] == "+3"
+    assert tallies["empty"] == {"text": "nothing new", "muted": True, "end": False,
+                                "deadEnd": False}
+    assert tallies["blocked"]["text"] == "stops here · 4 held"
+    # A quiet channel is not a dead end to be alarmed about: it is the usual
+    # state of a channel, and it reads as such.
+    assert tallies["barren"] == {"text": "nothing new", "muted": True, "end": False,
+                                 "deadEnd": False}
+
+
+@needs_node
+def test_the_box_the_flow_stops_at_is_marked_as_well_as_its_badge(canvas_report):
+    """The badge answers "what happened here"; the outline answers "where do I
+    look", which is the one you need before you know to read the badge."""
+    assert canvas_report["tallies"]["blocked"]["deadEnd"] is True
+    assert canvas_report["tallies"]["found"]["deadEnd"] is False
+
+
+@needs_node
+def test_a_box_the_run_has_not_finished_with_says_nothing_yet(canvas_report):
+    """A count of zero while it is still being polled would be a lie."""
+    assert canvas_report["tallies"]["working"] is None
+    assert canvas_report["tallies"]["untouched"] is None
+
+
+def test_what_a_filter_catches_opens_in_a_dialog(canvas):
+    """A long list inside the box that opened it makes the box stop being a
+    box on a canvas. A <dialog> is painted in the browser's top layer, so
+    nothing on the canvas can clip it."""
+    body = canvas.get("/channels").text
+    assert "<dialog" in body and "data-graph-catch" in body
+    assert 'class="modal graph-catch"' in body
+    # And it is closable without JavaScript having to invent a way.
+    assert "data-graph-catch-close" in body
+
+
+@needs_node
+def test_each_port_says_what_it_takes_or_gives(canvas_report):
+    """Two things travel these wires — a signal to run, and the content being
+    collected. A port that said nothing left the reader to guess which."""
+    ports = canvas_report["ports"]
+    assert "signal" in ports["triggerOut"] and "signal" in ports["channelIn"]
+    assert "videos and posts" in ports["channelOut"]
+    assert "got through" in ports["filterOut"]
+    assert "end up" in ports["feedIn"]
+    # Every port says something, and no two sides say the same thing.
+    assert len(set(ports.values())) == len(ports)
+
+
+@needs_node
+def test_the_two_ends_are_named_after_what_is_being_sorted(canvas_report):
+    """"Most first" means one thing for a duration and another for a date.
+    Leaving it at that makes the reader work out which end they are picking."""
+    ends = canvas_report["sortEnds"]
+    assert ends["published"] == ["Newest first", "Oldest first"]
+    assert ends["duration"] == ["Longest first", "Shortest first"]
+    # A key the canvas has never heard of still gets usable words.
+    assert ends["unknown"] == ["Most first", "Least first"]
+
+
+@needs_node
+def test_the_trial_is_shown_in_the_box_that_was_asked(canvas_report):
+    """Not in a box of its own over the canvas: the answer is about one
+    trigger, so it belongs in that trigger."""
+    assert canvas_report["popoverTabs"] == ["Settings", "Test"]
+
+
+@needs_node
+def test_opening_a_test_tab_only_runs_a_trial_when_it_can(canvas_report):
+    """A filter has a Test tab because a trial came through it, not because it
+    can start one. Asking the server to test a filter is refused, and the
+    refusal used to take the whole trial down with it."""
+    runs = canvas_report["tabRuns"]
+    assert runs["triggerWithNoTrial"] is True
+    assert runs["triggerWithAnothers"] is True  # a different trigger's trial
+    assert runs["triggerWithItsOwn"] is False   # already has the answer
+    assert runs["filterShowingItsShare"] is False
+    assert runs["goingBackToSettings"] is False
+    assert runs["aBoxThatIsGone"] is False
+
+
+@needs_node
+def test_a_trial_is_numbered_and_a_filters_report_is_not(canvas_report):
+    """A trial lists the batch in the order it would arrive, and on a sort box
+    that order is the whole answer. A filter's two piles are not an order, so
+    numbering them would imply one that is not there."""
+    lists = canvas_report["lists"]
+    assert lists["trial"] == {"tag": "ol", "className": "graph-sheet-list is-numbered"}
+    assert lists["report"] == {"tag": "ul", "className": "graph-sheet-list"}
+
+
+@needs_node
+def test_a_press_in_a_panel_over_the_canvas_is_not_a_press_on_it(canvas_report):
+    """The palette and the open node sit over the drawing rather than on it.
+    Taking a press in one as a press on the canvas starts a pan — and swallows
+    the fold or the field that was actually being pressed."""
+    pressing = canvas_report["pressing"]
+    assert pressing["palette"] is False
+    assert pressing["openNode"] is False
+    # And the canvas itself still pans, or the two above prove nothing.
+    assert pressing["canvas"] is True
+
+
+# -- when a feed may be read -----------------------------------------------
+#
+# The opposite of a trigger wired to a channel: that one says when to go and
+# fetch, this one says when you may sit down and read.
+
+
+def window(kind, **fields):
+    from dealgo.models import GraphNode as Node
+
+    return Node(kind="trigger", trigger_kind=kind, enabled=True, **fields)
+
+
+def test_a_feed_with_nothing_on_its_second_input_is_always_open(db):
+    assert graph.is_open([], dt.datetime(2026, 5, 1, 3, 0)) is True
+
+
+def test_a_pulse_opens_the_first_part_of_every_gap(db):
+    """Thirty minutes in every sixty: open on the hour, shut on the half."""
+    hourly = window("pulse", every_minutes=60, duration_minutes=30)
+
+    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 0)) is True
+    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 29)) is True
+    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 31)) is False
+
+
+def test_a_schedule_opens_for_its_duration_from_when_it_comes_round(db):
+    morning = window("schedule", cron="0 9 * * *", duration_minutes=30)
+
+    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 10)) is True
+    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 45)) is False
+    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 8, 55)) is False
+
+
+def test_more_schedules_open_more_times(db):
+    """Any one of them is enough — a second schedule is a second chance to
+    read, which is an or."""
+    morning = window("schedule", cron="0 9 * * *", duration_minutes=30)
+    evening = window("schedule", cron="0 21 * * *", duration_minutes=30)
+    both = [morning, evening]
+
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is True
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 21, 10)) is True
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 15, 0)) is False
+
+
+def test_more_pulses_narrow_the_times(db):
+    """Every one of them has to be in its window — a second pulse is a further
+    condition, which is an and."""
+    hourly = window("pulse", every_minutes=60, duration_minutes=30)
+    quarterly = window("pulse", every_minutes=15, duration_minutes=5)
+    both = [hourly, quarterly]
+
+    # On the hour both are open.
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 0)) is True
+    # Ten past: the hourly one still is, the quarter-hourly one is not.
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is False
+    # Quarter past: the quarter-hourly one is open again, and the hourly still.
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 16)) is True
+
+
+def test_a_kind_nobody_used_says_nothing_rather_than_no(db):
+    """Two schedules and no pulses is open when either schedule is, not never
+    — which is what an unguarded "all pulses agree" would have made it."""
+    morning = window("schedule", cron="0 9 * * *", duration_minutes=30)
+    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 10)) is True
+
+    hourly = window("pulse", every_minutes=60, duration_minutes=30)
+    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 10)) is True
+
+
+def test_schedules_and_pulses_together_are_the_overlap(db):
+    """The times a schedule opens, narrowed by the pulses that must agree."""
+    morning = window("schedule", cron="0 9 * * *", duration_minutes=60)
+    quarterly = window("pulse", every_minutes=15, duration_minutes=5)
+
+    both = [morning, quarterly]
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 2)) is True    # in both
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is False  # pulse shut
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 15, 2)) is False  # schedule shut
+
+
+def test_a_switched_off_window_is_no_window_at_all(db):
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        trigger = graph.add_trigger(session, trigger_kind="pulse")
+        graph.connect(session, trigger, feed)
+        assert graph.consumption(session)[feed.playlist_pk] != []
+
+        trigger.enabled = False
+        session.flush()
+        assert graph.consumption(session) == {}
+
+
+def test_a_shut_feed_says_it_is_shut_rather_than_going_quiet(canvas, db):
+    """A feed that vanished would read as a feed that had gone."""
+    from dealgo.models import Playlist as PlaylistModel
+
+    with db.session_scope() as session:
+        graph.load(session)
+        feed = next(n for n in graph.nodes(session) if n.kind == "feed")
+        # A window that is never open: one minute a day, which has passed.
+        trigger = graph.add_trigger(session, trigger_kind="schedule", cron="0 0 1 1 *")
+        trigger.duration_minutes = 1
+        graph.connect(session, trigger, feed)
+
+    body = canvas.get("/feed").text
+    assert "This feed is shut" in body
+    assert "open 1 min from" in body
+
+
+# -- groups ----------------------------------------------------------------
+
+
+def test_a_group_surrounds_whatever_is_drawn_inside_it(db):
+    """Worked out from where things are rather than remembered: a node is in a
+    group when the group is drawn around it, and dragging one out takes it
+    out. Nothing is written when a node moves, so there is no membership to
+    fall out of step with the drawing."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        source.x, source.y = 100, 100
+        feed.x, feed.y = 900, 100
+        session.flush()
+
+        group = graph.add_group(session, x=50, y=50, width=400, height=300)
+        assert [node.id for node in graph.inside(session, group)] == [source.id]
+
+
+def test_moving_a_group_takes_what_it_surrounds_with_it(db):
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        source.x, source.y = 100, 100
+        session.flush()
+        group = graph.add_group(session, x=50, y=50, width=400, height=300)
+
+        graph.move_group(session, group.id, 250, 150)
+        assert (group.x, group.y) == (250, 150)
+        assert (source.x, source.y) == (300, 200)  # the same 200, 100 along
+
+
+def test_a_group_cannot_be_wired_to_anything(db):
+    """It surrounds; it does not carry."""
+    build(db)
+    with db.session_scope() as session:
+        group = graph.add_group(session)
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, group, node_for(session, "feed", "PLone"))
+
+
+def test_a_group_is_not_a_node_on_any_path(db):
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        graph.connect(session, source, feed)
+        graph.add_group(session, x=0, y=0, width=2000, height=2000)
+
+        assert len(graph.routes(session)) == 1
+
+
+def test_a_group_can_be_given_away_and_loaded_back(db):
+    """Channels travel as their YouTube ids, which mean the same thing on any
+    machine. Feeds travel as names: a playlist id belongs to whoever owns the
+    playlist and would be nobody else's to write to."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        source.x, source.y = 100, 100
+        feed.x, feed.y = 400, 100
+        session.flush()
+        middle = graph.add_filter(session, label="No shorts", x=250, y=100)
+        middle.skip_shorts = True
+        graph.connect(session, source, middle)
+        graph.connect(session, middle, feed)
+
+        group = graph.add_group(session, label="My flow", x=50, y=50, width=600, height=300)
+        packed = graph.export_group(session, group.id)
+
+    assert packed["name"] == "My flow"
+    assert {node["kind"] for node in packed["nodes"]} == {"source", "filter", "feed"}
+    assert len(packed["wires"]) == 2
+    # Relative to the group's own corner, so it lands where it is dropped.
+    assert [node for node in packed["nodes"] if node["kind"] == "source"][0]["x"] == 50
+
+    # Loaded into a second account, which has never heard of any of it.
+    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
+    from dealgo.services import accounts
+
+    with db.session_scope() as session:
+        friend = accounts.create_user(session, "friend", "their-password")
+        session.flush()
+        graph.import_group(session, packed, owner=friend.id, x=1000, y=1000)
+        theirs_pk = friend.id
+
+        theirs = graph.nodes(session, owner=theirs_pk)
+        assert {node.kind for node in theirs} == {"group", "source", "filter", "feed"}
+        assert len(graph.routes(session, owner=theirs_pk)) == 1
+
+        # Their own copy of the channel, matched by its YouTube id.
+        copied = session.scalar(
+            select(ChannelModel).where(ChannelModel.owner_pk == theirs_pk)
+        )
+        assert copied.channel_id == "UCone"
+        # And their own feed, made fresh rather than pointed at somebody else's.
+        made = session.scalar(
+            select(PlaylistModel).where(PlaylistModel.owner_pk == theirs_pk)
+        )
+        assert made.is_generic and made.title == "PLone"
+
+
+def test_a_file_that_is_not_a_group_is_refused(db):
+    build(db)
+    with db.session_scope() as session:
+        for rubbish in ({}, {"de_algo_group": 99}, []):
+            with pytest.raises(graph.GraphError):
+                graph.import_group(session, rubbish)
+
+
+def test_a_wire_out_of_the_group_is_not_the_groups_to_give(db):
+    """Half a wire in a file is a wire to nowhere on the other side."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        source.x, source.y = 100, 100
+        feed.x, feed.y = 900, 100  # outside
+        session.flush()
+        graph.connect(session, source, feed)
+
+        group = graph.add_group(session, x=50, y=50, width=300, height=300)
+        packed = graph.export_group(session, group.id)
+
+    assert [node["kind"] for node in packed["nodes"]] == ["source"]
+    assert packed["wires"] == []
+
+
+def test_a_group_can_be_made_moved_and_sized_from_the_canvas(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "group", "x": 0, "y": 0}).json()
+    group = only(added, "group")
+    assert group["size"] == {"width": 520, "height": 300}
+    assert group["note"] == "drag it to move everything in it"
+
+    canvas.post(f"/graph/nodes/{group['id']}/resize", data={"width": 800, "height": 500})
+    canvas.post(f"/graph/nodes/{group['id']}/move", data={"x": 30, "y": 40, "carries": "1"})
+
+    moved = only(canvas.get("/api/graph").json(), "group")
+    assert moved["size"] == {"width": 800, "height": 500}
+    assert (moved["x"], moved["y"]) == (30, 40)
+
+
+def test_a_group_is_exported_as_a_file_to_hand_over(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "group", "title": "My flow"}).json()
+    answer = canvas.get(f"/graph/nodes/{only(added, 'group')['id']}/export")
+
+    assert answer.status_code == 200
+    assert "de-algo-my-flow.json" in answer.headers["content-disposition"]
+    assert answer.json()["de_algo_group"] == 1
+
+
+def test_loading_a_group_adds_it_beside_what_is_already_here(canvas, db):
+    from dealgo.models import Channel as ChannelModel
+
+    packed = {
+        "de_algo_group": 1,
+        "name": "Theirs",
+        "nodes": [
+            {"ref": 0, "kind": "source", "x": 0, "y": 0,
+             "channel_id": "UCgifted", "title": "A gift"},
+            {"ref": 1, "kind": "feed", "x": 300, "y": 0, "title": "Their feed"},
+        ],
+        "wires": [[0, 1]],
+    }
+    before = len(canvas.get("/api/graph").json()["nodes"])
+
+    answer = canvas.post(
+        "/graph/groups",
+        files={"file": ("group.json", json.dumps(packed), "application/json")},
+        data={"x": "600", "y": "0"},
+    )
+    assert answer.status_code == 200
+    drawn = answer.json()["nodes"]
+    assert len(drawn) == before + 3  # the group, the channel, the feed
+
+    with db.session_scope() as session:
+        gifted = session.scalar(
+            select(ChannelModel).where(ChannelModel.channel_id == "UCgifted")
+        )
+        # Paused until somebody wires it up and switches it on.
+        assert gifted is not None and gifted.enabled is False
+
+
+def test_a_file_that_is_not_json_at_all_is_refused(canvas):
+    answer = canvas.post(
+        "/graph/groups", files={"file": ("group.json", "not json", "application/json")}
+    )
+    assert answer.status_code == 400
+    assert "readable JSON" in answer.json()["error"]
+
+
+@needs_node
+def test_a_group_can_be_pressed_like_any_other_node(canvas_report):
+    """A group is drawn as a rectangle rather than a box, so it carries its
+    own class. Looking only for the box's meant a group could not be pressed
+    at all: not moved, not resized, not opened, and so not removed either."""
+    targets = canvas_report["pressTargets"]
+    assert targets["node"] == 4
+    assert targets["group"] == 9
+    assert targets["neither"] is None
+
+
+def test_removing_a_group_leaves_what_it_surrounded(db):
+    """It is a rectangle drawn around things, not a container holding them.
+    Taking the rectangle away takes nothing else with it."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        source.x, source.y = 100, 100
+        session.flush()
+        group = graph.add_group(session, x=50, y=50, width=400, height=300)
+
+        assert graph.remove(session, group.id) is True
+        assert session.scalars(select(Channel)).all() != []
+        assert [node.kind for node in graph.nodes(session)] == ["source", "feed"]
+
+
+# -- more than one node for one channel ------------------------------------
+
+
+def test_a_channel_already_watched_is_attached_rather_than_refused(canvas, db):
+    """Two nodes for one channel is how it is wired down two paths that filter
+    differently, which is worth being able to draw."""
+    from dealgo.models import Channel as ChannelModel
+
+    payload = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(payload, "source") if node["detail"] is None][0]
+
+    saved = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "UCone"}).json()
+    assert [node["title"] for node in boxes(saved, "source")] == ["One Channel", "One Channel"]
+
+    with db.session_scope() as session:
+        # One channel, drawn twice — not two channels.
+        assert len(session.scalars(select(ChannelModel)).all()) == 1
+
+
+def test_the_same_path_twice_is_still_one_path(db):
+    """Both nodes carry the channel's own feed links, so without care the
+    same video would be weighed twice for one feed."""
+    build(db)
+    with db.session_scope() as session:
+        first = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        graph.connect(session, first, feed)
+
+        second = graph.add_source(session, channel=first.channel, x=60, y=400)
+        session.flush()
+
+        assert len(graph.routes(session)) == 1
+
+
+def test_two_nodes_for_one_channel_can_filter_differently(db):
+    build(db)
+    with db.session_scope() as session:
+        first = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        second = graph.add_source(session, channel=first.channel, x=60, y=400)
+        middle = graph.add_filter(session, label="Trim")
+        graph.connect(session, first, feed)
+        graph.connect(session, second, middle)
+        graph.connect(session, middle, feed)
+
+        paths = graph.routes(session)
+        assert len(paths) == 2
+        assert sorted(len(path.filters) for path in paths) == [0, 1]
+
+
+def test_taking_one_of_two_nodes_away_keeps_the_channel(db):
+    """Taking a node off the canvas is rearranging the drawing, not saying
+    goodbye to the channel."""
+    build(db)
+    with db.session_scope() as session:
+        first = node_for(session, "source", "UCone")
+        second = graph.add_source(session, channel=first.channel, x=60, y=400)
+        session.flush()
+
+        graph.remove(session, second.id)
+        assert session.scalars(select(Channel)).all() != []
+
+        # And the last one takes it with it, as it always did.
+        graph.remove(session, first.id)
+        assert session.scalars(select(Channel)).all() == []
+
+
+# -- undo ------------------------------------------------------------------
+
+
+@needs_node
+def test_undo_keeps_the_last_few_actions_and_no_more(canvas_report):
+    """Far enough to fix a mistake, not so far that it becomes a second
+    history of the setup. The earliest fall off, not the latest."""
+    assert canvas_report["undoStacked"] == ["the move", "the wire you drew"]
+    assert canvas_report["undoCapped"]["held"] == canvas_report["undoDepth"]
+    assert canvas_report["undoCapped"]["oldest"] == "step 20"
+
+
+@needs_node
+def test_undo_leaves_a_text_field_its_own_undo(canvas_report):
+    """Ctrl+Z while typing a node's name is that field's undo. Taking it would
+    make typing the one thing on this canvas that cannot be taken back."""
+    assert canvas_report["undoTakesTheKey"]["canvas"] is True
+    assert canvas_report["undoTakesTheKey"]["field"] is False
+
+
+@needs_node
+def test_undo_knows_what_appeared(canvas_report):
+    """An added node or wire is found by comparing before with after, since
+    the server answers with the whole graph rather than with what it made."""
+    found = canvas_report["undoFinds"]
+    assert found["node"] == 2
+    assert found["wire"] == "edge:2"
+    # Two at once is nobody's single action, so nothing is assumed.
+    assert found["ambiguous"] is None
+
+
+@needs_node
+def test_dragging_one_of_several_picked_nodes_takes_the_rest(canvas_report):
+    """Several nodes dragged by one of them keep their arrangement. A node
+    picked on its own takes nothing, and a node that is not picked at all
+    takes nothing either — however much else is."""
+    travels = canvas_report["travelsWith"]
+    assert travels["pickedPair"] == [2]
+    assert travels["aloneNode"] == []
+    assert travels["unpickedNode"] == []
+    # A group still takes what it surrounds, picked or not.
+    assert travels["group"] == [1, 2]
+
+
+def test_the_canvas_offers_undo_and_says_how(canvas):
+    body = canvas.get("/channels").text
+    assert "data-graph-undo" in body
+    assert "Ctrl+Z" in body
+    assert "data-graph-picked" in body
+
+
+@needs_node
+def test_jumping_to_a_group_puts_it_in_the_middle_of_the_view(canvas_report):
+    """The canvas goes on for ever, so a group dragged far enough out is one
+    nobody can find by panning. Centring has to hold at any zoom: the pan is
+    in screen pixels and the group's position is in the drawing's."""
+    jump = canvas_report["jumpTo"]
+    # A 400x200 group at (1000, 800) has its middle at (1200, 900); the middle
+    # of an 800x600 canvas is (400, 300).
+    assert jump["lifeSize"]["panX"] == 400 - 1200
+    assert jump["lifeSize"]["panY"] == 300 - 900
+    # Zoomed to 2x, the same point is twice as far into the drawing.
+    assert jump["zoomedIn"]["panX"] == 400 - 1200 * 2
+    assert jump["zoomedIn"]["panY"] == 300 - 900 * 2
+    # And it is marked, so it can be told apart once it is on screen.
+    assert jump["lifeSize"]["picked"] == [3]
+
+
+def test_the_canvas_draws_its_groups_beneath_its_wires(canvas):
+    """Three layers, bottom to top: groups, wires, nodes. A group is a
+    background, so a wire crossing one is still the thing being pointed at."""
+    body = canvas.get("/channels").text
+    scene = body.split('data-graph-scene', 1)[1]
+    assert scene.index("data-graph-groups") < scene.index("data-graph-wires")
+    assert scene.index("data-graph-wires") < scene.index("data-graph-nodes")
+
+
+def test_the_canvas_offers_a_way_back_to_each_group(canvas):
+    body = canvas.get("/channels").text
+    assert "data-graph-find" in body
+    assert "data-graph-finder-list" in body
+    assert "<h3>Groups</h3>" in body
+
+
+@needs_node
+def test_only_one_drawer_is_ever_out(canvas_report):
+    """They share an edge now, and two drawers over one another is two drawers
+    nobody asked for."""
+    drawers = canvas_report["drawers"]
+    assert drawers["afterPalette"] == {"palette": True, "finder": False}
+    assert drawers["afterFinder"] == {"palette": False, "finder": True}
+
+
+@needs_node
+def test_a_wire_arrives_at_the_input_it_belongs_to(canvas_report):
+    """A feed has two inputs. A trigger carries no content, so a wire from one
+    into a feed is about when that feed may be read — and nothing else ever
+    is. Drawn to the middle regardless, it pointed at the wrong dot."""
+    enters = canvas_report["wireEnters"]
+    assert enters["triggerToFeed"] == "when"
+    assert enters["triggerToChannel"] == "content"
+    assert enters["filterToFeed"] == "content"
+    assert enters["channelToFeed"] == "content"
+
+
+@needs_node
+def test_the_open_panel_follows_whichever_node_it_belongs_to(canvas_report):
+    """Not only the node under the pointer: a group takes what it surrounds
+    with it, and a selection takes the rest of itself, so the open one can be
+    moving without being the one being dragged."""
+    follows = canvas_report["panelFollows"]
+    # Beside its node: 300 across plus the node's own width, and level with it.
+    assert follows["itsNode"] == {"left": "530px", "top": "200px"}
+    # Nothing open for that node, so nothing is moved.
+    assert follows["anotherNode"] == {"left": None, "top": None}

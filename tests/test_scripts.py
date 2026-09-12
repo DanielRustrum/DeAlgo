@@ -125,7 +125,6 @@ def test_every_file_ends_with_one_named_entry_point():
     """One call, at the bottom, by name: the only statement that is not a
     declaration."""
     entries = {
-        "dialog": "initDialogs();",
         "sections": "initSections();",
         "focus": "initFocusMode();",
         "menu": "initMenu();",
@@ -146,6 +145,10 @@ def test_the_logic_is_all_in_functions():
     allowed = (
         "function ", "async function ", "interface ", "type ", "declare ",
         "//", "/**", " *", "*/", "}", "/// <reference",
+        # The closing line of a signature whose parameters were wrapped. Not a
+        # statement — and a loose call that ended this way would still be
+        # caught by the entry-point test, which looks for lines ending in ");".
+        ")",
         "init", "listenForWorkerEvents",
     )
     for source in sources():
@@ -184,3 +187,33 @@ def test_every_class_a_script_looks_for_is_one_the_stylesheet_defines():
     for source in sources():
         for name in queried_classes(source):
             assert f".{name}" in styles, f"{source.name} looks for .{name}, which no rule defines"
+
+
+def test_everything_that_covers_the_page_holds_it_still():
+    """A modal makes the page inert, which stops it being clicked but not
+    necessarily scrolled — and where showModal is missing, neither. Anything
+    that opens over the page has to say so."""
+    holders = [
+        source for source in sources() if 'classList.toggle("page-held"' in source.read_text()
+    ]
+    assert {source.stem for source in holders} == {"menu", "graph"}
+
+
+def defined_functions(source: pathlib.Path) -> list[str]:
+    return re.findall(r"^(?:async )?function (\w+)\(", source.read_text(), re.M)
+
+
+def test_no_script_carries_a_function_nobody_calls():
+    """A function written but never wired up is a feature that silently does
+    not exist. It compiles, it typechecks, and the button it was meant to be
+    behind does nothing — which is exactly how it is found: by pressing it.
+
+    Every name here appears at least twice: once where it is declared, and
+    once where something uses it. An entry point counts, since it is called
+    at the bottom of its own file.
+    """
+    for source in sources():
+        text = source.read_text()
+        for name in defined_functions(source):
+            uses = len(re.findall(rf"\b{name}\b", text))
+            assert uses > 1, f"{source.name}: {name}() is defined and never called"

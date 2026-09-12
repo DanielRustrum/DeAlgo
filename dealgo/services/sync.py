@@ -14,7 +14,7 @@ import logging
 import threading
 from contextlib import contextmanager
 from collections.abc import Collection, Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import httpx
 from sqlalchemy import func, or_, select
@@ -80,6 +80,101 @@ def playlist_lock() -> Iterator[None]:
 
 
 @dataclass
+class RunProgress:
+    """Where a run has got to, for anything watching it happen.
+
+    Held in memory rather than in the database: it is worth nothing once the
+    run is over, it changes many times a second, and a crash mid-run should
+    leave no trace of it. What survives a run is the SyncRun row.
+    """
+
+    owner: OwnerId = None
+    trigger: str = "manual"
+    stage: str = "starting"
+    #: The trigger box that set this off, when a person pressed one. The
+    #: canvas lights it and the wire out of it, so the run reads as starting
+    #: somewhere rather than as several boxes changing at once.
+    fired_by: int | None = None
+    #: The channel being polled right this moment.
+    channel_pk: int | None = None
+    #: The channels this run has finished with, and what each brought in.
+    polled: dict[int, int] = field(default_factory=dict)
+    #: How many items each feed has taken so far.
+    placed: dict[int, int] = field(default_factory=dict)
+    #: Items that got past each channel's own settings, by channel. What a
+    #: channel found and what left it are different numbers, and the gap
+    #: between them is the channel turning its own uploads away.
+    left: dict[int, int] = field(default_factory=dict)
+    #: Items each filter box let through and turned away, by graph node id.
+    #: Kept per box rather than per run so the canvas can say where the flow
+    #: stopped, which is the question a filter exists to answer.
+    through: dict[int, int] = field(default_factory=dict)
+    stopped: dict[int, int] = field(default_factory=dict)
+    finished: bool = False
+
+
+_progress: RunProgress | None = None
+_progress_lock = threading.Lock()
+
+
+def progress() -> RunProgress | None:
+    """A snapshot of the run in flight, or of the one that just ended."""
+    with _progress_lock:
+        if _progress is None:
+            return None
+        return replace(
+            _progress,
+            polled=dict(_progress.polled),
+            placed=dict(_progress.placed),
+        )
+
+
+def _start_progress(owner: OwnerId, trigger: str, fired_by: int | None = None) -> None:
+    global _progress
+    with _progress_lock:
+        _progress = RunProgress(owner=owner, trigger=trigger, fired_by=fired_by)
+
+
+def _note(**fields: object) -> None:
+    """Move the run on. Silent when nothing is watching."""
+    with _progress_lock:
+        if _progress is None:
+            return
+        for name, value in fields.items():
+            setattr(_progress, name, value)
+
+
+def _note_polled(channel_pk: int, found: int) -> None:
+    with _progress_lock:
+        if _progress is None:
+            return
+        _progress.polled[channel_pk] = found
+        _progress.channel_pk = None
+
+
+def _note_left(channel_pk: int) -> None:
+    with _progress_lock:
+        if _progress is None:
+            return
+        _progress.left[channel_pk] = _progress.left.get(channel_pk, 0) + 1
+
+
+def _note_filtered(node_pk: int, passed: bool) -> None:
+    with _progress_lock:
+        if _progress is None:
+            return
+        tally = _progress.through if passed else _progress.stopped
+        tally[node_pk] = tally.get(node_pk, 0) + 1
+
+
+def _note_placed(playlist_pk: int) -> None:
+    with _progress_lock:
+        if _progress is None:
+            return
+        _progress.placed[playlist_pk] = _progress.placed.get(playlist_pk, 0) + 1
+
+
+@dataclass
 class SyncResult:
     ok: bool = False
     started: bool = True
@@ -114,16 +209,20 @@ def run_sync(
     force: bool = False,
     owner: OwnerId = None,
     only: Collection[int] | None = None,
+    fired_by: int | None = None,
 ) -> SyncResult:
     """Run one account's sync pass. Returns at once if a pass is in flight.
 
     ``force`` polls every enabled channel regardless of its minimum gap. The
     scheduler never forces; this is for someone pressing the button.
 
-    ``only`` narrows the pass to certain channels, by primary key. A pulse
-    trigger on the canvas is wired to some channels and not others, and this
-    is how it says so. The publishing half still runs over everything, because
-    what a new video is allowed into is a question about the whole graph.
+    ``only`` narrows the pass to certain channels, by primary key. A trigger
+    on the canvas is wired to some channels and not others, and this is how it
+    says so. The publishing half still runs over everything, because what a
+    new video is allowed into is a question about the whole graph.
+
+    ``fired_by`` is the trigger box somebody pressed, carried through so the
+    canvas can light it while its run is going.
 
     One account at a time, because everything a pass depends on belongs to
     one: its channels, its feeds, its Google connection and its quota.
@@ -131,7 +230,10 @@ def run_sync(
     try:
         with playlist_lock():
             with http_client() as http, session_scope() as session:
-                return _run(session, http, trigger, force=force, owner=owner, only=only)
+                return _run(
+                    session, http, trigger, force=force, owner=owner, only=only,
+                    fired_by=fired_by,
+                )
     except Busy:
         return SyncResult(ok=True, started=False, messages=["A sync is already running."])
     except Exception as exc:  # pragma: no cover - last-resort guard for the scheduler
@@ -173,8 +275,10 @@ def _run(
     force: bool = False,
     owner: OwnerId = None,
     only: Collection[int] | None = None,
+    fired_by: int | None = None,
 ) -> SyncResult:
     settings = get_settings(session, owner)
+    _start_progress(owner, trigger, fired_by)
     run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force, owner_pk=owner)
     session.add(run)
     session.commit()
@@ -183,12 +287,15 @@ def _run(
     quota_before = quota.state(session, owner).used
     client = build_client(session, http, owner)
 
+    _note(stage="polling")
     _discover(
         session, http, result, backfill=settings.initial_backfill, force=force, owner=owner,
         only=only,
     )
+    _note(stage="sorting")
     _fill_missing_details(session, client, result, owner)
     session.commit()
+    _note(stage="filling")
 
     playlists = list(
         session.scalars(
@@ -227,6 +334,7 @@ def _run(
         session.commit()
         _prune(session, client, playlists, result, owner)
 
+    _note(stage="done", finished=True, channel_pk=None)
     run.finished_at = utcnow()
     run.ok = result.failed == 0 and all("failed" not in m.lower() for m in result.messages)
     run.channels_checked = result.channels_checked
@@ -302,6 +410,7 @@ def _discover(
             # hear from a channel, not about cost.
             result.channels_waiting += 1
             continue
+        _note(channel_pk=channel.id)
         try:
             feed = feeds.fetch_feed(channel.channel_id, http)
         except httpx.HTTPError as exc:
@@ -330,6 +439,7 @@ def _discover(
         if first_check and channel.backfill_days is not None:
             cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
 
+        found = 0
         for index, entry in enumerate(feed.entries):
             if entry.video_id in known:
                 continue
@@ -354,6 +464,7 @@ def _discover(
             )
             if not beyond_backfill:
                 result.discovered += 1
+                found += 1
 
         if not channel.skip_posts:
             _discover_posts(
@@ -366,6 +477,7 @@ def _discover(
         channel.last_checked_at = utcnow()
         channel.last_error = None
         result.channels_checked += 1
+        _note_polled(channel.id, found)
         session.flush()
 
 
@@ -526,6 +638,7 @@ def _retry_deferred(
             added_per_playlist[placement.playlist_pk] = (
                 added_per_playlist.get(placement.playlist_pk, 0) + 1
             )
+            _note_placed(placement.playlist_pk)
             result.added += 1
             session.flush()
             continue
@@ -562,6 +675,7 @@ def _retry_deferred(
         added_per_playlist[placement.playlist_pk] = (
             added_per_playlist.get(placement.playlist_pk, 0) + 1
         )
+        _note_placed(placement.playlist_pk)
         result.added += 1
         session.flush()
     return False
@@ -601,6 +715,7 @@ def _publish(
         if path.playlist.enabled:
             routes_for.setdefault(path.channel.id, []).append(path)
 
+
     details = {}
     clips = [v.video_id for v in pending if not v.is_post]
     if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True, owner=owner):
@@ -609,6 +724,21 @@ def _publish(
         except YouTubeAPIError as exc:
             log.warning("could not load video details: %s", exc)
             result.messages.append("Video details unavailable; duration filters were not applied.")
+
+    # What YouTube said goes onto the videos before anything reads it: a sort
+    # box orders by duration and by counts, and those arrive here. Left until
+    # the loop below, the first run of a new batch would sort it by nothing.
+    for video in pending:
+        arrived = details.get(video.video_id)
+        if arrived is None:
+            continue
+        video.duration_sec = arrived.duration_sec
+        video.view_count = arrived.view_count
+        video.like_count = arrived.like_count
+        if arrived.title:
+            video.title = arrived.title
+
+    _reorder(pending, routes_for)
 
     # Read each target playlist once, so videos already in it (added by hand, or
     # by a previous install) are adopted rather than inserted twice.
@@ -641,11 +771,6 @@ def _publish(
             break
         channel = video.channel
         detail = details.get(video.video_id)
-        if detail is not None:
-            video.duration_sec = detail.duration_sec
-            if detail.title:
-                video.title = detail.title
-
         if detail is None and client.can_read and not video.is_post:
             _reject(video, result, "video is unavailable (private, deleted, or region blocked)")
             continue
@@ -658,10 +783,19 @@ def _publish(
             # Stays pending: wiring it to a feed later picks it up.
             continue
 
+        # What the channel itself thinks of this one, before any filter box
+        # has a say. That is what "left the channel" means, and it is the
+        # difference between a quiet channel and one turning its own uploads
+        # away.
+        own_rules = graph.Route(channel=channel, playlist=paths[0].playlist, filters=[])
+        if _decide(video, own_rules, detail, settings).accept:
+            _note_left(channel.id)
+
         allowed: list[Playlist] = []
         refusals: list[str] = []
         for path in paths:
             decision = _decide(video, path, detail, settings)
+            _attribute(video, path, detail, settings)
             if decision.accept:
                 allowed.append(path.playlist)
             elif decision.reason:
@@ -851,6 +985,94 @@ def _decide(
         skip_videos=bool(rules["skip_videos"]),
         shorts_max_seconds=settings.shorts_max_seconds,
     )
+
+
+def _reorder(pending: list[Video], routes_for: dict[int, list["graph.Route"]]) -> None:
+    """Put the batch in the order the sort boxes asked for.
+
+    Insertion order is the order things appear in a feed, and this list is
+    what the insert loop walks — so ordering it here is what a sort box does.
+
+    One list, so one order. A video reached by two paths that sort
+    differently is ordered by the first of them, which is the one nearest the
+    top of the graph; two feeds that genuinely disagree need two batches, and
+    that is a larger change than this earns. Videos with no sort box on their
+    path keep the order they came in with, which is oldest first.
+    """
+    keyed = [
+        (video, _sorter(video, routes_for.get(video.channel_pk or 0, [])))
+        for video in pending
+    ]
+    if not any(key is not None for _, key in keyed):
+        return
+
+    # Sorted once, with the original position as the tie-break, so anything
+    # the sort boxes say nothing about stays where it was.
+    order = {video.id: position for position, video in enumerate(pending)}
+    pending.sort(
+        key=lambda video: (
+            _sorter(video, routes_for.get(video.channel_pk or 0, [])) or (0, 0),
+            order[video.id],
+        )
+    )
+
+
+def _sorter(video: Video, paths: Sequence["graph.Route"]) -> tuple[int, float] | None:
+    """Where this video belongs in the batch, as the first sort box sees it.
+
+    The leading number is the box's own position, so videos under different
+    sort boxes do not interleave: each box's batch stays together, in its own
+    order, rather than being shuffled through another's.
+    """
+    for path in paths:
+        box = path.order
+        if box is None:
+            continue
+        rank = _sort_value(video, box.sort_by or graph.DEFAULT_SORT_BY)
+        return (box.id, -rank if (box.sort_dir or "desc") == "desc" else rank)
+    return None
+
+
+def _sort_value(video: Video, key: str) -> float:
+    """The number a batch is ordered by. Unknown counts sort last either way.
+
+    A video whose details were never fetched has no view count, and guessing
+    zero would put it top of an ascending sort — which reads as "this is the
+    least watched" rather than "nobody asked YouTube yet".
+    """
+    if key == "duration":
+        return float(video.duration_sec or 0)
+    if key == "views":
+        return float(video.view_count or 0)
+    if key == "likes":
+        return float(video.like_count or 0)
+    if key == "title":
+        # Alphabetical, as a number: the first few characters are enough to
+        # order a batch, and it keeps every key the same shape.
+        return -sum(ord(letter) / (256.0 ** index) for index, letter in enumerate((video.title or "").lower()[:8]))
+    published = video.published_at
+    return published.timestamp() if published is not None else 0.0
+
+
+def _attribute(
+    video: Video, path: "graph.Route", detail: VideoDetails | None, settings: Settings
+) -> None:
+    """Say which box on this path let the video through, and which stopped it.
+
+    The decision for the path as a whole says yes or no; it does not say where
+    the no happened. This walks the path a box at a time and asks the same
+    question of each prefix, so the canvas can point at the box that is
+    actually holding things up rather than at the path in general.
+    """
+    for index, node in enumerate(path.filters):
+        so_far = graph.Route(
+            channel=path.channel, playlist=path.playlist, filters=path.filters[: index + 1]
+        )
+        if _decide(video, so_far, detail, settings).accept:
+            _note_filtered(node.id, passed=True)
+        else:
+            _note_filtered(node.id, passed=False)
+            return  # it got no further, so the boxes after this one never saw it
 
 
 def _place_locally(

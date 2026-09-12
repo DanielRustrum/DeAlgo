@@ -33,7 +33,7 @@ function describeMenu(open: boolean): void {
 
 /** A drawer over a page that scrolls underneath it reads as broken. */
 function holdPageStill(open: boolean): void {
-  document.body.classList.toggle("menu-open", open);
+  document.body.classList.toggle("page-held", open);
 }
 
 function setMenu(open: boolean): void {

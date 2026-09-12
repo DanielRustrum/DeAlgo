@@ -31,7 +31,7 @@ function describeMenu(open) {
 }
 /** A drawer over a page that scrolls underneath it reads as broken. */
 function holdPageStill(open) {
-    document.body.classList.toggle("menu-open", open);
+    document.body.classList.toggle("page-held", open);
 }
 function setMenu(open) {
     const checkbox = menuCheckbox();

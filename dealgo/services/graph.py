@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,31 +38,103 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import Channel, GraphEdge, GraphNode, Playlist, Settings, Video
+from . import ordering
 from .scope import OwnerId, owned
 
 log = logging.getLogger(__name__)
 
-KINDS = ("trigger", "source", "filter", "feed")
+KINDS = ("trigger", "source", "filter", "sort", "feed", "group")
+
+# What a group starts out as, and the least it can be shrunk to.
+GROUP_SIZE = (520, 300)
+GROUP_LEAST = (200, 140)
 TRIGGER_KINDS = ("schedule", "pulse")
 
+# What a sort box can order a batch by: the name it is stored under, what it
+# is called, and the two ends of it. "Most first" means something different
+# for a duration than for a date, so each key brings its own words rather than
+# leaving the reader to work out which end "most" is.
+SORT_KEYS: tuple[tuple[str, str, str, str], ...] = (
+    ("published", "When it went up", "Newest first", "Oldest first"),
+    ("duration", "How long it is", "Longest first", "Shortest first"),
+    ("views", "How many have watched it", "Most watched first", "Least watched first"),
+    ("likes", "How many liked it", "Most liked first", "Least liked first"),
+    ("title", "Its title", "Z to A", "A to Z"),
+)
+
+
+def sort_words(key: str, falling: bool) -> str:
+    """What this box does, in the words that belong to what it sorts by."""
+    for name, _, first, last in SORT_KEYS:
+        if name == key:
+            return first if falling else last
+    return "Newest first" if falling else "Oldest first"
+DEFAULT_SORT_BY = "published"
+
 # Which wires make sense. Triggers feed channels, sources start paths, feeds
-# end them, filters sit in between — and nothing runs backwards.
+# end them, filters and sorts sit in between — and nothing runs backwards.
+MIDDLE = ("filter", "sort")
 ALLOWED: dict[str, tuple[str, ...]] = {
-    "trigger": ("source",),
-    "source": ("filter", "feed"),
-    "filter": ("filter", "feed"),
+    # A group is not on any path: it surrounds, it does not carry.
+    "group": (),
+    # Into a channel it says when to poll; into a feed it says when that feed
+    # may be read. A trigger carries no content either way.
+    "trigger": ("source", "feed"),
+    "source": MIDDLE + ("feed",),
+    "filter": MIDDLE + ("feed",),
+    "sort": MIDDLE + ("feed",),
     "feed": (),
 }
 
 # Where a newly laid-out graph puts things: sources on the left, feeds on the
 # right, filters between them. Triggers are placed beside the channel they are
 # added next to rather than in a column, so they fit a canvas already laid out.
-COLUMN_X = {"trigger": 60, "source": 60, "filter": 420, "feed": 780}
+COLUMN_X = {"trigger": 60, "source": 60, "filter": 420, "sort": 420, "feed": 780, "group": 40}
 ROW_HEIGHT = 130
 
 # What a trigger means if it is wired up without anything being chosen.
 DEFAULT_EVERY_MINUTES = 60
 DEFAULT_CRON = "0 9 * * *"  # every day at 09:00 UTC
+
+# How long a window stays open when nobody has said.
+DEFAULT_DURATION_MINUTES = 30
+
+# What a pulse's gap can be said in. Stored as minutes whichever is chosen —
+# one number in the database, so nothing has to know which unit it was typed
+# in. A month is thirty days here, and says so where it is offered: there is
+# no honest fixed number of minutes in a month.
+EVERY_UNITS: tuple[tuple[str, int, str], ...] = (
+    ("minutes", 1, "minutes"),
+    ("hours", 60, "hours"),
+    ("days", 1440, "days"),
+    ("weeks", 10080, "weeks"),
+    ("months", 43200, "months (30 days)"),
+)
+
+
+def split_every(minutes: int) -> tuple[int, str]:
+    """A gap in minutes as an amount and the largest unit it divides into.
+
+    120 reads back as 2 hours and 90 as 90 minutes: the unit it was typed in
+    is not stored, so the one that comes back is the one that needs no
+    fraction to say.
+    """
+    for name, size, _ in reversed(EVERY_UNITS):
+        if minutes >= size and minutes % size == 0:
+            return minutes // size, name
+    return max(1, minutes), "minutes"
+
+
+def every_minutes_from(amount: int, unit: str) -> int:
+    """An amount and a unit as the minutes to store."""
+    size = next((size for name, size, _ in EVERY_UNITS if name == unit), 1)
+    return max(1, amount) * size
+
+
+def every_words(minutes: int) -> str:
+    """A gap said the way it was most likely meant."""
+    amount, unit = split_every(minutes)
+    return f"{amount} {unit[:-1] if amount == 1 else unit}"
 
 # Where the trigger column goes, and how much clear space a channel box needs
 # to its left for one to fit beside it.
@@ -85,6 +158,17 @@ class Route:
     channel: Channel
     playlist: Playlist
     filters: list[GraphNode] = field(default_factory=list)
+    #: Sort boxes on this path, in the order they are passed through.
+    sorts: list[GraphNode] = field(default_factory=list)
+
+    @property
+    def order(self) -> GraphNode | None:
+        """The sort box that decides this path's order, if any.
+
+        The last one, as with filters: the nearest the feed has the final say,
+        because that is the one describing what arrives.
+        """
+        return self.sorts[-1] if self.sorts else None
 
     def effective(self) -> dict[str, Any]:
         """The channel's filters with each filter node laid over the top.
@@ -162,7 +246,32 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
                 found.append(Route(channel=node.channel, playlist=playlist))
         # And the paths that go through filter nodes.
         _walk(node, by_id, out, node.channel, [], set(), found)
-    return found
+    return _once_each(found)
+
+
+def _once_each(found: list[Route]) -> list[Route]:
+    """Drop paths that are the same path twice.
+
+    A channel may have two nodes on the canvas — the same channel wired down
+    two routes that filter differently, which is the point of being allowed a
+    second one. Both nodes carry the same channel-to-feed links, so the direct
+    wires would otherwise be counted once per node and the same video weighed
+    twice for one feed.
+    """
+    seen: set[tuple[int, int, tuple[int, ...], tuple[int, ...]]] = set()
+    kept: list[Route] = []
+    for path in found:
+        signature = (
+            path.channel.id,
+            path.playlist.id,
+            tuple(node.id for node in path.filters),
+            tuple(node.id for node in path.sorts),
+        )
+        if signature in seen:
+            continue
+        seen.add(signature)
+        kept.append(path)
+    return kept
 
 
 def _walk(
@@ -173,15 +282,17 @@ def _walk(
     carried: list[GraphNode],
     seen: set[int],
     found: list[Route],
+    ordered: list[GraphNode] | None = None,
 ) -> None:
-    """Depth-first from a source, collecting filters until a feed is reached.
+    """Depth-first from a source, collecting what it passes until a feed.
 
     `seen` is per path, not global: two paths may legitimately pass through the
-    same filter node, and only a loop is a problem.
+    same box, and only a loop is a problem.
     """
     if node.id in seen:
         return
     seen = seen | {node.id}
+    ordered = ordered or []
 
     for target_id in out.get(node.id, []):
         target = by_id.get(target_id)
@@ -189,87 +300,30 @@ def _walk(
             continue
         if target.kind == "feed":
             if target.playlist is not None:
-                found.append(Route(channel=channel, playlist=target.playlist, filters=list(carried)))
-        elif target.kind == "filter":
-            _walk(target, by_id, out, channel, carried + [target], seen, found)
-
-
-@dataclass
-class Step:
-    """What one path did with one item, for drawing on the canvas."""
-
-    playlist_pk: int
-    node_ids: list[int]
-    wire_ids: list[str]
-    accepted: bool
-    reason: str | None = None
-
-
-def trace(session: Session, video: Video, settings: Settings, owner: OwnerId = None) -> list[Step]:
-    """Follow one item through the graph and say what became of it.
-
-    Answers the question a page of settings never can: *why is this not in my
-    feed?* Every path is walked and judged, so the canvas can light the ones
-    it travelled and name the box that stopped the rest. Nothing is written.
-    """
-    from . import sync as sync_service
-
-    all_nodes, all_edges = load(session, owner)
-    # The canvas names a wire by where it lives, so the trace has to look the
-    # id up rather than make one from the two ends: an edge is "edge:7", and
-    # only a channel-to-feed link is named after the boxes it joins.
-    edge_between = {(edge.source_pk, edge.target_pk): f"edge:{edge.id}" for edge in all_edges}
-    source_for = {node.channel_pk: node for node in all_nodes if node.kind == "source"}
-    feed_for = {node.playlist_pk: node for node in all_nodes if node.kind == "feed"}
-
-    steps: list[Step] = []
-    for path in routes(session, owner):
-        if path.channel.id != video.channel_pk:
-            continue
-        start = source_for.get(path.channel.id)
-        end = feed_for.get(path.playlist.id)
-        if start is None or end is None:
-            continue
-
-        walked = [start.id] + [node.id for node in path.filters] + [end.id]
-        wires_used: list[str] = []
-        for first, second in zip(walked, walked[1:]):
-            edge_id = edge_between.get((first, second))
-            if edge_id is not None:
-                wires_used.append(edge_id)
-            elif first == start.id and second == end.id:
-                wires_used.append(f"link:{first}:{second}")
-
-        decision = sync_service._decide(video, path, None, settings)
-        steps.append(
-            Step(
-                playlist_pk=path.playlist.id,
-                node_ids=walked,
-                wire_ids=wires_used,
-                accepted=decision.accept,
-                reason=decision.reason,
+                found.append(
+                    Route(
+                        channel=channel,
+                        playlist=target.playlist,
+                        filters=list(carried),
+                        sorts=list(ordered),
+                    )
+                )
+        elif target.kind in MIDDLE and target.enabled:
+            # A box that is switched off is not a box that passes everything:
+            # nothing goes through it at all, so the path ends.
+            _walk(
+                target,
+                by_id,
+                out,
+                channel,
+                carried + [target] if target.kind == "filter" else carried,
+                seen,
+                found,
+                ordered + [target] if target.kind == "sort" else ordered,
             )
-        )
-    return steps
 
 
-# -- what the triggers say --------------------------------------------------
-
-
-def triggers_for(session: Session, owner: OwnerId = None) -> dict[int, list[GraphNode]]:
-    """The trigger boxes wired into each channel, by channel primary key."""
-    all_nodes, all_edges = load(session, owner)
-    by_id = {node.id: node for node in all_nodes}
-
-    wired: dict[int, list[GraphNode]] = {}
-    for edge in all_edges:
-        start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
-        if start is None or end is None:
-            continue
-        if start.kind == "trigger" and end.kind == "source" and end.channel_pk is not None:
-            wired.setdefault(end.channel_pk, []).append(start)
-    return wired
-
+# -- when a channel is polled ----------------------------------------------
 
 # Cron counts weekdays from Sunday; APScheduler counts them from Monday, and
 # reads its own names unambiguously. So the day-of-week field is expanded to
@@ -394,6 +448,23 @@ class When:
         return due_at is not None and due_at <= _aware(now)
 
 
+def triggers_for(session: Session, owner: OwnerId = None) -> dict[int, list[GraphNode]]:
+    """The trigger boxes wired into each channel, by channel primary key."""
+    all_nodes, all_edges = load(session, owner)
+    by_id = {node.id: node for node in all_nodes}
+
+    wired: dict[int, list[GraphNode]] = {}
+    for edge in all_edges:
+        start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
+        if start is None or end is None:
+            continue
+        if not start.enabled:
+            continue  # a trigger that is switched off sets nothing off
+        if start.kind == "trigger" and end.kind == "source" and end.channel_pk is not None:
+            wired.setdefault(end.channel_pk, []).append(start)
+    return wired
+
+
 def polling_plan(session: Session, owner: OwnerId = None) -> dict[int, list[When]]:
     """When each wired channel wants polling, by channel primary key.
 
@@ -421,8 +492,21 @@ def pulse_targets(session: Session, node_pk: int, owner: OwnerId = None) -> list
     """The channels one trigger box is wired to, ready to be polled."""
     node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
     if node is None or node.kind != "trigger":
-        raise GraphError("That box is not a trigger.")
+        raise GraphError("That node is not a trigger.")
+    if not node.enabled:
+        raise GraphError("That trigger is switched off.")
+    return wired_channels(session, node, owner)
 
+
+def wired_channels(
+    session: Session, node: GraphNode, owner: OwnerId = None
+) -> list[int]:
+    """The channels a trigger box reaches, switched on or not.
+
+    Not the same question as "what would it poll": a trigger that is switched
+    off still reaches what it is wired to, and being able to ask what it would
+    do is most of the point of being able to test it.
+    """
     all_nodes, all_edges = load(session, owner)
     by_id = {entry.id: entry for entry in all_nodes}
     reached: list[int] = []
@@ -433,6 +517,557 @@ def pulse_targets(session: Session, node_pk: int, owner: OwnerId = None) -> list
         if target is not None and target.kind == "source" and target.channel_pk is not None:
             reached.append(target.channel_pk)
     return reached
+
+
+# -- when a feed may be read -----------------------------------------------
+
+
+def consumption(session: Session, owner: OwnerId = None) -> dict[int, list[GraphNode]]:
+    """The triggers wired into each feed's second input, by playlist.
+
+    A feed with none is always open. What these do is the opposite of what a
+    trigger wired to a channel does: that one says when to go and fetch, this
+    one says when you may sit down and read.
+    """
+    all_nodes, all_edges = load(session, owner)
+    by_id = {node.id: node for node in all_nodes}
+
+    wired: dict[int, list[GraphNode]] = {}
+    for edge in all_edges:
+        start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
+        if start is None or end is None or not start.enabled:
+            continue
+        if start.kind == "trigger" and end.kind == "feed" and end.playlist_pk is not None:
+            wired.setdefault(end.playlist_pk, []).append(start)
+    return wired
+
+
+def is_open(triggers: list[GraphNode], now: dt.datetime) -> bool:
+    """Whether a feed may be read at this moment.
+
+    Two kinds of trigger, combined the two ways they read:
+
+    * **Schedules open times up.** Any one of them being in its window is
+      enough, so a second schedule is a second chance to read — an *or*.
+    * **Pulses narrow them.** Every one of them has to be in its window, so a
+      second pulse is a further condition — an *and*.
+
+    A kind nobody used says nothing rather than saying no: a feed with two
+    schedules and no pulses is open when either schedule is, not never.
+    """
+    if not triggers:
+        return True
+
+    schedules = [node for node in triggers if node.trigger_kind == "schedule"]
+    pulses = [node for node in triggers if node.trigger_kind != "schedule"]
+
+    opened = any(_within(node, now) for node in schedules) if schedules else True
+    narrowed = all(_within(node, now) for node in pulses) if pulses else True
+    return opened and narrowed
+
+
+def _within(node: GraphNode, now: dt.datetime) -> bool:
+    """Whether this trigger's window is open now.
+
+    A window starts when the trigger comes round and lasts for its duration.
+    """
+    window = max(1, node.duration_minutes or DEFAULT_DURATION_MINUTES)
+
+    if node.trigger_kind == "schedule":
+        # Asked the narrow way round: not "when did it last come round", which
+        # means walking back through firings, but "did it come round inside
+        # the last `window` minutes" — which is one question and one call.
+        return _came_round_within(node.cron or DEFAULT_CRON, window, now)
+
+    # A pulse repeats: the window is the first part of every gap.
+    gap = max(1, node.every_minutes or DEFAULT_EVERY_MINUTES)
+    since = int(now.timestamp() // 60) % gap
+    return since < window
+
+
+def _came_round_within(expression: str, minutes: int, now: dt.datetime) -> bool:
+    """Whether this cron fired at some point in the last `minutes`.
+
+    A firing inside that stretch is a window that has not closed yet: it began
+    at or after `now - minutes`, so it runs to at least `now`.
+    """
+    try:
+        trigger = cron_trigger(expression)
+    except GraphError:
+        return False
+    moment = _aware(now)
+    began = trigger.get_next_fire_time(None, moment - dt.timedelta(minutes=minutes))
+    return began is not None and began <= moment
+
+
+def window_words(node: GraphNode) -> str:
+    """What a trigger opens, said the way it reads on a feed."""
+    window = max(1, node.duration_minutes or DEFAULT_DURATION_MINUTES)
+    if node.trigger_kind == "schedule":
+        return f"open {window} min from “{node.cron or DEFAULT_CRON}”"
+    gap = max(1, node.every_minutes or DEFAULT_EVERY_MINUTES)
+    return f"open {window} min in every {every_words(gap)}"
+
+
+# -- what a filter is doing ------------------------------------------------
+
+
+@dataclass
+class Judged:
+    """One item, and what this filter box does with it."""
+
+    video_pk: int
+    title: str
+    kind: str
+    passed: bool
+    reason: str | None = None
+
+
+def filter_report(
+    session: Session,
+    node_pk: int,
+    settings: Settings,
+    owner: OwnerId = None,
+    limit: int = 60,
+) -> tuple[list[Judged], list[Judged]]:
+    """What gets through this filter box, and what it holds back.
+
+    Judged rather than remembered: the answer is worked out from the rules as
+    they stand now, over everything the channels upstream have ever brought
+    in. A log of past decisions would show what an older version of the rules
+    did, which is the opposite of useful when the question being asked is
+    "why is this one not getting through?".
+
+    Everything reaching the box counts once, even when two paths lead to it.
+    """
+    from . import sync as sync_service
+
+    node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
+    if node is None or node.kind != "filter":
+        raise GraphError("Only a filter node holds anything back.")
+
+    through: list[Judged] = []
+    held: list[Judged] = []
+    seen: set[int] = set()
+    switched_off = not node.enabled
+
+    for path in _paths_into(session, node, owner):
+        videos = session.scalars(
+            owned(select(Video), Video, owner)
+            .where(Video.channel_pk == path.channel.id)
+            .order_by(Video.id.desc())
+            .limit(limit)
+        )
+        for video in videos:
+            if video.id in seen:
+                continue
+            seen.add(video.id)
+            decision = sync_service._decide(video, path, None, settings)
+            passed = decision.accept and not switched_off
+            judged = Judged(
+                video_pk=video.id,
+                title=video.title or video.video_id,
+                kind=video.kind,
+                passed=passed,
+                reason="this filter is switched off" if switched_off else decision.reason,
+            )
+            (through if passed else held).append(judged)
+
+    return through[:limit], held[:limit]
+
+
+def _paths_into(session: Session, node: GraphNode, owner: OwnerId) -> list[Route]:
+    """Every way into this box, as a route ending at it.
+
+    A filter judges by the channel's own rules with each earlier filter laid
+    over the top, so the answer depends on how the item got here — which is
+    why this is a list and not one set of rules.
+    """
+    all_nodes, all_edges = load(session, owner)
+    by_id = {entry.id: entry for entry in all_nodes}
+    into: dict[int, list[int]] = {}
+    for edge in all_edges:
+        into.setdefault(edge.target_pk, []).append(edge.source_pk)
+
+    found: list[Route] = []
+
+    def walk(at: GraphNode, carried: list[GraphNode], seen: set[int]) -> None:
+        if at.id in seen:
+            return
+        seen = seen | {at.id}
+        for source_id in into.get(at.id, []):
+            earlier = by_id.get(source_id)
+            if earlier is None:
+                continue
+            if earlier.kind == "source" and earlier.channel is not None:
+                # A route needs a feed to name; nothing here asks for one, and
+                # the placeholder is never read.
+                found.append(
+                    Route(channel=earlier.channel, playlist=Playlist(), filters=list(carried))
+                )
+            elif earlier.kind == "filter" and earlier.enabled:
+                walk(earlier, [earlier] + carried, seen)
+
+    walk(node, [node], set())
+    return found
+
+
+# -- giving a group to somebody else ---------------------------------------
+
+# Bumped if the shape changes in a way a reader would need to know about.
+GROUP_FORMAT = 1
+
+
+def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[str, Any]:
+    """A group as a piece of setup somebody else can load.
+
+    Positions are relative to the group's own corner, so it lands wherever it
+    is dropped rather than on top of whatever is already at those coordinates.
+    Channels travel as their YouTube ids, which mean the same thing on any
+    machine; feeds travel as names, because a playlist id belongs to whoever
+    owns the playlist and would be nobody else's to write to.
+    """
+    group = session.scalar(
+        owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+    )
+    if group is None or group.kind != "group":
+        raise GraphError("That node is not a group.")
+
+    carried = inside(session, group, owner)
+    refs = {node.id: index for index, node in enumerate(carried)}
+
+    packed: list[dict[str, Any]] = []
+    for node in carried:
+        entry: dict[str, Any] = {
+            "ref": refs[node.id],
+            "kind": node.kind,
+            "x": node.x - group.x,
+            "y": node.y - group.y,
+            "label": node.label,
+            "enabled": node.enabled,
+        }
+        if node.kind == "source" and node.channel is not None:
+            entry["channel_id"] = node.channel.channel_id
+            entry["title"] = node.channel.title
+        elif node.kind == "feed" and node.playlist is not None:
+            entry["title"] = node.playlist.title
+        elif node.kind == "filter":
+            entry["rules"] = dict(node.overrides)
+        elif node.kind == "sort":
+            entry["sort_by"] = node.sort_by or DEFAULT_SORT_BY
+            entry["sort_dir"] = node.sort_dir or "desc"
+        elif node.kind == "trigger":
+            entry["trigger_kind"] = node.trigger_kind or "pulse"
+            entry["every_minutes"] = node.every_minutes
+            entry["cron"] = node.cron
+        packed.append(entry)
+
+    return {
+        "de_algo_group": GROUP_FORMAT,
+        "name": group.label or "Group",
+        "width": group.width or GROUP_SIZE[0],
+        "height": group.height or GROUP_SIZE[1],
+        "nodes": packed,
+        "wires": [
+            [refs[start], refs[end]]
+            for start, end in _wires_within(session, carried, owner)
+            if start in refs and end in refs
+        ],
+    }
+
+
+def _wires_within(
+    session: Session, carried: list[GraphNode], owner: OwnerId
+) -> list[tuple[int, int]]:
+    """Every wire with both ends inside the group. A wire out of it is not
+    the group's to give away."""
+    held = {node.id for node in carried}
+    drawn: list[tuple[int, int]] = []
+    for wire in wires(session, owner):
+        start, end = int(wire["from"]), int(wire["to"])
+        if start in held and end in held:
+            drawn.append((start, end))
+    return drawn
+
+
+def import_group(
+    session: Session,
+    payload: Any,
+    owner: OwnerId = None,
+    *,
+    x: int = 40,
+    y: int = 40,
+) -> GraphNode:
+    """Load a group somebody else exported, beside whatever is already here.
+
+    Channels are matched by their YouTube id and made if they are missing;
+    feeds are always made, as feeds of this account's own. Nothing existing is
+    changed: loading somebody's setup adds theirs, it does not replace yours.
+    """
+    if not isinstance(payload, dict) or "de_algo_group" not in payload:
+        raise GraphError("That is not a De-Algo group file.")
+    version = payload.get("de_algo_group")
+    if not isinstance(version, int) or version > GROUP_FORMAT:
+        raise GraphError(
+            f"That group is format {version}, and this version of De-Algo reads {GROUP_FORMAT}."
+        )
+
+    group = add_group(
+        session,
+        owner,
+        label=str(payload.get("name") or "Group"),
+        x=x,
+        y=y,
+        width=int(payload.get("width") or GROUP_SIZE[0]),
+        height=int(payload.get("height") or GROUP_SIZE[1]),
+    )
+
+    made: dict[int, GraphNode] = {}
+    for entry in payload.get("nodes") or []:
+        if not isinstance(entry, dict):
+            continue
+        node = _unpack(session, entry, owner, at=(x + int(entry.get("x") or 0),
+                                                  y + int(entry.get("y") or 0)))
+        if node is not None:
+            made[int(entry.get("ref", -1))] = node
+    session.flush()
+
+    for pair in payload.get("wires") or []:
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        start, end = made.get(pair[0]), made.get(pair[1])
+        if start is None or end is None:
+            continue
+        try:
+            connect(session, start, end, owner)
+        except GraphError:
+            continue  # a wire that makes no sense here is dropped, not fatal
+    return group
+
+
+def _unpack(
+    session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
+) -> GraphNode | None:
+    """One node out of a group file."""
+    kind = entry.get("kind")
+    label = str(entry.get("label") or "")
+    x, y = at
+
+    if kind == "source":
+        channel_id = entry.get("channel_id")
+        if not channel_id:
+            return None
+        channel = session.scalar(
+            owned(select(Channel), Channel, owner).where(Channel.channel_id == channel_id)
+        )
+        if channel is None:
+            # Made from the file rather than looked up: a UC id is enough to
+            # watch a channel, and asking YouTube would make loading a group
+            # need credentials it has no other use for.
+            channel = Channel(
+                owner_pk=owner,
+                channel_id=str(channel_id),
+                title=str(entry.get("title") or channel_id),
+                enabled=False,
+            )
+            session.add(channel)
+            session.flush()
+            ordering.append(session, channel)
+        return add_source(session, owner, channel=channel, x=x, y=y)
+
+    if kind == "feed":
+        from . import playlists as playlist_service
+
+        playlist = playlist_service.create_generic(
+            session, str(entry.get("title") or "Imported feed"), owner
+        )
+        return add_feed(session, playlist, owner, x=x, y=y)
+
+    if kind == "filter":
+        node = add_filter(session, owner, label=label or "Filter", x=x, y=y)
+        rules = entry.get("rules")
+        if isinstance(rules, dict):
+            for name, value in rules.items():
+                if name in FILTER_RULES:
+                    setattr(node, name, value)
+        return node
+
+    if kind == "sort":
+        return add_sort(
+            session,
+            owner,
+            label=label,
+            sort_by=str(entry.get("sort_by") or DEFAULT_SORT_BY),
+            newest_first=str(entry.get("sort_dir") or "desc") == "desc",
+            x=x,
+            y=y,
+        )
+
+    if kind == "trigger":
+        return add_trigger(
+            session,
+            owner,
+            trigger_kind=str(entry.get("trigger_kind") or "pulse"),
+            label=label,
+            every_minutes=entry.get("every_minutes"),
+            cron=entry.get("cron"),
+            x=x,
+            y=y,
+        )
+    return None
+
+
+# What a filter file is allowed to set, so a stray key cannot reach a column
+# that has nothing to do with filtering.
+FILTER_RULES = (
+    "skip_videos", "skip_shorts", "skip_live", "skip_posts",
+    "title_include", "title_exclude",
+    "min_duration_sec", "max_duration_sec", "max_per_run",
+)
+
+
+# -- trying it without running it ------------------------------------------
+
+
+@dataclass
+class Trial:
+    """What a run would do, worked out without doing it.
+
+    Kept per box rather than per feed, so every box the trial passed through
+    can show its own share of it — which is the question asked while looking
+    at that box, not at the trigger three wires back.
+    """
+
+    #: Per box: what got through it, and what it turned away.
+    through: dict[int, list[Judged]] = field(default_factory=dict)
+    held: dict[int, list[Judged]] = field(default_factory=dict)
+
+
+def try_it(
+    session: Session,
+    settings: Settings,
+    owner: OwnerId = None,
+    limit: int = 30,
+    channels: Collection[int] | None = None,
+) -> Trial:
+    """Push recent items through the graph and say where they would land.
+
+    Nothing is written and nothing is sent to YouTube: this answers "is this
+    wired up the way I think" without waiting for a run, and without a run's
+    consequences.
+
+    ``channels`` narrows it to what one trigger sets off, which is how it is
+    asked: a trigger is the thing that starts a run, so it is the thing worth
+    asking what a run would do.
+
+    What is already in a feed is not excluded. The question being asked is
+    what this configuration does with this content, not what is left to do —
+    a test that went quiet once everything had been filed would be no use at
+    the moment it is most wanted.
+    """
+    all_nodes, _ = load(session, owner)
+    source_node = {node.channel_pk: node for node in all_nodes if node.kind == "source"}
+    feed_node = {node.playlist_pk: node for node in all_nodes if node.kind == "feed"}
+
+    trial = Trial()
+    recent: dict[int, list[Video]] = {}
+
+    for path in routes(session, owner):
+        if not path.playlist.enabled:
+            continue
+        if channels is not None and path.channel.id not in channels:
+            continue  # asked of one trigger: only what that trigger sets off
+        start, end = source_node.get(path.channel.id), feed_node.get(path.playlist.id)
+        if start is None or end is None:
+            continue
+
+        if path.channel.id not in recent:
+            recent[path.channel.id] = list(
+                session.scalars(
+                    owned(select(Video), Video, owner)
+                    .where(Video.channel_pk == path.channel.id)
+                    .order_by(Video.id.desc())
+                    .limit(limit)
+                )
+            )
+
+        landing: list[tuple[Video, Judged]] = []
+        for video in recent[path.channel.id]:
+            judged, stopped_at = _judge(video, path, settings, start)
+            if judged.passed:
+                _note(trial.through, [node.id for node in path.filters] + [start.id], judged)
+                landing.append((video, judged))
+            else:
+                _note(trial.held, [stopped_at], judged)
+                # Everything before the box that stopped it did let it by.
+                _note(trial.through, _before(stopped_at, path, start), judged)
+
+        order = path.order
+        if order is not None:
+            landing.sort(key=lambda pair: _ranked(pair[0], order))
+
+        # The sort box and the feed see the batch in the order it arrives.
+        for _, judged in landing:
+            _note(trial.through, [order.id] if order is not None else [], judged)
+            _note(trial.through, [end.id], judged)
+
+    return trial
+
+
+def _judge(
+    video: Video, path: Route, settings: Settings, start: GraphNode
+) -> tuple[Judged, int]:
+    """Whether this path takes the video, and the box that turned it away.
+
+    Asked a box at a time rather than of the path as a whole, so the answer
+    names the box actually holding things up.
+    """
+    from . import sync as sync_service
+
+    def seen(passed: bool, reason: str | None) -> Judged:
+        return Judged(
+            video_pk=video.id,
+            title=video.title or video.video_id,
+            kind=video.kind,
+            passed=passed,
+            reason=reason,
+        )
+
+    # The channel's own settings first: if they refuse it, it never left.
+    own = Route(channel=path.channel, playlist=path.playlist)
+    refusal = sync_service._decide(video, own, None, settings)
+    if not refusal.accept:
+        return seen(False, refusal.reason), start.id
+
+    for index, node in enumerate(path.filters):
+        so_far = Route(
+            channel=path.channel, playlist=path.playlist, filters=path.filters[: index + 1]
+        )
+        decision = sync_service._decide(video, so_far, None, settings)
+        if not decision.accept:
+            return seen(False, decision.reason), node.id
+
+    decision = sync_service._decide(video, path, None, settings)
+    return seen(decision.accept, decision.reason), start.id
+
+
+def _before(stopped_at: int, path: Route, start: GraphNode) -> list[int]:
+    """The boxes an item passed before the one that stopped it."""
+    walked = [start.id] + [node.id for node in path.filters]
+    return walked[: walked.index(stopped_at)] if stopped_at in walked else []
+
+
+def _note(seen: dict[int, list[Judged]], node_ids: list[int], judged: Judged) -> None:
+    for node_id in node_ids:
+        seen.setdefault(node_id, []).append(judged)
+
+
+def _ranked(video: Video, order: GraphNode) -> tuple[float, int]:
+    """Where this video lands in a sorted batch, as the sort box sees it."""
+    from . import sync as sync_service
+
+    value = sync_service._sort_value(video, order.sort_by or DEFAULT_SORT_BY)
+    return (-value if (order.sort_dir or "desc") == "desc" else value, video.id)
 
 
 # -- building it from what is already there --------------------------------
@@ -532,13 +1167,13 @@ def connect(
     and the canvas are looking at the same thing.
     """
     if source.id == target.id:
-        raise GraphError("A box cannot feed itself.")
+        raise GraphError("A node cannot feed itself.")
     if target.kind not in ALLOWED.get(source.kind, ()):
         raise GraphError(f"A {source.kind} cannot feed a {target.kind}.")
 
     if source.kind == "source" and target.kind == "feed":
         if source.channel is None or target.playlist is None:
-            raise GraphError("That box no longer has anything behind it.")
+            raise GraphError("That node no longer has anything behind it.")
         if target.playlist not in source.channel.playlists:
             source.channel.playlists.append(target.playlist)
             session.flush()
@@ -600,6 +1235,12 @@ def disconnect(session: Session, edge_pk: int, owner: OwnerId = None) -> bool:
     return True
 
 
+def _still_drawn(session: Session, pk: int, what: str) -> bool:
+    """Whether any node still stands for this channel or playlist."""
+    column = GraphNode.channel_pk if what == "channel" else GraphNode.playlist_pk
+    return session.scalar(select(GraphNode.id).where(column == pk).limit(1)) is not None
+
+
 def _reaches(session: Session, start: GraphNode, goal: GraphNode, owner: OwnerId) -> bool:
     """Whether `goal` is already downstream of `start` — a loop in waiting."""
     out: dict[int, list[int]] = {}
@@ -625,6 +1266,122 @@ def add_filter(session: Session, owner: OwnerId = None, *, label: str = "Filter"
     session.add(node)
     session.flush()
     return node
+
+
+def add_group(
+    session: Session,
+    owner: OwnerId = None,
+    *,
+    label: str = "",
+    x: int = 40,
+    y: int = 40,
+    width: int = GROUP_SIZE[0],
+    height: int = GROUP_SIZE[1],
+) -> GraphNode:
+    """A rectangle drawn behind the others. What it surrounds travels with it."""
+    node = GraphNode(
+        owner_pk=owner,
+        kind="group",
+        label=label,
+        x=x,
+        y=y,
+        width=max(GROUP_LEAST[0], width),
+        height=max(GROUP_LEAST[1], height),
+    )
+    session.add(node)
+    session.flush()
+    return node
+
+
+def inside(session: Session, group: GraphNode, owner: OwnerId = None) -> list[GraphNode]:
+    """What a group surrounds.
+
+    Worked out from where things are rather than remembered, because that is
+    how it is said: a node is in a group when the group is drawn around it,
+    and dragging one out takes it out. Nothing is written when a node moves,
+    so there is no membership to fall out of step with the drawing.
+
+    A node counts as surrounded when its own corner is inside, which is the
+    rule a reader applies at a glance and the one that survives a node being
+    wider than it looks.
+    """
+    if group.kind != "group":
+        return []
+    right = group.x + (group.width or GROUP_SIZE[0])
+    bottom = group.y + (group.height or GROUP_SIZE[1])
+    return [
+        node
+        for node in nodes(session, owner)
+        if node.id != group.id
+        and node.kind != "group"  # a group inside a group would move twice
+        and group.x <= node.x <= right
+        and group.y <= node.y <= bottom
+    ]
+
+
+def move_group(
+    session: Session, node_pk: int, x: int, y: int, owner: OwnerId = None
+) -> list[GraphNode]:
+    """Move a group, and everything it surrounds, by the same amount."""
+    group = session.scalar(
+        owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+    )
+    if group is None or group.kind != "group":
+        raise GraphError("That node is not a group.")
+
+    carried = inside(session, group, owner)
+    across, down = int(x) - group.x, int(y) - group.y
+    group.x, group.y = int(x), int(y)
+    for node in carried:
+        node.x += across
+        node.y += down
+    session.flush()
+    return carried
+
+
+def resize(
+    session: Session, node_pk: int, width: int, height: int, owner: OwnerId = None
+) -> bool:
+    group = session.scalar(
+        owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+    )
+    if group is None or group.kind != "group":
+        return False
+    group.width = max(GROUP_LEAST[0], int(width))
+    group.height = max(GROUP_LEAST[1], int(height))
+    session.flush()
+    return True
+
+
+def add_sort(
+    session: Session,
+    owner: OwnerId = None,
+    *,
+    label: str = "",
+    sort_by: str = DEFAULT_SORT_BY,
+    newest_first: bool = True,
+    x: int = COLUMN_X["sort"],
+    y: int = 40,
+) -> GraphNode:
+    node = GraphNode(
+        owner_pk=owner,
+        kind="sort",
+        label=label,
+        sort_by=check_sort_key(sort_by),
+        sort_dir="desc" if newest_first else "asc",
+        x=x,
+        y=y,
+    )
+    session.add(node)
+    session.flush()
+    return node
+
+
+def check_sort_key(key: str) -> str:
+    known = {name for name, _, _, _ in SORT_KEYS}
+    if key not in known:
+        raise GraphError(f"There is nothing to sort by called “{key}”.")
+    return key
 
 
 def add_source(
@@ -659,7 +1416,11 @@ def attach_channel(
 ) -> GraphNode:
     """Say which channel an empty channel box stands for."""
     if node.kind != "source":
-        raise GraphError("Only a channel box stands for a channel.")
+        raise GraphError("Only a channel node stands for a channel.")
+    # The relationship, not only the key behind it: this node was loaded with
+    # no channel, and setting the key alone leaves that stale until something
+    # expires it — so the answer to this very request would still say empty.
+    node.channel = channel
     node.channel_pk = channel.id
     node.label = ""  # the channel's own name takes over from the placeholder
     session.flush()
@@ -686,7 +1447,7 @@ def rename(session: Session, node_pk: int, name: str, owner: OwnerId = None) -> 
     """
     node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
     if node is None:
-        raise GraphError("That box is not here.")
+        raise GraphError("That node is not here.")
 
     wanted = " ".join(name.split())
     node.label = wanted
@@ -796,9 +1557,13 @@ def remove(session: Session, node_pk: int, owner: OwnerId = None) -> bool:
     channel, playlist = node.channel, node.playlist
     session.delete(node)
     session.flush()
-    if node.kind == "source" and channel is not None:
+
+    # Only if nothing else is still drawn around it. A channel may have two
+    # nodes, and taking one off the canvas is rearranging the drawing rather
+    # than saying goodbye to the channel.
+    if node.kind == "source" and channel is not None and not _still_drawn(session, channel.id, "channel"):
         session.delete(channel)
-    elif node.kind == "feed" and playlist is not None:
+    elif node.kind == "feed" and playlist is not None and not _still_drawn(session, playlist.id, "playlist"):
         session.delete(playlist)
     session.flush()
     return True

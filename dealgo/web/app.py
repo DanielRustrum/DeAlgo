@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import json
+import re
 import secrets
 import threading
 import time
@@ -21,7 +22,7 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from .. import __version__, scheduler
@@ -714,34 +715,8 @@ def channels_page(
         context = {
             **_channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner),
             **_playlist_context(session, creating=new == "1", owner=owner),
-            "trace_items": _trace_items(session, owner),
         }
     return render(request, "channels.html", context)
-
-
-def _trace_items(session: Session, owner: OwnerId, limit: int = 25) -> list[Context]:
-    """Recent arrivals, for the canvas's "follow it through" picker.
-
-    Most recently seen rather than most recently published: the question the
-    trace answers is "why did that land where it did", and that is asked about
-    something the last sync just brought in.
-    """
-    videos = session.scalars(
-        owned(select(Video), Video, owner)
-        .options(selectinload(Video.channel))
-        .order_by(Video.id.desc())
-        .limit(limit)
-    )
-    return [
-        {
-            "id": video.id,
-            "label": f"{video.channel.title if video.channel else '?'} — "
-                     f"{(video.title or video.video_id)[:60]}",
-        }
-        for video in videos
-    ]
-
-
 def _channel_list_response(
     request: Request,
     *,
@@ -808,156 +783,6 @@ def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
     return render(request, "channel_detail.html", context)
 
 
-@app.post("/channels/{channel_id}")
-def save_channel(
-    channel_id: int,
-    title_include: str = Form(""),
-    title_exclude: str = Form(""),
-    min_duration_sec: str = Form(""),
-    max_duration_sec: str = Form(""),
-    max_per_run: str = Form(""),
-    skip_shorts: str = Form(""),
-    skip_live: str = Form(""),
-    playlists: list[int] = Form(default=[]),
-) -> RedirectResponse:
-    with session_scope() as session:
-        channel = session.get(Channel, channel_id)
-        if channel is None:
-            return redirect("/channels", err="That channel is no longer being watched.")
-        playlist_service.set_channel_targets(session, channel, playlists)
-        try:
-            requeued = channel_service.update_filters(
-                session,
-                channel,
-                {
-                    "title_include": title_include,
-                    "title_exclude": title_exclude,
-                    "min_duration_sec": min_duration_sec,
-                    "max_duration_sec": max_duration_sec,
-                    "max_per_run": max_per_run,
-                    "skip_shorts": skip_shorts,
-                    "skip_live": skip_live,
-                },
-            )
-        except channel_service.ChannelError as exc:
-            return redirect(f"/channels/{channel_id}", err=str(exc))
-    message = "Saved."
-    if requeued:
-        message += f" {requeued} previously skipped video{'s' if requeued != 1 else ''} queued."
-    return redirect(f"/channels/{channel_id}", ok=message)
-
-
-@app.post("/channels/{channel_id}/toggle")
-def toggle_channel(request: Request, channel_id: int, feed: str = Form("")) -> Response:
-    with session_scope() as session:
-        channel = session.get(Channel, channel_id)
-        if channel is None:
-            return _channel_list_response(request, err="That channel is no longer being watched.", feed=feed)
-        channel.enabled = not channel.enabled
-        message = f"{channel.title} {'resumed' if channel.enabled else 'paused'}."
-    return _channel_list_response(request, ok=message, feed=feed)
-
-
-def _toggle_filter_response(
-    request: Request, channel_id: int, feed: str, *, kind: str, back: str = ""
-) -> Response:
-    """One-click filter toggles, so they do not live only inside a save form."""
-    with session_scope() as session:
-        channel = session.get(Channel, channel_id)
-        if channel is None:
-            return _channel_list_response(
-                request, err="That channel is no longer being watched.", feed=feed, back=back
-            )
-        if kind == "shorts":
-            include = channel.skip_shorts  # flipping it on
-            requeued = channel_service.set_shorts(session, channel, include=include)
-            noun, plural = "Short", "Shorts"
-        elif kind == "live":
-            include = channel.skip_live
-            requeued = channel_service.set_live(session, channel, include=include)
-            noun, plural = "live stream or premiere", "live streams and premieres"
-        elif kind == "posts":
-            include = channel.skip_posts
-            requeued = channel_service.set_posts(session, channel, include=include)
-            noun, plural = "community post", "community posts"
-        else:
-            include = channel.skip_videos
-            requeued = channel_service.set_videos(session, channel, include=include)
-            noun, plural = "regular video", "regular videos"
-        title = channel.title
-        takes_nothing = channel.takes_nothing
-
-    if include:
-        message = f"Including {plural} from {title}."
-        if requeued:
-            message += (
-                f" {requeued} previously skipped {noun if requeued == 1 else plural} queued."
-            )
-    else:
-        message = f"Skipping {plural} from {title}. Anything already in a playlist stays put."
-        if takes_nothing:
-            message += " Nothing from this channel will be added now — every kind is off."
-    return _channel_list_response(request, ok=message, feed=feed, back=back)
-
-
-@app.post("/channels/{channel_id}/shorts")
-def toggle_channel_shorts(
-    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
-) -> Response:
-    return _toggle_filter_response(request, channel_id, feed, kind="shorts", back=back)
-
-
-@app.post("/channels/{channel_id}/live")
-def toggle_channel_live(
-    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
-) -> Response:
-    return _toggle_filter_response(request, channel_id, feed, kind="live", back=back)
-
-
-@app.post("/channels/{channel_id}/posts")
-def toggle_channel_posts(
-    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
-) -> Response:
-    return _toggle_filter_response(request, channel_id, feed, kind="posts", back=back)
-
-
-@app.post("/channels/{channel_id}/videos")
-def toggle_channel_videos(
-    request: Request, channel_id: int, feed: str = Form(""), back: str = Form("")
-) -> Response:
-    return _toggle_filter_response(request, channel_id, feed, kind="videos", back=back)
-
-
-@app.post("/channels/{channel_id}/interval")
-def set_channel_interval(
-    request: Request,
-    channel_id: int,
-    minutes: str = Form("0"),
-    feed: str = Form(""),
-    back: str = Form(""),
-) -> Response:
-    """The shortest gap between feed checks for one channel."""
-    try:
-        value = max(0, int(minutes))
-    except ValueError:
-        return _channel_list_response(
-            request, err="That is not a number of minutes.", feed=feed, back=back
-        )
-
-    with session_scope() as session:
-        channel = session.get(Channel, channel_id)
-        if channel is None:
-            return _channel_list_response(
-                request, err="That channel is no longer being watched.", feed=feed, back=back
-            )
-        channel_service.set_pull_interval(session, channel, value)
-        title = channel.title
-        described = channel_service.describe_interval(value)
-    return _channel_list_response(
-        request, ok=f"Checking {title} {described}.", feed=feed, back=back
-    )
-
-
 @app.post("/channels/{channel_id}/delete")
 def remove_channel(request: Request, channel_id: int, feed: str = Form("")) -> Response:
     with session_scope() as session:
@@ -983,9 +808,27 @@ def _feed_context(
     if terms:
         # Name or tag, any order, partial words.
         playlists = [p for p in playlists if all(term in p.searchable for term in terms)]
+    windows = graph_service.consumption(session, owner)
+    now = utcnow()
+
     sections = []
     for target in playlists:
         if wanted and target.id != wanted:
+            continue
+
+        # A feed with a trigger on its second input is only read while that
+        # window is open. Shown as shut rather than hidden: a feed that
+        # vanished would read as a feed that had gone.
+        opens = windows.get(target.id, [])
+        if opens and not graph_service.is_open(opens, now):
+            sections.append(
+                {
+                    "playlist": target,
+                    "videos": [],
+                    "total": 0,
+                    "shut": [graph_service.window_words(node) for node in opens],
+                }
+            )
             continue
         # Not `query`: that name is the search text on this function.
         statement = (
@@ -1010,7 +853,7 @@ def _feed_context(
             )
             or 0
         )
-        sections.append({"playlist": target, "videos": videos, "total": total})
+        sections.append({"playlist": target, "videos": videos, "total": total, "shut": []})
 
     return {
         "sections": sections,
@@ -1970,6 +1813,9 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
     """The whole canvas as JSON: what the browser draws from."""
     nodes, _ = graph_service.load(session, owner)
     plan = graph_service.polling_plan(session, owner)
+    facts = _channel_facts(session, owner)
+    windows = graph_service.consumption(session, owner)
+    opening = {node.id for wired in windows.values() for node in wired}
     return {
         "nodes": [
             {
@@ -1983,17 +1829,53 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     else f"/feeds/{node.playlist_pk}" if node.kind == "feed" and node.playlist_pk
                     else None
                 ),
-                "note": _node_note(node),
+                "note": _node_note(node, opening),
+                "enabled": _is_on(node),
+                "size": (
+                    None
+                    if node.kind != "group"
+                    else {
+                        "width": node.width or graph_service.GROUP_SIZE[0],
+                        "height": node.height or graph_service.GROUP_SIZE[1],
+                    }
+                ),
                 "polled": _how_polled(node, plan) if node.kind == "source" else None,
+                "channel": facts.get(node.channel_pk or 0) if node.kind == "source" else None,
+                "feed": (
+                    _feed_facts(node, windows.get(node.playlist_pk or 0, []))
+                    if node.kind == "feed"
+                    else None
+                ),
                 "overrides": {name: value for name, value in node.overrides.items()},
+                "sort": (
+                    None
+                    if node.kind != "sort"
+                    else {
+                        "by": node.sort_by or graph_service.DEFAULT_SORT_BY,
+                        "desc": (node.sort_dir or "desc") == "desc",
+                        # Each key carries its own two ends, so the canvas
+                        # can say "Longest first" rather than "Most first".
+                        "keys": [
+                            {"name": name, "label": label, "first": first, "last": last}
+                            for name, label, first, last in graph_service.SORT_KEYS
+                        ],
+                    }
+                ),
                 "trigger": (
                     None
                     if node.kind != "trigger"
                     else {
                         "kind": node.trigger_kind or "pulse",
                         "every_minutes": node.every_minutes,
+                        # The same gap said as an amount and a unit, so the
+                        # canvas can offer "2 hours" rather than "120".
+                        "every": _every_parts(node),
                         "cron": node.cron,
                         "next": _next_firing(node),
+                        "duration": node.duration_minutes,
+                        # A trigger wired to a feed opens a window rather than
+                        # setting something off, and is asked different things.
+                        "opens": node.id in opening,
                         "last_fired": node.last_fired_at.isoformat() if node.last_fired_at else None,
                     }
                 ),
@@ -2001,6 +1883,20 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
             for node in nodes
         ],
         "wires": graph_service.wires(session, owner),
+    }
+
+
+def _every_parts(node: GraphNode) -> Context:
+    """A pulse's gap as an amount, a unit, and the units it could be said in."""
+    amount, unit = graph_service.split_every(
+        node.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
+    )
+    return {
+        "amount": amount,
+        "unit": unit,
+        "units": [
+            {"name": name, "label": label} for name, _, label in graph_service.EVERY_UNITS
+        ],
     }
 
 
@@ -2020,6 +1916,98 @@ def _next_firing(node: GraphNode) -> str | None:
     return when.isoformat() if when is not None else None
 
 
+def _sort_words(node: GraphNode) -> str:
+    """What a sort box does, in the words that belong to what it sorts by."""
+    return graph_service.sort_words(
+        node.sort_by or graph_service.DEFAULT_SORT_BY,
+        (node.sort_dir or "desc") == "desc",
+    )
+
+
+def _is_on(node: GraphNode) -> bool:
+    """Whether this box is doing anything.
+
+    A source or feed box answers for the channel or playlist behind it, since
+    that is where the rest of the app reads it from. A filter or trigger box
+    stands for nothing else, so it answers for itself.
+    """
+    if node.kind == "source":
+        return node.channel.enabled if node.channel is not None else False
+    if node.kind == "feed":
+        return node.playlist.enabled if node.playlist is not None else False
+    return node.enabled
+
+
+def _feed_facts(node: GraphNode, windows: list[GraphNode]) -> Context | None:
+    """How a feed fills: whether it is taking anything, and how much.
+
+    The same two things its own page calls Filling. Read off the box's own
+    playlist rather than counted, so there is no query per feed.
+    """
+    playlist = node.playlist
+    if playlist is None:
+        return None
+    return {
+        "enabled": playlist.enabled,
+        "max_items": playlist.max_items,
+        "max_per_run": playlist.max_per_run,
+        "generic": playlist.is_generic,
+        # When it may be read. Empty means always, which is what a feed with
+        # nothing wired to its second input has always been.
+        "windows": [graph_service.window_words(node) for node in windows],
+        "open": graph_service.is_open(windows, utcnow()),
+    }
+
+
+def _channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
+    """What each channel does, for the box that stands for it.
+
+    What it takes, when it was last looked at, and how much it has placed.
+    Not what it fills: the wires out of the box already say that, and saying
+    it twice invites the two to disagree. Counted for every channel at once
+    rather than per box, which would be one pair of queries per box.
+    """
+    def tally(*conditions: ColumnElement[bool]) -> dict[int, int]:
+        rows = session.execute(
+            owned(select(Video.channel_pk, func.count(Video.id)), Video, owner)
+            .where(*conditions)
+            .group_by(Video.channel_pk)
+        )
+        return {channel_pk: held for channel_pk, held in rows if channel_pk is not None}
+
+    placed = tally(Video.status == "added")
+    pending = tally(Video.status == "pending")
+
+    channels = session.scalars(owned(select(Channel), Channel, owner))
+    return {
+        channel.id: {
+            "takes": {
+                "videos": not channel.skip_videos,
+                "shorts": not channel.skip_shorts,
+                "live": not channel.skip_live,
+                "posts": not channel.skip_posts,
+            },
+            # When it is next looked at is the trigger's business, and the
+            # channel's own gap only applies while none is wired — so the box
+            # says when it last happened and leaves the rest to `polled`.
+            "enabled": channel.enabled,
+            "checked": _instant(channel.last_checked_at),
+            "placed": placed.get(channel.id, 0),
+            "pending": pending.get(channel.id, 0),
+        }
+        for channel in channels
+    }
+
+
+def _instant(when: dt.datetime | None) -> str | None:
+    """Naive UTC in the database becomes an instant the browser can read.
+
+    Not the ``stamp`` filter above, which formats for a page; this is for the
+    canvas, which does its own formatting on the reader's own clock.
+    """
+    return None if when is None else when.replace(tzinfo=dt.timezone.utc).isoformat()
+
+
 def _how_polled(node: GraphNode, plan: dict[int, list[graph_service.When]]) -> str:
     """What decides when this channel is polled, in a sentence.
 
@@ -2037,7 +2025,7 @@ def _when_clause(when: graph_service.When) -> str:
     if when.kind == "schedule":
         return f"a schedule on “{when.cron or graph_service.DEFAULT_CRON}”"
     gap = when.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
-    return f"a pulse every {gap} minute{'s' if gap != 1 else ''}"
+    return f"a pulse every {graph_service.every_words(gap)}"
 
 
 def _join_clauses(parts: list[str]) -> str:
@@ -2049,13 +2037,21 @@ def _join_clauses(parts: list[str]) -> str:
 
 
 
-def _node_note(node: GraphNode) -> str:
+def _node_note(node: GraphNode, opening: set[int] | None = None) -> str:
     """The line under the title: what this box is, in a few words."""
+    if node.kind == "group":
+        return "drag it to move everything in it"
+    if node.kind == "sort":
+        return _sort_words(node)
     if node.kind == "trigger":
+        # Wired to a feed it opens a window, which is a different sentence
+        # from the one about setting a channel off.
+        if opening is not None and node.id in opening:
+            return graph_service.window_words(node)
         if node.trigger_kind == "schedule":
             return node.cron or graph_service.DEFAULT_CRON
         every = node.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
-        return f"every {every} minute{'s' if every != 1 else ''}"
+        return f"every {graph_service.every_words(every)}"
     if node.kind == "source":
         channel = node.channel
         if channel is None:
@@ -2084,9 +2080,27 @@ def graph_state(request: Request) -> JSONResponse:
 
 
 @app.post("/graph/nodes/{node_pk}/move")
-def graph_move(request: Request, node_pk: int, x: int = Form(0), y: int = Form(0)) -> JSONResponse:
+def graph_move(
+    request: Request,
+    node_pk: int,
+    x: int = Form(0),
+    y: int = Form(0),
+    carries: str = Form(""),
+) -> JSONResponse:
+    """Where a node was dragged to.
+
+    ``carries`` says this is a group, which moves everything it surrounds by
+    the same amount — one call rather than one per node inside it, so a group
+    of ten cannot half-move.
+    """
     owner = owner_of(request)
     with session_scope() as session:
+        if carries == "1":
+            try:
+                went = graph_service.move_group(session, node_pk, x, y, owner)
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+            return JSONResponse({"moved": True, "carried": len(went)})
         moved = graph_service.move(session, node_pk, x, y, owner)
     return JSONResponse({"moved": moved})
 
@@ -2100,7 +2114,7 @@ def graph_connect(
         nodes = {node.id: node for node in graph_service.nodes(session, owner)}
         first, second = nodes.get(source), nodes.get(target)
         if first is None or second is None:
-            return JSONResponse({"error": "That box is no longer there."}, status_code=404)
+            return JSONResponse({"error": "That node is no longer there."}, status_code=404)
         try:
             graph_service.connect(session, first, second, owner)
         except graph_service.GraphError as exc:
@@ -2155,12 +2169,63 @@ def graph_add_node(
             graph_service.add_feed(session, playlist, owner, x=x, y=y)
         elif kind == "filter":
             graph_service.add_filter(session, owner, label=title.strip() or "Filter", x=x, y=y)
+        elif kind == "sort":
+            graph_service.add_sort(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "group":
+            graph_service.add_group(session, owner, label=title.strip(), x=x, y=y)
         elif kind in graph_service.TRIGGER_KINDS:
             graph_service.add_trigger(
                 session, owner, trigger_kind=kind, label=title.strip(), x=x, y=y
             )
         else:
-            return JSONResponse({"error": f"There is no {kind} box."}, status_code=400)
+            return JSONResponse({"error": f"There is no {kind} node."}, status_code=400)
+        return JSONResponse(_graph_payload(session, owner))
+
+
+@app.post("/graph/nodes/{node_pk}/resize")
+def graph_resize(
+    request: Request, node_pk: int, width: int = Form(0), height: int = Form(0)
+) -> JSONResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        return JSONResponse({"resized": graph_service.resize(session, node_pk, width, height, owner)})
+
+
+@app.get("/graph/nodes/{node_pk}/export")
+def graph_export_group(request: Request, node_pk: int) -> Response:
+    """A group as a file to hand somebody else."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        try:
+            packed = graph_service.export_group(session, node_pk, owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    name = re.sub(r"[^A-Za-z0-9]+", "-", str(packed["name"])).strip("-").lower() or "group"
+    return Response(
+        content=json.dumps(packed, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="de-algo-{name}.json"'},
+    )
+
+
+@app.post("/graph/groups")
+async def graph_import_group(
+    request: Request, file: UploadFile = File(...), x: int = Form(40), y: int = Form(40)
+) -> JSONResponse:
+    """Load a group somebody else exported. Nothing existing is changed."""
+    owner = owner_of(request)
+    raw = await file.read()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JSONResponse({"error": "That file is not readable JSON."}, status_code=400)
+
+    with session_scope() as session:
+        try:
+            graph_service.import_group(session, payload, owner, x=x, y=y)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(_graph_payload(session, owner))
 
 
@@ -2197,11 +2262,236 @@ def graph_fire(request: Request, node_pk: int) -> JSONResponse:
     threading.Thread(
         target=sync_service.run_sync,
         args=("pulse",),
-        kwargs={"force": True, "owner": owner, "only": frozenset(targets)},
+        kwargs={
+            "force": True,
+            "owner": owner,
+            "only": frozenset(targets),
+            "fired_by": node_pk,
+        },
         daemon=True,
     ).start()
     said = f"Polling {len(targets)} channel{'s' if len(targets) != 1 else ''}…"
     return JSONResponse({**payload, "said": said})
+
+
+@app.get("/api/graph/run")
+def graph_run_state(request: Request) -> JSONResponse:
+    """Where the run in flight has got to, said in boxes rather than rows.
+
+    The canvas asks for this while something is running, so the drawing can
+    show the work moving through it instead of going still for a minute and
+    then changing all at once.
+
+    It reports on the boxes that exist rather than drawing any: this is asked
+    for once a second, and a GET that writes to the database is a poor thing
+    to run on a timer.
+    """
+    owner = owner_of(request)
+    state = sync_service.progress()
+    running = sync_service.is_running()
+    if state is None or (state.owner != owner and state.owner is not None):
+        return JSONResponse({"running": running, "stage": None, "nodes": {}})
+
+    with session_scope() as session:
+        marks = _run_marks(session, state, owner)
+
+    return JSONResponse(
+        {
+            "running": running and not state.finished,
+            "stage": state.stage,
+            "trigger": state.trigger,
+            "nodes": marks,
+        }
+    )
+
+
+@app.get("/graph/nodes/{node_pk}/test")
+def graph_try(request: Request, node_pk: int) -> JSONResponse:
+    """What this trigger's run would do, without doing it.
+
+    Asked of a trigger because a trigger is what starts a run: it already
+    knows which channels it sets off, and those are the ones worth asking
+    about. The boxes are marked exactly as a real run marks them, so the
+    drawing says the same thing either way — the difference is that nothing
+    is written and nothing reaches YouTube.
+    """
+    owner = owner_of(request)
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is None or node.kind != "trigger":
+            return JSONResponse({"error": "That node is not a trigger."}, status_code=400)
+
+        reaches = graph_service.wired_channels(session, node, owner)
+        if not reaches:
+            return JSONResponse(
+                {"error": "Nothing is wired to that trigger yet."}, status_code=400
+            )
+
+        trial = graph_service.try_it(
+            session, get_settings(session, owner), owner, channels=reaches
+        )
+        boxes = {entry.id: entry for entry in graph_service.nodes(session, owner)}
+
+        # Every box the trial touched carries its own share of it, so each can
+        # answer for itself rather than sending the reader back to the trigger.
+        touched = set(trial.through) | set(trial.held)
+        marks = {
+            str(node_id): _mark(
+                len(trial.through.get(node_id, [])), len(trial.held.get(node_id, []))
+            )
+            for node_id in touched
+        }
+        items: dict[str, Context] = {
+            str(node_id): {
+                "through": [_judged(item) for item in trial.through.get(node_id, [])],
+                "held": [
+                    {**_judged(item), "box": boxes[node_id].title if node_id in boxes else ""}
+                    for item in trial.held.get(node_id, [])
+                ],
+            }
+            for node_id in touched
+        }
+
+        # The trigger that was asked answers for the whole of it.
+        items[str(node.id)] = {
+            "through": [
+                _judged(item)
+                for node_id, landing in trial.through.items()
+                if node_id in boxes and boxes[node_id].kind == "feed"
+                for item in landing
+            ],
+            "held": [
+                {**_judged(item), "box": boxes[node_id].title if node_id in boxes else ""}
+                for node_id, holding in trial.held.items()
+                for item in holding
+            ],
+        }
+        marks.setdefault(str(node.id), _mark(len(reaches), 0))
+
+        return JSONResponse({"trigger": node.title, "nodes": marks, "items": items})
+
+
+@app.get("/graph/nodes/{node_pk}/filtered")
+def graph_filter_report(request: Request, node_pk: int) -> JSONResponse:
+    """What this filter box lets through, and what it holds back."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        try:
+            through, held = graph_service.filter_report(
+                session, node_pk, get_settings(session, owner), owner
+            )
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(
+            {
+                "through": [_judged(item) for item in through],
+                "held": [_judged(item) for item in held],
+            }
+        )
+
+
+def _run_marks(
+    session: Session, state: sync_service.RunProgress, owner: OwnerId
+) -> dict[str, Context]:
+    """What the run did at each box it actually reached.
+
+    Reached means something arrived, not that a wire leads there. A channel
+    that found nothing sends nothing on, so the boxes after it took no part in
+    the run and are left unmarked — which is how the drawing says the flow
+    stopped at the channel.
+    """
+    boxes = graph_service.nodes(session, owner)
+    set_off = _trigger_targets(session, boxes, owner)
+
+    marks: dict[str, Context] = {}
+    for node in boxes:
+        mark = _mark_for(node, state, set_off.get(node.id, []))
+        if mark is not None:
+            marks[str(node.id)] = mark
+
+    # Whatever is happening this second outranks whatever came before it.
+    for node in boxes:
+        if node.kind == "source" and node.channel_pk == state.channel_pk:
+            marks[str(node.id)] = _busy()
+    if state.fired_by is not None and not state.finished:
+        marks[str(state.fired_by)] = _busy()
+    return marks
+
+
+def _trigger_targets(
+    session: Session, boxes: list[GraphNode], owner: OwnerId
+) -> dict[int, list[int]]:
+    """The channels each trigger box is wired to, by trigger node id."""
+    by_id = {node.id: node for node in boxes}
+    wired: dict[int, list[int]] = {}
+    for edge in graph_service.edges(session, owner):
+        start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
+        if start is None or end is None or start.kind != "trigger":
+            continue
+        if end.kind == "source" and end.channel_pk is not None:
+            wired.setdefault(start.id, []).append(end.channel_pk)
+    return wired
+
+
+def _busy() -> Context:
+    return {"state": "busy", "count": 0, "stopped": 0, "ends": False}
+
+
+def _mark_for(
+    node: GraphNode, state: sync_service.RunProgress, targets: list[int]
+) -> Context | None:
+    """One box's share of the run, or None if nothing of the run got to it.
+
+    ``count`` is what left the box and ``stopped`` is what it held. A box that
+    held things and passed none on is where the flow ended, and says so.
+    """
+    if node.kind == "trigger":
+        if node.id != state.fired_by:
+            return None
+        # Its own channels, not the run's: a trigger wired to a channel that
+        # is switched off set nothing off, however busy the rest of the run
+        # was, and saying "nothing new" would credit it with a look it never
+        # took.
+        reached = [channel_pk for channel_pk in targets if channel_pk in state.polled]
+        return _mark(len(reached), 0, ends=not reached)
+
+    if node.kind == "source":
+        if node.channel_pk not in state.polled:
+            return None
+        found = state.polled.get(node.channel_pk or 0, 0)
+        left = state.left.get(node.channel_pk or 0, 0)
+        return _mark(left, max(0, found - left))
+
+    if node.kind == "filter":
+        passed = state.through.get(node.id, 0)
+        held = state.stopped.get(node.id, 0)
+        # Nothing came either way: the flow never got this far.
+        return _mark(passed, held) if passed or held else None
+
+    taken = state.placed.get(node.playlist_pk or 0, 0)
+    return _mark(taken, 0) if taken else None
+
+
+def _mark(count: int, stopped: int, *, ends: bool | None = None) -> Context:
+    """One box's answer. ``ends`` is worked out unless a box knows better.
+
+    A filter knows it ended the flow because it held things back. A trigger
+    knows because nothing it is wired to was polled, and it has nothing to
+    hold — so it says so rather than being read as having found nothing.
+    """
+    stopping = (count == 0 and stopped > 0) if ends is None else ends
+    return {"state": "done", "count": count, "stopped": stopped, "ends": stopping}
+
+
+def _judged(item: graph_service.Judged) -> Context:
+    return {
+        "id": item.video_pk,
+        "title": item.title,
+        "kind": item.kind,
+        "reason": item.reason,
+    }
 
 
 @app.post("/graph/nodes/{node_pk}/delete")
@@ -2213,7 +2503,7 @@ def graph_remove(request: Request, node_pk: int) -> JSONResponse:
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         if not gone:
-            return JSONResponse({"error": "That box is not here."}, status_code=404)
+            return JSONResponse({"error": "That node is not here."}, status_code=404)
         return JSONResponse(_graph_payload(session, owner))
 
 
@@ -2224,8 +2514,25 @@ def graph_save_node(
     label: str = Form(""),
     handle: str = Form(""),
     backfill: str = Form(""),
+    # An unticked checkbox is not submitted at all, so "off" and "this form
+    # never showed the switch" arrive looking identical. This marker is what
+    # tells them apart: only a form that says it carried the switches may
+    # turn any of them off. One marker for every kind of box, because every
+    # kind of box has the same switch on it.
+    box_form: str = Form(""),
+    active: str = Form(""),
+    max_items: str = Form(""),
+    feed_max_per_run: str = Form(""),
+    takes_videos: str = Form(""),
+    takes_shorts: str = Form(""),
+    takes_live: str = Form(""),
+    takes_posts: str = Form(""),
     every_minutes: str = Form(""),
     cron: str = Form(""),
+    every_unit: str = Form(""),
+    duration_minutes: str = Form(""),
+    sort_by: str = Form(""),
+    sort_dir: str = Form(""),
     skip_videos: str = Form(""),
     skip_shorts: str = Form(""),
     skip_live: str = Form(""),
@@ -2247,7 +2554,7 @@ def graph_save_node(
             owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
         )
         if node is None:
-            return JSONResponse({"error": "That box is not here."}, status_code=404)
+            return JSONResponse({"error": "That node is not here."}, status_code=404)
 
         if node.kind == "source" and handle.strip():
             answer = _attach_channel(session, node, handle.strip(), backfill, owner)
@@ -2256,8 +2563,28 @@ def graph_save_node(
 
         graph_service.rename(session, node.id, label, owner)
 
-        if node.kind == "trigger":
-            answer = _save_trigger(node, every_minutes, cron)
+        if box_form == "1":
+            _switch(node, on=active == "1")
+
+        if node.kind == "feed" and node.playlist is not None and box_form == "1":
+            _save_feed(node.playlist, max_items=max_items, max_per_run=feed_max_per_run)
+        elif node.kind == "source" and node.channel is not None and box_form == "1":
+            _save_channel(
+                session,
+                node.channel,
+                takes={
+                    "videos": takes_videos, "shorts": takes_shorts,
+                    "live": takes_live, "posts": takes_posts,
+                },
+            )
+        elif node.kind == "sort":
+            try:
+                node.sort_by = graph_service.check_sort_key(sort_by or graph_service.DEFAULT_SORT_BY)
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+            node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind == "trigger":
+            answer = _save_trigger(node, every_minutes, every_unit, cron, duration_minutes)
             if answer is not None:
                 return answer
         elif node.kind == "filter":
@@ -2284,6 +2611,15 @@ def _attach_channel(
     """Tell an empty channel box which channel it is. None means it worked."""
     if node.channel is not None:
         return None  # already named; the rename below is all that was meant
+
+    # A channel already being watched is attached rather than refused: two
+    # nodes for one channel is a way of wiring it down two paths that filter
+    # differently, and is worth being able to draw.
+    already = _channel_already_here(session, wanted, owner)
+    if already is not None:
+        graph_service.attach_channel(session, node, already, owner)
+        return None
+
     with sync_service.http_client() as http:
         try:
             channel = channel_service.add_channel(
@@ -2299,7 +2635,89 @@ def _attach_channel(
     return None
 
 
-def _save_trigger(node: GraphNode, every_minutes: str, cron: str) -> JSONResponse | None:
+def _switch(node: GraphNode, *, on: bool) -> None:
+    """Turn a box on or off, wherever that box keeps the answer."""
+    if node.kind == "source" and node.channel is not None:
+        node.channel.enabled = on
+    elif node.kind == "feed" and node.playlist is not None:
+        node.playlist.enabled = on
+    else:
+        node.enabled = on
+
+
+def _save_feed(playlist: Playlist, *, max_items: str, max_per_run: str) -> None:
+    """How much this feed takes.
+
+    Both limits count from zero meaning no limit, so an unreadable answer
+    becomes no limit rather than a limit of nothing — which would quietly stop
+    the feed filling at all.
+    """
+    for name, raw in (("max_items", max_items), ("max_per_run", max_per_run)):
+        wanted = raw.strip()
+        setattr(playlist, name, int(wanted) if wanted.isdigit() else 0)
+
+
+def _save_channel(
+    session: Session,
+    channel: Channel,
+    *,
+    takes: dict[str, str],
+) -> None:
+    """What kinds the channel takes.
+
+    Not what it filters: narrowing by title or length is a filter box's job,
+    and offering it here as well would be two places to look for one answer.
+
+    Through the same services the channel's own page uses, not by setting the
+    columns: turning something back on brings back what was skipped for that
+    reason, and writing ``skip_shorts = False`` here would quietly lose that.
+    Each is only called when the answer actually changed, so saving the box
+    without touching a switch requeues nothing.
+
+    Only reached for a form that said it carried these fields, so an unticked
+    box here really does mean off.
+    """
+    switches = (
+        ("videos", channel.skip_videos, channel_service.set_videos),
+        ("shorts", channel.skip_shorts, channel_service.set_shorts),
+        ("live", channel.skip_live, channel_service.set_live),
+        ("posts", channel.skip_posts, channel_service.set_posts),
+    )
+    for name, skipping, apply in switches:
+        wanted = takes[name] == "1"
+        if wanted is skipping:  # it was off and is wanted on, or the reverse
+            apply(session, channel, include=wanted)
+
+    session.flush()
+
+
+def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Channel | None:
+    """A channel this account already watches, by whatever was typed.
+
+    Matched without asking YouTube: an id or a handle already on record is
+    enough, and a lookup would cost a request to tell us what we know.
+    """
+    typed = wanted.strip()
+    return session.scalar(
+        owned(select(Channel), Channel, owner).where(
+            or_(
+                Channel.channel_id == typed,
+                func.lower(Channel.handle) == typed.lower(),
+                func.lower(Channel.title) == typed.lower(),
+            )
+        )
+    )
+
+
+def _save_trigger(
+    node: GraphNode, every_minutes: str, every_unit: str, cron: str, duration: str
+) -> JSONResponse | None:
+    wanted_window = duration.strip()
+    if wanted_window.isdigit() and int(wanted_window) > 0:
+        node.duration_minutes = int(wanted_window)
+    elif wanted_window != "":
+        node.duration_minutes = graph_service.DEFAULT_DURATION_MINUTES
+
     if node.trigger_kind == "schedule":
         try:
             node.cron = graph_service.check_cron(cron)
@@ -2307,8 +2725,10 @@ def _save_trigger(node: GraphNode, every_minutes: str, cron: str) -> JSONRespons
             return JSONResponse({"error": str(exc)}, status_code=400)
         return None
     wanted = every_minutes.strip()
+    # The number is in whatever unit was chosen beside it; minutes is what is
+    # stored, and what an older form with no unit at all meant.
     node.every_minutes = (
-        max(1, int(wanted))
+        graph_service.every_minutes_from(int(wanted), every_unit or "minutes")
         if wanted.isdigit() and int(wanted) > 0
         else graph_service.DEFAULT_EVERY_MINUTES
     )
@@ -2335,30 +2755,6 @@ def _save_filter_rules(
     for name, raw in numbers.items():
         value = raw.strip()
         setattr(node, name, int(value) if value.isdigit() else None)
-
-
-@app.get("/graph/trace/{video_pk}")
-def graph_trace(request: Request, video_pk: int) -> JSONResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        video = session.scalar(owned(select(Video), Video, owner).where(Video.id == video_pk))
-        if video is None:
-            return JSONResponse({"error": "That item is not here."}, status_code=404)
-        steps = graph_service.trace(session, video, get_settings(session, owner), owner)
-        return JSONResponse(
-            {
-                "item": {"title": video.title or video.video_id, "kind": video.kind},
-                "steps": [
-                    {
-                        "nodes": step.node_ids,
-                        "wires": step.wire_ids,
-                        "accepted": step.accepted,
-                        "reason": step.reason,
-                    }
-                    for step in steps
-                ],
-            }
-        )
 
 
 # -- the admin's tab ------------------------------------------------------

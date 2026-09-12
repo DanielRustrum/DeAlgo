@@ -82,6 +82,17 @@ class VideoDetails:
     duration_sec: int | None
     live_state: str  # "none", "live", or "upcoming"
     privacy_status: str | None
+    # None where YouTube withholds them — a channel can hide its like count,
+    # and neither is given for a video that has not been published yet.
+    view_count: int | None = None
+    like_count: int | None = None
+
+
+def _count(raw: object) -> int | None:
+    """YouTube sends counts as strings, and leaves them out when hidden."""
+    if not isinstance(raw, str) or not raw.isdigit():
+        return None
+    return int(raw)
 
 
 @dataclass(frozen=True)
@@ -300,23 +311,33 @@ class YouTubeClient:
     # -- videos ---------------------------------------------------------
 
     def video_details(self, video_ids: list[str]) -> dict[str, VideoDetails]:
-        """Durations and live state, batched 50 at a time (1 unit per batch)."""
+        """Durations, live state and counts, batched 50 at a time.
+
+        One unit per batch whatever is asked for, so statistics come along for
+        nothing — which is what lets a sort box order by views or likes.
+        """
         details: dict[str, VideoDetails] = {}
         for start in range(0, len(video_ids), 50):
             batch = video_ids[start : start + 50]
             payload = self._request(
                 "GET",
                 "videos",
-                params={"part": "contentDetails,snippet,status", "id": ",".join(batch)},
+                params={
+                    "part": "contentDetails,snippet,status,statistics",
+                    "id": ",".join(batch),
+                },
             )
             for item in payload.get("items", []):
                 snippet = item.get("snippet", {})
+                counts = item.get("statistics", {})
                 details[item["id"]] = VideoDetails(
                     video_id=item["id"],
                     title=snippet.get("title", ""),
                     duration_sec=parse_duration(item.get("contentDetails", {}).get("duration")),
                     live_state=snippet.get("liveBroadcastContent", "none") or "none",
                     privacy_status=item.get("status", {}).get("privacyStatus"),
+                    view_count=_count(counts.get("viewCount")),
+                    like_count=_count(counts.get("likeCount")),
                 )
         return details
 

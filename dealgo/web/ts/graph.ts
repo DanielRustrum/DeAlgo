@@ -10,7 +10,7 @@
 //
 // Top-level `function` declarations only: see the note in dialog.ts.
 
-type GraphNodeKind = "trigger" | "source" | "filter" | "feed";
+type GraphNodeKind = "trigger" | "source" | "filter" | "sort" | "feed" | "group";
 type GraphWireKind = "link" | "edge";
 
 /** A filter's answer for one rule. Absent means "leave it to the channel". */
@@ -25,19 +25,73 @@ interface GraphNodeView {
   /** Where the thing behind the box lives, for source and feed boxes. */
   detail: string | null;
   note: string;
+  /** Whether this box is doing anything at all. */
+  enabled: boolean;
   /** Source boxes only: what decides when this channel is polled. */
   polled: string | null;
   /** Trigger boxes only. */
   trigger: GraphTrigger | null;
+  /** Sort boxes only. */
+  sort: GraphSort | null;
+  /** Group nodes only: how big the rectangle is. */
+  size: { width: number; height: number } | null;
+  /** Channel boxes that stand for a channel: what it does. */
+  channel: GraphChannel | null;
+  /** Feed boxes: how it fills. */
+  feed: GraphFeed | null;
   overrides: Record<string, GraphOverride>;
+}
+
+interface GraphFeed {
+  /** When it may be read. Empty means always. */
+  windows: string[];
+  open: boolean;
+  maxItems: number;
+  maxPerRun: number;
+  generic: boolean;
+}
+
+interface GraphChannel {
+  takes: Record<string, boolean>;
+  /** When it was last polled. When it next will be is the trigger's business. */
+  checked: string | null;
+  placed: number;
+  pending: number;
+}
+
+interface GraphSort {
+  by: string;
+  /** Biggest, longest or newest first. */
+  desc: boolean;
+  keys: GraphSortKey[];
+}
+
+/** One thing a batch can be ordered by, and what its two ends are called. */
+interface GraphSortKey {
+  name: string;
+  label: string;
+  first: string;
+  last: string;
+}
+
+/** A pulse's gap as a person says it: a number and what it counts. */
+interface GraphEvery {
+  amount: number;
+  unit: string;
+  units: { name: string; label: string }[];
 }
 
 interface GraphTrigger {
   kind: "schedule" | "pulse";
-  /** A pulse's gap, in minutes. */
+  /** A pulse's gap, in minutes, and the same gap said in a larger unit. */
   everyMinutes: number | null;
+  every: GraphEvery;
   /** A schedule's cron expression, read in UTC. */
   cron: string | null;
+  /** How long a window it opens, when it is wired to a feed. */
+  duration: number | null;
+  /** Whether it is wired to a feed, and so opens one rather than setting one off. */
+  opens: boolean;
   /** When that expression next comes round, as the server worked it out. */
   next: string | null;
   lastFired: string | null;
@@ -55,22 +109,9 @@ interface GraphView {
   wires: GraphWireView[];
 }
 
-/** One hop of a followed item: which boxes it passed and whether it got in. */
-interface GraphTraceStep {
-  nodes: number[];
-  wires: string[];
-  accepted: boolean;
-  reason: string | null;
-}
-
-interface GraphTraceView {
-  title: string;
-  steps: GraphTraceStep[];
-}
-
 /** A drag in progress — moving a box, or pulling a new wire out of one. */
 interface GraphDrag {
-  kind: "move" | "wire" | "pan";
+  kind: "move" | "wire" | "pan" | "resize" | "pick";
   /** Which box is being dragged. Zero while panning: a pan holds no box. */
   nodeId: number;
   pointerId: number;
@@ -83,12 +124,19 @@ interface GraphDrag {
   scrollX: number;
   scrollY: number;
   moved: boolean;
+  /** Where the node itself started, so a group's carried nodes move with it. */
+  startX: number;
+  startY: number;
+  /** Moving a group: what it surrounds, and where each of them started. */
+  carried: { node: GraphNodeView; x: number; y: number }[];
 }
 
 interface GraphParts {
   canvas: HTMLElement;
   /** Everything drawn, moved as one when the canvas is panned. */
   scene: HTMLElement;
+  /** The groups, drawn under the wires: a group is a background. */
+  groups: HTMLElement;
   layer: HTMLElement;
   wires: SVGSVGElement;
   drawer: HTMLElement | null;
@@ -102,18 +150,59 @@ interface GraphState {
   nodes: GraphNodeView[];
   wires: GraphWireView[];
   boxes: Map<number, HTMLElement>;
+  /** The node whose panel is open. Only ever one: a panel is about a node. */
   selectedNode: number | null;
+  /** Everything picked out, which may be several. Moved and removed together. */
+  picked: Set<number>;
   selectedWire: string | null;
   drag: GraphDrag | null;
   ghost: SVGPathElement | null;
-  /** "node:3" or "wire:edge:7" — true where a followed item got through. */
-  marks: Map<string, boolean>;
+  /** What the run in flight has done to each box, while one is running. */
+  run: Map<number, GraphMark>;
+  /** Whether something is already asking the server where the run has got to. */
+  watching: boolean;
   busy: boolean;
   /** Where the canvas has been panned to. There are no edges to stop at. */
   panX: number;
   panY: number;
+  /** How far in the canvas is zoomed. 1 is life size. */
+  zoom: number;
   /** A box being dragged out of the palette, before it exists. */
   dropping: GraphDropping | null;
+  /** Which side of the open box is showing: what it does, or what it would do. */
+  tab: "settings" | "test";
+  /** The last trial, kept so a redraw does not throw the answer away. */
+  trial: GraphTrial | null;
+  /** What to do to put things back, most recent last. */
+  undo: GraphUndo[];
+}
+
+/** How to put one action back.
+ *
+ *  Every change on this canvas is a request the server already accepts, so an
+ *  undo is another one of those rather than a second way of changing things:
+ *  a move back, a wire cut, a node deleted. Nothing here can do anything a
+ *  person could not do by hand. */
+interface GraphUndo {
+  /** What it puts back, said in the line above the canvas. */
+  says: string;
+  run: () => Promise<void>;
+}
+
+/** One box's share of a trial. */
+interface GraphShare {
+  through: GraphJudged[];
+  held: GraphJudged[];
+}
+
+/** What a run would do, as the trigger that was asked reported it. */
+interface GraphTrial {
+  /** The trigger it was asked of. */
+  node: number;
+  /** Every box it touched, and what each did, by node id. */
+  boxes: Map<number, GraphShare>;
+  /** True while the answer is still being worked out. */
+  asking: boolean;
 }
 
 /** A palette row on its way to the canvas. */
@@ -132,7 +221,14 @@ function asGraphRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function asGraphNodeKind(value: unknown): GraphNodeKind | null {
-  if (value === "trigger" || value === "source" || value === "filter" || value === "feed") {
+  if (
+    value === "trigger" ||
+    value === "source" ||
+    value === "filter" ||
+    value === "sort" ||
+    value === "feed" ||
+    value === "group"
+  ) {
     return value;
   }
   return null;
@@ -167,9 +263,101 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     y: typeof raw["y"] === "number" ? raw["y"] : 0,
     detail: typeof detail === "string" ? detail : null,
     note: typeof raw["note"] === "string" ? raw["note"] : "",
+    enabled: raw["enabled"] !== false,
     polled: typeof polled === "string" ? polled : null,
     trigger: asGraphTrigger(raw["trigger"]),
+    sort: asGraphSort(raw["sort"]),
+    size: asGraphSize(raw["size"]),
+    channel: asGraphChannel(raw["channel"]),
+    feed: asGraphFeed(raw["feed"]),
     overrides: asGraphOverrides(raw["overrides"]),
+  };
+}
+
+function asGraphFeed(value: unknown): GraphFeed | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const windows = raw["windows"];
+  return {
+    windows: Array.isArray(windows)
+      ? windows.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    open: raw["open"] !== false,
+    maxItems: typeof raw["max_items"] === "number" ? raw["max_items"] : 0,
+    maxPerRun: typeof raw["max_per_run"] === "number" ? raw["max_per_run"] : 0,
+    generic: raw["generic"] === true,
+  };
+}
+
+function asGraphChannel(value: unknown): GraphChannel | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+
+  const takes: Record<string, boolean> = {};
+  const given = asGraphRecord(raw["takes"]) ?? {};
+  for (const key of Object.keys(given)) takes[key] = given[key] === true;
+
+  const checked = raw["checked"];
+  return {
+    takes,
+    checked: typeof checked === "string" ? checked : null,
+    placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
+    pending: typeof raw["pending"] === "number" ? raw["pending"] : 0,
+  };
+}
+
+function asGraphSize(value: unknown): { width: number; height: number } | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    width: typeof raw["width"] === "number" ? raw["width"] : 520,
+    height: typeof raw["height"] === "number" ? raw["height"] : 300,
+  };
+}
+
+function asGraphSort(value: unknown): GraphSort | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+
+  const keys: GraphSortKey[] = [];
+  const offered = raw["keys"];
+  if (Array.isArray(offered)) {
+    for (const entry of offered) {
+      const key = asGraphRecord(entry);
+      if (key === null || typeof key["name"] !== "string") continue;
+      keys.push({
+        name: key["name"],
+        label: typeof key["label"] === "string" ? key["label"] : key["name"],
+        first: typeof key["first"] === "string" ? key["first"] : "Most first",
+        last: typeof key["last"] === "string" ? key["last"] : "Least first",
+      });
+    }
+  }
+  return {
+    by: typeof raw["by"] === "string" ? raw["by"] : "published",
+    desc: raw["desc"] !== false,
+    keys,
+  };
+}
+
+function asGraphEvery(value: unknown): GraphEvery {
+  const raw = asGraphRecord(value);
+  const units: { name: string; label: string }[] = [];
+  const offered = raw === null ? null : raw["units"];
+  if (Array.isArray(offered)) {
+    for (const entry of offered) {
+      const unit = asGraphRecord(entry);
+      if (unit === null || typeof unit["name"] !== "string") continue;
+      units.push({
+        name: unit["name"],
+        label: typeof unit["label"] === "string" ? unit["label"] : unit["name"],
+      });
+    }
+  }
+  return {
+    amount: typeof raw?.["amount"] === "number" ? raw["amount"] : 60,
+    unit: typeof raw?.["unit"] === "string" ? raw["unit"] : "minutes",
+    units,
   };
 }
 
@@ -183,33 +371,13 @@ function asGraphTrigger(value: unknown): GraphTrigger | null {
   return {
     kind: raw["kind"] === "schedule" ? "schedule" : "pulse",
     everyMinutes: typeof every === "number" ? every : null,
+    every: asGraphEvery(raw["every"]),
     cron: typeof cron === "string" ? cron : null,
+    duration: typeof raw["duration"] === "number" ? raw["duration"] : null,
+    opens: raw["opens"] === true,
     next: typeof next === "string" ? next : null,
     lastFired: typeof fired === "string" ? fired : null,
   };
-}
-
-// -- clocks ----------------------------------------------------------------
-//
-// A schedule is stored in UTC, because every other instant in this app is and
-// a stored local time would mean something else after a clock change. The
-// person setting it means their own clock, so the conversion happens here,
-// where the browser knows the offset.
-
-/** Minutes past midnight UTC as "HH:MM" on the viewer's own clock. */
-function graphLocalTime(atMinute: number | null): string {
-  const minute = atMinute ?? 9 * 60;
-  const when = new Date();
-  when.setUTCHours(Math.floor(minute / 60), minute % 60, 0, 0);
-  return `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`;
-}
-
-/** "HH:MM" on the viewer's clock back to minutes past midnight UTC. */
-function graphUtcMinute(local: string): number {
-  const [hours, minutes] = local.split(":");
-  const when = new Date();
-  when.setHours(Number(hours ?? 0), Number(minutes ?? 0), 0, 0);
-  return (when.getUTCHours() * 60 + when.getUTCMinutes()) % (24 * 60);
 }
 
 function asGraphWire(value: unknown): GraphWireView | null {
@@ -247,32 +415,6 @@ function asGraphError(value: unknown): string | null {
   const raw = asGraphRecord(value);
   const message = raw === null ? null : raw["error"];
   return typeof message === "string" ? message : null;
-}
-
-function asGraphTrace(value: unknown): GraphTraceView | null {
-  const raw = asGraphRecord(value);
-  if (raw === null) return null;
-  const steps = raw["steps"];
-  if (!Array.isArray(steps)) return null;
-
-  const item = asGraphRecord(raw["item"]);
-  const title = item === null || typeof item["title"] !== "string" ? "That item" : item["title"];
-
-  const read: GraphTraceStep[] = [];
-  for (const entry of steps) {
-    const step = asGraphRecord(entry);
-    if (step === null) continue;
-    const nodes = step["nodes"];
-    const wires = step["wires"];
-    const reason = step["reason"];
-    read.push({
-      nodes: Array.isArray(nodes) ? nodes.filter((id): id is number => typeof id === "number") : [],
-      wires: Array.isArray(wires) ? wires.filter((id): id is string => typeof id === "string") : [],
-      accepted: step["accepted"] === true,
-      reason: typeof reason === "string" ? reason : null,
-    });
-  }
-  return { title, steps: read };
 }
 
 // -- talking to the server -------------------------------------------------
@@ -333,14 +475,81 @@ function graphElement(tag: string, className: string, text?: string): HTMLElemen
 function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "source") return "Channel";
   if (kind === "feed") return "Feed";
+  if (kind === "sort") return "Sort";
+  if (kind === "group") return "Group";
   return kind === "trigger" ? "Trigger" : "Filter";
 }
 
-function graphPort(where: "in" | "out"): HTMLElement {
-  const dot = graphElement("span", `graph-port port-${where}`);
+/** What travels down a wire: a nudge to run, or the things being collected. */
+type GraphCarries = "signal" | "content";
+
+function graphPort(where: "in" | "out", carries: GraphCarries, says: string): HTMLElement {
+  const dot = graphElement("span", `graph-port port-${where} carries-${carries}`);
   dot.dataset["port"] = where;
-  dot.title = where === "out" ? "GraphDrag from here to wire this up" : "Drop a wire here";
+  dot.title = says;
+  dot.appendChild(graphPortIcon(carries));
   return dot;
+}
+
+/** The mark inside a port. Drawn rather than written: at this size a letter
+ *  is a smudge, and a shape is still a shape. */
+function graphPortIcon(carries: GraphCarries): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "graph-port-icon");
+  svg.setAttribute("viewBox", "0 0 10 10");
+  svg.setAttribute("aria-hidden", "true");
+
+  const mark = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  mark.setAttribute(
+    "d",
+    carries === "signal"
+      // A bolt: something setting the channel off.
+      ? "M6.2 0.6 L2.2 5.6 H4.5 L3.8 9.4 L7.8 4.4 H5.5 Z"
+      // A play mark: the videos and posts being carried along.
+      : "M2.6 1.2 L8.2 5 L2.6 8.8 Z",
+  );
+  svg.appendChild(mark);
+  return svg;
+}
+
+/** What each side of a box takes in or gives out, in a sentence. */
+function graphPortWords(kind: GraphNodeKind, where: "in" | "out"): string {
+  if (kind === "trigger") return "Gives out a signal: wire it to a channel to say when to poll it.";
+  if (kind === "source") {
+    return where === "in"
+      ? "Takes a signal: a trigger wired here says when this channel is polled."
+      : "Gives out what it collects — videos and posts — to whatever is wired on.";
+  }
+  if (kind === "filter") {
+    return where === "in"
+      ? "Takes what arrives, and judges it."
+      : "Gives out only what got through.";
+  }
+  return "Takes what is wired in. This is where things end up.";
+}
+
+function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
+  const frame = graphElement("div", "graph-group-box");
+  frame.dataset["node"] = String(node.id);
+  frame.style.left = `${node.x}px`;
+  frame.style.top = `${node.y}px`;
+  frame.style.width = `${node.size?.width ?? 520}px`;
+  frame.style.height = `${node.size?.height ?? 300}px`;
+  frame.tabIndex = 0;
+  frame.setAttribute("role", "button");
+  frame.setAttribute("aria-label", `Group: ${node.title}`);
+  if (state.picked.has(node.id)) frame.classList.add("is-picked");
+  if (!node.enabled) frame.classList.add("is-off");
+
+  const name = graphElement("span", "graph-group-name", node.title);
+  frame.appendChild(name);
+
+  // Bottom-right, where a resize handle is looked for.
+  const grip = graphElement("span", "graph-group-grip");
+  grip.dataset["grip"] = String(node.id);
+  grip.title = "Drag to resize";
+  frame.appendChild(grip);
+  return frame;
 }
 
 function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
@@ -351,17 +560,33 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   box.tabIndex = 0;
   box.setAttribute("role", "button");
   box.setAttribute("aria-label", `${graphKindLabel(node.kind)}: ${node.title}`);
-  if (node.id === state.selectedNode) box.classList.add("is-picked");
+  if (state.picked.has(node.id)) box.classList.add("is-picked");
+  if (!node.enabled) box.classList.add("is-off");
 
-  const mark = state.marks.get(`node:${node.id}`);
-  if (mark !== undefined) box.classList.add(mark ? "is-through" : "is-stopped");
-
-  if (node.kind !== "trigger") box.appendChild(graphPort("in"));
+  if (node.kind !== "trigger") {
+    // A channel is set off by a signal; everything else is fed content.
+    const takes: GraphCarries = node.kind === "source" ? "signal" : "content";
+    box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
+  }
+  if (node.kind === "feed") {
+    // The second input: a trigger wired here says when this feed may be read,
+    // which is a different question from what goes into it.
+    const when = graphPort(
+      "in",
+      "signal",
+      "Takes a signal: a trigger wired here says when this feed may be read.",
+    );
+    when.classList.add("port-when");
+    box.appendChild(when);
+  }
   box.appendChild(graphElement("span", "graph-node-kind", graphTriggerLabel(node)));
   box.appendChild(graphElement("strong", "graph-node-title", node.title));
   box.appendChild(graphElement("span", "graph-node-note", node.note));
   if (node.trigger !== null) box.appendChild(graphFireButton(node));
-  if (node.kind !== "feed") box.appendChild(graphPort("out"));
+  if (node.kind !== "feed") {
+    const gives: GraphCarries = node.kind === "trigger" ? "signal" : "content";
+    box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
+  }
   return box;
 }
 
@@ -372,16 +597,38 @@ function graphTriggerLabel(node: GraphNodeView): string {
 }
 
 function graphFireButton(node: GraphNodeView): HTMLElement {
-  const button = graphElement("button", "btn btn-quiet graph-fire", "Run now");
-  button.setAttribute("type", "button");
-  button.dataset["fire"] = String(node.id);
-  return button;
+  const buttons = graphElement("div", "graph-fire");
+
+  const run = graphElement("button", "btn btn-quiet", "Run now");
+  run.setAttribute("type", "button");
+  run.dataset["fire"] = String(node.id);
+  buttons.appendChild(run);
+
+  // Beside it, because it is the same act with the consequences taken out.
+  const test = graphElement("button", "btn btn-quiet", "Test");
+  test.setAttribute("type", "button");
+  test.title = "Say where everything would land, without landing it anywhere";
+  test.dataset["test"] = String(node.id);
+  buttons.appendChild(test);
+
+  return buttons;
 }
 
 function drawGraphNodes(state: GraphState): void {
   state.parts.layer.textContent = "";
+  state.parts.groups.textContent = "";
   state.boxes.clear();
+  // Groups into their own layer, under the wires: a group is a background,
+  // and a rectangle over what it surrounds would be in the way of all of it —
+  // including the wires crossing it, which would stop being clickable.
   for (const node of state.nodes) {
+    if (node.kind !== "group") continue;
+    const frame = drawGraphGroup(state, node);
+    state.boxes.set(node.id, frame);
+    state.parts.groups.appendChild(frame);
+  }
+  for (const node of state.nodes) {
+    if (node.kind === "group") continue;
     const box = drawGraphNode(state, node);
     state.boxes.set(node.id, box);
     state.parts.layer.appendChild(box);
@@ -389,14 +636,39 @@ function drawGraphNodes(state: GraphState): void {
 }
 
 /** Where a wire leaves a box, and where it arrives — measured, not guessed. */
-function graphPortPoint(state: GraphState, nodeId: number, where: "in" | "out"): { x: number; y: number } | null {
+function graphPortPoint(
+  state: GraphState,
+  nodeId: number,
+  where: "in" | "out",
+  which: "content" | "when" = "content",
+): { x: number; y: number } | null {
   const box = state.boxes.get(nodeId);
   const node = state.nodes.find((entry): boolean => entry.id === nodeId);
   if (box === undefined || node === undefined) return null;
+
+  // A feed has two inputs. Measured from the port itself rather than worked
+  // out from the box, so the wire meets the dot it belongs to however the
+  // port is placed — including the larger ones a touch screen gets.
+  if (which === "when") {
+    const port = box.querySelector<HTMLElement>(".port-when");
+    if (port !== null) {
+      return { x: node.x, y: node.y + port.offsetTop + port.offsetHeight / 2 };
+    }
+  }
   return {
     x: where === "out" ? node.x + box.offsetWidth : node.x,
     y: node.y + box.offsetHeight / 2,
   };
+}
+
+/** Which of a node's inputs a wire arrives at.
+ *
+ *  A trigger carries no content, so a wire from one into a feed is about when
+ *  that feed may be read — the second input — and nothing else ever is. */
+function graphWireEnters(state: GraphState, wire: GraphWireView): "content" | "when" {
+  const from = state.nodes.find((entry): boolean => entry.id === wire.from);
+  const to = state.nodes.find((entry): boolean => entry.id === wire.to);
+  return from?.kind === "trigger" && to?.kind === "feed" ? "when" : "content";
 }
 
 function graphCurve(x1: number, y1: number, x2: number, y2: number): string {
@@ -418,21 +690,25 @@ function drawGraphWires(state: GraphState): void {
   state.parts.layer.querySelectorAll(".graph-cut").forEach((button): void => button.remove());
   for (const wire of state.wires) {
     const from = graphPortPoint(state, wire.from, "out");
-    const to = graphPortPoint(state, wire.to, "in");
+    const to = graphPortPoint(state, wire.to, "in", graphWireEnters(state, wire));
     if (from === null || to === null) continue;
 
     const d = graphCurve(from.x, from.y, to.x, to.y);
     let classes = `graph-wire wire-${wire.kind}`;
     if (wire.id === state.selectedWire) classes += " is-picked";
-    const mark = state.marks.get(`wire:${wire.id}`);
-    if (mark !== undefined) classes += mark ? " is-through" : " is-stopped";
 
     // A two-pixel line is impossible to click. The fat one is invisible and
     // takes the pointer; the thin one is what is actually seen.
     const hit = graphSvgPath("graph-wire-hit", d);
     hit.setAttribute("data-wire", wire.id);
     state.parts.wires.appendChild(hit);
-    state.parts.wires.appendChild(graphSvgPath(classes, d));
+
+    const line = graphSvgPath(classes, d);
+    // Named rather than found by where it sits: the run lights these, and a
+    // lookup that depended on the order they were appended in would stop
+    // working the day something else is appended between them.
+    line.setAttribute("data-line", wire.id);
+    state.parts.wires.appendChild(line);
 
     if (wire.id === state.selectedWire) {
       state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));
@@ -452,20 +728,57 @@ function graphCutButton(wireId: string, x: number, y: number): HTMLElement {
 }
 
 /** Grow the drawing area to hold the boxes, so the canvas can be scrolled. */
+/** How far in and out the canvas will go. Past these it stops being useful. */
+function graphZoomLimits(): { least: number; most: number } {
+  return { least: 0.3, most: 2.5 };
+}
+
 /** Move the whole drawing under the window. The canvas has no edges. */
 function panGraph(state: GraphState, x: number, y: number): void {
   state.panX = x;
   state.panY = y;
-  state.parts.scene.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-  // The grid behind it moves too, or the drawing looks like it is sliding
-  // over a pattern that is nailed down.
-  state.parts.canvas.style.backgroundPosition = `${Math.round(x)}px ${Math.round(y)}px`;
+  showGraphView(state);
+}
+
+function showGraphView(state: GraphState): void {
+  const { panX, panY, zoom } = state;
+  state.parts.scene.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  state.parts.scene.style.transformOrigin = "0 0";
+  // The grid moves and scales with it, or the drawing looks like it is
+  // sliding over a pattern that is nailed down.
+  const grid = 26 * zoom;
+  state.parts.canvas.style.backgroundSize = `${grid}px ${grid}px`;
+  state.parts.canvas.style.backgroundPosition = `${panX}px ${panY}px`;
+
+  const reading = state.parts.canvas.querySelector<HTMLElement>("[data-graph-zoom]");
+  if (reading !== null) reading.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+/** Zoom about a point on screen, so whatever is under the pointer stays put.
+ *
+ *  Zooming about the corner instead would send the thing being looked at off
+ *  the edge, which is the difference between a zoom and a surprise. */
+function zoomGraph(state: GraphState, factor: number, clientX: number, clientY: number): void {
+  const limits = graphZoomLimits();
+  const next = Math.min(limits.most, Math.max(limits.least, state.zoom * factor));
+  if (next === state.zoom) return;
+
+  const at = pointInGraph(state, { clientX, clientY });
+  const frame = state.parts.canvas.getBoundingClientRect();
+  state.zoom = next;
+  state.panX = clientX - frame.left - at.x * next;
+  state.panY = clientY - frame.top - at.y * next;
+  showGraphView(state);
 }
 
 function renderGraph(state: GraphState): void {
   drawGraphNodes(state);
   drawGraphWires(state);
   renderGraphPopover(state);
+  renderGraphFinder(state);
+  // The boxes were just rebuilt from scratch, so whatever the run had marked
+  // on them has to go back on.
+  paintGraphRun(state);
   // The canvas itself is never hidden: the palette lives inside it, so an
   // account with nothing on it would have nothing to add anything with.
   if (state.parts.empty !== null) state.parts.empty.hidden = state.nodes.length > 0;
@@ -521,57 +834,6 @@ function graphSwitchField(name: string, value: GraphOverride | undefined): HTMLE
   return select;
 }
 
-function graphFilterForm(state: GraphState, node: GraphNodeView): HTMLElement {
-  const form = document.createElement("form");
-  form.className = "graph-form";
-  form.dataset["save"] = String(node.id);
-
-  const name = document.createElement("input");
-  name.type = "text";
-  name.name = "label";
-  name.value = node.title;
-  form.appendChild(graphLabelled("Name", name));
-
-  for (const [text, key] of [
-    ["Videos", "skip_videos"],
-    ["Shorts", "skip_shorts"],
-    ["Live", "skip_live"],
-    ["Posts", "skip_posts"],
-  ] as const) {
-    form.appendChild(graphLabelled(text, graphSwitchField(key, node.overrides[key])));
-  }
-
-  form.appendChild(
-    graphLabelled("Title must contain", graphTextField("title_include", node.overrides["title_include"], "any")),
-  );
-  form.appendChild(
-    graphLabelled("Title must not contain", graphTextField("title_exclude", node.overrides["title_exclude"], "nothing")),
-  );
-  form.appendChild(
-    graphLabelled("Shortest, in seconds", graphTextField("min_duration_sec", node.overrides["min_duration_sec"], "no limit")),
-  );
-  form.appendChild(
-    graphLabelled("Longest, in seconds", graphTextField("max_duration_sec", node.overrides["max_duration_sec"], "no limit")),
-  );
-  form.appendChild(
-    graphLabelled("Most per sync", graphTextField("max_per_run", node.overrides["max_per_run"], "no limit")),
-  );
-
-  const buttons = graphElement("div", "graph-form-buttons");
-  const save = graphElement("button", "btn btn-primary", "Save");
-  save.setAttribute("type", "submit");
-  buttons.appendChild(save);
-
-  const remove = graphElement("button", "btn btn-danger", "Remove");
-  remove.setAttribute("type", "button");
-  remove.dataset["remove"] = String(node.id);
-  buttons.appendChild(remove);
-  form.appendChild(buttons);
-
-  if (state.busy) form.setAttribute("aria-busy", "true");
-  return form;
-}
-
 /** The open box's detail, drawn on the canvas beside the box it belongs to.
  *
  *  In the scene rather than beside it, so it pans with the box and stays
@@ -579,6 +841,7 @@ function graphFilterForm(state: GraphState, node: GraphNodeView): HTMLElement {
  *  "which box was this about?" in their head. */
 function renderGraphPopover(state: GraphState): void {
   state.parts.layer.querySelectorAll(".graph-pop").forEach((old): void => old.remove());
+  renderGraphPickedBar(state);
 
   const node = state.nodes.find((entry): boolean => entry.id === state.selectedNode);
   if (node === undefined) return;
@@ -586,8 +849,7 @@ function renderGraphPopover(state: GraphState): void {
   if (box === undefined) return;
 
   const pop = graphElement("div", "graph-pop");
-  pop.style.left = `${node.x + box.offsetWidth + 18}px`;
-  pop.style.top = `${node.y}px`;
+  placeGraphPopover(state, node, box, pop);
 
   const head = graphElement("div", "graph-pop-head");
   head.appendChild(graphElement("span", "graph-pop-kind", graphTriggerLabel(node)));
@@ -598,8 +860,141 @@ function renderGraphPopover(state: GraphState): void {
   head.appendChild(close);
   pop.appendChild(head);
 
-  pop.appendChild(graphNodeForm(state, node));
+  // A trigger always has two sides. Every other box grows one once a trial
+  // has passed through it, and loses it again when that trial is replaced.
+  const tested = node.trigger !== null || graphShareOf(state, node) !== null;
+  const showing = tested ? state.tab : "settings";
+  if (tested) pop.appendChild(graphPopTabs(node, showing));
+
+  if (showing === "test") {
+    pop.classList.add("is-wide");
+    pop.appendChild(graphTrialBody(state, node));
+  } else {
+    pop.appendChild(graphNodeForm(state, node));
+  }
   state.parts.layer.appendChild(pop);
+}
+
+/** The two sides of a trigger: what it does, and what it would do. */
+function graphPopTabs(node: GraphNodeView, showing: string): HTMLElement {
+  const strip = graphElement("div", "graph-pop-tabs");
+  for (const [name, label] of [["settings", "Settings"], ["test", "Test"]] as const) {
+    const tab = graphElement("button", "graph-pop-tab", label);
+    tab.setAttribute("type", "button");
+    tab.dataset["tab"] = name;
+    tab.dataset["for"] = String(node.id);
+    if (name === showing) tab.classList.add("is-on");
+    strip.appendChild(tab);
+  }
+  return strip;
+}
+
+/** Whether opening this Test tab has to run a trial, or only show one.
+ *
+ *  Only a trigger can start one. Every other box has a Test tab because a
+ *  trial already came through it, and asking the server to test a filter is
+ *  refused — which used to take the whole trial down with it. */
+function graphTabNeedsRun(
+  box: GraphNodeView | undefined,
+  trial: GraphTrial | null,
+  wanted: string,
+): boolean {
+  if (wanted !== "test" || box === undefined || box.trigger === null) return false;
+  return trial === null || trial.node !== box.id;
+}
+
+/** This box's share of the last trial, if it had one. */
+function graphShareOf(state: GraphState, node: GraphNodeView): GraphShare | null {
+  return state.trial?.boxes.get(node.id) ?? null;
+}
+
+/** What this box would do, inside the box itself. */
+function graphTrialBody(state: GraphState, node: GraphNodeView): HTMLElement {
+  const sheet = graphElement("div", "graph-sheet");
+  const trial = state.trial;
+
+  if (trial === null || trial.asking) {
+    sheet.appendChild(graphElement("p", "hint", "Working it out…"));
+    return sheet;
+  }
+
+  const share = graphShareOf(state, node);
+  if (share === null) {
+    sheet.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        "The last test did not come through this node. Run one from a trigger.",
+      ),
+    );
+    return sheet;
+  }
+
+  sheet.appendChild(
+    graphElement("p", "hint", "If it ran now. Nothing here has been added or written."),
+  );
+  // A feed is where things arrive; everywhere else is somewhere they pass.
+  sheet.appendChild(
+    graphJudgedList(
+      node.kind === "feed" ? "Would land" : "Gets through",
+      share.through,
+      "through",
+      true,
+    ),
+  );
+  if (share.held.length > 0) {
+    sheet.appendChild(graphJudgedList("Held back", share.held, "held", true));
+  }
+  return sheet;
+}
+
+/** How many are picked, and the one thing to do with several at once.
+ *
+ *  Over the canvas rather than beside a node, because it is not about any one
+ *  of them. */
+function renderGraphPickedBar(state: GraphState): void {
+  const bar = state.parts.canvas
+    .closest<HTMLElement>(".graph-panel")
+    ?.querySelector<HTMLElement>("[data-graph-picked]");
+  if (!bar) return;
+
+  bar.hidden = state.picked.size < 2;
+  if (bar.hidden) return;
+
+  bar.textContent = "";
+  bar.appendChild(graphElement("span", "", `${state.picked.size} picked`));
+  const remove = graphElement("button", "btn btn-danger", "Remove");
+  remove.setAttribute("type", "button");
+  remove.dataset["removePicked"] = "1";
+  bar.appendChild(remove);
+}
+
+/** Move the open panel to wherever its node is now.
+ *
+ *  Not only the node being dragged: a group takes what it surrounds with it,
+ *  and a selection takes the rest of itself, so the open one may be moving
+ *  without being the one under the pointer. */
+function keepGraphPopoverWithItsNode(state: GraphState): void {
+  const open = state.nodes.find((entry): boolean => entry.id === state.selectedNode);
+  if (open === undefined) return;
+  const box = state.boxes.get(open.id);
+  if (box !== undefined) placeGraphPopover(state, open, box);
+}
+
+/** Put the open box beside the box it belongs to, and keep it there.
+ *
+ *  Called again on every frame of a drag: a detail panel that stayed behind
+ *  while its box moved away would be pointing at nothing. */
+function placeGraphPopover(
+  state: GraphState,
+  node: GraphNodeView,
+  box: HTMLElement,
+  pop?: HTMLElement,
+): void {
+  const panel = pop ?? state.parts.layer.querySelector<HTMLElement>(".graph-pop");
+  if (!panel) return;
+  panel.style.left = `${node.x + box.offsetWidth + 18}px`;
+  panel.style.top = `${node.y}px`;
 }
 
 /** One form per box. Every kind has a name; what else it has depends. */
@@ -608,14 +1003,27 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   form.className = "graph-form";
   form.dataset["save"] = String(node.id);
 
+  // Says this form carried the switch, so the server can tell an unticked box
+  // from a form that never showed one. Without it, an unticked box and an
+  // absent one look the same and nothing could ever be switched off.
+  const carried = document.createElement("input");
+  carried.type = "hidden";
+  carried.name = "box_form";
+  carried.value = "1";
+  form.appendChild(carried);
+
+  form.appendChild(graphActive(node));
+
   const name = document.createElement("input");
   name.type = "text";
   name.name = "label";
   name.value = node.title;
   form.appendChild(graphLabelled("Name", name));
 
-  if (node.kind === "source") graphChannelFields(form, node);
+  if (node.kind === "group") graphGroupFields(form, node);
+  else if (node.kind === "source") graphChannelFields(form, node);
   else if (node.kind === "feed") graphFeedFields(form, node);
+  else if (node.sort !== null) graphSortFields(form, node.sort);
   else if (node.trigger !== null) graphTriggerFields(form, node);
   else graphFilterFields(form, node);
 
@@ -629,6 +1037,11 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     fire.setAttribute("type", "button");
     fire.dataset["fire"] = String(node.id);
     buttons.appendChild(fire);
+
+    const test = graphElement("button", "btn btn-quiet", "Test");
+    test.setAttribute("type", "button");
+    test.dataset["test"] = String(node.id);
+    buttons.appendChild(test);
   }
   if (node.detail !== null) {
     const open = document.createElement("a");
@@ -636,6 +1049,13 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     open.href = node.detail;
     open.textContent = "Open";
     buttons.appendChild(open);
+  }
+
+  if (node.kind === "filter") {
+    const seen = graphElement("button", "btn btn-quiet", "What it catches");
+    seen.setAttribute("type", "button");
+    seen.dataset["filtered"] = String(node.id);
+    buttons.appendChild(seen);
   }
 
   const remove = graphElement("button", "btn btn-danger", "Remove");
@@ -646,7 +1066,53 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   form.appendChild(buttons);
 
   if (state.busy) form.setAttribute("aria-busy", "true");
+  // What the panel said before anybody typed in it. Read from the fields as
+  // they were filled in, which is the saved state — so an undo puts back what
+  // was saved rather than what was typed and abandoned.
+  form.dataset["was"] = graphFormValues(form).toString();
   return form;
+}
+
+/** Take away everything picked, once it has been said out loud what that is.
+ *
+ *  One question for the lot rather than one each: a person removing four
+ *  nodes has decided once, and asking four times is a way of being ignored. */
+async function removeGraphPicked(state: GraphState): Promise<void> {
+  const going = state.nodes.filter((node): boolean => state.picked.has(node.id));
+  if (going.length === 0) return;
+
+  const costly = going.filter((node): boolean => graphRemovalWarning(node) !== "");
+  const named = going.map((node): string => node.title).join(", ");
+  const asked =
+    costly.length === 0
+      ? `Remove ${going.length} node${going.length === 1 ? "" : "s"}? (${named})`
+      : `Remove ${named}? The channels and feeds among them go too, with their history; anything already in a feed stays put.`;
+  if (!window.confirm(asked)) return;
+
+  state.selectedNode = null;
+  state.picked = new Set<number>();
+  for (const node of going) {
+    await applyGraph(state, `/graph/nodes/${node.id}/delete`, new URLSearchParams());
+  }
+}
+
+/** The switch every box has: whether it is doing anything at all.
+ *
+ *  A box that is off is drawn greyed, and a filter that is off stops the flow
+ *  rather than passing everything — off means off, not "no opinion". */
+function graphActive(node: GraphNodeView): HTMLElement {
+  const row = graphElement("label", "graph-switch is-active");
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.name = "active";
+  box.value = "1";
+  box.checked = node.enabled;
+  row.appendChild(box);
+  row.appendChild(graphElement("span", "graph-switch-name", "Active"));
+  if (!node.enabled && node.kind === "filter") {
+    row.appendChild(graphElement("span", "graph-group-note", "nothing passes while it is off"));
+  }
+  return row;
 }
 
 /** What taking this box away costs, said before it is taken away. */
@@ -685,21 +1151,162 @@ function graphChannelFields(form: HTMLElement, node: GraphNodeView): void {
     );
     return;
   }
-  if (node.polled !== null) form.appendChild(graphElement("p", "hint", node.polled));
-  form.appendChild(
+  const channel = node.channel;
+  if (channel === null) return;
+
+  form.appendChild(graphTakes(channel));
+  form.appendChild(graphChecks(node, channel));
+  form.appendChild(graphChannelCounts(node, channel));
+}
+
+/** The four switches, and whether the channel is watched at all. */
+function graphTakes(channel: GraphChannel): HTMLElement {
+  const group = graphElement("div", "graph-group");
+  group.appendChild(graphElement("span", "graph-group-name", "Takes"));
+
+  const switches = graphElement("div", "graph-switches");
+  for (const [name, label] of [
+    ["videos", "Videos"],
+    ["shorts", "Shorts"],
+    ["live", "Live"],
+    ["posts", "Posts"],
+  ] as const) {
+    const row = graphElement("label", "graph-switch");
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.name = `takes_${name}`;
+    tick.value = "1";
+    tick.checked = channel.takes[name] === true;
+    row.appendChild(tick);
+    row.appendChild(graphElement("span", "graph-switch-name", label));
+    switches.appendChild(row);
+  }
+  group.appendChild(switches);
+  return group;
+}
+
+/** When it was last polled, and what decides when it next will be.
+ *
+ *  Nothing to set here: a trigger wired into this box decides that, and an
+ *  interval offered in two places is an interval that will disagree with
+ *  itself. The channel's own gap still applies while no trigger is wired, and
+ *  the line below says which of the two is in force. */
+function graphChecks(node: GraphNodeView, channel: GraphChannel): HTMLElement {
+  const group = graphElement("div", "graph-group");
+  group.appendChild(graphElement("span", "graph-group-name", "Checks"));
+  if (node.polled !== null) group.appendChild(graphElement("span", "graph-group-note", node.polled));
+  if (channel.checked !== null) {
+    group.appendChild(
+      graphElement("span", "graph-group-note", `Last looked at ${graphWhen(channel.checked)}.`),
+    );
+  }
+  return group;
+}
+
+/** An instant on the reader's own clock, as near or far as it actually is. */
+function graphWhen(instant: string): string {
+  const when = new Date(instant);
+  const minutes = Math.round((when.getTime() - Date.now()) / 60000);
+  const size = Math.abs(minutes);
+  const [divisor, unit] =
+    size < 60 ? [1, "minute"] : size < 1440 ? [60, "hour"] : [1440, "day"];
+  const count = Math.max(1, Math.round(size / divisor));
+  const plural = count === 1 ? "" : "s";
+  return minutes < 0 ? `${count} ${unit}${plural} ago` : `in ${count} ${unit}${plural}`;
+}
+
+/** What it has put into its feeds. Not which feeds: the wires say that, and
+ *  saying it twice invites the two to disagree. */
+function graphChannelCounts(node: GraphNodeView, channel: GraphChannel): HTMLElement {
+  const group = graphElement("div", "graph-group");
+  group.appendChild(graphElement("span", "graph-group-name", "Videos"));
+
+  const counts = graphElement("div", "graph-counts");
+  for (const [count, name, status] of [
+    [channel.placed, "placed", "added"],
+    [channel.pending, "pending", "pending"],
+  ] as const) {
+    const link = document.createElement("a");
+    link.href = `/videos?status=${status}&channel=${graphChannelId(node)}`;
+    link.appendChild(graphElement("strong", "", String(count)));
+    link.appendChild(document.createTextNode(` ${name}`));
+    counts.appendChild(link);
+  }
+  group.appendChild(counts);
+  return group;
+}
+
+/** The channel's own id, which is what its pages are addressed by. */
+function graphChannelId(node: GraphNodeView): string {
+  return (node.detail ?? "").split("/").pop() ?? "";
+}
+
+function graphFeedWindows(form: HTMLElement, feed: GraphFeed): void {
+  if (feed.windows.length === 0) return;
+  const group = graphElement("div", "graph-group");
+  group.appendChild(graphElement("span", "graph-group-name", "Reading"));
+  for (const window of feed.windows) {
+    group.appendChild(graphElement("span", "graph-group-note", window));
+  }
+  group.appendChild(
     graphElement(
-      "p",
-      "hint",
-      "What this box lets out is set on the channel's own page. Put a filter after it to narrow one path without touching the others.",
+      "span",
+      feed.open ? "graph-group-note is-open" : "graph-group-note is-shut",
+      feed.open ? "Open now." : "Shut now.",
     ),
   );
+  form.appendChild(group);
 }
 
 function graphFeedFields(form: HTMLElement, node: GraphNodeView): void {
+  const feed = node.feed;
+  if (feed === null) {
+    form.appendChild(graphElement("p", "hint", "This feed is no longer here."));
+    return;
+  }
+
+  const group = graphElement("div", "graph-group");
+  group.appendChild(graphElement("span", "graph-group-name", "Filling"));
+
+  for (const [label, name, value, hint] of [
+    [
+      "Max size",
+      "max_items",
+      feed.maxItems,
+      "0 keeps everything. Above that, the oldest go as new ones arrive, so the feed is a rolling window rather than one that grows for ever.",
+    ],
+    [
+      "Most per sync",
+      "feed_max_per_run",
+      feed.maxPerRun,
+      "Anything held back is queued for the next run rather than dropped — useful for spreading a tight API quota across several feeds.",
+    ],
+  ] as const) {
+    const field = document.createElement("input");
+    field.type = "number";
+    field.min = "0";
+    field.name = name;
+    field.value = String(value);
+    group.appendChild(graphLabelled(label, field));
+    group.appendChild(graphElement("span", "graph-group-note", hint));
+  }
+
+  form.appendChild(group);
+  graphFeedWindows(form, feed);
   form.appendChild(graphElement("p", "hint", `${node.note}. Everything wired in ends up here.`));
 }
 
 function graphTriggerFields(form: HTMLElement, node: GraphNodeView): void {
+  // Wired to a feed, it opens a window rather than setting something off, and
+  // the one thing it needs that it does not otherwise is how long.
+  if (node.trigger?.opens === true) {
+    const window = document.createElement("input");
+    window.type = "number";
+    window.name = "duration_minutes";
+    window.min = "1";
+    window.value = String(node.trigger.duration ?? 30);
+    form.appendChild(graphLabelled("Open for, in minutes", window));
+  }
   if (node.trigger?.kind === "schedule") {
     const cron = document.createElement("input");
     cron.type = "text";
@@ -713,12 +1320,29 @@ function graphTriggerFields(form: HTMLElement, node: GraphNodeView): void {
     );
     return;
   }
-  const every = document.createElement("input");
-  every.type = "number";
-  every.name = "every_minutes";
-  every.min = "1";
-  every.value = node.trigger?.everyMinutes === null ? "" : String(node.trigger?.everyMinutes);
-  form.appendChild(graphLabelled("Poll every, in minutes", every));
+  const said = node.trigger?.every;
+  const amount = document.createElement("input");
+  amount.type = "number";
+  amount.name = "every_minutes";
+  amount.min = "1";
+  amount.value = String(said?.amount ?? 60);
+
+  const unit = document.createElement("select");
+  unit.name = "every_unit";
+  for (const choice of said?.units ?? []) {
+    const option = document.createElement("option");
+    option.value = choice.name;
+    option.textContent = choice.label;
+    option.selected = choice.name === said?.unit;
+    unit.appendChild(option);
+  }
+
+  // The number and what it counts, side by side: "every 2 hours" is one
+  // answer, and splitting it across two rows makes it read as two.
+  const pair = graphElement("div", "graph-pair");
+  pair.appendChild(amount);
+  pair.appendChild(unit);
+  form.appendChild(graphLabelled("Poll every", pair));
 }
 
 /** When a schedule next comes round, on the reader's own clock. */
@@ -726,6 +1350,73 @@ function graphNextFiring(node: GraphNodeView): string {
   const next = node.trigger?.next ?? null;
   if (next === null) return "it does not come round at all";
   return `next ${new Date(next).toLocaleString()}`;
+}
+
+/** A group's own panel: what it is called, and a way to hand it on. */
+function graphGroupFields(form: HTMLElement, node: GraphNodeView): void {
+  const give = document.createElement("a");
+  give.className = "btn btn-quiet";
+  give.href = `/graph/nodes/${node.id}/export`;
+  give.textContent = "Export";
+  give.title = "Save this group as a file to give to somebody else";
+  form.appendChild(give);
+
+  form.appendChild(
+    graphElement(
+      "p",
+      "hint",
+      "Everything inside the rectangle travels with it, and goes into the file. Channels travel as their YouTube ids; feeds travel as names, and are made afresh by whoever loads them.",
+    ),
+  );
+}
+
+/** What to put the batch in order of, and which way round. */
+function graphSortFields(form: HTMLElement, sort: GraphSort): void {
+  const by = document.createElement("select");
+  by.name = "sort_by";
+  for (const key of sort.keys) {
+    const option = document.createElement("option");
+    option.value = key.name;
+    option.textContent = key.label;
+    option.selected = key.name === sort.by;
+    by.appendChild(option);
+  }
+  form.appendChild(graphLabelled("Order by", by));
+
+  const way = document.createElement("select");
+  way.name = "sort_dir";
+  for (const value of ["desc", "asc"] as const) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.selected = (value === "desc") === sort.desc;
+    way.appendChild(option);
+  }
+  // "Most first" means one thing for a duration and another for a date, so
+  // the ends are named after what is being sorted, and renamed when that
+  // changes rather than leaving the reader to work out which end is which.
+  nameGraphSortEnds(way, sort, sort.by);
+  by.addEventListener("change", (): void => nameGraphSortEnds(way, sort, by.value));
+  form.appendChild(graphLabelled("Which end first", way));
+
+  form.appendChild(
+    graphElement(
+      "p",
+      "hint",
+      "The order things are added to the feed in. Views and likes are read when the details are fetched, so a video nobody has looked up yet sorts last.",
+    ),
+  );
+}
+
+/** Label the two ends for whatever is being sorted by. */
+function nameGraphSortEnds(way: HTMLSelectElement, sort: GraphSort, by: string): void {
+  const key = sort.keys.find((entry): boolean => entry.name === by);
+  const [first, last] = key === undefined ? ["Most first", "Least first"] : [key.first, key.last];
+  const options = way.options;
+  if (options.length < 2) return;
+  const falling = options[0];
+  const rising = options[1];
+  if (falling !== undefined) falling.textContent = first;
+  if (rising !== undefined) rising.textContent = last;
 }
 
 function graphFilterFields(form: HTMLElement, node: GraphNodeView): void {
@@ -756,9 +1447,14 @@ function graphFilterFields(form: HTMLElement, node: GraphNodeView): void {
 
 // -- picking things up -----------------------------------------------------
 
+/** The node a pointer is on, whatever shape that node is drawn as.
+ *
+ *  A group is a rectangle rather than a box, so it carries its own class —
+ *  and looking only for the box's meant a group could not be pressed at all:
+ *  not moved, not resized, not opened, and so not removed either. */
 function graphNodeIdFrom(target: EventTarget | null): number | null {
   if (!(target instanceof Element)) return null;
-  const box = target.closest<HTMLElement>(".graph-node");
+  const box = target.closest<HTMLElement>(".graph-node, .graph-group-box");
   const raw = box?.dataset["node"];
   return raw === undefined ? null : Number(raw);
 }
@@ -776,8 +1472,8 @@ function pointInGraph(state: GraphState, event: { clientX: number; clientY: numb
 } {
   const frame = state.parts.canvas.getBoundingClientRect();
   return {
-    x: event.clientX - frame.left - state.panX,
-    y: event.clientY - frame.top - state.panY,
+    x: (event.clientX - frame.left - state.panX) / state.zoom,
+    y: (event.clientY - frame.top - state.panY) / state.zoom,
   };
 }
 
@@ -794,6 +1490,9 @@ function graphGrab(state: GraphState, event: PointerEvent): GraphDrag {
     scrollX: state.panX,
     scrollY: state.panY,
     moved: false,
+    startX: 0,
+    startY: 0,
+    carried: [],
   };
 }
 
@@ -826,13 +1525,87 @@ function beginGraphMove(state: GraphState, event: PointerEvent, node: GraphNodeV
     nodeId: node.id,
     grabX: at.x - node.x,
     grabY: at.y - node.y,
+    startX: node.x,
+    startY: node.y,
+    // What travels with it: what a group surrounds, or the rest of what is
+    // picked. Their starting positions are noted here so each can be moved by
+    // the same amount without asking again half-way through the drag.
+    carried: graphTravelsWith(state, node).map(
+      (held): { node: GraphNodeView; x: number; y: number } => ({
+        node: held,
+        x: held.x,
+        y: held.y,
+      }),
+    ),
   };
   state.boxes.get(node.id)?.classList.add("is-held");
+}
+
+/** What moves when this node moves.
+ *
+ *  A group takes what it surrounds. Anything else takes the rest of what is
+ *  picked, so several nodes dragged by one of them keep their arrangement. */
+function graphTravelsWith(state: GraphState, node: GraphNodeView): GraphNodeView[] {
+  if (node.kind === "group") return graphSurrounded(state, node);
+  if (!state.picked.has(node.id) || state.picked.size < 2) return [];
+  return state.nodes.filter(
+    (entry): boolean => entry.id !== node.id && state.picked.has(entry.id),
+  );
+}
+
+/** What a group surrounds, worked out the way the server works it out. */
+function graphSurrounded(state: GraphState, group: GraphNodeView): GraphNodeView[] {
+  if (group.kind !== "group") return [];
+  const right = group.x + (group.size?.width ?? 520);
+  const bottom = group.y + (group.size?.height ?? 300);
+  return state.nodes.filter(
+    (node): boolean =>
+      node.id !== group.id &&
+      node.kind !== "group" &&
+      node.x >= group.x &&
+      node.x <= right &&
+      node.y >= group.y &&
+      node.y <= bottom,
+  );
+}
+
+/** Drag a box round the canvas; what it covers is what gets picked. */
+function beginGraphPick(state: GraphState, event: PointerEvent): void {
+  const at = pointInGraph(state, event);
+  state.drag = { ...graphGrab(state, event), kind: "pick", startX: at.x, startY: at.y };
+
+  const marquee = graphElement("div", "graph-marquee");
+  marquee.style.left = `${at.x}px`;
+  marquee.style.top = `${at.y}px`;
+  state.parts.layer.appendChild(marquee);
+}
+
+/** The box being dragged, if one is. */
+function graphMarquee(state: GraphState): HTMLElement | null {
+  return state.parts.layer.querySelector<HTMLElement>(".graph-marquee");
+}
+
+function beginGraphResize(state: GraphState, event: PointerEvent, node: GraphNodeView): void {
+  state.drag = {
+    ...graphGrab(state, event),
+    kind: "resize",
+    nodeId: node.id,
+    grabX: node.size?.width ?? 520,
+    grabY: node.size?.height ?? 300,
+  };
 }
 
 function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   if (event.button !== 0) return;
   const target = event.target;
+  // The open box is a form: a click in it is meant for the field it landed
+  // on, and must not reach the canvas, which would read it as a click on
+  // empty space and close the very box being typed into.
+  if (target instanceof Element && target.closest(".graph-pop")) return;
+  // The palette sits over the canvas rather than on it. Pressing a fold, or
+  // the space between rows, is not a press on the drawing underneath — and
+  // taking it as one starts a pan and swallows the fold.
+  if (target instanceof Element && target.closest(".graph-palette")) return;
   // Buttons and links inside the canvas do their own thing.
   if (target instanceof Element && target.closest("a, button")) return;
 
@@ -851,7 +1624,8 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
       clearGraphPick(state);
       return;
     }
-    beginGraphPan(state, event);
+    if (event.shiftKey) beginGraphPick(state, event);
+    else beginGraphPan(state, event);
     state.parts.canvas.setPointerCapture(event.pointerId);
     event.preventDefault();
     return;
@@ -859,8 +1633,25 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   const node = state.nodes.find((entry): boolean => entry.id === nodeId);
   if (node === undefined) return;
 
+  // Shift on a node adds it to what is picked rather than replacing it — but
+  // a group is a background, and shift over one means the same as shift over
+  // the canvas: draw a box round what is inside it.
+  if (event.shiftKey) {
+    if (node.kind === "group") {
+      beginGraphPick(state, event);
+      state.parts.canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
+    alsoPickGraphNode(state, nodeId);
+    event.preventDefault();
+    return;
+  }
+
+  const onGrip = target instanceof Element && target.closest<HTMLElement>("[data-grip]");
   const onPort = target instanceof Element && target.closest<HTMLElement>(".graph-port");
-  if (onPort && onPort.dataset["port"] === "out") beginGraphWire(state, event, nodeId);
+  if (onGrip) beginGraphResize(state, event, node);
+  else if (onPort && onPort.dataset["port"] === "out") beginGraphWire(state, event, nodeId);
   else beginGraphMove(state, event, node);
 
   state.parts.canvas.setPointerCapture(event.pointerId);
@@ -878,7 +1669,30 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     return;
   }
 
+  if (drag.kind === "pick") {
+    const marquee = graphMarquee(state);
+    if (marquee === null) return;
+    const at = pointInGraph(state, event);
+    marquee.style.left = `${Math.min(drag.startX, at.x)}px`;
+    marquee.style.top = `${Math.min(drag.startY, at.y)}px`;
+    marquee.style.width = `${Math.abs(at.x - drag.startX)}px`;
+    marquee.style.height = `${Math.abs(at.y - drag.startY)}px`;
+    return;
+  }
+
   const at = pointInGraph(state, event);
+
+  if (drag.kind === "resize") {
+    const node = state.nodes.find((entry): boolean => entry.id === drag.nodeId);
+    const frame = state.boxes.get(drag.nodeId);
+    if (node === undefined || frame === undefined || node.size === null) return;
+    node.size.width = Math.max(200, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
+    node.size.height = Math.max(140, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
+    frame.style.width = `${node.size.width}px`;
+    frame.style.height = `${node.size.height}px`;
+    return;
+  }
+
   if (drag.kind === "move") {
     const node = state.nodes.find((entry): boolean => entry.id === drag.nodeId);
     const box = state.boxes.get(drag.nodeId);
@@ -888,6 +1702,23 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     node.y = Math.round(at.y - drag.grabY);
     box.style.left = `${node.x}px`;
     box.style.top = `${node.y}px`;
+
+    // A group takes what it surrounds with it, by the same amount.
+    const across = node.x - drag.startX;
+    const down = node.y - drag.startY;
+    for (const held of drag.carried) {
+      held.node.x = held.x + across;
+      held.node.y = held.y + down;
+      const moved = state.boxes.get(held.node.id);
+      if (moved !== undefined) {
+        moved.style.left = `${held.node.x}px`;
+        moved.style.top = `${held.node.y}px`;
+      }
+    }
+
+    // Whichever node is open, wherever it has just been moved to — by being
+    // dragged itself, or by the group or selection that carried it.
+    keepGraphPopoverWithItsNode(state);
     drawGraphWires(state);
     return;
   }
@@ -919,13 +1750,61 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
     return;
   }
 
+  if (drag.kind === "pick") {
+    const at = pointInGraph(state, event);
+    graphMarquee(state)?.remove();
+    pickGraphInside(state, drag.startX, drag.startY, at.x, at.y);
+    return;
+  }
+
+  if (drag.kind === "resize") {
+    // grabX and grabY held the size it started at.
+    const wasSize = { width: drag.grabX, height: drag.grabY };
+    const nodeId = drag.nodeId;
+    rememberGraphUndo(state, "the resize", async (): Promise<void> => {
+      const node = state.nodes.find((entry): boolean => entry.id === nodeId);
+      if (node === undefined || node.size === null) return;
+      node.size.width = wasSize.width;
+      node.size.height = wasSize.height;
+      renderGraph(state);
+      await saveGraphSize(state, nodeId);
+    });
+    void saveGraphSize(state, nodeId);
+    return;
+  }
+
   if (drag.kind === "move") {
     state.boxes.get(drag.nodeId)?.classList.remove("is-held");
     if (!drag.moved) {
       pickGraphNode(state, drag.nodeId);
       return;
     }
-    void saveGraphMove(state, drag.nodeId);
+    const nodeId = drag.nodeId;
+    const wasAt = [
+      { id: nodeId, x: drag.startX, y: drag.startY },
+      ...drag.carried.map((held): { id: number; x: number; y: number } => ({
+        id: held.node.id,
+        x: held.x,
+        y: held.y,
+      })),
+    ];
+    rememberGraphUndo(state, "the move", async (): Promise<void> => {
+      for (const was of wasAt) {
+        const node = state.nodes.find((entry): boolean => entry.id === was.id);
+        if (node === undefined) continue;
+        node.x = was.x;
+        node.y = was.y;
+      }
+      renderGraph(state);
+      await Promise.all(wasAt.map((was): Promise<void> => saveGraphMove(state, was.id)));
+    });
+
+    // A group moves its contents server-side, in one call. Anything else that
+    // travelled moved on its own, and has to say so on its own.
+    void saveGraphMove(state, nodeId);
+    if (!graphIsGroup(state, nodeId)) {
+      for (const held of drag.carried) void saveGraphMove(state, held.node.id);
+    }
     return;
   }
 
@@ -935,11 +1814,49 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
   }
   const target = graphDropTarget(event);
   if (target === null || target === drag.nodeId) return;
-  void applyGraph(
+  void wireGraphNodes(state, drag.nodeId, target);
+}
+
+/** Wire one node to another, and remember how to take it out again. */
+async function wireGraphNodes(state: GraphState, from: number, to: number): Promise<void> {
+  const before = state.wires;
+  const made = await applyGraph(
     state,
     "/graph/connect",
-    new URLSearchParams({ source: String(drag.nodeId), target: String(target) }),
+    new URLSearchParams({ source: String(from), target: String(to) }),
   );
+  if (!made) return;
+
+  const fresh = graphWireAdded(before, state.wires);
+  if (fresh === null) return;
+  rememberGraphUndo(state, "the wire you drew", async (): Promise<void> => {
+    await applyGraph(state, "/graph/disconnect", new URLSearchParams({ wire: fresh }));
+  });
+}
+
+/** Pick everything the dragged box covered. */
+function pickGraphInside(
+  state: GraphState,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): void {
+  const left = Math.min(fromX, toX);
+  const right = Math.max(fromX, toX);
+  const top = Math.min(fromY, toY);
+  const bottom = Math.max(fromY, toY);
+
+  state.picked = new Set<number>(
+    state.nodes
+      .filter(
+        (node): boolean =>
+          node.x >= left && node.x <= right && node.y >= top && node.y <= bottom,
+      )
+      .map((node): number => node.id),
+  );
+  state.selectedNode = state.picked.size === 1 ? [...state.picked][0] ?? null : null;
+  renderGraph(state);
 }
 
 async function saveGraphMove(state: GraphState, nodeId: number): Promise<void> {
@@ -948,17 +1865,59 @@ async function saveGraphMove(state: GraphState, nodeId: number): Promise<void> {
   try {
     await askGraph(
       `/graph/nodes/${nodeId}/move`,
-      new URLSearchParams({ x: String(node.x), y: String(node.y) }),
+      new URLSearchParams({
+        x: String(node.x),
+        y: String(node.y),
+        // One call for a group and everything in it, so a group of ten
+        // cannot half-move if the second call never lands.
+        carries: node.kind === "group" ? "1" : "",
+      }),
     );
   } catch {
-    showGraphError(state, "That box moved on screen, but the position was not saved.");
+    showGraphError(state, "That node moved on screen, but the position was not saved.");
+  }
+}
+
+function graphIsGroup(state: GraphState, nodeId: number): boolean {
+  return state.nodes.find((entry): boolean => entry.id === nodeId)?.kind === "group";
+}
+
+async function saveGraphSize(state: GraphState, nodeId: number): Promise<void> {
+  const node = state.nodes.find((entry): boolean => entry.id === nodeId);
+  if (node === undefined || node.size === null) return;
+  try {
+    await askGraph(
+      `/graph/nodes/${nodeId}/resize`,
+      new URLSearchParams({
+        width: String(node.size.width),
+        height: String(node.size.height),
+      }),
+    );
+  } catch {
+    showGraphError(state, "That group changed size on screen, but it was not saved.");
   }
 }
 
 // -- picking, and what follows ---------------------------------------------
 
 function pickGraphNode(state: GraphState, nodeId: number | null): void {
+  if (nodeId !== state.selectedNode) state.tab = "settings";
   state.selectedNode = nodeId;
+  state.picked = nodeId === null ? new Set<number>() : new Set<number>([nodeId]);
+  state.selectedWire = null;
+  renderGraph(state);
+}
+
+/** Add or drop one node from the picked set, leaving the rest alone.
+ *
+ *  More than one picked means no panel: a panel is about a node, and there is
+ *  no such thing as the settings of three of them. */
+function alsoPickGraphNode(state: GraphState, nodeId: number): void {
+  if (state.picked.has(nodeId)) state.picked.delete(nodeId);
+  else state.picked.add(nodeId);
+
+  const only = state.picked.size === 1 ? [...state.picked][0] ?? null : null;
+  state.selectedNode = only;
   state.selectedWire = null;
   renderGraph(state);
 }
@@ -970,8 +1929,11 @@ function pickGraphWire(state: GraphState, wireId: string): void {
 }
 
 function clearGraphPick(state: GraphState): void {
-  if (state.selectedNode === null && state.selectedWire === null) return;
+  if (state.selectedNode === null && state.selectedWire === null && state.picked.size === 0) {
+    return;
+  }
   state.selectedNode = null;
+  state.picked = new Set<number>();
   state.selectedWire = null;
   renderGraph(state);
 }
@@ -984,8 +1946,23 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
   const cutId = cut?.dataset["cut"];
   if (cutId !== undefined) {
     event.preventDefault();
+    const wire = state.wires.find((entry): boolean => entry.id === cutId);
     state.selectedWire = null;
+    if (wire !== undefined) {
+      const ends = { from: String(wire.from), to: String(wire.to) };
+      rememberGraphUndo(state, "the wire you took out", async (): Promise<void> => {
+        await applyGraph(state, "/graph/connect", new URLSearchParams({
+          source: ends.from, target: ends.to,
+        }));
+      });
+    }
     void applyGraph(state, "/graph/disconnect", new URLSearchParams({ wire: cutId }));
+    return;
+  }
+
+  if (target.closest<HTMLElement>("[data-remove-picked]") !== null) {
+    event.preventDefault();
+    void removeGraphPicked(state);
     return;
   }
 
@@ -994,6 +1971,22 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
   if (fireId !== undefined) {
     event.preventDefault();
     void fireGraphPulse(state, fireId);
+    return;
+  }
+
+  const test = target.closest<HTMLElement>("[data-test]");
+  const testId = test?.dataset["test"];
+  if (testId !== undefined) {
+    event.preventDefault();
+    void tryGraph(state, testId);
+    return;
+  }
+
+  const filtered = target.closest<HTMLElement>("[data-filtered]");
+  const filteredId = filtered?.dataset["filtered"];
+  if (filteredId !== undefined) {
+    event.preventDefault();
+    void showGraphFiltered(state, filteredId);
     return;
   }
 
@@ -1007,6 +2000,22 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     if (warning !== "" && !window.confirm(warning)) return;
     state.selectedNode = null;
     void applyGraph(state, `/graph/nodes/${removeId}/delete`, new URLSearchParams());
+    return;
+  }
+
+  const tab = target.closest<HTMLElement>("[data-tab]");
+  const wanted = tab?.dataset["tab"];
+  if (wanted !== undefined) {
+    event.preventDefault();
+    const whose = Number(tab?.dataset["for"] ?? "");
+    const box = state.nodes.find((entry): boolean => entry.id === whose);
+    state.tab = wanted === "test" ? "test" : "settings";
+
+    if (graphTabNeedsRun(box, state.trial, wanted)) {
+      void tryGraph(state, String(whose));
+      return;
+    }
+    renderGraph(state);
     return;
   }
 
@@ -1033,6 +2042,7 @@ async function fireGraphPulse(state: GraphState, nodeId: string): Promise<void> 
     showGraphError(state, null);
     showGraphVerdict(state, graphSaid(answer));
     renderGraph(state);
+    void followGraphRun(state);
   } catch {
     showGraphError(state, "No connection, so nothing was polled.");
   } finally {
@@ -1049,8 +2059,13 @@ function graphSaid(value: unknown): string | null {
 
 function onGraphKeyDown(state: GraphState, event: KeyboardEvent): void {
   if (event.key === "Escape") {
-    clearGraphMarks(state);
     clearGraphPick(state);
+    return;
+  }
+  if (event.key === "Delete" || event.key === "Backspace") {
+    if (state.picked.size === 0 || !graphTakesTheKey(event.target)) return;
+    event.preventDefault();
+    void removeGraphPicked(state);
     return;
   }
   if (event.key !== "Enter" && event.key !== " ") return;
@@ -1067,6 +2082,12 @@ async function onGraphSubmit(state: GraphState, event: SubmitEvent): Promise<voi
   if (nodeId === undefined) return;
   event.preventDefault();
 
+  const was = form.dataset["was"];
+  if (was !== undefined && was !== "") {
+    rememberGraphUndo(state, "the change to that node", async (): Promise<void> => {
+      await applyGraph(state, `/graph/nodes/${nodeId}`, new URLSearchParams(was));
+    });
+  }
   await applyGraph(state, `/graph/nodes/${nodeId}`, graphFormValues(form));
 }
 
@@ -1079,76 +2100,417 @@ function graphFormValues(form: HTMLFormElement): URLSearchParams {
   return params;
 }
 
-// -- following one item through --------------------------------------------
+// -- what a filter is doing ------------------------------------------------
 
-function clearGraphMarks(state: GraphState): void {
-  if (state.marks.size === 0) return;
-  state.marks.clear();
-  showGraphVerdict(state, null);
-  renderGraph(state);
+interface GraphJudged {
+  id: number;
+  title: string;
+  reason: string | null;
 }
 
-function markGraphTrace(state: GraphState, trace: GraphTraceView): void {
-  state.marks.clear();
-  // A box on two paths is drawn as having let the item through if any path
-  // did: the interesting thing is where the item ended up, not every refusal.
-  for (const step of trace.steps) {
-    for (const id of step.nodes) {
-      const key = `node:${id}`;
-      if (step.accepted || !state.marks.has(key)) state.marks.set(key, step.accepted);
-    }
-    for (const id of step.wires) {
-      const key = `wire:${id}`;
-      if (step.accepted || !state.marks.has(key)) state.marks.set(key, step.accepted);
-    }
+function asGraphJudged(value: unknown): GraphJudged[] {
+  if (!Array.isArray(value)) return [];
+  const read: GraphJudged[] = [];
+  for (const entry of value) {
+    const raw = asGraphRecord(entry);
+    if (raw === null || typeof raw["id"] !== "number") continue;
+    const reason = raw["reason"];
+    read.push({
+      id: raw["id"],
+      title: typeof raw["title"] === "string" ? raw["title"] : "",
+      reason: typeof reason === "string" ? reason : null,
+    });
   }
-  renderGraph(state);
+  return read;
 }
 
-function graphVerdictFor(trace: GraphTraceView): string {
-  const landed = trace.steps.filter((step): boolean => step.accepted).length;
-  if (trace.steps.length === 0) {
-    return `“${trace.title}” has nowhere to go — its channel is not wired to a feed.`;
-  }
-  const reasons: string[] = [];
-  for (const step of trace.steps) {
-    if (!step.accepted && step.reason !== null && !reasons.includes(step.reason)) {
-      reasons.push(step.reason);
-    }
-  }
-  const count = `“${trace.title}” got into ${landed} of ${trace.steps.length} path${
-    trace.steps.length === 1 ? "" : "s"
-  }.`;
-  return reasons.length === 0 ? count : `${count} Held back by: ${reasons.join("; ")}.`;
-}
-
-async function runGraphTrace(state: GraphState, videoPk: string): Promise<void> {
+/** Open the list of what this filter lets through and what it holds back. */
+async function showGraphFiltered(state: GraphState, nodeId: string): Promise<void> {
   try {
-    const answer = await askGraph(`/graph/trace/${videoPk}`, null);
-    const trace = asGraphTrace(answer);
-    if (trace === null) {
-      showGraphError(state, asGraphError(answer) ?? "That item could not be followed.");
+    const answer = await askGraph(`/graph/nodes/${nodeId}/filtered`, null);
+    const raw = asGraphRecord(answer);
+    if (raw === null) {
+      showGraphError(state, asGraphError(answer) ?? "That filter could not be read.");
       return;
     }
     showGraphError(state, null);
-    markGraphTrace(state, trace);
-    showGraphVerdict(state, graphVerdictFor(trace));
+    const node = state.nodes.find((entry): boolean => entry.id === Number(nodeId));
+    drawGraphFiltered(
+      state,
+      node?.title ?? "What it catches",
+      asGraphJudged(raw["through"]),
+      asGraphJudged(raw["held"]),
+    );
   } catch {
-    showGraphError(state, "No connection, so nothing was followed.");
+    showGraphError(state, "No connection, so there is nothing to show.");
   }
 }
 
-// -- setting up ------------------------------------------------------------
+function drawGraphFiltered(
+  state: GraphState,
+  name: string,
+  through: GraphJudged[],
+  held: GraphJudged[],
+): void {
+  const dialog = graphCatchDialog(state);
+  const body = state.parts.canvas
+    .closest<HTMLElement>(".graph-panel")
+    ?.querySelector<HTMLElement>("[data-graph-catch-body]");
+  if (dialog === null || !body) return;
 
+  const title = dialog.querySelector<HTMLElement>("[data-graph-catch-name]");
+  if (title !== null) title.textContent = name;
+
+  body.textContent = "";
+  body.appendChild(graphJudgedList("Pass", through, "through"));
+  body.appendChild(graphJudgedList("Failed", held, "held"));
+  openGraphCatch(dialog);
+}
+
+function graphCatchDialog(state: GraphState): HTMLDialogElement | null {
+  return (
+    state.parts.canvas
+      .closest<HTMLElement>(".graph-panel")
+      ?.querySelector<HTMLDialogElement>("[data-graph-catch]") ?? null
+  );
+}
+
+/** Open it as a modal where the browser supports one, and plainly where not. */
+function openGraphCatch(dialog: HTMLDialogElement): void {
+  if (dialog.open) return;
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  holdPageForGraph(true);
+}
+
+/** Stop the page scrolling away behind whatever is open over it.
+ *
+ *  A modal makes the page inert, which stops it being clicked but not
+ *  necessarily scrolled — and the fallback path, where showModal is missing,
+ *  makes it neither. The same class the tab drawer uses. */
+function holdPageForGraph(held: boolean): void {
+  document.body.classList.toggle("page-held", held);
+}
+
+/** One side of a report: what got through, or what did not.
+ *
+ *  Numbered where the order means something — a trial is the batch in the
+ *  order it would arrive, and on a sort box that order is the whole answer.
+ *  Left unnumbered where it does not, so a number is never implying one. */
+function graphJudgedList(
+  name: string,
+  items: GraphJudged[],
+  side: "through" | "held",
+  numbered = false,
+): HTMLElement {
+  const part = graphElement("div", `graph-sheet-part is-${side}`);
+  part.appendChild(graphElement("h4", "graph-sheet-name", `${name} (${items.length})`));
+  if (items.length === 0) {
+    part.appendChild(graphElement("p", "hint", "Nothing."));
+    return part;
+  }
+
+  const list = graphElement(
+    numbered ? "ol" : "ul",
+    numbered ? "graph-sheet-list is-numbered" : "graph-sheet-list",
+  );
+  for (const item of items) {
+    const row = graphElement("li", "graph-sheet-row");
+    row.appendChild(graphElement("span", "graph-sheet-title", item.title));
+    // Only the held-back side has a reason to give.
+    if (side === "held" && item.reason !== null) {
+      row.appendChild(graphElement("span", "graph-sheet-reason", item.reason));
+    }
+    list.appendChild(row);
+  }
+  part.appendChild(list);
+  return part;
+}
+
+// -- putting something back ------------------------------------------------
+
+/** How many steps back it can go. Far enough to fix a mistake, not so far
+ *  that it becomes a second history of the setup. */
+function graphUndoDepth(): number {
+  return 40;
+}
+
+function rememberGraphUndo(state: GraphState, says: string, run: () => Promise<void>): void {
+  state.undo.push({ says, run });
+  if (state.undo.length > graphUndoDepth()) state.undo.shift();
+}
+
+/** Put the last change back. */
+async function undoGraph(state: GraphState): Promise<void> {
+  const step = state.undo.pop();
+  if (step === undefined) {
+    showGraphVerdict(state, "Nothing left to undo.");
+    return;
+  }
+  await step.run();
+  showGraphVerdict(state, `Undone: ${step.says}.`);
+}
+
+/** Whether a keystroke is the page's to take.
+ *
+ *  Ctrl+Z inside a text field is that field's own undo, and taking it would
+ *  make typing in a node's name unrecoverable. */
+function graphTakesTheKey(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true;
+  return target.closest("input, textarea, select") === null;
+}
+
+/** The node that is on the canvas now and was not before. */
+function graphNodeAdded(before: GraphNodeView[], after: GraphNodeView[]): number | null {
+  const had = new Set(before.map((node): number => node.id));
+  const fresh = after.filter((node): boolean => !had.has(node.id));
+  return fresh.length === 1 ? (fresh[0]?.id ?? null) : null;
+}
+
+/** The wire that is on the canvas now and was not before. */
+function graphWireAdded(before: GraphWireView[], after: GraphWireView[]): string | null {
+  const had = new Set(before.map((wire): string => wire.id));
+  const fresh = after.filter((wire): boolean => !had.has(wire.id));
+  return fresh.length === 1 ? (fresh[0]?.id ?? null) : null;
+}
+
+// -- trying it without running it ------------------------------------------
+
+/** Ask what a run would do, mark the boxes with it, and list where it lands. */
+async function tryGraph(state: GraphState, nodeId: string): Promise<void> {
+  // Shown in the box that was asked, so open its test side first and say it
+  // is working: the answer takes a moment and a blank panel reads as broken.
+  state.selectedNode = Number(nodeId);
+  state.tab = "test";
+  state.trial = { node: Number(nodeId), boxes: new Map<number, GraphShare>(), asking: true };
+  renderGraph(state);
+
+  try {
+    const answer = await askGraph(`/graph/nodes/${nodeId}/test`, null);
+    const run = asGraphRun(answer);
+    const raw = asGraphRecord(answer);
+    if (run === null || raw === null) {
+      state.trial = null;
+      state.tab = "settings";
+      showGraphError(state, asGraphError(answer) ?? "That could not be tried.");
+      renderGraph(state);
+      return;
+    }
+    showGraphError(state, null);
+    state.trial = {
+      node: Number(nodeId),
+      boxes: asGraphShares(raw["items"]),
+      asking: false,
+    };
+    // The same marks a real run leaves, so the drawing reads the same either
+    // way: what differs is that nothing was written.
+    state.run = run.nodes;
+    renderGraph(state);
+  } catch {
+    state.trial = null;
+    state.tab = "settings";
+    showGraphError(state, "No connection, so nothing could be tried.");
+    renderGraph(state);
+  }
+}
+
+/** Every box the trial touched, and what each of them did. */
+function asGraphShares(value: unknown): Map<number, GraphShare> {
+  const shares = new Map<number, GraphShare>();
+  const raw = asGraphRecord(value);
+  if (raw === null) return shares;
+  for (const key of Object.keys(raw)) {
+    const share = asGraphRecord(raw[key]);
+    if (share === null) continue;
+    shares.set(Number(key), {
+      through: asGraphJudged(share["through"]),
+      held: asGraphHeld(share["held"]),
+    });
+  }
+  return shares;
+}
+
+/** Held items, each naming the box that stopped it as part of its reason. */
+function asGraphHeld(value: unknown): GraphJudged[] {
+  if (!Array.isArray(value)) return [];
+  const read: GraphJudged[] = [];
+  for (const entry of value) {
+    const raw = asGraphRecord(entry);
+    if (raw === null || typeof raw["id"] !== "number") continue;
+    const box = typeof raw["box"] === "string" ? raw["box"] : "";
+    const why = typeof raw["reason"] === "string" ? raw["reason"] : "held back";
+    read.push({
+      id: raw["id"],
+      title: typeof raw["title"] === "string" ? raw["title"] : "",
+      reason: box === "" ? why : `${box}: ${why}`,
+    });
+  }
+  return read;
+}
+
+// -- watching a run go through ---------------------------------------------
+//
+// A sync takes a minute and used to look like nothing happening followed by
+// everything changing. These ask the server where it has got to and light the
+// boxes as the work reaches them.
+
+/** What a run did at one box. */
+interface GraphMark {
+  state: string;
+  count: number;
+  /** Items this box turned away. Filters only. */
+  stopped: number;
+  /** The flow got here and went no further. */
+  ends: boolean;
+}
+
+interface GraphRunState {
+  running: boolean;
+  stage: string | null;
+  nodes: Map<number, GraphMark>;
+}
+
+function asGraphRun(value: unknown): GraphRunState | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+
+  const marks = new Map<number, GraphMark>();
+  const nodes = asGraphRecord(raw["nodes"]);
+  for (const key of Object.keys(nodes ?? {})) {
+    const mark = asGraphRecord((nodes ?? {})[key]);
+    if (mark === null) continue;
+    marks.set(Number(key), {
+      state: typeof mark["state"] === "string" ? mark["state"] : "done",
+      count: typeof mark["count"] === "number" ? mark["count"] : 0,
+      stopped: typeof mark["stopped"] === "number" ? mark["stopped"] : 0,
+      ends: mark["ends"] === true,
+    });
+  }
+  return {
+    running: raw["running"] === true,
+    stage: typeof raw["stage"] === "string" ? raw["stage"] : null,
+    nodes: marks,
+  };
+}
+
+/** Ask where the run is, until it is over. */
+async function followGraphRun(state: GraphState): Promise<void> {
+  if (state.watching) return;
+  state.watching = true;
+  try {
+    for (;;) {
+      const run = asGraphRun(await askGraph("/api/graph/run", null));
+      if (run === null) return;
+
+      state.run = run.nodes;
+      paintGraphRun(state);
+      showGraphVerdict(state, graphStageWords(run));
+      if (!run.running) break;
+      await graphPause(900);
+    }
+  } catch {
+    // A run nobody can watch is still a run. Leave what is on screen.
+  } finally {
+    state.watching = false;
+    // The boxes have changed underneath: counts, last-polled times, feeds.
+    // What the run found stays on them, which is the point of having watched.
+    await applyGraph(state, "/api/graph", null);
+  }
+}
+
+function graphPause(milliseconds: number): Promise<void> {
+  return new Promise((wake): void => {
+    window.setTimeout(wake, milliseconds);
+  });
+}
+
+/** What the run is doing, in words, above the canvas. */
+function graphStageWords(run: GraphRunState): string | null {
+  if (!run.running) return run.stage === null ? null : "Run finished.";
+  if (run.stage === "polling") return "Checking channels for new items…";
+  if (run.stage === "sorting") return "Looking at what came back…";
+  if (run.stage === "filling") return "Filling the feeds…";
+  return "Running…";
+}
+
+/** Mark the boxes the run has reached, and the wires between them. */
+function paintGraphRun(state: GraphState): void {
+  for (const [id, box] of state.boxes) {
+    const mark = state.run.get(id);
+    box.classList.toggle("is-busy", mark?.state === "busy");
+    box.classList.toggle("is-visited", mark?.state === "done");
+
+    graphTally(box, mark);
+  }
+  paintGraphRunWires(state);
+}
+
+/** What the run found here, said on the box.
+ *
+ *  A channel that was polled and brought back nothing says so. Leaving it
+ *  blank would look the same as a channel the run never reached, and "there
+ *  was nothing new" is an answer worth having — it is the usual one. */
+function graphTally(box: HTMLElement, mark: GraphMark | undefined): void {
+  const showing = box.querySelector<HTMLElement>(".graph-node-tally");
+  if (mark === undefined || mark.state !== "done") {
+    showing?.remove();
+    box.classList.remove("is-dead-end");
+    return;
+  }
+
+  const tally = showing ?? graphElement("span", "graph-node-tally");
+  tally.textContent = graphTallyWords(mark);
+  // Three readings, and they are not the same thing: something came through,
+  // nothing was there to come through, and something was there and this box
+  // is where it stopped.
+  tally.classList.toggle("is-empty", mark.count === 0 && !mark.ends);
+  tally.classList.toggle("is-end", mark.ends);
+  box.classList.toggle("is-dead-end", mark.ends);
+  if (showing === null) box.appendChild(tally);
+}
+
+function graphTallyWords(mark: GraphMark): string {
+  if (mark.count > 0) return `+${mark.count}`;
+  // Held something and passed none of it on: this is where the flow stopped.
+  if (mark.stopped > 0) return `stops here · ${mark.stopped} held`;
+  // Nothing left it and it had nothing to hold — a trigger whose channels are
+  // all switched off. It did not look and find nothing; it never looked.
+  if (mark.ends) return "stops here";
+  return "nothing new";
+}
+
+/** A wire out of a box the run has reached is carrying something. */
+function paintGraphRunWires(state: GraphState): void {
+  const busy = new Set<number>();
+  for (const [id, mark] of state.run) {
+    if (mark.state === "busy") busy.add(id);
+  }
+  state.parts.wires.querySelectorAll<SVGPathElement>(".graph-wire").forEach((path): void => {
+    path.classList.remove("is-carrying");
+  });
+  if (busy.size === 0) return;
+  for (const wire of state.wires) {
+    if (!busy.has(wire.from)) continue;
+    state.parts.wires
+      .querySelectorAll<SVGPathElement>(`[data-line="${wire.id}"]`)
+      .forEach((path): void => path.classList.add("is-carrying"));
+  }
+}
+
+/** The pieces of the page this canvas is made of, or null if one is missing. */
 function graphPartsIn(canvas: HTMLElement): GraphParts | null {
   const panel = canvas.closest<HTMLElement>(".graph-panel");
   const scene = canvas.querySelector<HTMLElement>("[data-graph-scene]");
+  const groups = canvas.querySelector<HTMLElement>("[data-graph-groups]");
   const layer = canvas.querySelector<HTMLElement>("[data-graph-nodes]");
   const wires = canvas.querySelector<SVGSVGElement>("[data-graph-wires]");
-  if (!panel || scene === null || layer === null || wires === null) return null;
+  if (!panel || scene === null || groups === null || layer === null || wires === null) {
+    return null;
+  }
   return {
     canvas,
     scene,
+    groups,
     layer,
     wires,
     drawer: canvas.querySelector<HTMLElement>("[data-graph-drawer]"),
@@ -1163,6 +2525,8 @@ function graphPartsIn(canvas: HTMLElement): GraphParts | null {
 function toggleGraphPalette(state: GraphState, open: boolean): void {
   const drawer = state.parts.drawer;
   if (drawer === null) return;
+  // They share an edge, so only one of them is ever out.
+  if (open) toggleGraphFinder(state, false);
   drawer.hidden = !open;
   state.parts.canvas
     .closest<HTMLElement>(".graph-panel")
@@ -1196,6 +2560,8 @@ function graphPaletteName(kind: string): string {
   if (kind === "source") return "Channel";
   if (kind === "feed") return "Feed";
   if (kind === "filter") return "Filter";
+  if (kind === "sort") return "Sort";
+  if (kind === "group") return "Group";
   return kind === "pulse" ? "Pulse" : "Schedule";
 }
 
@@ -1212,17 +2578,110 @@ function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   if (!inside) return;
 
   const at = pointInGraph(state, event);
-  dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30));
+  void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30));
 }
 
 /** Make a box of this kind, at this spot in the drawing. */
-function dropGraphNode(state: GraphState, kind: string, x: number, y: number): void {
+async function dropGraphNode(
+  state: GraphState,
+  kind: string,
+  x: number,
+  y: number,
+): Promise<void> {
   toggleGraphPalette(state, false);
-  void applyGraph(
+  const before = state.nodes;
+  const made = await applyGraph(
     state,
     "/graph/nodes",
     new URLSearchParams({ kind, x: String(x), y: String(y) }),
   );
+  if (!made) return;
+
+  // Whatever appeared is what an undo takes away. A node just added is empty,
+  // so removing it costs nothing — unlike removing one that has been wired up
+  // and filled, which undo deliberately does not offer.
+  const fresh = graphNodeAdded(before, state.nodes);
+  if (fresh === null) return;
+  rememberGraphUndo(state, `the ${kind} you added`, async (): Promise<void> => {
+    await applyGraph(state, `/graph/nodes/${fresh}/delete`, new URLSearchParams());
+  });
+}
+
+/** The box that asks for a group file, and what it does with one. */
+function listenForGraphLoad(state: GraphState, panel: HTMLElement): void {
+  const dialog = panel.querySelector<HTMLDialogElement>("[data-graph-load]");
+  if (dialog === null) return;
+
+  panel.querySelector<HTMLElement>("[data-graph-load-open]")?.addEventListener(
+    "click",
+    (): void => {
+      graphLoadTrouble(dialog, null);
+      openGraphCatch(dialog);
+    },
+  );
+  dialog.querySelectorAll<HTMLElement>("[data-graph-load-close]").forEach((shut): void => {
+    shut.addEventListener("click", (): void => dialog.close());
+  });
+  // A click on the backdrop lands on the dialog itself, not on its contents.
+  dialog.addEventListener("click", (event: MouseEvent): void => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("close", (): void => holdPageForGraph(false));
+
+  dialog.querySelector<HTMLFormElement>("[data-graph-load-form]")?.addEventListener(
+    "submit",
+    (event: SubmitEvent): void => {
+      event.preventDefault();
+      const picked = dialog.querySelector<HTMLInputElement>("[data-graph-load-file]");
+      const file = picked?.files?.[0];
+      if (file === undefined) {
+        graphLoadTrouble(dialog, "Choose a group file first.");
+        return;
+      }
+      void loadGraphGroup(state, file, dialog);
+    },
+  );
+}
+
+/** Said inside the box rather than behind it, where it would go unread. */
+function graphLoadTrouble(dialog: HTMLDialogElement, message: string | null): void {
+  const said = dialog.querySelector<HTMLElement>("[data-graph-load-error]");
+  if (said === null) return;
+  said.textContent = message ?? "";
+  said.hidden = message === null;
+}
+
+/** Load a group somebody exported, into the middle of the view. */
+async function loadGraphGroup(
+  state: GraphState,
+  file: File,
+  dialog: HTMLDialogElement,
+): Promise<void> {
+  const centre = graphViewCentre(state);
+  const body = new FormData();
+  body.append("file", file);
+  // Dropped around the middle of what is on screen, not on top of whatever is
+  // already at the coordinates it was exported from.
+  body.append("x", String(Math.round(centre.x - 260)));
+  body.append("y", String(Math.round(centre.y - 150)));
+
+  try {
+    const response = await fetch("/graph/groups", { method: "POST", body });
+    const answer = (await response.json()) as unknown;
+    const view = asGraph(answer);
+    if (view === null) {
+      graphLoadTrouble(dialog, asGraphError(answer) ?? "That group could not be loaded.");
+      return;
+    }
+    state.nodes = view.nodes;
+    state.wires = view.wires;
+    forgetMissingGraph(state);
+    showGraphError(state, null);
+    dialog.close();
+    renderGraph(state);
+  } catch {
+    graphLoadTrouble(dialog, "No connection, so nothing was loaded.");
+  }
 }
 
 /** Where the middle of the view is, for a box added without being dragged. */
@@ -1256,9 +2715,98 @@ function listenToPalette(state: GraphState, panel: HTMLElement): void {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       const centre = graphViewCentre(state);
-      dropGraphNode(state, kind, Math.round(centre.x - 100), Math.round(centre.y - 30));
+      void dropGraphNode(state, kind, Math.round(centre.x - 100), Math.round(centre.y - 30));
     });
   });
+}
+
+// -- finding a group -------------------------------------------------------
+
+/** The list of groups, and the way back to each of them.
+ *
+ *  The canvas goes on for ever in every direction, so a group dragged far
+ *  enough out is a group nobody can find by panning. */
+function renderGraphFinder(state: GraphState): void {
+  const list = graphFinderPart(state, "[data-graph-finder-list]");
+  if (list === null) return;
+
+  list.textContent = "";
+  const groups = state.nodes.filter((node): boolean => node.kind === "group");
+  if (groups.length === 0) {
+    list.appendChild(graphElement("li", "finder-empty", "No groups yet. Add one from +."));
+    return;
+  }
+
+  for (const group of groups) {
+    const row = graphElement("li", "finder-item");
+    const go = graphElement("button", "finder-go", group.title);
+    go.setAttribute("type", "button");
+    go.dataset["goto"] = String(group.id);
+    row.appendChild(go);
+    list.appendChild(row);
+  }
+}
+
+function graphFinderPart(state: GraphState, selector: string): HTMLElement | null {
+  return (
+    state.parts.canvas
+      .closest<HTMLElement>(".graph-panel")
+      ?.querySelector<HTMLElement>(selector) ?? null
+  );
+}
+
+function toggleGraphFinder(state: GraphState, open: boolean): void {
+  const drawer = graphFinderPart(state, "[data-graph-finder]");
+  if (drawer === null) return;
+  if (open) {
+    renderGraphFinder(state);
+    toggleGraphPalette(state, false);
+  }
+  drawer.hidden = !open;
+  graphFinderPart(state, "[data-graph-find]")?.setAttribute(
+    "aria-expanded",
+    open ? "true" : "false",
+  );
+}
+
+/** Pan so that node sits in the middle of the view, and pick it out. */
+function centreGraphOn(state: GraphState, node: GraphNodeView): void {
+  const frame = state.parts.canvas.getBoundingClientRect();
+  const middleX = node.x + (node.size?.width ?? 212) / 2;
+  const middleY = node.y + (node.size?.height ?? 60) / 2;
+
+  panGraph(
+    state,
+    frame.width / 2 - middleX * state.zoom,
+    frame.height / 2 - middleY * state.zoom,
+  );
+  // Brought into view and marked, not opened: the answer to "where is it" is
+  // seeing it, and a panel over it would be in the way of the answer.
+  state.picked = new Set<number>([node.id]);
+  state.selectedNode = null;
+  renderGraph(state);
+}
+
+function listenForGraphFinder(state: GraphState, panel: HTMLElement): void {
+  panel.querySelector<HTMLElement>("[data-graph-find]")?.addEventListener("click", (): void => {
+    const drawer = graphFinderPart(state, "[data-graph-finder]");
+    toggleGraphFinder(state, drawer?.hidden === true);
+  });
+  panel
+    .querySelector<HTMLElement>("[data-graph-find-close]")
+    ?.addEventListener("click", (): void => toggleGraphFinder(state, false));
+
+  panel.querySelector<HTMLElement>("[data-graph-finder-list]")?.addEventListener(
+    "click",
+    (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const wanted = target.closest<HTMLElement>("[data-goto]")?.dataset["goto"];
+      if (wanted === undefined) return;
+      const node = state.nodes.find((entry): boolean => entry.id === Number(wanted));
+      if (node !== undefined) centreGraphOn(state, node);
+    },
+  );
 }
 
 // -- setting up ------------------------------------------------------------
@@ -1276,13 +2824,25 @@ function listenToGraph(state: GraphState): void {
     void onGraphSubmit(state, event);
   });
 
-  // The wheel pans rather than scrolling the page under it: the canvas fills
-  // the page, so a wheel over it can only be meant for it.
+  // On the document, not the canvas: after a drag the focus may be anywhere,
+  // and an undo that only works while the canvas happens to be focused is an
+  // undo nobody can rely on.
+  document.addEventListener("keydown", (event: KeyboardEvent): void => {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
+    if (!graphTakesTheKey(event.target)) return;
+    event.preventDefault();
+    void undoGraph(state);
+  });
+
+  // The wheel zooms while the pointer is over the canvas. The canvas fills
+  // the page, so a wheel there can only have been meant for it.
   canvas.addEventListener(
     "wheel",
     (event: WheelEvent): void => {
       event.preventDefault();
-      panGraph(state, state.panX - event.deltaX, state.panY - event.deltaY);
+      // A line-by-line wheel reports small deltas and a trackpad reports
+      // large ones, so the step is taken from the direction, not the size.
+      zoomGraph(state, event.deltaY < 0 ? 1.12 : 1 / 1.12, event.clientX, event.clientY);
     },
     { passive: false },
   );
@@ -1302,12 +2862,25 @@ function listenToGraph(state: GraphState): void {
 
   if (panel !== null) listenToPalette(state, panel);
 
-  const trace = panel?.querySelector<HTMLFormElement>("[data-graph-trace]");
-  trace?.addEventListener("submit", (event: SubmitEvent): void => {
-    event.preventDefault();
-    const picked = trace.querySelector<HTMLSelectElement>("select");
-    if (picked !== null) void runGraphTrace(state, picked.value);
+  panel?.querySelector<HTMLElement>("[data-graph-undo]")?.addEventListener("click", (): void => {
+    void undoGraph(state);
   });
+
+  if (panel !== null) listenForGraphLoad(state, panel);
+  if (panel !== null) listenForGraphFinder(state, panel);
+
+  const catching = graphCatchDialog(state);
+  catching?.querySelector<HTMLElement>("[data-graph-catch-close]")?.addEventListener(
+    "click",
+    (): void => catching.close(),
+  );
+  // A click on the backdrop lands on the dialog itself, not on its contents.
+  catching?.addEventListener("click", (event: MouseEvent): void => {
+    if (event.target === catching) catching.close();
+  });
+  // Every way of shutting it ends here — the button, the backdrop, Esc — so
+  // this is the one place that has to give the page back.
+  catching?.addEventListener("close", (): void => holdPageForGraph(false));
 
   // Boxes are measured to place the wires, so a resize moves them.
   window.addEventListener("resize", (): void => drawGraphWires(state));
@@ -1325,18 +2898,31 @@ function startGraph(canvas: HTMLElement): void {
     wires: [],
     boxes: new Map<number, HTMLElement>(),
     selectedNode: null,
+    picked: new Set<number>(),
     selectedWire: null,
     drag: null,
     ghost: null,
-    marks: new Map<string, boolean>(),
+    run: new Map<number, GraphMark>(),
+    watching: false,
     busy: false,
     panX: 0,
     panY: 0,
+    zoom: 1,
     dropping: null,
+    tab: "settings",
+    trial: null,
+    undo: [],
   };
   listenToGraph(state);
   panGraph(state, 0, 0);
-  void applyGraph(state, "/api/graph", null);
+  void openGraph(state);
+}
+
+/** Draw the graph, then pick up any run already in flight. */
+async function openGraph(state: GraphState): Promise<void> {
+  await applyGraph(state, "/api/graph", null);
+  const run = asGraphRun(await askGraph("/api/graph/run", null).catch((): null => null));
+  if (run !== null && run.running) void followGraphRun(state);
 }
 
 function findGraphs(root: ParentNode): void {

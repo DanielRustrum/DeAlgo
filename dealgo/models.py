@@ -347,6 +347,11 @@ class Video(Base):
     title: Mapped[str] = mapped_column(Text, default="")
     published_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, index=True)
     duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
+    # What YouTube said when the details were last fetched. None where it
+    # withholds them — a channel can hide its like count — and on posts, which
+    # are scraped rather than fetched and have neither.
+    view_count: Mapped[Optional[int]] = mapped_column(Integer)
+    like_count: Mapped[Optional[int]] = mapped_column(Integer)
     thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
     is_short: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -469,10 +474,20 @@ class GraphNode(Base):
 
     * ``source`` stands for a Channel — where things come from.
     * ``feed`` stands for a Playlist — where they end up.
+    * ``group`` stands for nothing either, and is not on any path. It is a
+      rectangle drawn behind the others: what it surrounds travels with it,
+      and can be exported as a piece of setup to give to somebody else.
+    * ``sort`` stands for nothing either. It sits on the path and decides the
+      order the batch reaches the feed in — by when a thing was published, how
+      long it is, or how many have watched it.
     * ``trigger`` stands for nothing either. It wires into a channel's input
       and says when that channel is polled: every so often (``pulse``) or at a
       time of day (``schedule``). A channel with no trigger wired keeps
       following the account's own sync settings, exactly as before.
+
+      Wired into a feed's second input instead, it says when that feed may be
+      read — a window that opens when the trigger comes round and lasts for
+      its duration. A feed with none is always open.
     * ``filter`` stands for nothing else at all. It sits on the path between
       them and narrows what gets through, and its columns are the channel's
       own filter columns over again: NULL means "leave the channel's answer
@@ -488,8 +503,17 @@ class GraphNode(Base):
     owner_pk: Mapped[Optional[int]] = owner_column()
     kind: Mapped[str] = mapped_column(String(8), index=True)
 
+    # Filter and trigger boxes only. A source or feed box is switched on and
+    # off through the channel or playlist behind it, because that is where
+    # every other part of the app reads it from.
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
     x: Mapped[int] = mapped_column(Integer, default=0)
     y: Mapped[int] = mapped_column(Integer, default=0)
+    # Group nodes only: the rest are drawn at whatever size their contents
+    # need, and a width on one of those would be a second opinion about it.
+    width: Mapped[Optional[int]] = mapped_column(Integer)
+    height: Mapped[Optional[int]] = mapped_column(Integer)
 
     channel_pk: Mapped[Optional[int]] = mapped_column(
         ForeignKey("channel.id", ondelete="CASCADE"), index=True
@@ -511,12 +535,20 @@ class GraphNode(Base):
     max_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     max_per_run: Mapped[Optional[int]] = mapped_column(Integer)
 
+    # Sort nodes only: what to order the batch by, and which way round.
+    sort_by: Mapped[Optional[str]] = mapped_column(String(16))
+    sort_dir: Mapped[Optional[str]] = mapped_column(String(4))
+
     # Trigger nodes only. A "pulse" carries the gap it wants in minutes; a
     # "schedule" carries a cron expression, read in UTC — UTC because that is
     # what every other instant in this file is, and a stored local time would
     # mean something different after a clock change.
     trigger_kind: Mapped[Optional[str]] = mapped_column(String(10))
     every_minutes: Mapped[Optional[int]] = mapped_column(Integer)
+    # How long a window this trigger opens when it is wired to a feed's second
+    # input. Only read there: wired to a channel it says when to poll, which
+    # is an instant rather than a stretch of time.
+    duration_minutes: Mapped[Optional[int]] = mapped_column(Integer)
     cron: Mapped[Optional[str]] = mapped_column(String(120))
     last_fired_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
 
@@ -539,6 +571,10 @@ class GraphNode(Base):
             return self.playlist.title or self.playlist.playlist_id
         if self.kind == "trigger":
             return "Schedule" if self.trigger_kind == "schedule" else "Pulse"
+        if self.kind == "sort":
+            return "Sort"
+        if self.kind == "group":
+            return "Group"
         # An empty box, waiting to be told what it stands for.
         if self.kind == "source":
             return "New channel"

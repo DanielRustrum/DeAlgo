@@ -10,22 +10,6 @@
 <section class="panel graph-panel">
   <div class="panel-head">
     <h2>Configuration</h2>
-    <div class="graph-tools">
-      <button class="btn btn-primary" type="button" data-graph-palette aria-expanded="false">
-        Add a box
-      </button>
-      {% if trace_items %}
-      <form class="graph-trace" data-graph-trace>
-        <label class="sr-only" for="trace-item">Item to follow</label>
-        <select id="trace-item" name="video">
-          {% for item in trace_items %}
-          <option value="{{ item.id }}">{{ item.label }}</option>
-          {% endfor %}
-        </select>
-        <button class="btn btn-quiet" type="submit">Follow it through</button>
-      </form>
-      {% endif %}
-    </div>
   </div>
 
   <p class="error-note" data-graph-error hidden></p>
@@ -33,49 +17,158 @@
 
   <div class="graph-frame">
     <div class="graph-canvas" data-graph tabindex="0">
+      {# Three layers, bottom to top: the groups a drawing is arranged into,
+         the wires between its nodes, and the nodes themselves. A group is a
+         background, so a wire crossing one is still the thing being pointed
+         at. #}
       <div class="graph-scene" data-graph-scene>
+        <div class="graph-groups" data-graph-groups></div>
         <svg class="graph-wires" data-graph-wires aria-hidden="true"></svg>
         <div class="graph-nodes" data-graph-nodes></div>
       </div>
 
+      {# Over the canvas rather than above it: it makes something that lands
+         on the canvas, and it should sit where that will happen. #}
+      <div class="graph-overlay">
+        <button class="graph-add" type="button" data-graph-palette aria-expanded="false"
+                aria-label="Add a node" title="Add a node">+</button>
+        <button class="graph-add is-quiet" type="button" data-graph-load-open
+                aria-label="Load a group" title="Load a group somebody sent you">
+          {# An arrow into a tray: something from outside coming in. #}
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 1.5 v6.5 M5 6 l3 3 3-3" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2.5 10.5 v2.5 h11 v-2.5" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="graph-add is-quiet" type="button" data-graph-find
+                aria-expanded="false" aria-label="Find a group"
+                title="Jump to a group">
+          {# A list: the contents of the canvas. #}
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 4.5 h10 M3 8 h10 M3 11.5 h6" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="graph-add is-quiet" type="button" data-graph-undo
+                aria-label="Undo" title="Undo the last change (Ctrl+Z)">
+          {# An arrow curving back on itself. #}
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 7.5 h6.5 a3.5 3.5 0 1 1 0 7 H6" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5.5 4.5 L2.5 7.5 l3 3" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <span class="graph-zoom" data-graph-zoom aria-live="polite">100%</span>
+        {# Shown only when several nodes are picked: it is about all of them,
+           so it belongs to the canvas rather than to any one node. #}
+        <span class="graph-picked" data-graph-picked hidden></span>
+      </div>
+
       <p class="graph-empty" data-graph-empty hidden>
-        Nothing here yet. Press <strong>Add a box</strong> and drag a channel onto the canvas.
+        Nothing here yet. Press <strong>+</strong> and drag a channel onto the canvas.
       </p>
+
+      {# The canvas goes on for ever, so a group can end up somewhere nobody
+         can find by panning. This is the way back to each of them. #}
+      <aside class="graph-finder" data-graph-finder hidden>
+        <div class="palette-head">
+          <h3>Groups</h3>
+          <button class="palette-close" type="button" data-graph-find-close aria-label="Close">✕</button>
+        </div>
+        <ul class="finder-list" data-graph-finder-list></ul>
+      </aside>
 
       {# Slides in over the canvas. Each row is dragged out onto the canvas,
          which is why they are not buttons: the drop point is the answer to
          "where does it go". #}
       <aside class="graph-palette" data-graph-drawer hidden>
         <div class="palette-head">
-          <h3>Boxes</h3>
+          <h3>Nodes</h3>
           <button class="palette-close" type="button" data-graph-palette-close aria-label="Close">✕</button>
         </div>
+
+{% macro node_row(kind, name, blurb) -%}
+  <li class="palette-item" data-palette="{{ kind }}" tabindex="0" role="button">
+    <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule') else kind }}"></span>
+    <span class="palette-text">
+      <strong>{{ name }}</strong>
+      <span class="palette-blurb">{{ blurb }}</span>
+    </span>
+  </li>
+{%- endmacro %}
+
+        {# A channel and a feed are what every graph is made of, so they are
+           not filed under anything. What is optional is folded away. #}
         <ul class="palette-list">
-          {% for kind, name, blurb in [
-               ('source',   'Channel',  'A YouTube channel to watch. Needs an @handle or a UC… id.'),
-               ('feed',     'Feed',     'Where things end up. Lives inside De-Algo.'),
-               ('filter',   'Filter',   'Narrows one path without touching the others.'),
-               ('pulse',    'Pulse',    'Polls a channel every so many minutes.'),
-               ('schedule', 'Schedule', 'Polls a channel on a cron expression.')] %}
-          <li class="palette-item" data-palette="{{ kind }}" tabindex="0" role="button">
-            <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule') else kind }}"></span>
-            <span class="palette-text">
-              <strong>{{ name }}</strong>
-              <span class="palette-blurb">{{ blurb }}</span>
-            </span>
-          </li>
-          {% endfor %}
+          {{ node_row('source', 'Channel', 'A YouTube channel to watch. Needs an @handle or a UC… id.') }}
+          {{ node_row('feed', 'Feed', 'Where things end up. Lives inside De-Algo.') }}
         </ul>
+
+        <details class="palette-group">
+          <summary>Operations</summary>
+          <ul class="palette-list">
+            {{ node_row('filter', 'Filter', 'Narrows one path without touching the others.') }}
+            {{ node_row('sort', 'Sort', 'Puts the batch in order — newest, longest, most watched.') }}
+          </ul>
+        </details>
+
+        <details class="palette-group">
+          <summary>Triggers</summary>
+          <ul class="palette-list">
+            {{ node_row('pulse', 'Pulse', 'Polls a channel every so many minutes.') }}
+            {{ node_row('schedule', 'Schedule', 'Polls a channel on a cron expression.') }}
+          </ul>
+        </details>
+
+        <details class="palette-group">
+          <summary>Layout</summary>
+          <ul class="palette-list">
+            {{ node_row('group', 'Group', 'A rectangle around a piece of the flow. Moves as one, and can be given away.') }}
+          </ul>
+        </details>
+
         <p class="hint">Drag one onto the canvas, or press it to drop one in the middle.</p>
       </aside>
     </div>
-
-    <p class="graph-hint hint">
-      Drag the canvas to move around — it goes on as far as you need. Drag from
-      the dot on a box's right to the dot on another box's left to wire them up.
-      Click a box to open it, or a wire to take it out.
-    </p>
   </div>
+
+  {# A group somebody else exported. It is added beside what is already here;
+     nothing existing is touched. #}
+  <dialog class="modal graph-load" data-graph-load>
+    <div class="modal-head">
+      <h2>Load a group</h2>
+      <button class="modal-close" type="button" data-graph-load-close aria-label="Close">✕</button>
+    </div>
+    <form class="modal-body" data-graph-load-form>
+      <p class="hint">
+        A group file somebody exported. It is added beside what you already
+        have — nothing here is changed or replaced. Channels it names are
+        added paused, so somebody else's setup does not start fetching the
+        moment it lands.
+      </p>
+      <input type="file" name="file" accept="application/json,.json" required
+             data-graph-load-file>
+      <p class="error-note" data-graph-load-error hidden></p>
+      <div class="modal-foot">
+        <button class="btn btn-quiet" type="button" data-graph-load-close>Cancel</button>
+        <button class="btn btn-primary" type="submit">Load it</button>
+      </div>
+    </form>
+  </dialog>
+
+  {# What a filter catches. A real <dialog>, so the browser paints it in the
+     top layer — nothing on the canvas can clip it — and gives it Esc and a
+     backdrop. Filled in and opened by graph.js. #}
+  <dialog class="modal graph-catch" data-graph-catch>
+    <div class="modal-head">
+      <h2 data-graph-catch-name>What it catches</h2>
+      <button class="modal-close" type="button" data-graph-catch-close aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" data-graph-catch-body></div>
+  </dialog>
 </section>
 
 {# Only this page draws a canvas, so only this page carries the script. htmx
