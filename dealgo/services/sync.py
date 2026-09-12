@@ -35,10 +35,17 @@ from ..models import (
     utcnow,
 )
 from ..youtube import community, feeds
-from ..youtube.api import QUOTA_COST_DELETE, QUOTA_COST_INSERT, YouTubeAPIError, YouTubeClient
+from ..youtube.api import (
+    QUOTA_COST_DELETE,
+    QUOTA_COST_INSERT,
+    VideoDetails,
+    YouTubeAPIError,
+    YouTubeClient,
+)
 from . import filters
 from . import quota
 from .auth import build_client
+from . import graph
 from .scope import OwnerId, belongs_to, owned
 
 # How many items each playlist or channel has taken so far this run.
@@ -553,6 +560,13 @@ def _publish(
     if not pending:
         return
 
+    # Read once: walking the graph per video would be the same answer many
+    # times over.
+    routes_for: dict[int, list[graph.Route]] = {}
+    for path in graph.routes(session, owner):
+        if path.playlist.enabled:
+            routes_for.setdefault(path.channel.id, []).append(path)
+
     details = {}
     clips = [v.video_id for v in pending if not v.is_post]
     if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True, owner=owner):
@@ -598,45 +612,40 @@ def _publish(
             if detail.title:
                 video.title = detail.title
 
-        if video.is_post:
-            decision = filters.evaluate_post(
-                text=video.body or video.title,
-                skip_posts=channel.skip_posts,
-                title_include=channel.title_include,
-                title_exclude=channel.title_exclude,
-            )
-            if not decision.accept:
-                _reject(video, result, decision.reason or "filtered out")
-                continue
-            _place_locally(session, video, channel, result, added_per_playlist, added_per_channel)
-            continue
-
-        if detail is None and client.can_read:
+        if detail is None and client.can_read and not video.is_post:
             _reject(video, result, "video is unavailable (private, deleted, or region blocked)")
             continue
 
-        decision = filters.evaluate(
-            title=video.title,
-            duration_sec=video.duration_sec,
-            live_state=detail.live_state if detail else None,
-            is_short=video.is_short,
-            title_include=channel.title_include,
-            title_exclude=channel.title_exclude,
-            min_duration_sec=channel.min_duration_sec,
-            max_duration_sec=channel.max_duration_sec,
-            skip_shorts=channel.skip_shorts,
-            skip_live=channel.skip_live,
-            skip_videos=channel.skip_videos,
-            shorts_max_seconds=settings.shorts_max_seconds,
-        )
-        if not decision.accept:
-            _reject(video, result, decision.reason or "filtered out")
+        # One decision per path, not one per video: the same channel can reach
+        # two feeds through filters that disagree, and a video turned away at
+        # one of them still belongs in the other.
+        paths = routes_for.get(channel.id, [])
+        if not paths:
+            # Stays pending: wiring it to a feed later picks it up.
             continue
 
-        targets = sorted(channel.targets, key=lambda p: (p.priority, p.id))
-        if not targets:
-            # Stays pending: assigning a playlist later picks it up.
+        allowed: list[Playlist] = []
+        refusals: list[str] = []
+        for path in paths:
+            decision = _decide(video, path, detail, settings)
+            if decision.accept:
+                allowed.append(path.playlist)
+            elif decision.reason:
+                refusals.append(decision.reason)
+
+        if not allowed:
+            # Every path said no; the first reason is the one worth showing.
+            _reject(video, result, refusals[0] if refusals else "filtered out")
             continue
+
+        if video.is_post:
+            _place_locally(
+                session, video, channel, result, added_per_playlist, added_per_channel, allowed
+            )
+            continue
+
+        # De-duplicated, and in fill order: two paths may end at one feed.
+        targets = sorted({p.id: p for p in allowed}.values(), key=lambda p: (p.priority, p.id))
 
         cap = channel.max_per_run or 0
         if cap and added_per_channel.get(channel.id, 0) >= cap:
@@ -777,6 +786,39 @@ def _publish(
         session.flush()
 
 
+def _decide(
+    video: Video, path: "graph.Route", detail: VideoDetails | None, settings: Settings
+) -> filters.Decision:
+    """Whether this video belongs in this feed, by this path's rules.
+
+    The channel's own filters with every filter node on the path laid over
+    them — which is what makes a filter node an override rather than a second
+    set of settings to keep in step.
+    """
+    rules = path.effective()
+    if video.is_post:
+        return filters.evaluate_post(
+            text=video.body or video.title,
+            skip_posts=bool(rules["skip_posts"]),
+            title_include=rules["title_include"],
+            title_exclude=rules["title_exclude"],
+        )
+    return filters.evaluate(
+        title=video.title,
+        duration_sec=video.duration_sec,
+        live_state=detail.live_state if detail else None,
+        is_short=video.is_short,
+        title_include=rules["title_include"],
+        title_exclude=rules["title_exclude"],
+        min_duration_sec=rules["min_duration_sec"],
+        max_duration_sec=rules["max_duration_sec"],
+        skip_shorts=bool(rules["skip_shorts"]),
+        skip_live=bool(rules["skip_live"]),
+        skip_videos=bool(rules["skip_videos"]),
+        shorts_max_seconds=settings.shorts_max_seconds,
+    )
+
+
 def _place_locally(
     session: Session,
     video: Video,
@@ -784,6 +826,7 @@ def _place_locally(
     result: SyncResult,
     added_per_playlist: Tally,
     added_per_channel: Tally,
+    targets: Sequence[Playlist] | None = None,
 ) -> None:
     """Put a community post into each of its channel's feeds.
 
@@ -791,9 +834,10 @@ def _place_locally(
     is the whole act: no API call, no quota, no deferral. What is left over
     after a cap is simply picked up by the next run, like anything else.
     """
-    targets = sorted(channel.targets, key=lambda p: (p.priority, p.id))
-    if not targets:
-        return  # stays pending until the channel feeds something
+    reachable = list(targets) if targets is not None else channel.targets
+    ordered = sorted({p.id: p for p in reachable}.values(), key=lambda p: (p.priority, p.id))
+    if not ordered:
+        return  # stays pending until the channel is wired to a feed
 
     cap = channel.max_per_run or 0
     if cap and added_per_channel.get(channel.id, 0) >= cap:
@@ -801,7 +845,7 @@ def _place_locally(
 
     placed = {p.playlist_pk for p in video.placements}
     landed = False
-    for playlist in targets:
+    for playlist in ordered:
         if playlist.id in placed:
             continue
         limit = playlist.max_per_run or 0

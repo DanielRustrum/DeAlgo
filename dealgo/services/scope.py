@@ -17,11 +17,20 @@ from typing import Any, TypeVar
 from sqlalchemy import Select
 from sqlalchemy.sql.elements import ColumnElement
 
-from ..models import Channel, Playlist, QuotaUsage, Settings, SyncRun, Video
+from ..models import (
+    Channel,
+    GraphEdge,
+    GraphNode,
+    Playlist,
+    QuotaUsage,
+    Settings,
+    SyncRun,
+    Video,
+)
 
 # Anything with an owner. Listed rather than inferred, so adding a table is a
 # deliberate decision about who it belongs to.
-Owned = Channel | Playlist | Video | Settings | SyncRun | QuotaUsage
+Owned = Channel | Playlist | Video | Settings | SyncRun | QuotaUsage | GraphNode | GraphEdge
 
 # A select of anything: one column, several, or a count. The rows it yields
 # are not this helper's business — only the table they come from is.
