@@ -1,0 +1,303 @@
+// The Configuration canvas: boxes, wires, and the panel beside them.
+//
+// Positions come from the database and are written as inline left/top by
+// graph.ts, so nothing here may move a box — only dress it.
+
+.graph-panel .graph-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.graph-trace { display: flex; gap: 6px; align-items: center; }
+.graph-trace select { max-width: 260px; }
+.graph-hint { margin: 0 0 12px; }
+
+// The canvas and its side panel sit together; the panel drops below when
+// there is no room for two columns.
+.graph-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  align-items: start;
+}
+
+// The canvas fills what is left of the page. It is the configuration, not a
+// picture of it, so it gets the room.
+.graph-canvas {
+  position: relative;
+  overflow: hidden;
+  height: css-max("60vh, 520px");
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  // A faint grid, moved by the pan so the drawing reads as sliding over it.
+  background-image: radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0);
+  background-size: 26px 26px;
+  // The background is draggable: it moves the whole drawing under the window.
+  cursor: grab;
+  touch-action: none;
+}
+.graph-canvas.is-panning { cursor: grabbing; }
+.graph-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+// Everything drawn, moved as one. Zero-sized on purpose: its children are
+// placed against its origin, which may be anywhere at all.
+.graph-scene { position: absolute; top: 0; left: 0; width: 0; height: 0; }
+.graph-wires { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+// The boxes are painted over the wires. Only the boxes themselves answer a
+// pointer; everything else falls through to the wire or the canvas beneath,
+// which is what lets a wire be clicked at all.
+.graph-nodes { position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; }
+.graph-node, .graph-cut { pointer-events: auto; }
+
+.graph-empty {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-width: 320px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+// -- wires ------------------------------------------------------------------
+
+.graph-wire {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.graph-wire.is-picked { stroke: var(--accent); stroke-width: 3; }
+.graph-wire.is-through { stroke: var(--ok); stroke-width: 3; }
+.graph-wire.is-stopped { stroke: var(--bad); stroke-dasharray: 5 5; }
+.wire-ghost { stroke: var(--accent); stroke-dasharray: 6 5; }
+
+// Invisible, fat, and the only part a pointer can actually hit.
+.graph-wire-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+
+  @include touch {
+    stroke-width: 26;
+  }
+}
+
+.graph-cut {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.graph-cut:hover { background: var(--accent); color: #fff; }
+
+// -- boxes ------------------------------------------------------------------
+
+.graph-node {
+  position: absolute;
+  width: 212px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: var(--radius);
+  cursor: grab;
+  user-select: none;
+  // A finger on a box drags it; a finger anywhere else still scrolls the
+  // canvas, which is the only way to reach a box that is off the edge.
+  touch-action: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+
+  @include still {
+    transition: none;
+  }
+}
+.graph-node:hover { border-color: var(--accent); }
+.graph-node.is-held { cursor: grabbing; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35); }
+.graph-node.is-picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.graph-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+// Which of the three it is, read at a glance from the bar down its left.
+.graph-node.kind-trigger { border-left-color: var(--text); }
+.graph-node.kind-source { border-left-color: var(--ok); }
+.graph-node.kind-filter { border-left-color: var(--warn); }
+.graph-node.kind-feed { border-left-color: var(--accent); }
+
+.graph-node-kind {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
+}
+.graph-node-title {
+  font-size: 13.5px; font-weight: 600; line-height: 1.3;
+  // Two lines, then an ellipsis: a box that grows with its title breaks the row.
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.graph-node-note { font-size: 11.5px; color: var(--muted); }
+
+// A pulse is pressed, so it carries its own button rather than making someone
+// find it in the side panel.
+.graph-fire { margin-top: 6px; align-self: flex-start; font-size: 12px; padding: 3px 10px; }
+
+// What a followed item did here.
+.graph-node.is-through { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
+.graph-node.is-stopped { border-color: var(--bad); opacity: 0.75; }
+
+.graph-port {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 2px solid var(--muted);
+  cursor: crosshair;
+
+  @include touch {
+    width: 20px; height: 20px; margin-top: -10px;
+  }
+}
+.port-in { left: -9px; }
+.port-out { right: -8px; }
+.graph-node:hover .graph-port { border-color: var(--accent); }
+
+// -- the box that is open --------------------------------------------------
+
+// Drawn beside the box it belongs to and inside the scene, so it travels with
+// it. The notch on its left edge is what ties the two together on sight.
+.graph-pop {
+  position: absolute;
+  width: 300px;
+  max-width: 76vw;
+  box-sizing: border-box;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+  z-index: 3;
+}
+.graph-pop::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 26px;
+  width: 12px;
+  height: 12px;
+  background: var(--panel);
+  border-left: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  transform: rotate(45deg);
+}
+.graph-pop-head { display: flex; align-items: center; justify-content: space-between; }
+.graph-pop-kind {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
+}
+.graph-pop-close {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 13px; line-height: 1; padding: 2px 4px;
+}
+.graph-pop-close:hover { color: var(--accent); }
+
+.graph-form { display: flex; flex-direction: column; gap: 10px; }
+.graph-field { display: flex; flex-direction: column; gap: 4px; }
+.graph-field-name { font-size: 11.5px; color: var(--muted); }
+.graph-form-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.graph-form .hint { margin: 0; }
+
+// -- the palette -----------------------------------------------------------
+
+.graph-palette {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 290px;
+  max-width: 84vw;
+  box-sizing: border-box;
+  padding: 14px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+  overflow-y: auto;
+  z-index: 4;
+  animation: palette-in 0.16s ease-out;
+
+  @include still {
+    animation: none;
+  }
+}
+@keyframes palette-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.palette-head { display: flex; align-items: center; justify-content: space-between; }
+.palette-head h3 { margin: 0; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text); }
+.palette-close {
+  background: none; border: none; color: var(--muted); cursor: pointer; font: inherit; padding: 2px 4px;
+}
+.palette-close:hover { color: var(--accent); }
+
+.palette-list { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.palette-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.palette-item:hover { border-color: var(--accent); }
+.palette-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.palette-swatch { width: 4px; align-self: stretch; border-radius: 2px; background: var(--muted); }
+.palette-swatch.kind-trigger { background: var(--text); }
+.palette-swatch.kind-source { background: var(--ok); }
+.palette-swatch.kind-filter { background: var(--warn); }
+.palette-swatch.kind-feed { background: var(--accent); }
+.palette-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.palette-text strong { font-size: 13px; }
+.palette-blurb { font-size: 11.5px; color: var(--muted); }
+
+// Follows the pointer between the palette and the canvas.
+.graph-node.is-ghost { opacity: 0.85; z-index: 9; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4); }
+
+.graph-verdict {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.graph-empty { margin: 0; }
+
+@include tablet {
+  .graph-canvas { height: css-max("58vh, 440px"); }
+}
+
+@include phone {
+  .graph-canvas { height: css-max("54vh, 380px"); }
+  .graph-trace select { max-width: 100%; flex: 1; }
+  .graph-trace { width: 100%; }
+  .graph-pop { width: 250px; }
+}

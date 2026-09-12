@@ -469,6 +469,10 @@ class GraphNode(Base):
 
     * ``source`` stands for a Channel — where things come from.
     * ``feed`` stands for a Playlist — where they end up.
+    * ``trigger`` stands for nothing either. It wires into a channel's input
+      and says when that channel is polled: every so often (``pulse``) or at a
+      time of day (``schedule``). A channel with no trigger wired keeps
+      following the account's own sync settings, exactly as before.
     * ``filter`` stands for nothing else at all. It sits on the path between
       them and narrows what gets through, and its columns are the channel's
       own filter columns over again: NULL means "leave the channel's answer
@@ -507,17 +511,38 @@ class GraphNode(Base):
     max_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     max_per_run: Mapped[Optional[int]] = mapped_column(Integer)
 
+    # Trigger nodes only. A "pulse" carries the gap it wants in minutes; a
+    # "schedule" carries a cron expression, read in UTC — UTC because that is
+    # what every other instant in this file is, and a stored local time would
+    # mean something different after a clock change.
+    trigger_kind: Mapped[Optional[str]] = mapped_column(String(10))
+    every_minutes: Mapped[Optional[int]] = mapped_column(Integer)
+    cron: Mapped[Optional[str]] = mapped_column(String(120))
+    last_fired_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
+
     channel: Mapped[Optional[Channel]] = relationship()
     playlist: Mapped[Optional[Playlist]] = relationship()
 
     @property
     def title(self) -> str:
-        """What the box says on it."""
+        """What the box says on it.
+
+        A renamed box keeps its own name, whatever the thing behind it is
+        called. Renaming a channel or a feed writes through to that thing as
+        well, so this is only the last word for boxes that stand for nothing.
+        """
+        if self.label:
+            return self.label
         if self.kind == "source" and self.channel is not None:
             return self.channel.title or self.channel.channel_id
         if self.kind == "feed" and self.playlist is not None:
             return self.playlist.title or self.playlist.playlist_id
-        return self.label or "Filter"
+        if self.kind == "trigger":
+            return "Schedule" if self.trigger_kind == "schedule" else "Pulse"
+        # An empty box, waiting to be told what it stands for.
+        if self.kind == "source":
+            return "New channel"
+        return "New feed" if self.kind == "feed" else "Filter"
 
     @property
     def overrides(self) -> dict[str, object]:

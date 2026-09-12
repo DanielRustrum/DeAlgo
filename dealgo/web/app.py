@@ -36,6 +36,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from ..models import (
     GENERIC_PLAYLIST_PREFIX,
+    GraphNode,
     User,
     Channel,
     Placement,
@@ -43,10 +44,12 @@ from ..models import (
     SyncRun,
     Video,
     channel_playlist,
+    utcnow,
 )
 from ..services import accounts
 from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
+from ..services import graph as graph_service
 from ..services import migration
 from ..services import channels as channel_service
 from ..services import ordering as ordering_service
@@ -582,9 +585,16 @@ def dashboard(request: Request) -> HTMLResponse:
 def trigger_sync(request: Request, force: str = Form("")) -> Response:
     forced = bool(force)
     already = sync_service.is_running()
+    owner = owner_of(request)
     if not already:
+        # The account that pressed it, not the implicit owner: with accounts in
+        # use every channel belongs to somebody, so a pass with no owner polls
+        # nothing at all.
         threading.Thread(
-            target=sync_service.run_sync, args=("manual",), kwargs={"force": forced}, daemon=True
+            target=sync_service.run_sync,
+            args=("manual",),
+            kwargs={"force": forced, "owner": owner},
+            daemon=True,
         ).start()
 
     if already:
@@ -652,14 +662,6 @@ def partial_dashboard(request: Request) -> HTMLResponse:
     return fragment(request, "_dashboard_state.html", context)
 
 
-@app.get("/partials/channels", response_class=HTMLResponse)
-def partial_channels(request: Request, feed: str = "", track: str = "", q: str = "") -> HTMLResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        context = _channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner)
-    return fragment(request, "_channel_list.html", context)
-
-
 @app.get("/api/status")
 def api_status(request: Request) -> JSONResponse:
     owner = owner_of(request)
@@ -712,8 +714,32 @@ def channels_page(
         context = {
             **_channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner),
             **_playlist_context(session, creating=new == "1", owner=owner),
+            "trace_items": _trace_items(session, owner),
         }
     return render(request, "channels.html", context)
+
+
+def _trace_items(session: Session, owner: OwnerId, limit: int = 25) -> list[Context]:
+    """Recent arrivals, for the canvas's "follow it through" picker.
+
+    Most recently seen rather than most recently published: the question the
+    trace answers is "why did that land where it did", and that is asked about
+    something the last sync just brought in.
+    """
+    videos = session.scalars(
+        owned(select(Video), Video, owner)
+        .options(selectinload(Video.channel))
+        .order_by(Video.id.desc())
+        .limit(limit)
+    )
+    return [
+        {
+            "id": video.id,
+            "label": f"{video.channel.title if video.channel else '?'} — "
+                     f"{(video.title or video.video_id)[:60]}",
+        }
+        for video in videos
+    ]
 
 
 def _channel_list_response(
@@ -731,55 +757,8 @@ def _channel_list_response(
     if back:
         # A channel's own page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)
-    if not is_htmx(request):
-        params = {
-            k: v
-            for k, v in (("feed", feed), ("q", query), ("track", "1" if tracking else ""))
-            if v
-        }
-        target = f"/channels?{urlencode(params)}" if params else "/channels"
-        return redirect(target, ok=ok, err=err)
-    with session_scope() as session:
-        context = _channel_list_context(session, feed, tracking=tracking, query=query, owner=owner)
-    return fragment(request, "_channel_list.html", context, ok=ok, err=err)
-
-
-@app.post("/channels/add")
-def add_channel(
-    request: Request,
-    reference: str = Form(""),
-    feeds: list[int] = Form(default=[]),
-    backfill: str = Form(""),
-    feed: str = Form(""),
-) -> Response:
-    owner = owner_of(request)
-    reference = reference.strip()
-    if not reference:
-        # Keep the dialog up rather than dropping what they were doing.
-        return _channel_list_response(
-            request, err="Paste a channel URL, @handle, or UC… id.", feed=feed, tracking=True
-        )
-
-    with session_scope() as session, _http_client() as http:
-        try:
-            channel = channel_service.add_channel(
-                session,
-                reference,
-                http,
-                backfill_days=channel_service.parse_backfill(backfill),
-                owner=owner,
-            )
-        except channel_service.ChannelError as exc:
-            return _channel_list_response(request, err=str(exc), feed=feed, tracking=True)
-
-        playlist_service.set_channel_targets(session, channel, feeds)
-        title = channel.title
-        watching = channel.enabled
-
-    message = f"Now watching {title}."
-    if not watching:
-        message = f"Added {title}. It stays paused until a feed is linked."
-    return _channel_list_response(request, ok=message, feed=feed)
+    # The canvas is the only view of this now, and it reloads itself.
+    return redirect("/channels", ok=ok, err=err)
 
 
 @app.get("/channels/{channel_id}", response_class=HTMLResponse)
@@ -977,15 +956,6 @@ def set_channel_interval(
     return _channel_list_response(
         request, ok=f"Checking {title} {described}.", feed=feed, back=back
     )
-
-
-@app.post("/channels/{channel_id}/move")
-def move_channel(request: Request, channel_id: int, direction: str = Form("up"), feed: str = Form("")) -> Response:
-    with session_scope() as session:
-        moved = ordering_service.move_channel(session, channel_id, direction)
-    if not moved:
-        return _channel_list_response(request, feed=feed)
-    return _channel_list_response(request, feed=feed)
 
 
 @app.post("/channels/{channel_id}/delete")
@@ -1500,6 +1470,9 @@ def settings_page(request: Request) -> HTMLResponse:
             "env_api_key": bool(CONFIG.api_key),
             "redirect_uri": CONFIG.redirect_uri,
             "next_run": scheduler.next_run_time(),
+            # Feeds backed by a real YouTube playlist are made here: the
+            # canvas makes the ones that live inside De-Algo.
+            **_playlist_context(session, owner=owner),
         }
     return render(request, "settings.html", context)
 
@@ -1559,12 +1532,7 @@ def _playlists_response(
     if back:
         # The detail page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)
-    if not is_htmx(request):
-        target = "/channels?new=1" if creating else "/channels"
-        return redirect(target, ok=ok, err=err)
-    with session_scope() as session:
-        context = _playlist_context(session, creating=creating, owner=owner)
-    return fragment(request, "_playlist_targets.html", context, ok=ok, err=err)
+    return redirect("/channels", ok=ok, err=err)
 
 
 @app.post("/settings/feeds/new")
@@ -1592,15 +1560,14 @@ def create_feed(
                 owner=owner,
             )
         except playlist_service.PlaylistError as exc:
-            # Keep the dialog open with what they typed still on screen.
-            return _playlists_response(request, err=str(exc), creating=True)
+            return redirect("/settings", err=str(exc))
         title = playlist.title
 
     _forget_account_playlists()
-    message = f"Now feeding {title!r}."
+    message = f"Now feeding {title!r}. It is on the Configuration canvas."
     if linked:
         message += f" {linked} channel{'s' if linked != 1 else ''} linked."
-    return _playlists_response(request, ok=message)
+    return redirect("/settings", ok=message)
 
 
 @app.post("/settings/playlists/{playlist_pk}")
@@ -1756,23 +1723,6 @@ def delete_playlist(request: Request, playlist_pk: int, back: str = Form("")) ->
     _forget_account_playlists()
     return _playlists_response(request, ok=f"Stopped feeding {title!r}. The playlist itself is untouched on YouTube."
     , back=back)
-
-
-@app.post("/settings/playlists/{playlist_pk}/move")
-def move_playlist(
-    request: Request, playlist_pk: int, direction: str = Form("up"), back: str = Form("")
-) -> Response:
-    with session_scope() as session:
-        ordering_service.move_playlist(session, playlist_pk, direction)
-    return _playlists_response(request, back=back)
-
-
-@app.get("/partials/playlists", response_class=HTMLResponse)
-def partial_playlists(request: Request, new: str = "") -> HTMLResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        context = _playlist_context(session, creating=new == "1", owner=owner)
-    return fragment(request, "_playlist_targets.html", context)
 
 
 @app.post("/settings/playlists/{playlist_pk}/channels")
@@ -2011,6 +1961,404 @@ def sign_out(request: Request) -> Response:
 def sign_out_link(request: Request) -> Response:
     """So the menu can offer it as a plain link with no JavaScript."""
     return sign_out(request)
+
+
+# -- the canvas -----------------------------------------------------------
+
+
+def _graph_payload(session: Session, owner: OwnerId) -> Context:
+    """The whole canvas as JSON: what the browser draws from."""
+    nodes, _ = graph_service.load(session, owner)
+    plan = graph_service.polling_plan(session, owner)
+    return {
+        "nodes": [
+            {
+                "id": node.id,
+                "kind": node.kind,
+                "title": node.title,
+                "x": node.x,
+                "y": node.y,
+                "detail": (
+                    f"/channels/{node.channel_pk}" if node.kind == "source" and node.channel_pk
+                    else f"/feeds/{node.playlist_pk}" if node.kind == "feed" and node.playlist_pk
+                    else None
+                ),
+                "note": _node_note(node),
+                "polled": _how_polled(node, plan) if node.kind == "source" else None,
+                "overrides": {name: value for name, value in node.overrides.items()},
+                "trigger": (
+                    None
+                    if node.kind != "trigger"
+                    else {
+                        "kind": node.trigger_kind or "pulse",
+                        "every_minutes": node.every_minutes,
+                        "cron": node.cron,
+                        "next": _next_firing(node),
+                        "last_fired": node.last_fired_at.isoformat() if node.last_fired_at else None,
+                    }
+                ),
+            }
+            for node in nodes
+        ],
+        "wires": graph_service.wires(session, owner),
+    }
+
+
+def _next_firing(node: GraphNode) -> str | None:
+    """When a schedule next comes round, so the box can be checked at a glance.
+
+    A cron expression is easy to get subtly wrong, and the honest way to show
+    what one means is to say when it would actually go off.
+    """
+    if node.trigger_kind != "schedule":
+        return None
+    try:
+        trigger = graph_service.cron_trigger(node.cron or graph_service.DEFAULT_CRON)
+    except graph_service.GraphError:
+        return None
+    when = trigger.get_next_fire_time(None, dt.datetime.now(dt.timezone.utc))
+    return when.isoformat() if when is not None else None
+
+
+def _how_polled(node: GraphNode, plan: dict[int, list[graph_service.When]]) -> str:
+    """What decides when this channel is polled, in a sentence.
+
+    Worth spelling out on the box rather than leaving to be inferred from the
+    wires: a channel with nothing wired to it and one with a trigger wired
+    look much the same on a canvas and are polled on different clocks.
+    """
+    wired = None if node.channel_pk is None else plan.get(node.channel_pk)
+    if not wired:
+        return "Polled on this account's sync settings — wire a trigger in to change that."
+    return "Polled by " + _join_clauses([_when_clause(when) for when in wired]) + "."
+
+
+def _when_clause(when: graph_service.When) -> str:
+    if when.kind == "schedule":
+        return f"a schedule on “{when.cron or graph_service.DEFAULT_CRON}”"
+    gap = when.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
+    return f"a pulse every {gap} minute{'s' if gap != 1 else ''}"
+
+
+def _join_clauses(parts: list[str]) -> str:
+    if len(parts) <= 2:
+        return " and ".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+
+
+
+def _node_note(node: GraphNode) -> str:
+    """The line under the title: what this box is, in a few words."""
+    if node.kind == "trigger":
+        if node.trigger_kind == "schedule":
+            return node.cron or graph_service.DEFAULT_CRON
+        every = node.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
+        return f"every {every} minute{'s' if every != 1 else ''}"
+    if node.kind == "source":
+        channel = node.channel
+        if channel is None:
+            return "open it and type an @handle"
+        takes = [
+            word
+            for word, off in (("videos", channel.skip_videos), ("shorts", channel.skip_shorts),
+                              ("live", channel.skip_live), ("posts", channel.skip_posts))
+            if not off
+        ]
+        return "takes " + (", ".join(takes) if takes else "nothing")
+    if node.kind == "feed":
+        playlist = node.playlist
+        if playlist is None:
+            return "feed is gone"
+        return "generic" if playlist.is_generic else "YouTube playlist"
+    count = len(node.overrides)
+    return f"{count} rule{'s' if count != 1 else ''}" if count else "passes everything"
+
+
+@app.get("/api/graph")
+def graph_state(request: Request) -> JSONResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        return JSONResponse(_graph_payload(session, owner))
+
+
+@app.post("/graph/nodes/{node_pk}/move")
+def graph_move(request: Request, node_pk: int, x: int = Form(0), y: int = Form(0)) -> JSONResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        moved = graph_service.move(session, node_pk, x, y, owner)
+    return JSONResponse({"moved": moved})
+
+
+@app.post("/graph/connect")
+def graph_connect(
+    request: Request, source: int = Form(...), target: int = Form(...)
+) -> JSONResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        nodes = {node.id: node for node in graph_service.nodes(session, owner)}
+        first, second = nodes.get(source), nodes.get(target)
+        if first is None or second is None:
+            return JSONResponse({"error": "That box is no longer there."}, status_code=404)
+        try:
+            graph_service.connect(session, first, second, owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(_graph_payload(session, owner))
+
+
+@app.post("/graph/disconnect")
+def graph_disconnect(request: Request, wire: str = Form(...)) -> JSONResponse:
+    """Wires come in two kinds and are named for it, so one route serves both."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        kind, _, rest = wire.partition(":")
+        if kind == "edge" and rest.isdigit():
+            graph_service.disconnect(session, int(rest), owner)
+        elif kind == "link":
+            first, _, second = rest.partition(":")
+            nodes = {node.id: node for node in graph_service.nodes(session, owner)}
+            if first.isdigit() and second.isdigit():
+                source, target = nodes.get(int(first)), nodes.get(int(second))
+                if source is not None and target is not None:
+                    graph_service.unlink(session, source, target)
+        return JSONResponse(_graph_payload(session, owner))
+
+
+@app.post("/graph/nodes")
+def graph_add_node(
+    request: Request,
+    kind: str = Form(...),
+    title: str = Form(""),
+    x: int = Form(0),
+    y: int = Form(0),
+) -> JSONResponse:
+    """Put a new box on the canvas wherever it was dropped.
+
+    Every kind comes through here, because every kind is dragged out of the
+    same palette. A channel box arrives empty and is told which channel it is
+    afterwards; a feed box makes its feed at once, since a name is all one
+    needs.
+    """
+    owner = owner_of(request)
+    with session_scope() as session:
+        if kind == "source":
+            graph_service.add_source(session, owner, x=x, y=y)
+        elif kind == "feed":
+            try:
+                playlist = playlist_service.create_generic(
+                    session, title.strip() or "New feed", owner
+                )
+            except playlist_service.PlaylistError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+            graph_service.add_feed(session, playlist, owner, x=x, y=y)
+        elif kind == "filter":
+            graph_service.add_filter(session, owner, label=title.strip() or "Filter", x=x, y=y)
+        elif kind in graph_service.TRIGGER_KINDS:
+            graph_service.add_trigger(
+                session, owner, trigger_kind=kind, label=title.strip(), x=x, y=y
+            )
+        else:
+            return JSONResponse({"error": f"There is no {kind} box."}, status_code=400)
+        return JSONResponse(_graph_payload(session, owner))
+
+
+@app.post("/graph/nodes/{node_pk}/fire")
+def graph_fire(request: Request, node_pk: int) -> JSONResponse:
+    """Press a pulse: poll the channels it is wired to, and only those.
+
+    Forced, because pressing it is the whole schedule — a gap that has not
+    elapsed is not a reason to ignore somebody's finger. It runs in a thread
+    like every other sync, so the answer comes back before the polling does.
+    """
+    owner = owner_of(request)
+    with session_scope() as session:
+        try:
+            targets = graph_service.pulse_targets(session, node_pk, owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if not targets:
+            return JSONResponse(
+                {"error": "Nothing is wired to that trigger yet."}, status_code=400
+            )
+
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is not None:
+            node.last_fired_at = utcnow()
+        session.flush()
+        payload = _graph_payload(session, owner)
+
+    if sync_service.is_running():
+        return JSONResponse({**payload, "said": "A sync is already running."})
+
+    threading.Thread(
+        target=sync_service.run_sync,
+        args=("pulse",),
+        kwargs={"force": True, "owner": owner, "only": frozenset(targets)},
+        daemon=True,
+    ).start()
+    said = f"Polling {len(targets)} channel{'s' if len(targets) != 1 else ''}…"
+    return JSONResponse({**payload, "said": said})
+
+
+@app.post("/graph/nodes/{node_pk}/delete")
+def graph_remove(request: Request, node_pk: int) -> JSONResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        try:
+            gone = graph_service.remove(session, node_pk, owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if not gone:
+            return JSONResponse({"error": "That box is not here."}, status_code=404)
+        return JSONResponse(_graph_payload(session, owner))
+
+
+@app.post("/graph/nodes/{node_pk}")
+def graph_save_node(
+    request: Request,
+    node_pk: int,
+    label: str = Form(""),
+    handle: str = Form(""),
+    backfill: str = Form(""),
+    every_minutes: str = Form(""),
+    cron: str = Form(""),
+    skip_videos: str = Form(""),
+    skip_shorts: str = Form(""),
+    skip_live: str = Form(""),
+    skip_posts: str = Form(""),
+    title_include: str = Form(""),
+    title_exclude: str = Form(""),
+    min_duration_sec: str = Form(""),
+    max_duration_sec: str = Form(""),
+    max_per_run: str = Form(""),
+) -> JSONResponse:
+    """Save what a box says about itself.
+
+    One route for every kind, because the canvas has one way to open a box and
+    one Save in it. What each kind carries differs; what they share is a name.
+    """
+    owner = owner_of(request)
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is None:
+            return JSONResponse({"error": "That box is not here."}, status_code=404)
+
+        if node.kind == "source" and handle.strip():
+            answer = _attach_channel(session, node, handle.strip(), backfill, owner)
+            if answer is not None:
+                return answer
+
+        graph_service.rename(session, node.id, label, owner)
+
+        if node.kind == "trigger":
+            answer = _save_trigger(node, every_minutes, cron)
+            if answer is not None:
+                return answer
+        elif node.kind == "filter":
+            _save_filter_rules(
+                node,
+                switches={
+                    "skip_videos": skip_videos, "skip_shorts": skip_shorts,
+                    "skip_live": skip_live, "skip_posts": skip_posts,
+                },
+                text={"title_include": title_include, "title_exclude": title_exclude},
+                numbers={
+                    "min_duration_sec": min_duration_sec, "max_duration_sec": max_duration_sec,
+                    "max_per_run": max_per_run,
+                },
+            )
+
+        session.flush()
+        return JSONResponse(_graph_payload(session, owner))
+
+
+def _attach_channel(
+    session: Session, node: GraphNode, wanted: str, backfill: str, owner: OwnerId
+) -> JSONResponse | None:
+    """Tell an empty channel box which channel it is. None means it worked."""
+    if node.channel is not None:
+        return None  # already named; the rename below is all that was meant
+    with sync_service.http_client() as http:
+        try:
+            channel = channel_service.add_channel(
+                session,
+                wanted,
+                http,
+                backfill_days=channel_service.parse_backfill(backfill),
+                owner=owner,
+            )
+        except channel_service.ChannelError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+    graph_service.attach_channel(session, node, channel, owner)
+    return None
+
+
+def _save_trigger(node: GraphNode, every_minutes: str, cron: str) -> JSONResponse | None:
+    if node.trigger_kind == "schedule":
+        try:
+            node.cron = graph_service.check_cron(cron)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return None
+    wanted = every_minutes.strip()
+    node.every_minutes = (
+        max(1, int(wanted))
+        if wanted.isdigit() and int(wanted) > 0
+        else graph_service.DEFAULT_EVERY_MINUTES
+    )
+    return None
+
+
+def _save_filter_rules(
+    node: GraphNode,
+    *,
+    switches: dict[str, str],
+    text: dict[str, str],
+    numbers: dict[str, str],
+) -> None:
+    """A filter's every field is three-valued: "" means leave it to the channel.
+
+    Which is why blanks are stored as NULL rather than as zero or false — that
+    is the whole difference between a filter box and a second copy of the
+    channel's settings.
+    """
+    for name, raw in switches.items():
+        setattr(node, name, None if raw.strip() == "" else raw.strip() == "1")
+    for name, raw in text.items():
+        setattr(node, name, raw.strip() or None)
+    for name, raw in numbers.items():
+        value = raw.strip()
+        setattr(node, name, int(value) if value.isdigit() else None)
+
+
+@app.get("/graph/trace/{video_pk}")
+def graph_trace(request: Request, video_pk: int) -> JSONResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        video = session.scalar(owned(select(Video), Video, owner).where(Video.id == video_pk))
+        if video is None:
+            return JSONResponse({"error": "That item is not here."}, status_code=404)
+        steps = graph_service.trace(session, video, get_settings(session, owner), owner)
+        return JSONResponse(
+            {
+                "item": {"title": video.title or video.video_id, "kind": video.kind},
+                "steps": [
+                    {
+                        "nodes": step.node_ids,
+                        "wires": step.wire_ids,
+                        "accepted": step.accepted,
+                        "reason": step.reason,
+                    }
+                    for step in steps
+                ],
+            }
+        )
 
 
 # -- the admin's tab ------------------------------------------------------

@@ -245,3 +245,108 @@ def test_a_failed_picture_lookup_does_not_stop_the_sync(world, db, monkeypatch):
     assert world["client"].contents() == ["v0"]
     with db.session_scope() as session:
         assert session.scalar(select(Channel)).thumbnail_url is None
+
+
+# -- what the trigger boxes do ---------------------------------------------
+#
+# A trigger on the canvas is only meaningful if the sync engine obeys it. The
+# case that matters most is the one with no trigger at all: every setup that
+# existed before triggers did has none, and must go on syncing as it always has.
+
+
+def wire_trigger(db, *, kind: str, every_minutes: int | None = None, cron: str | None = None):
+    """Put a trigger box on the canvas and wire it into the only channel."""
+    from dealgo.services import graph
+
+    with db.session_scope() as session:
+        graph.load(session)
+        source = next(n for n in graph.nodes(session) if n.kind == "source")
+        trigger = graph.add_trigger(
+            session, trigger_kind=kind, every_minutes=every_minutes, cron=cron
+        )
+        graph.connect(session, trigger, source)
+        return trigger.id
+
+
+def last_checked(db, when):
+    with db.session_scope() as session:
+        session.scalars(select(Channel)).one().last_checked_at = when
+
+
+def test_a_channel_with_no_trigger_syncs_as_it_always_did(world):
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    assert sync_service.run_sync().discovered == 1
+
+
+def test_a_pulse_replaces_the_channels_own_gap(world):
+    """The box on the canvas has the last word, not the channel's settings."""
+    import datetime as dt
+
+    from dealgo.models import utcnow
+
+    wire_trigger(world["db"], kind="pulse", every_minutes=60)
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    # Polled ten minutes ago, and the pulse says hourly: not yet.
+    last_checked(world["db"], utcnow() - dt.timedelta(minutes=10))
+    assert sync_service.run_sync("scheduled").channels_waiting == 1
+
+    # Polled two hours ago: due, even though the channel's own gap is zero.
+    last_checked(world["db"], utcnow() - dt.timedelta(hours=2))
+    assert sync_service.run_sync("scheduled").discovered == 1
+
+
+def test_a_schedule_polls_once_its_time_has_come_round(world):
+    """A time of day, not a gap: polled before it, the channel is due; polled
+    after it, it waits for tomorrow."""
+    import datetime as dt
+
+    from dealgo.models import utcnow
+
+    now = utcnow()
+    # A time an hour ago, so today's occurrence has already passed.
+    gone_by = now - dt.timedelta(hours=1)
+    wire_trigger(world["db"], kind="schedule", cron=f"{gone_by.minute} {gone_by.hour} * * *")
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    # Last polled two hours ago — before the time came round today.
+    last_checked(world["db"], now - dt.timedelta(hours=2))
+    assert sync_service.run_sync("scheduled").discovered == 1
+
+    # Now it has been polled since, so it waits rather than going again.
+    assert sync_service.run_sync("scheduled").channels_waiting == 1
+
+
+def test_a_forced_run_ignores_the_triggers_too(world):
+    """Force means every channel, whatever anything else says."""
+    import datetime as dt
+
+    from dealgo.models import utcnow
+
+    wire_trigger(world["db"], kind="pulse", every_minutes=600)
+    last_checked(world["db"], utcnow() - dt.timedelta(minutes=5))
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    assert sync_service.run_sync("manual", force=True).discovered == 1
+
+
+def test_only_narrows_a_pass_to_the_channels_named(world, db):
+    """A pulse is wired to some channels and not others."""
+    from dealgo.models import Channel as ChannelModel
+
+    with db.session_scope() as session:
+        session.add(ChannelModel(channel_id="UCother", title="Other"))
+
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    with db.session_scope() as session:
+        wanted = session.scalar(select(Channel).where(Channel.channel_id == CHANNEL_ID)).id
+
+    result = sync_service.run_sync("pulse", force=True, only={wanted})
+    assert result.channels_checked == 1

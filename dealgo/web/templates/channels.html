@@ -1,11 +1,85 @@
 {% extends "base.html" %}
 {% block title %}De-Algo — Configuration{% endblock %}
 {% block content %}
-<section class="panel">
-  {% include "_playlist_targets.html" %}
+
+{# The canvas is the configuration — the whole of it. Channels, feeds, the
+   filters between them and the triggers that decide when a channel is polled
+   are all boxes on it, and each is added by dragging one out of the palette.
+   There is no list underneath any more: what would have been in one is on the
+   canvas, where the wires between them can be seen. #}
+<section class="panel graph-panel">
+  <div class="panel-head">
+    <h2>Configuration</h2>
+    <div class="graph-tools">
+      <button class="btn btn-primary" type="button" data-graph-palette aria-expanded="false">
+        Add a box
+      </button>
+      {% if trace_items %}
+      <form class="graph-trace" data-graph-trace>
+        <label class="sr-only" for="trace-item">Item to follow</label>
+        <select id="trace-item" name="video">
+          {% for item in trace_items %}
+          <option value="{{ item.id }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-quiet" type="submit">Follow it through</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <p class="error-note" data-graph-error hidden></p>
+  <p class="graph-verdict" data-graph-verdict hidden></p>
+
+  <div class="graph-frame">
+    <div class="graph-canvas" data-graph tabindex="0">
+      <div class="graph-scene" data-graph-scene>
+        <svg class="graph-wires" data-graph-wires aria-hidden="true"></svg>
+        <div class="graph-nodes" data-graph-nodes></div>
+      </div>
+
+      <p class="graph-empty" data-graph-empty hidden>
+        Nothing here yet. Press <strong>Add a box</strong> and drag a channel onto the canvas.
+      </p>
+
+      {# Slides in over the canvas. Each row is dragged out onto the canvas,
+         which is why they are not buttons: the drop point is the answer to
+         "where does it go". #}
+      <aside class="graph-palette" data-graph-drawer hidden>
+        <div class="palette-head">
+          <h3>Boxes</h3>
+          <button class="palette-close" type="button" data-graph-palette-close aria-label="Close">✕</button>
+        </div>
+        <ul class="palette-list">
+          {% for kind, name, blurb in [
+               ('source',   'Channel',  'A YouTube channel to watch. Needs an @handle or a UC… id.'),
+               ('feed',     'Feed',     'Where things end up. Lives inside De-Algo.'),
+               ('filter',   'Filter',   'Narrows one path without touching the others.'),
+               ('pulse',    'Pulse',    'Polls a channel every so many minutes.'),
+               ('schedule', 'Schedule', 'Polls a channel on a cron expression.')] %}
+          <li class="palette-item" data-palette="{{ kind }}" tabindex="0" role="button">
+            <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule') else kind }}"></span>
+            <span class="palette-text">
+              <strong>{{ name }}</strong>
+              <span class="palette-blurb">{{ blurb }}</span>
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        <p class="hint">Drag one onto the canvas, or press it to drop one in the middle.</p>
+      </aside>
+    </div>
+
+    <p class="graph-hint hint">
+      Drag the canvas to move around — it goes on as far as you need. Drag from
+      the dot on a box's right to the dot on another box's left to wire them up.
+      Click a box to open it, or a wire to take it out.
+    </p>
+  </div>
 </section>
 
-<section class="panel">
-  {% include "_channel_list.html" %}
-</section>
+{# Only this page draws a canvas, so only this page carries the script. htmx
+   runs it again each time the page is swapped in, which is why graph.ts
+   declares nothing but functions at the top level. #}
+<script src="/static/graph.js?v={{ asset_version }}" defer></script>
 {% endblock %}

@@ -13,7 +13,7 @@ import json
 import logging
 import threading
 from contextlib import contextmanager
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass, field
 
 import httpx
@@ -109,12 +109,21 @@ def http_client() -> httpx.Client:
 
 
 def run_sync(
-    trigger: str = "manual", *, force: bool = False, owner: OwnerId = None
+    trigger: str = "manual",
+    *,
+    force: bool = False,
+    owner: OwnerId = None,
+    only: Collection[int] | None = None,
 ) -> SyncResult:
     """Run one account's sync pass. Returns at once if a pass is in flight.
 
     ``force`` polls every enabled channel regardless of its minimum gap. The
     scheduler never forces; this is for someone pressing the button.
+
+    ``only`` narrows the pass to certain channels, by primary key. A pulse
+    trigger on the canvas is wired to some channels and not others, and this
+    is how it says so. The publishing half still runs over everything, because
+    what a new video is allowed into is a question about the whole graph.
 
     One account at a time, because everything a pass depends on belongs to
     one: its channels, its feeds, its Google connection and its quota.
@@ -122,7 +131,7 @@ def run_sync(
     try:
         with playlist_lock():
             with http_client() as http, session_scope() as session:
-                return _run(session, http, trigger, force=force, owner=owner)
+                return _run(session, http, trigger, force=force, owner=owner, only=only)
     except Busy:
         return SyncResult(ok=True, started=False, messages=["A sync is already running."])
     except Exception as exc:  # pragma: no cover - last-resort guard for the scheduler
@@ -163,6 +172,7 @@ def _run(
     *,
     force: bool = False,
     owner: OwnerId = None,
+    only: Collection[int] | None = None,
 ) -> SyncResult:
     settings = get_settings(session, owner)
     run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force, owner_pk=owner)
@@ -173,7 +183,10 @@ def _run(
     quota_before = quota.state(session, owner).used
     client = build_client(session, http, owner)
 
-    _discover(session, http, result, backfill=settings.initial_backfill, force=force, owner=owner)
+    _discover(
+        session, http, result, backfill=settings.initial_backfill, force=force, owner=owner,
+        only=only,
+    )
     _fill_missing_details(session, client, result, owner)
     session.commit()
 
@@ -245,6 +258,22 @@ def _run(
 # -- phase 1: discovery ---------------------------------------------------
 
 
+def _channel_due(
+    channel: Channel, plan: dict[int, list[graph.When]], now: dt.datetime
+) -> bool:
+    """Whether this channel wants polling now.
+
+    The trigger boxes wired to it have the last word, and any one of them
+    saying yes is enough. Without one the channel's own minimum gap decides,
+    which is how every setup worked before the canvas had triggers. A forced
+    run never asks.
+    """
+    wired = plan.get(channel.id)
+    if wired is None:
+        return channel.is_due(now)
+    return any(when.due(channel.last_checked_at, now) for when in wired)
+
+
 def _discover(
     session: Session,
     http: httpx.Client,
@@ -253,6 +282,7 @@ def _discover(
     backfill: int,
     force: bool = False,
     owner: OwnerId = None,
+    only: Collection[int] | None = None,
 ) -> None:
     channels = list(
         session.scalars(
@@ -261,11 +291,15 @@ def _discover(
             .order_by(Channel.priority, Channel.id)
         )
     )
+    plan = graph.polling_plan(session, owner)
     now = utcnow()
     for channel in channels:
-        if not force and not channel.is_due(now):
-            # Its minimum gap has not elapsed. Polling is free, so this is about
-            # how often the user wants to hear from a channel, not about cost.
+        if only is not None and channel.id not in only:
+            continue
+        if not force and not _channel_due(channel, plan, now):
+            # Its gap has not elapsed, or a pulse is the only thing that polls
+            # it. Polling is free, so this is about how often the user wants to
+            # hear from a channel, not about cost.
             result.channels_waiting += 1
             continue
         try:

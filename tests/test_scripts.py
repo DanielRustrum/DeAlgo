@@ -9,6 +9,7 @@ wrong in the browser.
 from __future__ import annotations
 
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -129,6 +130,7 @@ def test_every_file_ends_with_one_named_entry_point():
         "focus": "initFocusMode();",
         "menu": "initMenu();",
         "pwa": "initPwa();",
+        "graph": "initGraph();",
         # A worker has no page to start on: registering its handlers is the
         # equivalent, and it is a named function like every other entry.
         "sw": "listenForWorkerEvents();",
@@ -149,3 +151,36 @@ def test_the_logic_is_all_in_functions():
     for source in sources():
         for line in top_level_lines(source):
             assert line.startswith(allowed), f"{source.name}: loose statement `{line.strip()}`"
+
+
+# -- the classes they name --------------------------------------------------
+
+
+def queried_classes(source: pathlib.Path) -> set[str]:
+    """Class names a script looks for in the page.
+
+    Only the ones inside a selector — `closest(".graph-port")` and friends —
+    because those are the ones that quietly match nothing when the markup and
+    the selector drift apart.
+    """
+    text = source.read_text()
+    found: set[str] = set()
+    # The generic in `closest<HTMLElement>(...)` sits between the name and the
+    # bracket, so it has to be allowed for or nothing matches at all.
+    calls = re.finditer(
+        r'(?:closest|querySelector|querySelectorAll)(?:<[^>()]*>)?\(\s*"([^"]+)"', text
+    )
+    for call in calls:
+        found.update(re.findall(r"\.([a-z][a-z0-9-]*)", call.group(1)))
+    return found
+
+
+def test_every_class_a_script_looks_for_is_one_the_stylesheet_defines():
+    """A script that queries a class nothing is ever given finds nothing, and
+    says nothing about it. The stylesheet is the list of classes that exist,
+    so a name that has drifted — a rename that caught a string, a typo — shows
+    up here rather than as a control that silently stopped working."""
+    styles = (STATIC / "app.css").read_text()
+    for source in sources():
+        for name in queried_classes(source):
+            assert f".{name}" in styles, f"{source.name} looks for .{name}, which no rule defines"

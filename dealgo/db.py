@@ -100,6 +100,12 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("sync_run", "forced", "BOOLEAN NOT NULL DEFAULT 0"),
     ("sync_run", "quota_spent", "INTEGER NOT NULL DEFAULT 0"),
     ("sync_run", "stopped_on_quota", "BOOLEAN NOT NULL DEFAULT 0"),
+    # Trigger boxes on the canvas. All nullable: every node that came before
+    # them is a source, feed or filter, and none of these mean anything there.
+    ("graph_node", "trigger_kind", "VARCHAR(10)"),
+    ("graph_node", "every_minutes", "INTEGER"),
+    ("graph_node", "cron", "VARCHAR(120)"),
+    ("graph_node", "last_fired_at", "DATETIME"),
     # Ownership. Nullable, so every existing row becomes the implicit
     # owner's — which is exactly what it was before accounts existed.
     ("settings", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),

@@ -1,0 +1,65 @@
+{# Making a feed that YouTube knows about.
+
+   The canvas makes generic feeds — a name is all one needs, and they cost no
+   quota and no account. A feed backed by a real YouTube playlist is a
+   different act: it needs an account, a privacy setting, and a choice between
+   making one and adopting one. That does not belong on a drag-and-drop
+   palette, so it lives here. #}
+<section class="panel" id="new-feed">
+  <h2>Feeds on YouTube</h2>
+
+  {% if playlist_error %}<p class="error-note">{{ playlist_error }}</p>{% endif %}
+
+  {% if not state.connected %}
+  <p class="hint">
+    Connect a Google account above to write feeds to real YouTube playlists.
+    Without one, the feeds you draw on the
+    <a href="/channels">Configuration</a> canvas collect inside De-Algo.
+  </p>
+  {% else %}
+  <p class="hint">
+    A feed drawn on the <a href="/channels">Configuration</a> canvas lives
+    inside De-Algo. Use this to make one that writes to YouTube instead.
+  </p>
+
+  <form method="post" action="/settings/feeds/new" class="stack-form">
+    <div class="field">
+      <label for="feed-source">How</label>
+      <select id="feed-source" name="source">
+        <option value="new">Make a new playlist on YouTube</option>
+        <option value="existing">Use a playlist I already have</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="feed-title">Name it</label>
+      <input id="feed-title" type="text" name="new_title" placeholder="Morning watch">
+      <p class="hint">Only used when making a new playlist.</p>
+    </div>
+
+    <div class="field">
+      <label for="feed-privacy">Who can see it</label>
+      <select id="feed-privacy" name="privacy">
+        <option value="private">Private</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="public">Public</option>
+      </select>
+    </div>
+
+    {% if available %}
+    <div class="field">
+      <label for="feed-existing">Or one of yours</label>
+      <select id="feed-existing" name="playlist_id">
+        <option value="">—</option>
+        {% for playlist in available %}
+        <option value="{{ playlist.playlist_id }}">{{ playlist.title }}</option>
+        {% endfor %}
+      </select>
+      <p class="hint">Chosen only when “use a playlist I already have” is selected.</p>
+    </div>
+    {% endif %}
+
+    <button class="btn btn-primary" type="submit">Make the feed</button>
+  </form>
+  {% endif %}
+</section>

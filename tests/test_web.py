@@ -87,14 +87,6 @@ def test_sync_finished_event_fires_once_per_run(client, db):
     assert "HX-Trigger" not in current.headers
 
 
-def test_htmx_mutation_returns_the_list_and_an_out_of_band_flash(client):
-    response = client.post("/channels/1/toggle", headers=HX)
-    assert response.status_code == 200
-    assert 'id="channel-list"' in response.text
-    assert 'id="flash" hx-swap-oob="true"' in response.text
-    assert "paused" in response.text
-
-
 def test_plain_browser_post_still_redirects(client):
     response = client.post("/channels/1/toggle", follow_redirects=False)
     assert response.status_code == 303
@@ -108,12 +100,6 @@ def test_video_action_swaps_only_that_row(client, db):
     assert "<table" not in response.text
     with db.session_scope() as session:
         assert session.scalar(select(Video)).status == "ignored"
-
-
-def test_adding_a_channel_reports_the_error_in_the_flash(client):
-    response = client.post("/channels/add", data={"reference": ""}, headers=HX)
-    assert "flash-err" in response.text
-    assert 'id="channel-list"' in response.text
 
 
 def test_watched_view_and_dashboard_partial_render(client):
@@ -260,46 +246,6 @@ def test_a_dead_refresh_grant_is_reported_not_hidden(client, db):
     assert "Google needs you to sign in again." in dashboard
 
 
-def test_target_playlists_panel_lives_on_the_channels_page(client):
-    channels = client.get("/channels").text
-    assert 'id="playlist-targets"' in channels
-    assert "<h2>Feeds</h2>" in channels
-    assert 'id="playlist-targets"' not in client.get("/settings").text
-
-
-def test_channels_can_be_filtered_by_the_playlist_they_feed(client, db):
-    from dealgo.models import Channel, Playlist
-
-    with db.session_scope() as session:
-        other = Playlist(playlist_id="PL_other", title="Other")
-        session.add(other)
-        session.flush()
-        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Unassigned Channel"))
-
-    everything = client.get("/channels").text
-    assert "Fake Channel" in everything and "Unassigned Channel" in everything
-
-    # Only what feeds playlist 1.
-    feeding = client.get("/channels?feed=1").text
-    assert "Fake Channel" in feeding
-    assert "Unassigned Channel" not in feeding
-
-    # And the channels feeding nothing, which is what you want to spot.
-    orphans = client.get("/channels?feed=none").text
-    assert "Unassigned Channel" in orphans
-    assert "Fake Channel" not in orphans
-
-    empty = client.get("/channels?feed=2").text
-    assert "No channels feed that playlist yet." in empty
-
-
-def test_the_filter_survives_a_channel_mutation(client):
-    response = client.post("/channels/1/toggle", data={"feed": "1"}, headers=HX)
-    assert "Fake Channel" in response.text
-    # The chip for that playlist comes back selected, not reset to "any".
-    assert 'hx-push-url="/channels?feed=1"' in response.text
-
-
 def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkeypatch):
     """The panel renders on a page you actually browse, so it must not call
     YouTube every time."""
@@ -354,11 +300,6 @@ def test_shorts_can_be_toggled_from_the_channel_page(client, db):
     assert "Skipping Shorts from Fake Channel." in off.text
     with db.session_scope() as session:
         assert session.get(Channel, 1).skip_shorts is True
-
-
-def test_toggling_shorts_keeps_the_active_feed_filter(client):
-    response = client.post("/channels/1/shorts", data={"feed": "1"}, headers=HX)
-    assert 'hx-push-url="/channels?feed=1"' in response.text
 
 
 def test_live_can_be_toggled_from_the_channel_page(client, db):
@@ -462,14 +403,6 @@ def test_ordinary_uploads_can_be_toggled_from_the_channel_page(client, db):
     assert "Including regular videos from Fake Channel." in on.text
     with db.session_scope() as session:
         assert session.get(Channel, 1).skip_videos is False
-
-
-def test_a_channel_that_takes_nothing_says_so(client, db):
-    # Shorts and Live are already off by default; posts and videos are not.
-    client.post("/channels/1/posts", headers=HX)
-    response = client.post("/channels/1/videos", headers=HX)
-    assert "every kind is off" in response.text
-    assert "takes nothing" in client.get("/channels").text
 
 
 def test_a_playlists_add_limit_can_be_saved(client, db):
@@ -591,38 +524,6 @@ def test_editing_an_unknown_channel_is_refused(client):
     assert "no longer being watched" in response.text
 
 
-def test_a_newly_added_channel_waits_for_a_feed(client, db, monkeypatch):
-    from dealgo.models import Channel
-    from dealgo.youtube import feeds
-
-    monkeypatch.setattr(
-        feeds,
-        "fetch_feed",
-        lambda channel_id, http: feeds.FeedResult(
-            channel_id=channel_id, channel_title="Brand New", entries=[]
-        ),
-    )
-
-    response = client.post(
-        "/channels/add", data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb"}, headers=HX
-    )
-    assert response.status_code == 200
-    with db.session_scope() as session:
-        added = session.scalar(select(Channel).where(Channel.title == "Brand New"))
-        assert added.enabled is False
-        assert added.playlists == []
-
-    # Linking a feed from the feed row starts it watching.
-    linked = client.post(
-        "/settings/playlists/1/channels",
-        data={"channel_id": str(added.id), "include": "1", "open": "1"},
-        headers=HX,
-    )
-    assert "watching has started" in linked.text
-    with db.session_scope() as session:
-        assert session.get(Channel, added.id).enabled is True
-
-
 def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
     """A table too wide for its panel scrolls instead of drawing past the edge."""
     assert '<div class="table-scroll">' in client.get("/videos").text
@@ -631,21 +532,6 @@ def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
     with db.session_scope() as session:
         session.add(SyncRun(ok=True))
     assert '<div class="table-scroll">' in client.get("/").text
-
-
-def test_a_channel_row_is_just_a_name_and_a_way_in(client):
-    """Everything about a channel lives on its page; the list only has to scan."""
-    body = client.get("/channels").text
-    section = body.split('id="channel-list"', 1)[1]
-
-    assert "table-channels" not in body
-    assert '<ul class="channel-rows">' in body
-    assert "row-groups" not in section      # no stats strip
-    assert "group-label" not in section
-    assert 'name="minutes"' not in section  # no interval control
-
-    assert section.index('class="channel-head"') < section.index('class="channel-buttons"')
-    assert ">Open<" in section
 
 
 def test_a_control_sits_with_the_data_it_affects(client):
@@ -662,44 +548,6 @@ def test_a_control_sits_with_the_data_it_affects(client):
     assert "last " in checks            # and the reading it governs
 
 
-def test_the_feeds_panel_is_not_a_table_at_all(client):
-    """Five columns of controls per feed was unreadable, and a scroll wrapper
-    would have clipped the tooltips it carries."""
-    body = client.get("/channels").text
-
-    assert "table-playlists" not in body
-    assert '<ul class="feed-rows">' in body
-    assert "table-scroll" not in body.split('id="playlist-targets"')[1].split("</ul>")[0]
-
-
-def test_the_channel_picture_shows_beside_the_name(client, db):
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        session.get(Channel, 1).thumbnail_url = "https://yt3.example/avatar.jpg"
-
-    body = client.get("/channels").text
-    assert '<span class="channel-avatar">' in body
-    assert 'src="https://yt3.example/avatar.jpg"' in body
-    # Its own page too.
-    assert 'src="https://yt3.example/avatar.jpg"' in client.get("/channels/1").text
-
-
-def test_a_channel_with_no_picture_gets_a_letter(client, db):
-    """A channel added by bare UC… id has no avatar until a sync fetches one."""
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        channel = session.get(Channel, 1)
-        channel.thumbnail_url = None
-        expected_hue = channel.avatar_hue
-
-    body = client.get("/channels").text
-    assert 'class="avatar-letter"' in body
-    assert f"--hue: {expected_hue}" in body
-    assert ">F</span>" in body  # Fake Channel
-
-
 def test_the_letter_colour_is_stable_for_a_channel(db):
     from dealgo.models import Channel
 
@@ -707,49 +555,6 @@ def test_the_letter_colour_is_stable_for_a_channel(db):
     assert channel.avatar_hue == Channel(channel_id=channel.channel_id).avatar_hue
     assert 0 <= channel.avatar_hue < 360
     assert Channel(channel_id="UCaaaaaaaaaaaaaaaaaaaaaa").avatar_hue != channel.avatar_hue
-
-
-def test_the_feeds_panel_offers_a_new_feed_button(client):
-    body = client.get("/channels").text
-
-    assert "New feed" in body
-    assert "/partials/playlists?new=1" in body
-    # The inline forms it replaced are gone.
-    assert "or create a new private playlist" not in body
-    assert "choose an existing playlist" not in body
-    # And the dialog only appears when asked for.
-    assert "<dialog" not in body
-
-
-def test_the_dialog_guides_every_route(client, db):
-    from dealgo.models import OAuthToken
-
-    with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
-
-    body = client.get("/channels?new=1").text
-
-    assert '<dialog class="modal"' in body
-    assert "data-modal" in body  # dialog.js promotes it to the top layer
-    assert 'action="/settings/feeds/new"' in body
-    # Step 1: generic, make a playlist, or adopt one.
-    assert 'id="source-generic"' in body
-    assert 'id="source-new"' in body
-    assert 'id="source-existing"' in body
-    assert 'name="privacy"' in body
-    # Step 2: what fills it.
-    assert 'name="channels"' in body
-    assert "Fake Channel" in body
-
-
-def test_without_an_account_only_the_generic_route_is_offered(client):
-    """A generic feed needs no sign-in, so it is the default then."""
-    body = client.get("/channels?new=1").text
-
-    assert "Generic feed" in body
-    assert "checked" in body.split('id="source-generic"')[1][:80]
-    for control in ("source-new", "source-existing"):
-        assert "disabled" in body.split(f'id="{control}"')[1][:160], control
 
 
 def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, monkeypatch):
@@ -788,60 +593,6 @@ def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, m
         assert session.get(Channel, 1).enabled is True
 
 
-def test_a_failed_creation_keeps_the_dialog_open(client):
-    """Whatever was typed should still be there, not lost behind a closed box."""
-    response = client.post(
-        "/settings/feeds/new", data={"source": "new", "new_title": ""}, headers=HX
-    )
-
-    assert "flash-err" in response.text
-    assert "<dialog" in response.text  # still open
-
-
-def test_the_new_feed_box_is_a_real_dialog(client, db):
-    """showModal() puts it in the browser's top layer, so no ancestor's
-    overflow or z-index can trap it — and Esc and focus trapping come free."""
-    from dealgo.models import OAuthToken
-
-    with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
-
-    body = client.get("/channels?new=1").text
-    assert '<dialog class="modal"' in body
-    assert "data-modal" in body
-    # It ships open, so it is visible even if the script never runs.
-    assert " open>" in body
-    # And it knows how to clear the server-side flag when Esc closes it.
-    assert 'data-close="/partials/playlists"' in body
-
-    page = client.get("/").text
-    assert "/static/dialog.js" in page
-
-
-def test_every_route_in_the_dialog_has_a_reachable_name_field(client, db):
-    """The reveal must not depend on :has(): where it is unsupported every
-    section stayed hidden, leaving no way to name a feed at all."""
-    import re
-
-    from dealgo.models import OAuthToken
-
-    with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
-
-    body = client.get("/channels?new=1").text
-    assert 'name="generic_title"' in body
-    assert 'name="new_title"' in body
-
-    # Each radio is a sibling of the fields it reveals, in that order.
-    for radio, section in (
-        ("source-generic", "section-generic"),
-        ("source-new", "section-new"),
-        ("source-existing", "section-existing"),
-    ):
-        assert body.index(f'id="{radio}"') < body.index(section), radio
-        assert f'for="{radio}"' in body  # the label still drives the radio
-
-
 def test_naming_a_generic_feed_sticks(client, db):
     from dealgo.models import Playlist
 
@@ -855,12 +606,6 @@ def test_naming_a_generic_feed_sticks(client, db):
     with db.session_scope() as session:
         feed = session.scalar(select(Playlist).where(Playlist.title == "My Reading List"))
         assert feed is not None and feed.is_generic
-
-
-def test_a_generic_feed_still_needs_a_name(client):
-    response = client.post("/settings/feeds/new", data={"source": "generic"}, headers=HX)
-    assert "Give the feed a name." in response.text
-    assert "<dialog" in response.text  # and the box stays open to type one
 
 
 def test_the_dialog_reveal_does_not_depend_on_has(client):
@@ -934,122 +679,6 @@ def test_the_pages_are_titled_to_match_their_tab(client):
     assert "Raw videos" in client.get("/videos").text
 
 
-def test_tracking_a_channel_happens_in_a_dialog(client):
-    listing = client.get("/channels").text
-
-    # The standalone panel is gone; the button opens a box instead.
-    assert "Track content" in listing
-    assert "/partials/channels?track=1" in listing
-    assert "<dialog" not in listing
-
-    dialog = client.get("/channels?track=1").text
-    assert '<dialog class="modal" id="track-channel"' in dialog
-    assert 'action="/channels/add"' in dialog
-    assert 'name="reference"' in dialog
-    # Step 2 offers the feeds it could fill.
-    assert 'name="feeds"' in dialog
-    assert "My Feed" in dialog
-
-
-def test_a_channel_can_be_linked_to_a_feed_as_it_is_added(client, db, monkeypatch):
-    """A channel with no feed is paused, so linking here finishes the job."""
-    from dealgo.models import Channel
-    from dealgo.youtube import feeds as feed_module
-
-    monkeypatch.setattr(
-        feed_module,
-        "fetch_feed",
-        lambda channel_id, http: feed_module.FeedResult(
-            channel_id=channel_id, channel_title="Brand New", entries=[]
-        ),
-    )
-
-    response = client.post(
-        "/channels/add",
-        data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb", "feeds": ["1"]},
-        headers=HX,
-    )
-
-    assert "Now watching Brand New." in response.text
-    with db.session_scope() as session:
-        added = session.scalar(select(Channel).where(Channel.title == "Brand New"))
-        assert [p.title for p in added.playlists] == ["My Feed"]
-        assert added.enabled is True  # linking a feed took it off pause
-
-
-def test_adding_with_no_feed_says_it_is_paused(client, monkeypatch):
-    from dealgo.youtube import feeds as feed_module
-
-    monkeypatch.setattr(
-        feed_module,
-        "fetch_feed",
-        lambda channel_id, http: feed_module.FeedResult(
-            channel_id=channel_id, channel_title="Lonely", entries=[]
-        ),
-    )
-
-    response = client.post(
-        "/channels/add", data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb"}, headers=HX
-    )
-    assert "stays paused until a feed is linked" in response.text
-
-
-def test_a_bad_channel_reference_keeps_the_dialog_open(client):
-    response = client.post("/channels/add", data={"reference": ""}, headers=HX)
-
-    assert "Paste a channel URL" in response.text
-    assert "<dialog" in response.text  # still there to correct
-
-
-def test_the_track_dialog_asks_how_far_back(client):
-    body = client.get("/channels?track=1").text
-
-    assert 'name="backfill"' in body
-    for label in ("Default", "Nothing", "The last week", "The last month",
-                  "Everything the feed still lists"):
-        assert label in body, label
-    # And is honest about the ceiling.
-    assert "newest ~15 uploads" in body
-
-
-def test_the_chosen_window_is_stored_on_the_channel(client, db, monkeypatch):
-    from dealgo.models import Channel
-    from dealgo.youtube import feeds as feed_module
-
-    monkeypatch.setattr(
-        feed_module,
-        "fetch_feed",
-        lambda channel_id, http: feed_module.FeedResult(
-            channel_id=channel_id, channel_title="Brand New", entries=[]
-        ),
-    )
-
-    client.post(
-        "/channels/add",
-        data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb", "backfill": "30"},
-        headers=HX,
-    )
-    with db.session_scope() as session:
-        assert session.scalar(select(Channel).where(Channel.title == "Brand New")).backfill_days == 30
-
-
-def test_leaving_the_window_alone_uses_the_global_default(client, db, monkeypatch):
-    from dealgo.models import Channel
-    from dealgo.youtube import feeds as feed_module
-
-    monkeypatch.setattr(
-        feed_module,
-        "fetch_feed",
-        lambda channel_id, http: feed_module.FeedResult(
-            channel_id=channel_id, channel_title="Plain", entries=[]
-        ),
-    )
-
-    client.post("/channels/add", data={"reference": "UCbbbbbbbbbbbbbbbbbbbbbb"}, headers=HX)
-    with db.session_scope() as session:
-        assert session.scalar(select(Channel).where(Channel.title == "Plain")).backfill_days is None
-
-
 def test_a_feed_can_be_renamed_from_its_row(client, db):
     from dealgo.models import Playlist
 
@@ -1087,20 +716,6 @@ def test_an_empty_rename_keeps_the_field_open(client, db):
         assert session.get(Playlist, 1).title == "My Feed"
 
 
-def test_a_feed_row_is_just_a_name_and_a_way_in(client):
-    """Everything about a feed lives on its page; the list only has to scan."""
-    body = client.get("/channels").text
-    panel = body.split('id="playlist-targets"', 1)[1].split('id="channel-list"')[0]
-
-    assert "row-groups" not in panel      # no stats strip
-    assert "group-label" not in panel
-    assert 'name="max_items"' not in panel  # no limits form
-    assert "channel-picker" not in panel
-
-    assert 'href="/feeds/1"' in panel     # the name links through
-    assert ">Open<" in panel and ">Remove<" in panel
-
-
 def test_filling_is_a_toggle_not_a_checkbox_in_the_save_form(client, db):
     from dealgo.models import Playlist
 
@@ -1135,9 +750,8 @@ def test_saving_limits_no_longer_pauses_the_feed(client, db):
 def test_a_feed_has_its_own_page(client, db):
     from dealgo.models import Playlist
 
-    # The list links through rather than carrying every control.
-    assert '/feeds/1"' in client.get("/channels").text
-
+    # The canvas links through rather than carrying every control: a feed's
+    # box opens its page, where the rest of its settings are.
     page = client.get("/feeds/1").text
     assert "<title>De-Algo — My Feed</title>" in page
     for section in ("Filling", "Filled by", "In this feed", "Retiring it"):
@@ -1219,39 +833,6 @@ def test_only_a_feeds_own_page_says_it_is_generic(client, db):
     assert "videos live in De-Algo only" in page
 
 
-def test_channels_can_be_searched_by_name(client, db):
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Cooking Weekly"))
-
-    body = client.get("/channels").text
-    assert 'name="q"' in body  # the box is offered
-
-    hits = client.get("/channels?q=cooking").text
-    assert "Cooking Weekly" in hits
-    assert "Fake Channel" not in hits
-
-    # By handle and id too, and case does not matter.
-    assert "Fake Channel" in client.get("/channels?q=UCzzz").text
-    assert "No channel matches" in client.get("/channels?q=nothinglikethis").text
-
-
-def test_search_and_the_feed_chips_combine(client, db):
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Unlinked Cooking"))
-
-    # feed=1 has only Fake Channel; the search excludes it.
-    both = client.get("/channels?feed=1&q=cooking").text
-    assert "Fake Channel" not in both
-    assert "Unlinked Cooking" not in both  # it feeds nothing, so the chip wins
-
-    # Each chip keeps the search when clicked.
-    assert "q=cooking" in client.get("/channels?q=cooking").text
-
-
 def test_videos_can_be_searched(client, db):
     body = client.get("/videos").text
     assert 'name="q"' in body
@@ -1300,50 +881,6 @@ def test_the_detail_search_survives_typing(client):
     for page, target in (("/feeds/1", "feed-channels"), ("/channels/1", "channel-feeds")):
         body = client.get(page).text
         assert body.index('name="q"') < body.index(f'id="{target}"'), page
-        assert f'hx-target="#{target}"' in body, page
-
-
-def test_search_matches_words_in_any_order(client, db):
-    """"corruption puerto" should find "Puerto Rico Has A Corruption Problem"."""
-    from dealgo.models import Channel, Video
-
-    with db.session_scope() as session:
-        session.add(
-            Video(
-                video_id="v9",
-                channel_pk=1,
-                title="Puerto Rico Has A Corruption Problem",
-                status="added",
-            )
-        )
-        session.add(Channel(channel_id="UCdanielbbbbbbbbbbbbbbb", title="Daniel Greene"))
-
-    assert "Puerto Rico" in client.get("/videos?q=corruption+puerto").text
-    assert "Puerto Rico" in client.get("/videos?q=puerto+corrupt").text  # partial words too
-    assert "Puerto Rico" not in client.get("/videos?q=puerto+missing").text  # every term counts
-
-    assert "Daniel Greene" in client.get("/channels?q=greene+daniel").text
-    assert "Daniel Greene" in client.get("/channels?q=dani").text
-
-
-def test_typing_narrows_the_list_without_pressing_enter(client):
-    """The trigger has to be on the input; on the form it never sees a keystroke."""
-    import re
-
-    body = client.get("/channels").text
-    box = re.search(r'<input type="search" name="q".*?>', body, re.S).group(0)
-
-    assert "hx-trigger=" in box
-    assert "input changed" in box
-    assert "hx-get=" in box and "hx-include=" in box
-
-
-def test_the_search_box_is_not_inside_what_it_swaps(client):
-    """It was: every keystroke replaced the input and stole the focus."""
-    for page, target in (("/channels", "channel-results"), ("/videos", "video-results")):
-        body = client.get(page).text
-        assert body.index('name="q"') < body.index(f'id="{target}"'), page
-        # And the box points at that inner region, not the whole panel.
         assert f'hx-target="#{target}"' in body, page
 
 

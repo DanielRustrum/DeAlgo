@@ -403,3 +403,92 @@ def test_adoption_leaves_other_accounts_alone(db, monkeypatch):
     with db.session_scope() as session:
         kept = session.scalar(select(Playlist).where(Playlist.title == "SamOwn"))
         assert kept.owner_pk == sam_pk
+
+
+# -- the canvas ------------------------------------------------------------
+#
+# The graph is a listing like any other, and its routes take node ids straight
+# off the wire. An id is a guess away, so each one is asked whose box it is.
+
+
+def test_the_canvas_only_draws_your_own(two_accounts):
+    client, _, _ = two_accounts
+    as_account(client, "sam", "member-password")
+
+    payload = client.get("/api/graph").json()
+    assert [node["title"] for node in payload["nodes"]] == []
+    assert payload["wires"] == []
+
+
+def test_another_accounts_box_cannot_be_moved(two_accounts):
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    admin_nodes = client.get("/api/graph").json()["nodes"]
+    assert admin_nodes, "the admin's setup should have drawn itself"
+    theirs = admin_nodes[0]
+
+    as_account(client, "sam", "member-password")
+    assert client.post(f"/graph/nodes/{theirs['id']}/move", data={"x": 5, "y": 5}).json() == {
+        "moved": False
+    }
+
+
+def test_another_accounts_boxes_cannot_be_wired_together(two_accounts):
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    admin_nodes = client.get("/api/graph").json()["nodes"]
+    source = next(node for node in admin_nodes if node["kind"] == "source")
+    feed = next(node for node in admin_nodes if node["kind"] == "feed")
+
+    as_account(client, "sam", "member-password")
+    refused = client.post("/graph/connect", data={"source": source["id"], "target": feed["id"]})
+    assert refused.status_code == 404
+
+    assert client.post(f"/graph/nodes/{source['id']}/delete").status_code == 404
+    assert client.post(f"/graph/nodes/{source['id']}", data={"label": "mine now"}).status_code == 404
+
+
+def test_another_accounts_wire_cannot_be_cut(two_accounts):
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    wires = client.get("/api/graph").json()["wires"]
+    assert len(wires) == 1, "the admin's channel feeds the admin's playlist"
+
+    as_account(client, "sam", "member-password")
+    client.post("/graph/disconnect", data={"wire": wires[0]["id"]})
+
+    as_account(client, *ADMIN)
+    assert len(client.get("/api/graph").json()["wires"]) == 1
+
+
+def test_another_accounts_item_cannot_be_followed(two_accounts, db):
+    client, _, _ = two_accounts
+    with db.session_scope() as session:
+        video_pk = session.scalar(select(Video.id).where(Video.video_id == "vid-admin"))
+
+    as_account(client, "sam", "member-password")
+    assert client.get(f"/graph/trace/{video_pk}").status_code == 404
+
+
+def test_another_accounts_trigger_cannot_be_pressed(two_accounts):
+    """A pulse polls channels. Pressing somebody else's would be reaching into
+    their account to make it fetch."""
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    added = client.post("/graph/nodes", data={"kind": "pulse"}).json()
+    theirs = next(node for node in added["nodes"] if node["kind"] == "trigger")
+    source = next(node for node in added["nodes"] if node["kind"] == "source")
+    client.post("/graph/connect", data={"source": theirs["id"], "target": source["id"]})
+
+    as_account(client, "sam", "member-password")
+    assert client.post(f"/graph/nodes/{theirs['id']}/fire").status_code == 400
+    assert client.post(f"/graph/nodes/{theirs['id']}/delete").status_code == 404
+
+
+def test_a_new_accounts_canvas_has_no_triggers_either(two_accounts):
+    client, _, _ = two_accounts
+    as_account(client, *ADMIN)
+    client.post("/graph/nodes", data={"kind": "schedule"})
+
+    as_account(client, "sam", "member-password")
+    assert client.get("/api/graph").json()["nodes"] == []
