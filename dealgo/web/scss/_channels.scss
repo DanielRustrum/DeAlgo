@@ -131,3 +131,30 @@ p.blurb, .blurb-text { white-space: pre-line; margin: 0; }
   .row-groups { grid-template-columns: 1fr; gap: 10px; }
   .channel-avatar { width: 36px; height: 36px; }
 }
+
+
+// -- the sources list -------------------------------------------------------
+//
+// One row per channel: who it is, and what it is labelled. Everything else
+// about a channel lives on its own page or on the canvas.
+.source-rows { list-style: none; margin: 0; padding: 0; }
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.source-row:last-child { border-bottom: none; }
+.source-row.row-off { opacity: 0.6; }
+.source-row.row-off:hover { opacity: 1; }
+.source-id { flex: 1; min-width: 0; }
+.source-id .channel-name { font-size: 15px; }
+.source-row .tag-form { flex: none; }
+.source-row .tag-form input { min-width: 200px; }
+
+@include phone {
+  .source-row { flex-wrap: wrap; }
+  .source-row .tag-form { width: 100%; }
+  .source-row .tag-form input { min-width: 0; flex: 1; }
+}

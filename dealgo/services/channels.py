@@ -118,6 +118,46 @@ BACKFILL_CHOICES: tuple[tuple[str, str], ...] = (
 )
 
 
+def set_tags(session: Session, channel: Channel, raw: str) -> list[str]:
+    """Normalise free-form tags: comma separated, lowercase, deduped.
+
+    The same shape as a feed's, so a person learns one thing rather than two —
+    and so a tag typed as "News" finds the one typed as "news".
+    """
+    seen: list[str] = []
+    for piece in (raw or "").replace("\n", ",").split(","):
+        tag = " ".join(piece.split()).lower()[:40]
+        if tag and tag not in seen:
+            seen.append(tag)
+    channel.tags = ", ".join(seen[:20]) or None
+    session.flush()
+    return seen
+
+
+def tagged(session: Session, tag: str, owner: OwnerId = None) -> list[Channel]:
+    """Every channel carrying this tag, in the order they are polled.
+
+    Matched whole rather than as a substring: "news" is not "newsroom", and a
+    node that quietly picked up both would be a node nobody could trust.
+    """
+    wanted = " ".join((tag or "").split()).lower()
+    if not wanted:
+        return []
+    return [
+        channel
+        for channel in list_channels(session, owner)
+        if wanted in channel.tag_list
+    ]
+
+
+def all_tags(session: Session, owner: OwnerId = None) -> list[str]:
+    """Every tag in use, once each, in alphabetical order."""
+    seen: set[str] = set()
+    for channel in list_channels(session, owner):
+        seen.update(channel.tag_list)
+    return sorted(seen)
+
+
 def parse_backfill(raw: str | None) -> int | None:
     """An empty choice means the global default; anything else is a day count."""
     text = (raw or "").strip()

@@ -160,6 +160,10 @@ class Route:
     filters: list[GraphNode] = field(default_factory=list)
     #: Sort boxes on this path, in the order they are passed through.
     sorts: list[GraphNode] = field(default_factory=list)
+    #: The node this path started at. Carried rather than looked up: a tag
+    #: node stands for several channels and a channel may be drawn twice, so
+    #: there is no answering "which node is this channel" after the fact.
+    source: GraphNode | None = None
 
     @property
     def order(self) -> GraphNode | None:
@@ -193,6 +197,24 @@ class Route:
 
 
 # -- reading ---------------------------------------------------------------
+
+
+def channels_of(session: Session, node: GraphNode, owner: OwnerId = None) -> list[Channel]:
+    """Which channels a source node stands for.
+
+    One, when it names a channel. Every channel carrying a tag, when it names
+    a tag instead — which is the whole point of the second kind: a channel
+    tagged later joins the flow without anything being rewired.
+    """
+    from . import channels as channel_service
+
+    if node.kind != "source":
+        return []
+    if node.tag:
+        # Switched off it stands for nothing, which is what stops the flow at
+        # it — the same as a filter or a sort that is switched off.
+        return channel_service.tagged(session, node.tag, owner) if node.enabled else []
+    return [node.channel] if node.channel is not None else []
 
 
 def nodes(session: Session, owner: OwnerId = None) -> list[GraphNode]:
@@ -237,15 +259,20 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
 
     found: list[Route] = []
     for node in all_nodes:
-        if node.kind != "source" or node.channel is None:
+        if node.kind != "source":
             continue
-        # The direct wires: the channel-to-feed links, unfiltered by anything
-        # but the channel itself.
-        for playlist in node.channel.playlists:
-            if playlist.id in feed_node_for:
-                found.append(Route(channel=node.channel, playlist=playlist))
-        # And the paths that go through filter nodes.
-        _walk(node, by_id, out, node.channel, [], set(), found)
+        for channel in channels_of(session, node, owner):
+            # The direct wires: the channel-to-feed links, unfiltered by
+            # anything but the channel itself. A tag node has none of these —
+            # a link belongs to a channel, and a tag is not one.
+            if not node.tag:
+                for playlist in channel.playlists:
+                    if playlist.id in feed_node_for:
+                        found.append(
+                            Route(channel=channel, playlist=playlist, source=node)
+                        )
+            # And the paths that go through filter nodes.
+            _walk(node, by_id, out, channel, [], set(), found, source=node)
     return _once_each(found)
 
 
@@ -283,6 +310,7 @@ def _walk(
     seen: set[int],
     found: list[Route],
     ordered: list[GraphNode] | None = None,
+    source: GraphNode | None = None,
 ) -> None:
     """Depth-first from a source, collecting what it passes until a feed.
 
@@ -306,6 +334,7 @@ def _walk(
                         playlist=target.playlist,
                         filters=list(carried),
                         sorts=list(ordered),
+                        source=source,
                     )
                 )
         elif target.kind in MIDDLE and target.enabled:
@@ -320,6 +349,7 @@ def _walk(
                 seen,
                 found,
                 ordered + [target] if target.kind == "sort" else ordered,
+                source,
             )
 
 
@@ -460,8 +490,11 @@ def triggers_for(session: Session, owner: OwnerId = None) -> dict[int, list[Grap
             continue
         if not start.enabled:
             continue  # a trigger that is switched off sets nothing off
-        if start.kind == "trigger" and end.kind == "source" and end.channel_pk is not None:
-            wired.setdefault(end.channel_pk, []).append(start)
+        if start.kind == "trigger" and end.kind == "source":
+            # A tag node stands for several channels, and a trigger wired to
+            # it is wired to all of them.
+            for channel in channels_of(session, end, owner):
+                wired.setdefault(channel.id, []).append(start)
     return wired
 
 
@@ -514,8 +547,13 @@ def wired_channels(
         if edge.source_pk != node.id:
             continue
         target = by_id.get(edge.target_pk)
-        if target is not None and target.kind == "source" and target.channel_pk is not None:
-            reached.append(target.channel_pk)
+        if target is None or target.kind != "source":
+            continue
+        # Whatever that node stands for: one channel, or every channel
+        # carrying its tag.
+        for channel in channels_of(session, target, owner):
+            if channel.id not in reached:
+                reached.append(channel.id)
     return reached
 
 
@@ -699,12 +737,13 @@ def _paths_into(session: Session, node: GraphNode, owner: OwnerId) -> list[Route
             earlier = by_id.get(source_id)
             if earlier is None:
                 continue
-            if earlier.kind == "source" and earlier.channel is not None:
+            if earlier.kind == "source":
                 # A route needs a feed to name; nothing here asks for one, and
                 # the placeholder is never read.
-                found.append(
-                    Route(channel=earlier.channel, playlist=Playlist(), filters=list(carried))
-                )
+                for channel in channels_of(session, earlier, owner):
+                    found.append(
+                        Route(channel=channel, playlist=Playlist(), filters=list(carried))
+                    )
             elif earlier.kind == "filter" and earlier.enabled:
                 walk(earlier, [earlier] + carried, seen)
 
@@ -966,7 +1005,6 @@ def try_it(
     the moment it is most wanted.
     """
     all_nodes, _ = load(session, owner)
-    source_node = {node.channel_pk: node for node in all_nodes if node.kind == "source"}
     feed_node = {node.playlist_pk: node for node in all_nodes if node.kind == "feed"}
 
     trial = Trial()
@@ -977,7 +1015,7 @@ def try_it(
             continue
         if channels is not None and path.channel.id not in channels:
             continue  # asked of one trigger: only what that trigger sets off
-        start, end = source_node.get(path.channel.id), feed_node.get(path.playlist.id)
+        start, end = path.source, feed_node.get(path.playlist.id)
         if start is None or end is None:
             continue
 
@@ -1171,7 +1209,10 @@ def connect(
     if target.kind not in ALLOWED.get(source.kind, ()):
         raise GraphError(f"A {source.kind} cannot feed a {target.kind}.")
 
-    if source.kind == "source" and target.kind == "feed":
+    # A source that names a channel wires to a feed by writing the link that
+    # channel already has. A tag node names no single channel, so there is no
+    # such link to write and the wire is an edge like any other.
+    if source.kind == "source" and target.kind == "feed" and not source.tag:
         if source.channel is None or target.playlist is None:
             raise GraphError("That node no longer has anything behind it.")
         if target.playlist not in source.channel.playlists:
@@ -1389,6 +1430,7 @@ def add_source(
     owner: OwnerId = None,
     *,
     channel: Channel | None = None,
+    tag: str | None = None,
     x: int = 0,
     y: int = 0,
 ) -> GraphNode:
@@ -1403,6 +1445,7 @@ def add_source(
         owner_pk=owner,
         kind="source",
         channel_pk=channel.id if channel is not None else None,
+        tag=" ".join((tag or "").split()).lower() or None,
         x=x,
         y=y,
     )

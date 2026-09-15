@@ -703,6 +703,63 @@ def api_status(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
+# -- sources --------------------------------------------------------------
+#
+# What this account watches, and the labels it groups them by. Separate from
+# the canvas on purpose: this is the list of what is available, the canvas is
+# what is done with it.
+
+
+@app.get("/sources", response_class=HTMLResponse)
+def sources_page(request: Request) -> HTMLResponse:
+    owner = owner_of(request)
+    with session_scope() as session:
+        context = {
+            "channels": channel_service.list_channels(session, owner),
+            "tags": channel_service.all_tags(session, owner),
+        }
+    return render(request, "sources.html", context)
+
+
+@app.post("/sources")
+def add_source(request: Request, reference: str = Form(""), tags: str = Form("")) -> Response:
+    """Start watching a channel, and label it while it is being added."""
+    owner = owner_of(request)
+    wanted = reference.strip()
+    if not wanted:
+        return redirect("/sources", err="Give it a channel — an @handle, a URL, or a UC… id.")
+
+    with session_scope() as session, _http_client() as http:
+        try:
+            channel = channel_service.add_channel(session, wanted, http, owner=owner)
+        except channel_service.ChannelError as exc:
+            return redirect("/sources", err=str(exc))
+        if tags.strip():
+            channel_service.set_tags(session, channel, tags)
+        title = channel.title
+
+    return redirect(
+        "/sources",
+        ok=f"Watching {title}. Wire it up on the Configuration canvas to give it somewhere to go.",
+    )
+
+
+@app.post("/sources/{channel_pk}/tags")
+def tag_source(request: Request, channel_pk: int, tags: str = Form("")) -> Response:
+    owner = owner_of(request)
+    with session_scope() as session:
+        channel = session.scalar(
+            owned(select(Channel), Channel, owner).where(Channel.id == channel_pk)
+        )
+        if channel is None:
+            return redirect("/sources", err="That source is no longer here.")
+        kept = channel_service.set_tags(session, channel, tags)
+        title = channel.title
+
+    said = ", ".join(kept) if kept else "nothing"
+    return redirect("/sources", ok=f"{title} is tagged {said}.")
+
+
 # -- channels -------------------------------------------------------------
 
 
@@ -1816,6 +1873,14 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
     facts = _channel_facts(session, owner)
     windows = graph_service.consumption(session, owner)
     opening = {node.id for wired in windows.values() for node in wired}
+    known_tags = channel_service.all_tags(session, owner)
+    # Worked out once for the whole payload rather than per node: a tag node
+    # asks the same question of the same list every time.
+    holding = {
+        node.id: channel_service.tagged(session, node.tag, owner)
+        for node in nodes
+        if node.kind == "source" and node.tag
+    }
     return {
         "nodes": [
             {
@@ -1829,7 +1894,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     else f"/feeds/{node.playlist_pk}" if node.kind == "feed" and node.playlist_pk
                     else None
                 ),
-                "note": _node_note(node, opening),
+                "note": _node_note(node, opening, holding.get(node.id, [])),
                 "enabled": _is_on(node),
                 "size": (
                     None
@@ -1841,6 +1906,18 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 ),
                 "polled": _how_polled(node, plan) if node.kind == "source" else None,
                 "channel": facts.get(node.channel_pk or 0) if node.kind == "source" else None,
+                "tag": (
+                    None
+                    if not (node.kind == "source" and node.tag)
+                    else {
+                        "name": node.tag,
+                        "channels": [
+                            channel.title or channel.channel_id
+                            for channel in holding.get(node.id, [])
+                        ],
+                        "known": known_tags,
+                    }
+                ),
                 "feed": (
                     _feed_facts(node, windows.get(node.playlist_pk or 0, []))
                     if node.kind == "feed"
@@ -1883,6 +1960,13 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
             for node in nodes
         ],
         "wires": graph_service.wires(session, owner),
+        # What is already watched, for a channel node to be pointed at rather
+        # than told again. Sent once for the whole canvas: every empty channel
+        # node offers the same list.
+        "sources": [
+            {"id": channel.id, "title": channel.title or channel.channel_id}
+            for channel in channel_service.list_channels(session, owner)
+        ],
     }
 
 
@@ -1931,7 +2015,9 @@ def _is_on(node: GraphNode) -> bool:
     that is where the rest of the app reads it from. A filter or trigger box
     stands for nothing else, so it answers for itself.
     """
-    if node.kind == "source":
+    # A tag node stands for no one channel, so there is nothing else for it to
+    # answer for: it keeps its own switch, as a filter or a trigger does.
+    if node.kind == "source" and not node.tag:
         return node.channel.enabled if node.channel is not None else False
     if node.kind == "feed":
         return node.playlist.enabled if node.playlist is not None else False
@@ -2037,7 +2123,11 @@ def _join_clauses(parts: list[str]) -> str:
 
 
 
-def _node_note(node: GraphNode, opening: set[int] | None = None) -> str:
+def _node_note(
+    node: GraphNode,
+    opening: set[int] | None = None,
+    holding: list[Channel] | None = None,
+) -> str:
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
         return "drag it to move everything in it"
@@ -2052,6 +2142,9 @@ def _node_note(node: GraphNode, opening: set[int] | None = None) -> str:
             return node.cron or graph_service.DEFAULT_CRON
         every = node.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
         return f"every {graph_service.every_words(every)}"
+    if node.kind == "source" and node.tag:
+        held = len(holding or [])
+        return f"{held} source{'s' if held != 1 else ''} with this tag"
     if node.kind == "source":
         channel = node.channel
         if channel is None:
@@ -2159,6 +2252,12 @@ def graph_add_node(
     with session_scope() as session:
         if kind == "source":
             graph_service.add_source(session, owner, x=x, y=y)
+        elif kind == "tagged":
+            # Named now rather than filled in later: an untagged tag node
+            # stands for nothing, and would draw as a node with no meaning.
+            graph_service.add_source(
+                session, owner, tag=title.strip() or "untagged", x=x, y=y
+            )
         elif kind == "feed":
             try:
                 playlist = playlist_service.create_generic(
@@ -2404,17 +2503,24 @@ def _run_marks(
     """
     boxes = graph_service.nodes(session, owner)
     set_off = _trigger_targets(session, boxes, owner)
+    # Which channels each source node stands for: one for a channel node, and
+    # however many carry the tag for a tag node.
+    stands_for = {
+        node.id: [channel.id for channel in graph_service.channels_of(session, node, owner)]
+        for node in boxes
+        if node.kind == "source"
+    }
 
     marks: dict[str, Context] = {}
     for node in boxes:
-        mark = _mark_for(node, state, set_off.get(node.id, []))
+        mark = _mark_for(node, state, set_off.get(node.id, []), stands_for.get(node.id, []))
         if mark is not None:
             marks[str(node.id)] = mark
 
     # Whatever is happening this second outranks whatever came before it.
-    for node in boxes:
-        if node.kind == "source" and node.channel_pk == state.channel_pk:
-            marks[str(node.id)] = _busy()
+    for node_id, channels in stands_for.items():
+        if state.channel_pk is not None and state.channel_pk in channels:
+            marks[str(node_id)] = _busy()
     if state.fired_by is not None and not state.finished:
         marks[str(state.fired_by)] = _busy()
     return marks
@@ -2430,8 +2536,11 @@ def _trigger_targets(
         start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
         if start is None or end is None or start.kind != "trigger":
             continue
-        if end.kind == "source" and end.channel_pk is not None:
-            wired.setdefault(start.id, []).append(end.channel_pk)
+        if end.kind == "source":
+            # A tag node is several channels, and a trigger on it sets off all
+            # of them.
+            for channel in graph_service.channels_of(session, end, owner):
+                wired.setdefault(start.id, []).append(channel.id)
     return wired
 
 
@@ -2440,7 +2549,10 @@ def _busy() -> Context:
 
 
 def _mark_for(
-    node: GraphNode, state: sync_service.RunProgress, targets: list[int]
+    node: GraphNode,
+    state: sync_service.RunProgress,
+    targets: list[int],
+    stands_for: list[int],
 ) -> Context | None:
     """One box's share of the run, or None if nothing of the run got to it.
 
@@ -2458,10 +2570,13 @@ def _mark_for(
         return _mark(len(reached), 0, ends=not reached)
 
     if node.kind == "source":
-        if node.channel_pk not in state.polled:
+        # Every channel it stands for, added up: a tag node is one box over
+        # several channels, and reports what all of them did.
+        polled = [channel_pk for channel_pk in stands_for if channel_pk in state.polled]
+        if not polled:
             return None
-        found = state.polled.get(node.channel_pk or 0, 0)
-        left = state.left.get(node.channel_pk or 0, 0)
+        found = sum(state.polled.get(channel_pk, 0) for channel_pk in polled)
+        left = sum(state.left.get(channel_pk, 0) for channel_pk in polled)
         return _mark(left, max(0, found - left))
 
     if node.kind == "filter":
@@ -2513,6 +2628,8 @@ def graph_save_node(
     node_pk: int,
     label: str = Form(""),
     handle: str = Form(""),
+    source_pk: str = Form(""),
+    tag: str = Form(""),
     backfill: str = Form(""),
     # An unticked checkbox is not submitted at all, so "off" and "this form
     # never showed the switch" arrive looking identical. This marker is what
@@ -2556,7 +2673,15 @@ def graph_save_node(
         if node is None:
             return JSONResponse({"error": "That node is not here."}, status_code=404)
 
-        if node.kind == "source" and handle.strip():
+        if node.kind == "source" and node.tag and tag.strip():
+            node.tag = " ".join(tag.split()).lower()
+            session.flush()
+        elif node.kind == "source" and source_pk.strip().isdigit():
+            # Pointed at something already watched, rather than told again.
+            answer = _attach_watched(session, node, int(source_pk), owner)
+            if answer is not None:
+                return answer
+        elif node.kind == "source" and handle.strip():
             answer = _attach_channel(session, node, handle.strip(), backfill, owner)
             if answer is not None:
                 return answer
@@ -2637,7 +2762,7 @@ def _attach_channel(
 
 def _switch(node: GraphNode, *, on: bool) -> None:
     """Turn a box on or off, wherever that box keeps the answer."""
-    if node.kind == "source" and node.channel is not None:
+    if node.kind == "source" and node.channel is not None and not node.tag:
         node.channel.enabled = on
     elif node.kind == "feed" and node.playlist is not None:
         node.playlist.enabled = on
@@ -2689,6 +2814,21 @@ def _save_channel(
             apply(session, channel, include=wanted)
 
     session.flush()
+
+
+def _attach_watched(
+    session: Session, node: GraphNode, channel_pk: int, owner: OwnerId
+) -> JSONResponse | None:
+    """Point an empty channel node at a source already being watched."""
+    if node.channel is not None:
+        return None
+    channel = session.scalar(
+        owned(select(Channel), Channel, owner).where(Channel.id == channel_pk)
+    )
+    if channel is None:
+        return JSONResponse({"error": "That source is not here."}, status_code=400)
+    graph_service.attach_channel(session, node, channel, owner)
+    return None
 
 
 def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Channel | None:

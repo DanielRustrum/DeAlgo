@@ -64,6 +64,7 @@ function asGraphNode(value) {
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
         channel: asGraphChannel(raw["channel"]),
+        tag: asGraphTag(raw["tag"]),
         feed: asGraphFeed(raw["feed"]),
         overrides: asGraphOverrides(raw["overrides"]),
     };
@@ -81,6 +82,17 @@ function asGraphFeed(value) {
         maxItems: typeof raw["max_items"] === "number" ? raw["max_items"] : 0,
         maxPerRun: typeof raw["max_per_run"] === "number" ? raw["max_per_run"] : 0,
         generic: raw["generic"] === true,
+    };
+}
+function asGraphTag(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const strings = (from) => Array.isArray(from) ? from.filter((entry) => typeof entry === "string") : [];
+    return {
+        name: typeof raw["name"] === "string" ? raw["name"] : "",
+        channels: strings(raw["channels"]),
+        known: strings(raw["known"]),
     };
 }
 function asGraphChannel(value) {
@@ -206,7 +218,20 @@ function asGraph(value) {
         if (wire !== null)
             readWires.push(wire);
     }
-    return { nodes: readNodes, wires: readWires };
+    const watched = [];
+    const offered = raw["sources"];
+    if (Array.isArray(offered)) {
+        for (const entry of offered) {
+            const source = asGraphRecord(entry);
+            if (source === null || typeof source["id"] !== "number")
+                continue;
+            watched.push({
+                id: source["id"],
+                title: typeof source["title"] === "string" ? source["title"] : "",
+            });
+        }
+    }
+    return { nodes: readNodes, wires: readWires, sources: watched };
 }
 function asGraphError(value) {
     const raw = asGraphRecord(value);
@@ -236,6 +261,7 @@ async function applyGraph(state, url, body) {
         }
         state.nodes = view.nodes;
         state.wires = view.wires;
+        state.sources = view.sources;
         forgetMissingGraph(state);
         showGraphError(state, null);
         renderGraph(state);
@@ -378,6 +404,8 @@ function drawGraphNode(state, node) {
 }
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node) {
+    if (node.tag !== null)
+        return "Tag";
     if (node.trigger === null)
         return graphKindLabel(node.kind);
     return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
@@ -751,8 +779,10 @@ function graphNodeForm(state, node) {
     form.appendChild(graphLabelled("Name", name));
     if (node.kind === "group")
         graphGroupFields(form, node);
+    else if (node.tag !== null)
+        graphTagFields(form, node.tag);
     else if (node.kind === "source")
-        graphChannelFields(form, node);
+        graphChannelFields(state, form, node);
     else if (node.kind === "feed")
         graphFeedFields(form, node);
     else if (node.sort !== null)
@@ -843,7 +873,11 @@ function graphActive(node) {
 }
 /** What taking this box away costs, said before it is taken away. */
 function graphRemovalWarning(node) {
-    if (node.kind === "source") {
+    // Only where something is actually at stake. An empty channel node names no
+    // channel, and a tag node stands for channels it does not own — taking
+    // either away costs nothing, and asking "its history goes too" of a node
+    // with no history is a frightening question about nothing.
+    if (node.kind === "source" && node.tag === null && node.detail !== null) {
         return `Stop watching ${node.title}? Its history goes too; anything already in a feed stays put.`;
     }
     if (node.kind === "feed") {
@@ -851,21 +885,109 @@ function graphRemovalWarning(node) {
     }
     return "";
 }
-function graphChannelFields(form, node) {
+/** A source node that stands for a tag rather than for one channel. */
+function graphTagFields(form, tag) {
+    const named = document.createElement("input");
+    named.type = "text";
+    named.name = "tag";
+    named.value = tag.name;
+    named.setAttribute("list", "graph-known-tags");
+    form.appendChild(graphLabelled("Sources tagged", named));
+    const group = graphElement("div", "graph-group");
+    group.appendChild(graphElement("span", "graph-group-name", `Standing for (${tag.channels.length})`));
+    if (tag.channels.length === 0) {
+        group.appendChild(graphElement("span", "graph-group-note", "Nothing carries this tag yet."));
+    }
+    for (const name of tag.channels) {
+        group.appendChild(graphElement("span", "graph-group-note", name));
+    }
+    form.appendChild(group);
+    form.appendChild(graphElement("p", "hint", "Tagged on the Sources page. A source tagged later joins this flow without anything being rewired."));
+    graphKnownTags(form, tag.known);
+}
+/** The tags already in use, offered to whatever is being typed. */
+function graphKnownTags(form, known) {
+    const list = document.createElement("datalist");
+    list.id = "graph-known-tags";
+    for (const name of known) {
+        const option = document.createElement("option");
+        option.value = name;
+        list.appendChild(option);
+    }
+    form.appendChild(list);
+}
+/** Pick one of the sources already watched, out of however many there are.
+ *
+ *  A search box above a real select rather than a list built from scratch: the
+ *  select keeps the keyboard, the form and the screen reader it already had,
+ *  and the box only decides which options are in it. */
+function graphSourcePicker(state, form) {
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = "Search sources…";
+    // No name: this narrows the list, it is not part of the answer.
+    search.autocomplete = "off";
+    const pick = document.createElement("select");
+    pick.name = "source_pk";
+    pick.size = Math.min(6, state.sources.length + 1);
+    const fill = () => {
+        const chosen = pick.value;
+        pick.textContent = "";
+        const none = document.createElement("option");
+        none.value = "";
+        none.textContent = "— or add one below —";
+        pick.appendChild(none);
+        const matching = state.sources.filter((source) => graphMatches(source.title, search.value));
+        for (const source of matching) {
+            const option = document.createElement("option");
+            option.value = String(source.id);
+            option.textContent = source.title;
+            option.selected = option.value === chosen;
+            pick.appendChild(option);
+        }
+        if (matching.length === 0 && search.value.trim() !== "") {
+            const nothing = document.createElement("option");
+            nothing.value = "";
+            nothing.disabled = true;
+            nothing.textContent = `Nothing matches “${search.value.trim()}”`;
+            pick.appendChild(nothing);
+        }
+    };
+    search.addEventListener("input", fill);
+    fill();
+    const holder = graphElement("div", "graph-picker");
+    holder.appendChild(search);
+    holder.appendChild(pick);
+    form.appendChild(graphLabelled("One of your sources", holder));
+}
+/** Whether a name answers to what has been typed.
+ *
+ *  Every word, in any order, part of a word counting — the same as searching
+ *  anywhere else here, so one habit serves the whole app. */
+function graphMatches(name, query) {
+    const terms = query.toLowerCase().split(/\s+/).filter((term) => term !== "");
+    const against = name.toLowerCase();
+    return terms.every((term) => against.includes(term));
+}
+function graphChannelFields(state, form, node) {
     if (node.detail === null) {
-        // An empty box: this is the field that decides what it stands for.
+        // An empty box: these are the fields that decide what it stands for.
+        // Something already watched first, because that needs no lookup and no
+        // credentials — and because most of the time it is already there.
+        if (state.sources.length > 0)
+            graphSourcePicker(state, form);
         const handle = document.createElement("input");
         handle.type = "text";
         handle.name = "handle";
         handle.placeholder = "@handle, a URL, or a UC… id";
-        form.appendChild(graphLabelled("Which channel", handle));
+        form.appendChild(graphLabelled("Or a new channel", handle));
         const backfill = document.createElement("input");
         backfill.type = "number";
         backfill.name = "backfill";
         backfill.min = "0";
         backfill.placeholder = "the newest few";
         form.appendChild(graphLabelled("How far back, in days", backfill));
-        form.appendChild(graphElement("p", "hint", "A handle needs Google or an API key; a UC… id needs neither. The channel stays paused until it is wired to a feed."));
+        form.appendChild(graphElement("p", "hint", "A handle needs Google or an API key; a UC… id needs neither, and one of your own sources needs nothing at all. A channel stays paused until it is wired to a feed."));
         return;
     }
     const channel = node.channel;
@@ -2122,11 +2244,15 @@ function moveGraphGhost(ghost, event) {
 }
 /** A pulse and a schedule are both trigger boxes, and look like one. */
 function graphPaletteKind(kind) {
-    return kind === "pulse" || kind === "schedule" ? "trigger" : kind;
+    if (kind === "pulse" || kind === "schedule")
+        return "trigger";
+    return kind === "tagged" ? "source" : kind;
 }
 function graphPaletteName(kind) {
     if (kind === "source")
         return "Channel";
+    if (kind === "tagged")
+        return "Tag";
     if (kind === "feed")
         return "Feed";
     if (kind === "filter")
@@ -2425,6 +2551,7 @@ function startGraph(canvas) {
         parts,
         nodes: [],
         wires: [],
+        sources: [],
         boxes: new Map(),
         selectedNode: null,
         picked: new Set(),

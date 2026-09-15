@@ -2641,3 +2641,330 @@ def test_the_open_panel_follows_whichever_node_it_belongs_to(canvas_report):
     assert follows["itsNode"] == {"left": "530px", "top": "200px"}
     # Nothing open for that node, so nothing is moved.
     assert follows["anotherNode"] == {"left": None, "top": None}
+
+
+# -- sources, and the tags they are grouped by -----------------------------
+
+
+def test_a_source_can_be_tagged_and_found_by_its_tag(db):
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone", "UCtwo"))
+    with db.session_scope() as session:
+        first, second = session.scalars(select(Channel).order_by(Channel.id)).all()
+        channel_service.set_tags(session, first, "News, Long Form")
+        channel_service.set_tags(session, second, "news")
+
+        # Lowercased and tidied, so a tag typed two ways is one tag.
+        assert first.tag_list == ["news", "long form"]
+        assert channel_service.all_tags(session) == ["long form", "news"]
+        assert len(channel_service.tagged(session, "News")) == 2
+        assert len(channel_service.tagged(session, "long form")) == 1
+
+
+def test_a_tag_is_matched_whole_and_not_as_a_substring(db):
+    """"news" is not "newsroom", and a node that quietly picked up both would
+    be a node nobody could trust."""
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone",))
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel_service.set_tags(session, channel, "newsroom")
+
+        assert channel_service.tagged(session, "news") == []
+        assert len(channel_service.tagged(session, "newsroom")) == 1
+
+
+def test_a_tag_node_stands_for_every_source_carrying_it(db):
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone", "UCtwo"), feeds=("PLone",))
+    with db.session_scope() as session:
+        for channel in session.scalars(select(Channel)):
+            channel_service.set_tags(session, channel, "news")
+
+        feed = node_for(session, "feed", "PLone")
+        tagged = graph.add_source(session, tag="news", x=60, y=600)
+        graph.connect(session, tagged, feed)
+
+        # One node, two channels, two paths.
+        paths = graph.routes(session)
+        assert sorted(path.channel.channel_id for path in paths) == ["UCone", "UCtwo"]
+
+
+def test_a_source_tagged_later_joins_the_flow_without_rewiring(db):
+    """The whole point of the second kind of source node."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone",), feeds=("PLone",))
+    with db.session_scope() as session:
+        first = session.scalars(select(ChannelModel)).one()
+        channel_service.set_tags(session, first, "news")
+        feed = node_for(session, "feed", "PLone")
+        graph.connect(session, graph.add_source(session, tag="news", x=60, y=600), feed)
+        assert len(graph.routes(session)) == 1
+
+        joined = ChannelModel(channel_id="UClater", title="Later")
+        session.add(joined)
+        session.flush()
+        channel_service.set_tags(session, joined, "news")
+
+        assert len(graph.routes(session)) == 2
+
+
+def test_a_trigger_on_a_tag_node_polls_every_source_it_stands_for(db):
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone", "UCtwo"))
+    with db.session_scope() as session:
+        for channel in session.scalars(select(Channel)):
+            channel_service.set_tags(session, channel, "news")
+        tagged = graph.add_source(session, tag="news", x=60, y=600)
+        graph.connect(session, graph.add_trigger(session, trigger_kind="pulse"), tagged)
+
+        assert len(graph.polling_plan(session)) == 2
+
+
+def test_a_tag_node_carries_no_channel_to_feed_links_of_its_own(db):
+    """A link belongs to a channel, and a tag is not one — so a channel wired
+    to a feed on its own page does not arrive twice through its tag."""
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone",), feeds=("PLone",))
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel_service.set_tags(session, channel, "news")
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        graph.connect(session, source, feed)  # the direct link
+
+        tagged = graph.add_source(session, tag="news", x=60, y=600)
+        session.flush()
+
+        # The tag node is wired to nothing, so it adds nothing.
+        assert len(graph.routes(session)) == 1
+
+
+def test_a_tag_node_can_be_made_and_renamed_from_the_canvas(canvas, db):
+    from dealgo.services import channels as channel_service
+
+    with db.session_scope() as session:
+        channel_service.set_tags(session, session.scalars(select(Channel)).one(), "news")
+
+    added = canvas.post("/graph/nodes", data={"kind": "tagged", "title": "News"}).json()
+    tagged = [node for node in boxes(added, "source") if node["tag"] is not None][0]
+    assert tagged["title"] == "#news"
+    assert tagged["note"] == "1 source with this tag"
+    assert tagged["tag"]["channels"] == ["One Channel"]
+    assert tagged["tag"]["known"] == ["news"]
+
+    renamed = canvas.post(
+        f"/graph/nodes/{tagged['id']}", data={"box_form": "1", "active": "1", "tag": "Other"}
+    ).json()
+    changed = [node for node in boxes(renamed, "source") if node["tag"] is not None][0]
+    assert changed["title"] == "#other"
+    assert changed["note"] == "0 sources with this tag"
+
+
+def test_a_tag_node_has_a_switch_of_its_own(canvas, db):
+    """It stands for no one channel, so there is nothing else for it to answer
+    for — asked about a channel it does not have, it could never be on."""
+    from dealgo.services import channels as channel_service
+
+    with db.session_scope() as session:
+        channel_service.set_tags(session, session.scalars(select(Channel)).one(), "news")
+
+    added = canvas.post("/graph/nodes", data={"kind": "tagged", "title": "news"}).json()
+    tagged = [node for node in boxes(added, "source") if node["tag"] is not None][0]
+    assert tagged["enabled"] is True
+
+    off = canvas.post(f"/graph/nodes/{tagged['id']}", data={"box_form": "1"}).json()
+    assert [n for n in boxes(off, "source") if n["tag"] is not None][0]["enabled"] is False
+
+    back = canvas.post(
+        f"/graph/nodes/{tagged['id']}", data={"box_form": "1", "active": "1"}
+    ).json()
+    assert [n for n in boxes(back, "source") if n["tag"] is not None][0]["enabled"] is True
+
+
+def test_switching_a_tag_node_off_stops_the_flow_at_it(db):
+    from dealgo.services import channels as channel_service
+
+    build(db, channels=("UCone",), feeds=("PLone",))
+    with db.session_scope() as session:
+        channel_service.set_tags(session, session.scalars(select(Channel)).one(), "news")
+        tagged = graph.add_source(session, tag="news", x=60, y=600)
+        graph.connect(session, tagged, node_for(session, "feed", "PLone"))
+        assert len(graph.routes(session)) == 1
+
+        tagged.enabled = False
+        session.flush()
+        assert graph.routes(session) == []
+
+
+def test_a_channel_nodes_switch_still_pauses_the_channel(db):
+    """The other kind answers for the channel behind it, as it always did."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.web import app as web_app
+
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        web_app._switch(source, on=False)
+        session.flush()
+        assert session.scalars(select(ChannelModel)).one().enabled is False
+
+
+def test_a_tag_node_can_be_tested_like_any_other_source(canvas, db):
+    """The trial used to find a path's source node by its channel id, which a
+    tag node has none of — so a path through one was skipped and the node had
+    no share to show."""
+    from dealgo.models import Video as VideoModel
+    from dealgo.services import channels as channel_service
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        channel_service.set_tags(session, channel, "news")
+        session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
+                               is_short=True, duration_sec=30, status="pending"))
+
+    added = canvas.post("/graph/nodes", data={"kind": "tagged", "title": "news"}).json()
+    tagged = [node for node in boxes(added, "source") if node["tag"] is not None][0]
+    feed = only(added, "feed")
+    canvas.post("/graph/connect", data={"source": tagged["id"], "target": feed["id"]})
+    trigger_id = wire_trigger(canvas, channel="#news")
+
+    trial = canvas.get(f"/graph/nodes/{trigger_id}/test").json()
+    assert str(tagged["id"]) in trial["items"]
+    assert [item["title"] for item in trial["items"][str(tagged["id"])]["through"]] == ["A clip"]
+    assert [item["title"] for item in trial["items"][str(tagged["id"])]["held"]] == ["A short"]
+
+
+def test_a_run_marks_a_tag_node_from_all_the_sources_it_stands_for(canvas, db):
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import channels as channel_service
+    from dealgo.services import sync as sync_service
+    from dealgo.web import app as web_app
+
+    with db.session_scope() as session:
+        first = session.scalars(select(ChannelModel)).one()
+        second = ChannelModel(channel_id="UCtwo", title="Two")
+        session.add(second)
+        session.flush()
+        for channel in (first, second):
+            channel_service.set_tags(session, channel, "news")
+        both = [first.id, second.id]
+
+    added = canvas.post("/graph/nodes", data={"kind": "tagged", "title": "news"}).json()
+    tagged = [node for node in boxes(added, "source") if node["tag"] is not None][0]
+
+    sync_service._start_progress(None, "pulse")
+    for channel_pk, found in zip(both, (2, 3)):
+        sync_service._note_polled(channel_pk, found)
+        sync_service._note_left(channel_pk)
+    sync_service._note(stage="done", finished=True)
+
+    with db.session_scope() as session:
+        marks = web_app._run_marks(session, sync_service.progress(), None)
+
+    # Five found between them, two of which left: one box, both channels.
+    assert marks[str(tagged["id"])]["count"] == 2
+    assert marks[str(tagged["id"])]["stopped"] == 3
+
+
+def test_a_node_that_stands_for_nothing_yet_can_be_taken_away(canvas, db):
+    """An empty channel node and a tag node both name no channel. Removing one
+    should take the node and nothing else — there is nothing else."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.services import channels as channel_service
+
+    with db.session_scope() as session:
+        channel_service.set_tags(session, session.scalars(select(ChannelModel)).one(), "news")
+
+    added = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(added, "source") if node["detail"] is None][0]
+    gone = canvas.post(f"/graph/nodes/{empty['id']}/delete")
+    assert gone.status_code == 200
+    assert empty["id"] not in [node["id"] for node in gone.json()["nodes"]]
+
+    made = canvas.post("/graph/nodes", data={"kind": "tagged", "title": "news"}).json()
+    tagged = [node for node in boxes(made, "source") if node["tag"] is not None][0]
+    left = canvas.post(f"/graph/nodes/{tagged['id']}/delete")
+    assert left.status_code == 200
+    assert tagged["id"] not in [node["id"] for node in left.json()["nodes"]]
+
+    # And the channel behind neither of them was touched.
+    with db.session_scope() as session:
+        assert len(session.scalars(select(ChannelModel)).all()) == 1
+
+
+@needs_node
+def test_removing_a_node_only_asks_where_something_is_at_stake(canvas_report):
+    """An empty channel node names no channel and a tag node stands for
+    channels it does not own. Asking "its history goes too" of a node with no
+    history is a frightening question about nothing — and a question people
+    answer no to, which is what it looked like to be unable to remove them."""
+    asks = canvas_report["removalAsks"]
+    assert asks["watchedChannel"].startswith("Stop watching")
+    assert asks["feed"].startswith("Remove the feed")
+    assert asks["emptyChannel"] == ""
+    assert asks["tagNode"] == ""
+    assert asks["filter"] == ""
+
+
+def test_an_empty_channel_node_can_be_pointed_at_a_source_already_watched(canvas, db):
+    """Needs no lookup and no credentials — and most of the time the channel
+    is already on the Sources page anyway."""
+    from dealgo.models import Channel as ChannelModel
+
+    drawn = canvas.get("/api/graph").json()
+    assert drawn["sources"] == [{"id": 1, "title": "One Channel"}]
+
+    added = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(added, "source") if node["detail"] is None][0]
+
+    saved = canvas.post(
+        f"/graph/nodes/{empty['id']}", data={"source_pk": "1"}
+    ).json()
+    pointed = [node for node in boxes(saved, "source") if node["id"] == empty["id"]][0]
+    assert pointed["title"] == "One Channel"
+    assert pointed["detail"] == "/channels/1"
+
+    # One channel, drawn twice — not two channels.
+    with db.session_scope() as session:
+        assert len(session.scalars(select(ChannelModel)).all()) == 1
+
+
+def test_a_source_that_is_not_yours_cannot_be_pointed_at(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(added, "source") if node["detail"] is None][0]
+
+    answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"source_pk": "999"})
+    assert answer.status_code == 400
+    assert "not here" in answer.json()["error"]
+
+
+def test_a_node_that_already_names_a_channel_is_not_repointed(canvas):
+    """Saving its panel is not a chance to quietly make it a different one."""
+    named = only(canvas.get("/api/graph").json(), "source")
+    saved = canvas.post(
+        f"/graph/nodes/{named['id']}", data={"source_pk": "999", "label": "Renamed"}
+    ).json()
+
+    assert only(saved, "source")["title"] == "Renamed"
+
+
+@needs_node
+def test_searching_the_source_list_matches_the_way_the_app_does(canvas_report):
+    """Every word, in any order, part of a word counting — the same as
+    searching anywhere else here, so one habit serves the whole app."""
+    searching = canvas_report["searching"]
+    assert searching["partial"] is True
+    assert searching["anyOrder"] is True
+    assert searching["caseBlind"] is True
+    assert searching["missingWord"] is False
+    # Nothing typed, or only spaces, narrows nothing rather than everything.
+    assert searching["empty"] is True
+    assert searching["spacesOnly"] is True

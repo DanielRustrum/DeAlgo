@@ -524,6 +524,10 @@
 .graph-field { display: flex; flex-direction: column; gap: 4px; }
 .graph-field-name { font-size: 11.5px; color: var(--muted); }
 
+// A search box over the list it narrows, reading as one control.
+.graph-picker { display: flex; flex-direction: column; gap: 4px; }
+.graph-picker select { padding: 2px; }
+
 // A number and what it counts: one answer, so one row.
 .graph-pair { display: flex; gap: 6px; }
 .graph-pair input { flex: 1; min-width: 0; }

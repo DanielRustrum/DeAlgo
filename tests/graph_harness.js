@@ -302,6 +302,30 @@ function main() {
     ambiguous: context.graphNodeAdded([], [{ id: 1 }, { id: 2 }]),
   };
 
+  // Searching a list of sources: every word, in any order, part of a word
+  // counting — the same as searching anywhere else here.
+  const matches = (name, query) => context.graphMatches(name, query);
+  report.searching = {
+    empty: matches("Channel 5 with Andrew Callaghan", ""),
+    partial: matches("Channel 5 with Andrew Callaghan", "andr"),
+    anyOrder: matches("Channel 5 with Andrew Callaghan", "callaghan channel"),
+    caseBlind: matches("saveitforparts", "SAVEIT"),
+    missingWord: matches("Daniel Greene", "daniel jones"),
+    spacesOnly: matches("Aaron Parnas", "   "),
+  };
+
+  // Removing a node only asks a question where something is at stake. Asking
+  // "its history goes too" of a node with no history is a frightening
+  // question about nothing — and a question people say no to.
+  const warns = (node) => context.graphRemovalWarning(node);
+  report.removalAsks = {
+    watchedChannel: warns({ kind: "source", tag: null, detail: "/channels/1", title: "A" }),
+    emptyChannel: warns({ kind: "source", tag: null, detail: null, title: "New channel" }),
+    tagNode: warns({ kind: "source", tag: { name: "news" }, detail: null, title: "#news" }),
+    feed: warns({ kind: "feed", tag: null, detail: "/feeds/1", title: "News" }),
+    filter: warns({ kind: "filter", tag: null, detail: null, title: "Trim" }),
+  };
+
   // A group is drawn as a rectangle rather than a box, so it carries its own
   // class. Looking only for the box's meant a group could not be pressed at
   // all: not moved, not resized, not opened, and so not removed either.

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Sources{% endblock %}
+{% block content %}
+
+{# The channels this account watches, and the labels they are grouped by.
+   Separate from the Configuration canvas on purpose: this is the list of what
+   is available, the canvas is what is done with it. A channel appearing here
+   is not yet in any feed — wiring it up is the canvas's job. #}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Sources</h2>
+    <span class="count">{{ channels | length }}</span>
+  </div>
+
+  <form class="stack-form" method="post" action="/sources">
+    <div class="field-row">
+      <label>
+        Add a channel
+        <input type="text" name="reference" placeholder="@handle, a URL, or a UC… id" required>
+      </label>
+      <label>
+        Tags
+        <input type="text" name="tags" placeholder="news, long form" list="source-tags">
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Add it</button>
+    <p class="hint">
+      A handle needs Google or an API key; a UC… id needs neither. Added
+      sources sit here until a node on the
+      <a href="/channels">Configuration</a> canvas puts them to work.
+    </p>
+  </form>
+
+  <datalist id="source-tags">
+    {% for tag in tags %}<option value="{{ tag }}">{% endfor %}
+  </datalist>
+</section>
+
+<section class="panel">
+  <h2>What is here</h2>
+  {% if not channels %}
+  <p class="empty">Nothing yet. Add a channel above.</p>
+  {% else %}
+  <ul class="source-rows">
+    {% for channel in channels %}
+    <li class="source-row {{ 'row-off' if not channel.enabled }}">
+      <span class="channel-avatar">
+        {% if channel.thumbnail_url %}
+          <img src="{{ channel.thumbnail_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        {% else %}
+          <span class="avatar-letter" style="--hue: {{ channel.avatar_hue }}">{{ channel.initial }}</span>
+        {% endif %}
+      </span>
+
+      <div class="source-id">
+        <a class="channel-name" href="/channels/{{ channel.id }}">{{ channel.title or channel.channel_id }}</a>
+        {% if not channel.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+        <div class="meta">{{ channel.handle or channel.channel_id }}</div>
+      </div>
+
+      <form class="tag-form" method="post" action="/sources/{{ channel.id }}/tags">
+        <label class="sr-only" for="tags-{{ channel.id }}">Tags for {{ channel.title }}</label>
+        <input id="tags-{{ channel.id }}" type="text" name="tags" list="source-tags"
+               value="{{ channel.tags or '' }}" placeholder="no tags">
+        <button class="btn btn-quiet" type="submit">Save</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="hint">
+    A tag is a label to group by. A Tag node on the canvas pulls from every
+    source carrying one, so a channel tagged later joins that flow without
+    anything being rewired.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -106,6 +106,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "every_minutes", "INTEGER"),
     ("graph_node", "cron", "VARCHAR(120)"),
     ("graph_node", "enabled", "BOOLEAN NOT NULL DEFAULT 1"),
+    ("channel", "tags", "TEXT"),
+    ("graph_node", "tag", "VARCHAR(40)"),
     ("graph_node", "duration_minutes", "INTEGER"),
     ("graph_node", "width", "INTEGER"),
     ("graph_node", "height", "INTEGER"),
