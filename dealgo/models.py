@@ -274,6 +274,13 @@ class Channel(Base):
     # because they are something to search and group by, not an entity
     # anything else refers to by id.
     tags: Mapped[Optional[str]] = mapped_column(Text)
+    # Where this comes from: "youtube", "reddit", "bluesky", "substack",
+    # "rss". Everything that existed before this column is YouTube, which is
+    # why that is the default rather than something neutral.
+    source_kind: Mapped[str] = mapped_column(String(12), default="youtube")
+    # Where its feed is. YouTube builds its own from the channel id, so this
+    # is only set for the kinds that cannot be worked out from an id.
+    source_url: Mapped[Optional[str]] = mapped_column(Text)
     max_per_run: Mapped[int] = mapped_column(Integer, default=5)
 
     videos: Mapped[list["Video"]] = relationship(back_populates="channel", cascade="all, delete-orphan")
@@ -303,7 +310,14 @@ class Channel(Base):
 
     @property
     def takes_nothing(self) -> bool:
-        """True when every content switch is off, so nothing gets in."""
+        """True when every content switch is off, so nothing gets in.
+
+        The four switches sort out YouTube's own kinds. Anywhere else
+        publishes one kind of thing and takes all of it, so they decide
+        nothing there and must not be read as switching it off.
+        """
+        if not self.is_youtube:
+            return False
         return self.skip_shorts and self.skip_live and self.skip_videos and self.skip_posts
 
     @property
@@ -322,12 +336,28 @@ class Channel(Base):
         return due_at is None or (now or utcnow()) >= due_at
 
     @property
+    def is_youtube(self) -> bool:
+        return self.source_kind == "youtube"
+
+    @property
     def feed_url(self) -> str:
+        """Where to poll. YouTube's is built from its id; the rest say so."""
+        if self.source_url:
+            return self.source_url
         return f"https://www.youtube.com/feeds/videos.xml?channel_id={self.channel_id}"
 
     @property
     def url(self) -> str:
-        return f"https://www.youtube.com/channel/{self.channel_id}"
+        """Where the source itself lives, for a link out to it."""
+        if self.is_youtube:
+            return f"https://www.youtube.com/channel/{self.channel_id}"
+        if self.source_kind == "reddit":
+            return f"https://www.reddit.com/{self.channel_id}/"
+        if self.source_kind == "bluesky":
+            return f"https://bsky.app/profile/{self.channel_id.lstrip('@')}"
+        if self.source_kind == "substack":
+            return f"https://{self.channel_id}"
+        return self.channel_id
 
 
 class Video(Base):
@@ -365,6 +395,9 @@ class Video(Base):
 
     # Posts only: the words themselves, and a JSON list of image URLs.
     body: Mapped[Optional[str]] = mapped_column(Text)
+    # Where an item from somewhere other than YouTube lives. YouTube's are
+    # addressed by their video id, so this is only set for the rest.
+    link: Mapped[Optional[str]] = mapped_column(Text)
     images: Mapped[Optional[str]] = mapped_column(Text)
 
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
@@ -386,7 +419,23 @@ class Video(Base):
         return self.kind == "post"
 
     @property
+    def is_youtube(self) -> bool:
+        """Whether a YouTube playlist could ever hold this."""
+        return self.kind in ("video", "post")
+
+    @property
+    def is_link(self) -> bool:
+        """An item from somewhere that is not YouTube: a post on Reddit or
+        Bluesky, an entry in a newsletter, an article in a feed. There is
+        nothing to play, only somewhere to go."""
+        return self.kind == "link"
+
+    @property
     def url(self) -> str:
+        if self.kind == "link":
+            # Whatever the feed linked to. Kept whole rather than rebuilt: a
+            # feed knows where its own items live and this does not.
+            return self.link or ""
         if self.is_post:
             return f"https://www.youtube.com/post/{self.video_id}"
         return f"https://www.youtube.com/watch?v={self.video_id}"

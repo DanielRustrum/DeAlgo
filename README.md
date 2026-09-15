@@ -1,20 +1,28 @@
 # De-Algo
 
-Watches different channels provided by the user and updates a playlist on YouTube specified by the
-user. The intent is to provide a feed that isn't subject to the algorithm.
+Watches the sources you pick and mirrors them into feeds you own. The intent is to provide a feed
+that isn't subject to the algorithm.
 
-You pick the channels. Every new upload goes into one playlist, oldest first, and nothing else gets
-in. No recommendations, no autoplay rabbit hole, no "you might also like".
+A source can be a YouTube channel, a Reddit community, a Bluesky account, a Substack, or the address
+of any RSS or Atom feed. You pick them. Everything new goes into a feed, oldest first, and nothing
+else gets in. No recommendations, no autoplay rabbit hole, no "you might also like".
+
+YouTube is the one source that can also write back: its videos can be pushed into a real YouTube
+playlist. Everything else fills a feed that lives inside De-Algo, and is read there.
 
 ---
 
 ## How it works
 
-1. **Polling is free.** Each watched channel is checked through YouTube's public Atom feed
-   (`/feeds/videos.xml?channel_id=…`), which costs no API quota and needs no credentials. That feed
-   also reveals which uploads are Shorts, because they link as `/shorts/<id>`.
-2. **Routing is yours.** Each channel feeds whichever playlists you assign it — one, several, or
-   none. Science channels into one playlist, music into another, a favourite into both.
+1. **Polling is free.** Every source publishes a feed, and reading one costs nothing and needs no
+   credentials. A YouTube channel is read through its public Atom feed
+   (`/feeds/videos.xml?channel_id=…`), which also reveals which uploads are Shorts, because they
+   link as `/shorts/<id>`. A subreddit, a Bluesky account, a Substack and a plain RSS or Atom feed
+   are all read the same way, as the feeds they are.
+2. **Routing is yours.** Each source feeds whichever feeds you wire it to — one, several, or none.
+   Science channels into one, music into another, a favourite into both. A source that is not
+   YouTube can only fill a feed inside De-Algo: a Reddit thread is not something a YouTube playlist
+   can hold, and De-Algo says so rather than failing at the insert.
 3. **Filtering is yours.** Each channel has its own Shorts switch, and can skip live streams and
    premieres, bound the length, require or reject a title pattern, and cap how many videos a single
    sync may add.

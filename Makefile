@@ -67,7 +67,7 @@ shell: ## Open a shell in the running container
 sync: ## Run one sync pass and exit (FORCE=1 ignores channel minimums)
 	$(COMPOSE) run --rm $(SERVICE) sync $(if $(FORCE),--force,)
 
-add: ## Watch a channel (CHANNEL=@handle, a URL, or a UC… id)
+add: ## Watch a source (CHANNEL=@handle, a URL, a UC… id, r/name, or a feed address)
 	@test -n "$(CHANNEL)" || { echo "usage: make add CHANNEL=@handle"; exit 2; }
 	$(COMPOSE) run --rm $(SERVICE) add "$(CHANNEL)"
 

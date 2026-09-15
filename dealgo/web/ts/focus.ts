@@ -1,9 +1,10 @@
 // Focus mode: go through the queue, marking each item done as it finishes.
 //
-// Two kinds of thing arrive in the same queue. A video finishes on its own and
-// the player says so. A community post has no end, so reading time is the only
-// thing that can advance it — hence the timer, and hence the pause: a post you
-// are still reading should not slide out from under you.
+// Two sorts of thing arrive in the same queue. A video finishes on its own and
+// the player says so. Everything else — a community post, an item from a feed
+// somewhere else — is read, and has no end of its own, so reading time is the
+// only thing that can advance it: hence the timer, and hence the pause, since
+// something you are still reading should not slide out from under you.
 //
 // Advancing asks the server for the next item rather than walking the list it
 // was given, so a queue left open overnight cannot resurrect something watched
@@ -19,7 +20,9 @@
 interface FocusItem {
   id: number;
   video_id: string;
-  kind: "video" | "post";
+  kind: "video" | "post" | "link";
+  /** What its source is called — "YouTube", "Reddit" — for the link out. */
+  source: string;
   title: string;
   channel: string;
   playlist: string;
@@ -203,6 +206,13 @@ function buildFocusTile(url: string): HTMLAnchorElement {
   return link;
 }
 
+/** Whether this is read rather than played. Asked as "not a video" so a kind
+ *  added later is read by default, which is the safe way round: the worst case
+ *  is a reading timer on something, not an empty player nobody can advance. */
+function focusIsRead(item: FocusItem): boolean {
+  return item.kind !== "video";
+}
+
 function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   const elements = sitting.elements;
   elements.tiles.textContent = "";
@@ -211,6 +221,7 @@ function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   });
   elements.words.textContent = item.body;
   elements.postUrl.href = item.url;
+  elements.postUrl.textContent = `Open it on ${item.source} ↗`;
   elements.post.hidden = false;
   elements.timer.hidden = false;
   elements.stage.hidden = true;
@@ -251,7 +262,7 @@ function showFocusItem(sitting: FocusSitting, item: FocusItem, remaining: number
   elements.remaining.textContent = String(remaining);
   elements.count.textContent = String(Math.max(0, remaining - 1));
 
-  if (item.kind === "post") showFocusPost(sitting, item);
+  if (focusIsRead(item)) showFocusPost(sitting, item);
   else showFocusVideo(sitting, item);
 }
 
@@ -263,10 +274,10 @@ function buildQueueRow(item: FocusItem): HTMLLIElement {
 
   const title = document.createElement("span");
   title.className = "queue-title";
-  if (item.kind === "post") {
+  if (focusIsRead(item)) {
     const tag = document.createElement("span");
     tag.className = "pill pill-post";
-    tag.textContent = "post";
+    tag.textContent = item.kind === "post" ? "post" : item.source.toLowerCase();
     title.appendChild(tag);
     title.appendChild(document.createTextNode(" "));
   }
@@ -367,7 +378,7 @@ function advanceFocus(sitting: FocusSitting, markWatched: boolean): void {
     .catch((): void => {
       sitting.advancing = false;
       setFocusStatus(sitting, "could not advance — check the connection");
-      if (sitting.current.kind === "post") startFocusTimer(sitting);
+      if (focusIsRead(sitting.current)) startFocusTimer(sitting);
     });
 }
 
@@ -385,7 +396,7 @@ function buildFocusPlayer(sitting: FocusSitting): void {
         sitting.ready = true;
         setFocusStatus(sitting, "");
         // Opened on a post: the player is loaded but must stay quiet.
-        if (sitting.current.kind === "post" && sitting.player) sitting.player.pauseVideo();
+        if (focusIsRead(sitting.current) && sitting.player) sitting.player.pauseVideo();
       },
       onStateChange: (event: YouTubePlayerEvent): void => {
         if (event.data === api.PlayerState.ENDED && sitting.current.kind === "video") {
@@ -500,7 +511,7 @@ function initFocusMode(): void {
   pointFrameAtFirstVideo(sitting);
   awaitYouTubeApi(sitting);
 
-  if (sitting.current.kind === "post") startFocusTimer(sitting);
+  if (focusIsRead(sitting.current)) startFocusTimer(sitting);
   else warnIfPlayerNeverWakes(sitting);
 }
 

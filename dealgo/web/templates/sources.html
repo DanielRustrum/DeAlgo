@@ -15,8 +15,9 @@
   <form class="stack-form" method="post" action="/sources">
     <div class="field-row">
       <label>
-        Add a channel
-        <input type="text" name="reference" placeholder="@handle, a URL, or a UC… id" required>
+        Add a source
+        <input type="text" name="reference" required
+               placeholder="@handle, r/subreddit, a Bluesky handle, or a feed address">
       </label>
       <label>
         Tags
@@ -25,8 +26,10 @@
     </div>
     <button class="btn btn-primary" type="submit">Add it</button>
     <p class="hint">
-      A handle needs Google or an API key; a UC… id needs neither. Added
-      sources sit here until a node on the
+      What can be followed:
+      {% for kind in kinds %}<strong>{{ kind.label }}</strong> ({{ kind.example }}){% if not loop.last %}, {% endif %}{% endfor %}.
+      Only YouTube can fill a YouTube playlist — everything else fills a feed
+      that lives inside De-Algo. Added sources sit here until a node on the
       <a href="/channels">Configuration</a> canvas puts them to work.
     </p>
   </form>
@@ -54,8 +57,11 @@
 
       <div class="source-id">
         <a class="channel-name" href="/channels/{{ channel.id }}">{{ channel.title or channel.channel_id }}</a>
+        <span class="pill pill-kind kind-{{ channel.source_kind }}">{{ source_label(channel.source_kind) }}</span>
         {% if not channel.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
-        <div class="meta">{{ channel.handle or channel.channel_id }}</div>
+        <div class="meta">
+          <a href="{{ channel.url }}" target="_blank" rel="noopener">{{ channel.handle or channel.channel_id }}</a>
+        </div>
       </div>
 
       <form class="tag-form" method="post" action="/sources/{{ channel.id }}/tags">

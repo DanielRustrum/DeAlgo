@@ -42,11 +42,11 @@
     </div>
 
     {% if current.key == 'welcome' %}
-      <p>De-Algo watches the channels you choose and puts their new uploads into a playlist, oldest
+      <p>De-Algo watches the sources you choose and puts whatever they publish into a feed, oldest
         first. Nothing else gets in: no recommendations, no autoplay trail, no “you might also
         like”.</p>
-      <p>Four things make it work — a <strong>feed</strong> to collect videos, a
-        <strong>channel</strong> to fill it, a <strong>link</strong> between them, and a
+      <p>Four things make it work — a <strong>feed</strong> to collect things, a
+        <strong>source</strong> to fill it, a <strong>link</strong> between them, and a
         <strong>sync</strong> to do the work. The rest of this tour sets those up in order.</p>
       <p class="hint">Already have some of it? The ticks on the left show what is done.</p>
 
@@ -59,13 +59,17 @@
       <p class="hint">Start generic if you just want to try it: nothing leaves this machine.</p>
 
     {% elif current.key == 'channel' %}
-      <p>Press <strong>Track content</strong> on <a href="/channels">Configuration</a> and paste a
-        channel URL, an <code>@handle</code>, or a bare <code>UC…</code> id.</p>
-      <p>The same box asks how far back to reach on the first check, and which feeds to fill. A
-        <code>UC…</code> id needs no credentials at all.</p>
+      <p>Press <strong>Track content</strong> on <a href="/channels">Configuration</a> and paste
+        wherever you want to follow: a YouTube channel URL, an <code>@handle</code> or a bare
+        <code>UC…</code> id; an <code>r/</code> community; a Bluesky handle; a Substack; or the
+        address of any RSS or Atom feed.</p>
+      <p>The same box asks how far back to reach on the first check. Only a YouTube handle needs
+        credentials — a <code>UC…</code> id and everything else need none at all.</p>
+      <p class="hint">Only YouTube videos can go into a real YouTube playlist. Everything else
+        fills a feed that lives here, and is read here.</p>
 
     {% elif current.key == 'link' %}
-      <p>A channel with no feed stays <strong>paused</strong> — polling it would only queue uploads
+      <p>A source with no feed stays <strong>paused</strong> — polling it would only queue things
         with nowhere to go.</p>
       <p>Link them from either side: a feed's page lists the channels that fill it, and a channel's
         page lists the feeds it fills. Linking the first one starts the channel watching.</p>

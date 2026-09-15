@@ -389,6 +389,48 @@ def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
     assert "Old science video" in re.search(r'<a class="card-thumb"[^>]*>', card).group(0)
 
 
+def test_a_card_for_an_item_from_elsewhere_says_where_it_came_from(client, db):
+    """There is no duration to show and nothing to play, so the card says
+    which kind of somewhere it is and leads out to it."""
+    import re
+
+    from dealgo.models import Channel, Placement, Playlist, Video
+
+    with db.session_scope() as session:
+        source = Channel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss",
+        )
+        session.add(source)
+        playlist = session.scalar(select(Playlist).where(Playlist.title == "Science"))
+        session.flush()
+        item = Video(
+            video_id="item-abc", channel_pk=source.id, kind="link",
+            title="An article", body="Its opening words",
+            link="https://reddit.com/r/python/comments/abc",
+            published_at=utcnow(), status="added",
+        )
+        session.add(item)
+        session.flush()
+        session.add(
+            Placement(video_pk=item.id, playlist_pk=playlist.id, playlist_item_id="generic-1-5")
+        )
+        item_pk = item.id
+
+    body = client.get("/feed").text
+    card = re.search(
+        rf'<article class="card[^"]*" *\n? *id="feed-card-{item_pk}".*?</article>', body, re.S
+    ).group(0)
+
+    assert "card-link" in card
+    # Where a duration would be. Written as its kind is written, and lowered
+    # by the stylesheet the same way "post" is.
+    assert ">Reddit</span>" in card
+    assert "Its opening words" in card          # no thumbnail, so its words
+    assert 'title="Open on Reddit"' in card
+    assert "https://reddit.com/r/python/comments/abc" in card
+
+
 def test_the_watched_action_is_still_reachable_from_a_card(client, db):
     """Quiet, not gone: it appears on hover and works from the keyboard."""
     import re

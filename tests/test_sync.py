@@ -435,3 +435,118 @@ def test_the_counts_are_kept_so_the_next_run_need_not_ask_again(world, db):
             for v in session.scalars(select(VideoModel))
         }
     assert counts["v1"] == (900, 1)
+
+
+# -- sources that are not YouTube ------------------------------------------
+
+
+def add_rss_source(db, monkeypatch, feed_xml, *, url="https://example.com/feed"):
+    """A subscribed RSS source, with its feed served from memory."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(syndication, "fetch", lambda _url, _http: syndication.parse(feed_xml))
+    with db.session_scope() as session:
+        channel = ChannelModel(
+            channel_id="r/python",
+            title="r/python",
+            source_kind="reddit",
+            source_url=url,
+            enabled=True,
+        )
+        session.add(channel)
+        session.flush()
+        return channel.id
+
+
+REDDIT = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <title>r/python</title>
+  <item>
+    <title>Something worth reading</title>
+    <link>https://reddit.com/r/python/comments/abc</link>
+    <guid>t3_abc</guid>
+    <pubDate>Tue, 05 May 2026 09:00:00 +0000</pubDate>
+    <description>A body</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_a_feed_source_is_polled_like_any_other(world, db, monkeypatch):
+    from dealgo.models import Video as VideoModel
+
+    add_rss_source(db, monkeypatch, REDDIT)
+    result = sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        assert item is not None
+        assert item.title == "Something worth reading"
+        assert item.link == "https://reddit.com/r/python/comments/abc"
+        assert item.body == "A body"
+        # Addressed by the feed's own id, under a prefix that cannot collide
+        # with a video id.
+        assert item.video_id.startswith("item-")
+        assert item.url == "https://reddit.com/r/python/comments/abc"
+
+
+def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, monkeypatch):
+    """The one thing that does not generalise, said once rather than failing
+    at the insert with whatever YouTube makes of it."""
+    from dealgo.models import Video as VideoModel
+
+    channel_pk = add_rss_source(db, monkeypatch, REDDIT)
+    with db.session_scope() as session:
+        from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
+
+        channel = session.get(ChannelModel, channel_pk)
+        # The fixture's feed is a real YouTube playlist.
+        channel.playlists.append(session.scalars(select(PlaylistModel)).one())
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        assert item.status == "skipped"
+        assert "YouTube playlist" in (item.reason or "")
+    # And nothing was sent to YouTube about it.
+    assert world["client"].inserted_into() == []
+
+
+def test_an_item_from_elsewhere_fills_a_generic_feed(world, db, monkeypatch):
+    from dealgo.models import Playlist as PlaylistModel, Video as VideoModel
+    from dealgo.services import playlists as playlist_service
+
+    channel_pk = add_rss_source(db, monkeypatch, REDDIT)
+    with db.session_scope() as session:
+        from dealgo.models import Channel as ChannelModel
+
+        local = playlist_service.create_generic(session, "Reading")
+        channel = session.get(ChannelModel, channel_pk)
+        channel.playlists.append(local)
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        assert item.status == "added"
+
+
+def test_a_feed_items_words_are_what_a_filter_reads(world, db, monkeypatch):
+    """It has no duration and is neither a Short nor a broadcast, so its title
+    and its body are all there is to go on."""
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.services import playlists as playlist_service
+
+    channel_pk = add_rss_source(db, monkeypatch, REDDIT)
+    with db.session_scope() as session:
+        channel = session.get(ChannelModel, channel_pk)
+        channel.title_exclude = "worth reading"
+        channel.playlists.append(playlist_service.create_generic(session, "Reading"))
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        assert item.status == "skipped"

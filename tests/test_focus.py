@@ -296,6 +296,77 @@ def test_opening_on_a_post_does_not_autoplay_a_video_underneath(client, db):
     assert "autoplay=1" not in body
 
 
+# -- items from somewhere other than YouTube --------------------------------
+
+
+def make_link(db, *, title="An article", body="Some words", link="https://example.com/a"):
+    """Put an item from a feed elsewhere in the first feed, as a sync would."""
+    from dealgo.models import Channel, Placement, Playlist, Video
+
+    with db.session_scope() as session:
+        channel = Channel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss",
+        )
+        session.add(channel)
+        playlist = session.scalar(select(Playlist))
+        session.flush()
+        item = Video(
+            video_id="item-abc",
+            channel_pk=channel.id,
+            kind="link",
+            title=title,
+            body=body,
+            link=link,
+            published_at=utcnow(),
+            status="added",
+        )
+        session.add(item)
+        session.flush()
+        session.add(
+            Placement(
+                video_pk=item.id,
+                playlist_pk=playlist.id,
+                playlist_item_id=f"generic-{playlist.id}-{item.id}",
+                added_at=utcnow(),
+            )
+        )
+        return item.id
+
+
+def test_an_item_from_a_feed_is_read_rather_than_played(client, db):
+    """It has no player and no end of its own, which is the same shape as a
+    community post — so it gets the reader and the timer, not the stage."""
+    item_id = make_link(db)
+
+    body = client.get(f"/focus?start={item_id}").text
+    stage = body.split('id="focus-stage"', 1)[1].split(">", 1)[0]
+    timer = body.split('id="focus-timer"', 1)[1].split(">", 1)[0]
+
+    assert "hidden" in stage
+    assert "hidden" not in timer
+    assert "Some words" in body
+
+
+def test_the_way_out_of_an_item_says_where_it_goes(client, db):
+    """"Open the post on YouTube" would be a lie about a Reddit thread."""
+    item_id = make_link(db, link="https://reddit.com/r/python/comments/abc")
+
+    body = client.get(f"/focus?start={item_id}").text
+
+    assert "Open it on Reddit" in body
+    assert "https://reddit.com/r/python/comments/abc" in body
+
+
+def test_an_item_from_a_feed_does_not_autoplay_underneath(client, db):
+    item_id = make_link(db)
+
+    body = client.get(f"/focus?start={item_id}").text
+
+    assert "autoplay=0" in body
+    assert "autoplay=1" not in body
+
+
 def test_a_video_first_still_autoplays(client):
     body = client.get("/focus").text
     assert "autoplay=1" in body

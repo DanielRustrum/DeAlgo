@@ -704,7 +704,9 @@ def test_a_channel_box_arrives_empty_and_is_told_what_it_is(canvas, db):
     empty = [node for node in boxes(payload, "source") if node["detail"] is None]
     assert len(empty) == 1
     assert empty[0]["title"] == "New channel"
-    assert "@handle" in empty[0]["note"]
+    # It says what it needs without naming one kind of somewhere: a box takes
+    # a handle, an r/ community, a Bluesky account or a feed address.
+    assert "open it" in empty[0]["note"]
     assert (empty[0]["x"], empty[0]["y"]) == (40, 60)
 
     # It routes nothing and breaks nothing while it waits.
@@ -720,6 +722,64 @@ def test_a_channel_that_youtube_does_not_have_is_refused_with_a_reason(canvas):
     answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "@nobody"})
     assert answer.status_code == 400
     assert answer.json()["error"]  # whatever YouTube said, said in words
+
+
+def test_a_source_box_takes_somewhere_that_is_not_youtube(canvas, db, monkeypatch):
+    """The whole point of the expansion: the box that used to mean "a YouTube
+    channel" now means "somewhere that publishes", and says which."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(
+        syndication,
+        "fetch",
+        lambda _url, _http: syndication.Feed(title="r/python", items=[]),
+    )
+    payload = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(payload, "source") if node["detail"] is None][0]
+
+    answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "r/python"})
+    assert answer.status_code == 200
+
+    filled = [node for node in boxes(answer.json(), "source") if node["id"] == empty["id"]][0]
+    assert filled["detail"] is not None  # it stands for something now
+    assert filled["note"] == "everything from Reddit"
+    assert filled["channel"]["source"] == "Reddit"
+    assert filled["channel"]["youtube"] is False
+
+    with db.session_scope() as session:
+        made = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+        assert made.source_kind == "reddit"
+        assert made.source_url == "https://www.reddit.com/r/python/.rss"
+
+
+def test_a_source_already_watched_is_attached_however_it_was_written(canvas, db, monkeypatch):
+    """A pasted URL and the r/ name that means the same thing are one source,
+    so a second box for it wires to the same row rather than being refused."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(
+        syndication,
+        "fetch",
+        lambda _url, _http: syndication.Feed(title="r/python", items=[]),
+    )
+    first = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(first, "source") if node["detail"] is None][0]
+    canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "r/python"})
+
+    second = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    other = [node for node in boxes(second, "source") if node["detail"] is None][0]
+    answer = canvas.post(
+        f"/graph/nodes/{other['id']}", data={"handle": "https://www.reddit.com/r/python/"}
+    )
+    assert answer.status_code == 200
+
+    with db.session_scope() as session:
+        rows = session.scalars(
+            select(ChannelModel).where(ChannelModel.channel_id == "r/python")
+        ).all()
+    assert len(rows) == 1
 
 
 def test_a_feed_box_makes_its_feed_at_once(canvas, db):
@@ -1380,6 +1440,36 @@ def test_a_trial_says_where_everything_would_land(canvas, db):
     assert trial["nodes"][str(source["id"])] == {
         "state": "done", "count": 1, "stopped": 1, "ends": False,
     }
+
+
+def test_a_trial_says_a_reddit_thread_cannot_go_into_a_youtube_playlist(canvas, db):
+    """The one rule the expansion adds, said on the canvas before a run rather
+    than discovered when YouTube refuses the insert."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        source = Channel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss", enabled=True,
+        )
+        session.add(source)
+        session.flush()
+        session.add(VideoModel(
+            video_id="item-abc", channel_pk=source.id, kind="link", title="A thread",
+            link="https://reddit.com/r/python/comments/abc", status="pending",
+        ))
+
+    drawn = canvas.get("/api/graph").json()
+    # The fixture's feed is a real YouTube playlist, which is the point.
+    feed = only(drawn, "feed")
+    reddit = [node for node in boxes(drawn, "source") if node["title"] == "r/python"][0]
+    canvas.post("/graph/connect", data={"source": reddit["id"], "target": feed["id"]})
+
+    trial = canvas.get(f"/graph/nodes/{wire_trigger(canvas, 'r/python')}/test").json()
+
+    held = trial["items"][str(reddit["id"])]["held"]
+    assert [item["title"] for item in held] == ["A thread"]
+    assert "YouTube playlist" in held[0]["reason"]
 
 
 def test_a_trial_writes_nothing(canvas, db):

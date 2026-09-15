@@ -37,10 +37,14 @@
         {% endif %}
       </div>
     </div>
-    <a class="btn btn-quiet" href="{{ channel.url }}" target="_blank" rel="noopener">Open on YouTube</a>
+    <a class="btn btn-quiet" href="{{ channel.url }}" target="_blank" rel="noopener">Open on {{ source_label(channel.source_kind) }}</a>
   </div>
   <dl class="facts">
-    <dt>Channel id</dt><dd><code>{{ channel.channel_id }}</code></dd>
+    {# Called "Channel id" only where that is what it is: elsewhere it is an
+       r/ name or a host, and calling that a channel id helps nobody. #}
+    <dt>{{ 'Channel id' if channel.is_youtube else 'Source' }}</dt>
+    <dd><code>{{ channel.channel_id }}</code>
+      <span class="pill pill-kind kind-{{ channel.source_kind }}">{{ source_label(channel.source_kind) }}</span></dd>
     <dt>Added</dt><dd>{{ channel.added_at | stamp }}</dd>
     <dt>Last checked</dt>
     <dd>
@@ -65,7 +69,7 @@
    what it fills are all set on its box on the Configuration canvas, where the
    wires that carry them are. #}
 <section class="panel">
-  <h2>Videos from this channel</h2>
+  <h2>{{ 'Videos from this channel' if channel.is_youtube else 'From this source' }}</h2>
   {% include "_video_table.html" %}
 </section>
 {% endblock %}

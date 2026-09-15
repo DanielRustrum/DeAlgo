@@ -10,3 +10,13 @@
 .pill-failed { color: var(--bad); border-color: var(--bad); }
 .pill-paused { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
 .pill-post { color: var(--accent); border-color: var(--accent-dim); }
+
+
+// What kind of somewhere a source is. Coloured so a list of them reads as a
+// list of kinds rather than a list of names.
+.pill-kind { border-color: var(--line); color: var(--muted); }
+.pill-kind.kind-youtube { color: #ff6b6b; border-color: #7a2e2e; }
+.pill-kind.kind-reddit { color: #ff8a4c; border-color: #7a4327; }
+.pill-kind.kind-bluesky { color: #6bb5ff; border-color: #2c4d73; }
+.pill-kind.kind-substack { color: #ffb95e; border-color: #7a5a24; }
+.pill-kind.kind-rss { color: #9fb4c7; border-color: #3a4753; }

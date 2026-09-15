@@ -188,6 +188,11 @@ td.rank { width: 58px; }
 .card-post .card-thumb img { object-fit: contain; background: var(--panel-2); }
 .card-post .card-duration { text-transform: lowercase; }
 
+// An item from a feed elsewhere: an article's own picture is rarely 16:9
+// either, and where there is none the words stand in, the same as a post.
+.card-link .card-thumb img { object-fit: contain; background: var(--panel-2); }
+.card-link .card-duration { text-transform: lowercase; }
+
 // The feed page narrowed to a single feed. Without this the other feeds look
 // like they have gone missing rather than been filtered out.
 .banner-filtered {

@@ -12,6 +12,7 @@ import datetime as dt
 import json
 import logging
 import threading
+from hashlib import sha1
 from contextlib import contextmanager
 from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass, field, replace
@@ -34,6 +35,7 @@ from ..models import (
     to_naive_utc,
     utcnow,
 )
+from ..sources import syndication
 from ..youtube import community, feeds
 from ..youtube.api import (
     QUOTA_COST_DELETE,
@@ -53,7 +55,11 @@ Tally = dict[int, int]
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = "De-Algo/0.1 (personal YouTube playlist builder)"
+USER_AGENT = "De-Algo/0.1 (personal feed builder)"
+
+# What an item from somewhere other than YouTube is addressed by, so an id
+# from a feed can never be mistaken for a video id.
+ITEM_PREFIX = "item-"
 HTTP_TIMEOUT = 30.0
 MAX_INSERT_ATTEMPTS = 3
 
@@ -366,6 +372,47 @@ def _run(
 # -- phase 1: discovery ---------------------------------------------------
 
 
+def _poll(channel: Channel, http: httpx.Client) -> feeds.FeedResult:
+    """Read whatever kind of feed this source publishes.
+
+    YouTube's own reader knows two things the general one cannot: which
+    entries are Shorts, and the channel id the feed belongs to. Everything
+    else is a feed like any other, and is read as one.
+    """
+    if channel.is_youtube:
+        return feeds.fetch_feed(channel.channel_id, http)
+
+    found = syndication.fetch(channel.feed_url, http)
+    return feeds.FeedResult(
+        channel_id=channel.channel_id,
+        channel_title=found.title,
+        entries=[
+            feeds.FeedEntry(
+                video_id=_item_id(channel, item),
+                title=item.title,
+                published_at=item.published_at,
+                thumbnail_url=item.thumbnail_url,
+                is_short=False,
+                kind="link",
+                link=item.link,
+                summary=item.summary,
+            )
+            for item in found.items
+        ],
+    )
+
+
+def _item_id(channel: Channel, item: syndication.Item) -> str:
+    """An id for an item that has no video id.
+
+    The feed's own guid, hashed under a prefix so it fits the column and can
+    never be mistaken for a video id. The source is part of what is hashed, so
+    two feeds that happen to publish the same guid stay apart.
+    """
+    made = sha1(f"{channel.channel_id}|{item.guid}".encode()).hexdigest()[:24]
+    return f"{ITEM_PREFIX}{made}"
+
+
 def _channel_due(
     channel: Channel, plan: dict[int, list[graph.When]], now: dt.datetime
 ) -> bool:
@@ -412,7 +459,7 @@ def _discover(
             continue
         _note(channel_pk=channel.id)
         try:
-            feed = feeds.fetch_feed(channel.channel_id, http)
+            feed = _poll(channel, http)
         except httpx.HTTPError as exc:
             channel.last_error = f"feed unreachable: {exc}"
             result.messages.append(f"{channel.title}: feed unreachable.")
@@ -457,6 +504,9 @@ def _discover(
                     published_at=to_naive_utc(entry.published_at),
                     thumbnail_url=entry.thumbnail_url,
                     is_short=entry.is_short,
+                    kind=entry.kind,
+                    link=entry.link,
+                    body=entry.summary,
                     status="ignored" if beyond_backfill else "pending",
                     reason="predates the backfill window" if beyond_backfill else None,
                     processed_at=utcnow() if beyond_backfill else None,
@@ -466,7 +516,8 @@ def _discover(
                 result.discovered += 1
                 found += 1
 
-        if not channel.skip_posts:
+        # Community posts are a YouTube idea; elsewhere the feed is all there is.
+        if channel.is_youtube and not channel.skip_posts:
             _discover_posts(
                 session, http, channel, result,
                 first_check=first_check, backfill=backfill, owner=owner,
@@ -717,7 +768,9 @@ def _publish(
 
 
     details = {}
-    clips = [v.video_id for v in pending if not v.is_post]
+    # Only a YouTube video has details to read; a post has none, and an item
+    # from somewhere else is not YouTube's to answer for.
+    clips = [v.video_id for v in pending if v.kind == "video"]
     if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True, owner=owner):
         try:
             details = client.video_details(clips)
@@ -771,7 +824,7 @@ def _publish(
             break
         channel = video.channel
         detail = details.get(video.video_id)
-        if detail is None and client.can_read and not video.is_post:
+        if detail is None and client.can_read and video.kind == "video":
             _reject(video, result, "video is unavailable (private, deleted, or region blocked)")
             continue
 
@@ -964,6 +1017,24 @@ def _decide(
     set of settings to keep in step.
     """
     rules = path.effective()
+
+    # The one thing that does not generalise. A YouTube playlist holds YouTube
+    # videos and nothing else, so an item from anywhere else can only go into
+    # a feed that lives inside De-Algo — said here, once, rather than failing
+    # at the insert with whatever YouTube makes of it.
+    if not video.is_youtube and not path.playlist.is_generic:
+        return filters.Decision(False, "not a YouTube video, and that feed is a YouTube playlist")
+
+    if video.kind == "link":
+        # Nothing to measure but its words: a feed entry has no duration and
+        # is neither a Short nor a broadcast.
+        return filters.evaluate_post(
+            text=f"{video.title} {video.body or ''}",
+            skip_posts=False,
+            title_include=rules["title_include"],
+            title_exclude=rules["title_exclude"],
+        )
+
     if video.is_post:
         return filters.evaluate_post(
             text=video.body or video.title,

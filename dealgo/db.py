@@ -127,6 +127,13 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("video", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
     ("quota_usage", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
     ("sync_run", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
+    # Sources that are not YouTube. Every row that existed before these is
+    # YouTube, which is what the default says: an upgrade must not quietly
+    # turn a channel into something else. `link` is where an item from
+    # elsewhere lives, since only YouTube's are addressed by an id.
+    ("channel", "source_kind", "VARCHAR(12) NOT NULL DEFAULT 'youtube'"),
+    ("channel", "source_url", "TEXT"),
+    ("video", "link", "TEXT"),
 )
 
 

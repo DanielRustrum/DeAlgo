@@ -36,6 +36,12 @@ class FeedEntry:
     # The feed links Shorts as /shorts/<id>, which is the only way to spot one
     # without spending API quota.
     is_short: bool = False
+    # What kind of item this is, and where it lives, for the sources that are
+    # not YouTube. This reader only ever produces videos; the general one
+    # fills these in.
+    kind: str = "video"
+    link: str | None = None
+    summary: str | None = None
 
 
 @dataclass(frozen=True)

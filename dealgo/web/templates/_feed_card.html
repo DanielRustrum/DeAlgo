@@ -4,25 +4,31 @@
 
    A community post wears its first image as that thumbnail — the same tile
    Focus mode leads with — and falls back to its opening words when it has no
-   image at all, which is the only thing a text post can show. #}
+   image at all, which is the only thing a text post can show.
+
+   An item from a feed elsewhere is the same again: a thumbnail if the feed
+   gave one, its opening words if it did not. There is nothing to play, so it
+   says which kind of somewhere it came from instead of a duration. #}
 {% set from_feed = '&playlist=' ~ section.playlist.id ~ '&order=' ~ section.playlist.view_order
                    if section is defined else '' %}
-<article class="card {{ 'card-watched' if video.watched }} {{ 'card-post' if video.is_post }}"
+<article class="card {{ 'card-watched' if video.watched }} {{ 'card-post' if video.is_post }} {{ 'card-link' if video.is_link }}"
          id="feed-card-{{ video.id }}">
   <a class="card-thumb" href="/focus?start={{ video.id }}{{ from_feed }}"
      title="{{ video.title or video.video_id }} — {{ video.channel.title }}">
     {% if video.thumbnail_url %}
       <img src="{{ video.thumbnail_url }}" alt="{{ video.title or video.video_id }}" loading="lazy"
            referrerpolicy="no-referrer">
-    {% elif video.is_post %}
+    {% elif video.is_post or video.is_link %}
       <span class="card-thumb-words">{{ video.body or video.title }}</span>
     {% else %}
       <span class="card-thumb-blank">{{ video.title or video.video_id }}</span>
     {% endif %}
-    <span class="card-play">{{ '¶' if video.is_post else '▶' }}</span>
+    <span class="card-play">{% if video.is_post %}¶{% elif video.is_link %}↗{% else %}▶{% endif %}</span>
     {% if video.is_post %}
       <span class="card-duration">post{% if video.image_list | length > 1 %}
         · {{ video.image_list | length }} images{% endif %}</span>
+    {% elif video.is_link %}
+      <span class="card-duration">{{ source_label(video.channel.source_kind) }}</span>
     {% elif video.duration_sec %}
       <span class="card-duration">{{ video.duration_sec | duration }}</span>
     {% endif %}
@@ -53,7 +59,7 @@
       </form>
       {% endif %}
       <a class="card-action" href="{{ video.url }}" target="_blank" rel="noopener"
-         title="Open on YouTube">↗</a>
+         title="Open on {{ source_label(video.channel.source_kind) }}">↗</a>
     </div>
   </div>
 </article>

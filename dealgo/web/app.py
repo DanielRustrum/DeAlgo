@@ -47,6 +47,7 @@ from ..models import (
     channel_playlist,
     utcnow,
 )
+from .. import sources
 from ..services import accounts
 from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
@@ -217,6 +218,7 @@ def _stamp(value: dt.datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M UTC") if value else "—"
 
 
+TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).label
 TEMPLATES.env.filters["ago"] = _ago
 TEMPLATES.env.filters["stamp"] = _stamp
 # What a template is handed. Jinja takes anything, so this says only that the
@@ -717,21 +719,26 @@ def sources_page(request: Request) -> HTMLResponse:
         context = {
             "channels": channel_service.list_channels(session, owner),
             "tags": channel_service.all_tags(session, owner),
+            "kinds": sources.KINDS,
         }
     return render(request, "sources.html", context)
 
 
 @app.post("/sources")
 def add_source(request: Request, reference: str = Form(""), tags: str = Form("")) -> Response:
-    """Start watching a channel, and label it while it is being added."""
+    """Start watching somewhere, and label it while it is being added."""
     owner = owner_of(request)
     wanted = reference.strip()
     if not wanted:
-        return redirect("/sources", err="Give it a channel — an @handle, a URL, or a UC… id.")
+        return redirect(
+            "/sources",
+            err="Give it somewhere to watch — a YouTube handle, an r/ community, "
+            "a Bluesky handle, or the address of a feed.",
+        )
 
     with session_scope() as session, _http_client() as http:
         try:
-            channel = channel_service.add_channel(session, wanted, http, owner=owner)
+            channel = channel_service.add_source(session, wanted, http, owner=owner)
         except channel_service.ChannelError as exc:
             return redirect("/sources", err=str(exc))
         if tags.strip():
@@ -966,11 +973,16 @@ def set_feed_view(
 
 
 def _focus_item(video: Video, playlist_title: str = "") -> Context:
-    """One entry in the Focus queue, video or community post alike."""
+    """One entry in the Focus queue: a video, a community post, or an item
+    from a feed somewhere else. The last two are read rather than played, and
+    differ only in what the link out is called."""
     return {
         "id": video.id,
         "video_id": video.video_id,
         "kind": video.kind,
+        # Where it came from, said the way a person would say it, so the page
+        # can offer "Open it on Reddit" without knowing the list of kinds.
+        "source": sources.describe(video.channel.source_kind).label,
         "title": video.title or video.video_id,
         "channel": video.channel.title,
         "playlist": playlist_title,
@@ -2067,6 +2079,11 @@ def _channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
     channels = session.scalars(owned(select(Channel), Channel, owner))
     return {
         channel.id: {
+            # What kind of somewhere it is. The four switches below are
+            # YouTube's own distinctions, so a source elsewhere sends them
+            # rather than pretending they mean something there.
+            "source": sources.describe(channel.source_kind).label,
+            "youtube": channel.is_youtube,
             "takes": {
                 "videos": not channel.skip_videos,
                 "shorts": not channel.skip_shorts,
@@ -2148,7 +2165,11 @@ def _node_note(
     if node.kind == "source":
         channel = node.channel
         if channel is None:
-            return "open it and type an @handle"
+            return "open it and say where to watch"
+        if not channel.is_youtube:
+            # Nowhere else splits what it publishes into four kinds, so the
+            # line says where it comes from, which is the useful fact instead.
+            return f"everything from {sources.describe(channel.source_kind).label}"
         takes = [
             word
             for word, off in (("videos", channel.skip_videos), ("shorts", channel.skip_shorts),
@@ -2747,7 +2768,9 @@ def _attach_channel(
 
     with sync_service.http_client() as http:
         try:
-            channel = channel_service.add_channel(
+            # Whatever kind of somewhere it is: a handle, an r/ community, a
+            # Bluesky account, a Substack, or the address of a feed.
+            channel = channel_service.add_source(
                 session,
                 wanted,
                 http,
@@ -2838,7 +2861,7 @@ def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Chan
     enough, and a lookup would cost a request to tell us what we know.
     """
     typed = wanted.strip()
-    return session.scalar(
+    found = session.scalar(
         owned(select(Channel), Channel, owner).where(
             or_(
                 Channel.channel_id == typed,
@@ -2846,6 +2869,18 @@ def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Chan
                 func.lower(Channel.title) == typed.lower(),
             )
         )
+    )
+    if found is not None or sources.looks_like_youtube(typed):
+        return found
+
+    # A source elsewhere is filed under the short name its kind reduces to, so
+    # a pasted URL and the r/ name that means the same thing find one row.
+    try:
+        key = sources.resolve(typed).key
+    except sources.UnknownSource:
+        return None
+    return session.scalar(
+        owned(select(Channel), Channel, owner).where(Channel.channel_id == key)
     )
 
 

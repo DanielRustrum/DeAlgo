@@ -103,7 +103,7 @@ def cmd_add(args: argparse.Namespace) -> int:
     with session_scope() as session:
         with httpx.Client(timeout=HTTP_TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True) as http:
             try:
-                channel = channel_service.add_channel(session, args.reference, http)
+                channel = channel_service.add_source(session, args.reference, http)
             except channel_service.ChannelError as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 1
@@ -211,7 +211,10 @@ def build_parser() -> argparse.ArgumentParser:
     sync.set_defaults(func=cmd_sync)
 
     add = sub.add_parser("add", help="watch a channel")
-    add.add_argument("reference", help="channel URL, @handle, or UC… id")
+    add.add_argument(
+        "reference",
+        help="a YouTube @handle, URL or UC… id; an r/community; a Bluesky handle; or a feed address",
+    )
     add.set_defaults(func=cmd_add)
 
     export = sub.add_parser("export", help="write a JSON backup of the setup")

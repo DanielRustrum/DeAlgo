@@ -62,6 +62,10 @@ interface GraphTag {
 }
 
 interface GraphChannel {
+  /** What kind of somewhere it is, said the way a person would: "Reddit". */
+  source: string;
+  /** Only YouTube has Shorts, broadcasts and community posts to sort out. */
+  youtube: boolean;
   takes: Record<string, boolean>;
   /** When it was last polled. When it next will be is the trigger's business. */
   checked: string | null;
@@ -326,6 +330,10 @@ function asGraphChannel(value: unknown): GraphChannel | null {
 
   const checked = raw["checked"];
   return {
+    source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
+    // Absent means YouTube: everything on a canvas drawn before there was
+    // anywhere else to draw is one.
+    youtube: raw["youtube"] !== false,
     takes,
     checked: typeof checked === "string" ? checked : null,
     placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
@@ -1294,8 +1302,8 @@ function graphChannelFields(
     const handle = document.createElement("input");
     handle.type = "text";
     handle.name = "handle";
-    handle.placeholder = "@handle, a URL, or a UC… id";
-    form.appendChild(graphLabelled("Or a new channel", handle));
+    handle.placeholder = "@handle, r/name, a Bluesky handle, or a feed address";
+    form.appendChild(graphLabelled("Or somewhere new", handle));
 
     const backfill = document.createElement("input");
     backfill.type = "number";
@@ -1308,7 +1316,7 @@ function graphChannelFields(
       graphElement(
         "p",
         "hint",
-        "A handle needs Google or an API key; a UC… id needs neither, and one of your own sources needs nothing at all. A channel stays paused until it is wired to a feed.",
+        "YouTube, Reddit, Bluesky, Substack, or the address of any feed. A YouTube handle needs Google or an API key; everything else needs nothing at all. A source stays paused until it is wired to a feed.",
       ),
     );
     return;
@@ -1321,10 +1329,25 @@ function graphChannelFields(
   form.appendChild(graphChannelCounts(node, channel));
 }
 
-/** The four switches, and whether the channel is watched at all. */
+/** The four switches, and whether the channel is watched at all.
+ *
+ *  Videos, Shorts, broadcasts and community posts are distinctions YouTube
+ *  draws. Everywhere else publishes one kind of thing, so the box says so
+ *  rather than offering four switches that would decide nothing. */
 function graphTakes(channel: GraphChannel): HTMLElement {
   const group = graphElement("div", "graph-group");
   group.appendChild(graphElement("span", "graph-group-name", "Takes"));
+
+  if (!channel.youtube) {
+    group.appendChild(
+      graphElement(
+        "span",
+        "graph-group-note",
+        `Everything ${channel.source} publishes to this feed. Filter boxes wired after this one are what narrow it.`,
+      ),
+    );
+    return group;
+  }
 
   const switches = graphElement("div", "graph-switches");
   for (const [name, label] of [

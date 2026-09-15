@@ -1,12 +1,20 @@
-"""Adding and editing watched channels."""
+"""Adding and editing the sources this account watches.
+
+Called channels throughout because that is what they were when there was only
+YouTube, and renaming a table is a worse idea than a name that has grown.
+"""
 
 from __future__ import annotations
+
+from xml.etree import ElementTree
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import Channel, Video
+from .. import sources
+from ..sources import syndication
 from ..youtube import feeds
 from ..youtube.api import ChannelInfo, YouTubeAPIError, parse_channel_reference
 from . import filters
@@ -70,6 +78,62 @@ def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo
     if info is None or not info.channel_id:
         raise ChannelError(f"no channel found for {reference!r}")
     return info
+
+
+def add_source(
+    session: Session,
+    reference: str,
+    http: httpx.Client,
+    *,
+    backfill_days: int | None = None,
+    owner: OwnerId = None,
+) -> Channel:
+    """Start watching something, whatever kind of somewhere it is.
+
+    YouTube is resolved by its own service, because turning a handle into a
+    channel id may need an API key. Everything else says where its feed is by
+    the shape of what was typed, so it is taken at its word and checked by
+    being read — which is the only honest test of a feed anyway.
+    """
+    typed = (reference or "").strip()
+    if sources.looks_like_youtube(typed):
+        return add_channel(session, typed, http, backfill_days=backfill_days, owner=owner)
+
+    try:
+        found = sources.resolve(typed)
+    except sources.UnknownSource as exc:
+        raise ChannelError(str(exc)) from exc
+
+    existing = session.scalar(
+        owned(select(Channel), Channel, owner).where(Channel.channel_id == found.key)
+    )
+    if existing is not None:
+        raise ChannelError(f"{existing.title or found.key} is already being watched")
+
+    # Read once before keeping it: a feed that cannot be read is a source that
+    # would sit there failing quietly every sync.
+    try:
+        feed = syndication.fetch(found.feed_url, http)
+    except httpx.HTTPError as exc:
+        raise ChannelError(f"could not read that feed: {exc}") from exc
+    except ElementTree.ParseError as exc:
+        raise ChannelError(f"that address did not give back a feed: {exc}") from exc
+
+    channel = Channel(
+        owner_pk=owner,
+        channel_id=found.key,
+        title=feed.title or found.title,
+        source_kind=found.kind,
+        source_url=found.feed_url,
+        # Nothing to send items to yet, so it waits rather than quietly
+        # queueing things that have nowhere to go.
+        enabled=False,
+        backfill_days=backfill_days,
+    )
+    session.add(channel)
+    session.flush()
+    ordering.append(session, channel)
+    return channel
 
 
 def add_channel(
