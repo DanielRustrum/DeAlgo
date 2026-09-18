@@ -389,6 +389,73 @@ def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
     assert "Old science video" in re.search(r'<a class="card-thumb"[^>]*>', card).group(0)
 
 
+# -- a window on when a feed may be read ------------------------------------
+
+
+def daily_window(db, *, minutes=90, every=1440, last_fired_at=None):
+    """A pulse on the Science feed's second input: 90 min in every 1 day."""
+    from dealgo.models import GraphEdge, GraphNode, Playlist
+
+    with db.session_scope() as session:
+        science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
+        feed = GraphNode(kind="feed", playlist_pk=science.id, enabled=True, x=0, y=0)
+        pulse = GraphNode(
+            kind="trigger", trigger_kind="pulse", every_minutes=every,
+            duration_minutes=minutes, enabled=True, last_fired_at=last_fired_at, x=0, y=0,
+        )
+        session.add_all([feed, pulse])
+        session.flush()
+        session.add(GraphEdge(source_pk=pulse.id, target_pk=feed.id))
+        return pulse.id
+
+
+def test_a_daily_window_is_open_when_you_first_come_to_it(client, db):
+    """The bug this replaces: "90 min in every 1 day" was counted from the
+    Unix epoch, so the feed was shut for all but the 90 minutes after midnight
+    UTC — whatever hour you actually sat down."""
+    daily_window(db)
+
+    body = client.get("/feed").text
+
+    assert "This feed is shut" not in body
+    assert "Old science video" in body
+
+
+def test_coming_to_the_feed_starts_the_sitting(client, db):
+    from dealgo.models import GraphNode
+
+    pulse_pk = daily_window(db)
+    client.get("/feed")
+
+    with db.session_scope() as session:
+        assert session.get(GraphNode, pulse_pk).last_fired_at is not None
+
+
+def test_a_spent_sitting_shuts_the_feed_and_says_when_it_opens(client, db):
+    import datetime as dt
+
+    daily_window(db, last_fired_at=utcnow() - dt.timedelta(hours=12))
+
+    body = client.get("/feed").text
+
+    assert "This feed is shut" in body
+    assert "open 90 min in every 1 day" in body
+    # The thing actually worth knowing, rather than leaving you to work it out.
+    assert "It opens again" in body
+
+
+def test_a_sync_landing_does_not_spend_the_days_reading(client, db):
+    """The sections refresh themselves when a sync finishes. Nobody arrived,
+    so that must not start the sitting."""
+    from dealgo.models import GraphNode
+
+    pulse_pk = daily_window(db)
+    client.get("/partials/feed", headers={"HX-Request": "true"})
+
+    with db.session_scope() as session:
+        assert session.get(GraphNode, pulse_pk).last_fired_at is None
+
+
 def test_a_card_for_an_item_from_elsewhere_says_where_it_came_from(client, db):
     """There is no duration to show and nothing to play, so the card says
     which kind of somewhere it is and leads out to it."""

@@ -580,8 +580,23 @@ def consumption(session: Session, owner: OwnerId = None) -> dict[int, list[Graph
     return wired
 
 
-def is_open(triggers: list[GraphNode], now: dt.datetime) -> bool:
-    """Whether a feed may be read at this moment.
+@dataclass
+class Window:
+    """Whether a feed may be read now, and what follows from being let in."""
+
+    open: bool
+    #: Pulses whose sitting begins the moment the reader is let in, for the
+    #: caller to stamp. Only ever acted on when the feed actually opens: a
+    #: pulse must not spend its allowance while something else holds the feed
+    #: shut anyway.
+    starting: list[GraphNode] = field(default_factory=list)
+    #: The soonest it could open again, when it is shut and that can be worked
+    #: out. A lower bound where several triggers disagree, exact for one.
+    opens_at: dt.datetime | None = None
+
+
+def window_state(triggers: list[GraphNode], now: dt.datetime) -> Window:
+    """Whether a feed may be read at this moment, and why not if not.
 
     Two kinds of trigger, combined the two ways they read:
 
@@ -594,33 +609,111 @@ def is_open(triggers: list[GraphNode], now: dt.datetime) -> bool:
     schedules and no pulses is open when either schedule is, not never.
     """
     if not triggers:
-        return True
+        return Window(open=True)
 
     schedules = [node for node in triggers if node.trigger_kind == "schedule"]
     pulses = [node for node in triggers if node.trigger_kind != "schedule"]
 
-    opened = any(_within(node, now) for node in schedules) if schedules else True
-    narrowed = all(_within(node, now) for node in pulses) if pulses else True
-    return opened and narrowed
+    shut_at: list[dt.datetime] = []
+
+    opened = True
+    if schedules:
+        opened = any(_came_round(node, now) for node in schedules)
+        if not opened:
+            # Any one of them is enough, so the soonest of them is the answer.
+            soonest = [when for when in (_next_firing(node, now) for node in schedules) if when]
+            if soonest:
+                shut_at.append(min(soonest))
+
+    narrowed = True
+    starting: list[GraphNode] = []
+    for node in pulses:
+        allowed, begins = _sitting(node, now)
+        if not allowed:
+            narrowed = False
+            when = _next_sitting(node, now)
+            if when is not None:
+                # Every pulse has to agree, so the last of them is the answer.
+                shut_at.append(when)
+        elif begins:
+            starting.append(node)
+
+    if opened and narrowed:
+        return Window(open=True, starting=starting)
+    return Window(open=False, opens_at=max(shut_at) if shut_at else None)
 
 
-def _within(node: GraphNode, now: dt.datetime) -> bool:
-    """Whether this trigger's window is open now.
+def is_open(triggers: list[GraphNode], now: dt.datetime) -> bool:
+    """Whether a feed may be read, asked without letting anybody in.
 
-    A window starts when the trigger comes round and lasts for its duration.
+    What the canvas draws on a feed box, where showing the state must not
+    start a sitting that the reader never sat down for.
+    """
+    return window_state(triggers, now).open
+
+
+def begin_sitting(session: Session, state: Window, now: dt.datetime) -> None:
+    """Start the sittings this opening began, so they run out in their turn."""
+    for node in state.starting:
+        node.last_fired_at = now
+    if state.starting:
+        session.flush()
+
+
+def _came_round(node: GraphNode, now: dt.datetime) -> bool:
+    """Whether a schedule's window is open now.
+
+    Asked the narrow way round: not "when did it last come round", which means
+    walking back through firings, but "did it come round inside the last
+    `window` minutes" — which is one question and one call.
     """
     window = max(1, node.duration_minutes or DEFAULT_DURATION_MINUTES)
+    return _came_round_within(node.cron or DEFAULT_CRON, window, now)
 
-    if node.trigger_kind == "schedule":
-        # Asked the narrow way round: not "when did it last come round", which
-        # means walking back through firings, but "did it come round inside
-        # the last `window` minutes" — which is one question and one call.
-        return _came_round_within(node.cron or DEFAULT_CRON, window, now)
 
-    # A pulse repeats: the window is the first part of every gap.
+def _next_firing(node: GraphNode, now: dt.datetime) -> dt.datetime | None:
+    try:
+        trigger = cron_trigger(node.cron or DEFAULT_CRON)
+    except GraphError:
+        return None
+    # APScheduler is untyped here; it gives back an aware datetime or nothing.
+    when: dt.datetime | None = trigger.get_next_fire_time(None, _aware(now))
+    return when
+
+
+def _sitting(node: GraphNode, now: dt.datetime) -> tuple[bool, bool]:
+    """Whether this pulse lets you in, and whether that starts a new sitting.
+
+    A pulse says how long you get and how often, and nothing about when. There
+    is no clock time to anchor it to, so the sitting starts when you sit down:
+    your ninety minutes a day begin at the first visit after the day is up,
+    not at whatever hour the arithmetic happens to land on.
+
+    That is the whole of the fix for the window that used to be measured from
+    the Unix epoch — which put "90 minutes a day" at midnight UTC, an hour
+    nobody chose and nothing on the canvas mentioned.
+    """
+    window = max(1, node.duration_minutes or DEFAULT_DURATION_MINUTES)
     gap = max(1, node.every_minutes or DEFAULT_EVERY_MINUTES)
-    since = int(now.timestamp() // 60) % gap
-    return since < window
+
+    began = node.last_fired_at
+    if began is None:
+        return True, True  # never sat down: the first visit starts the first one
+
+    since = _aware(now) - _aware(began)
+    if since < dt.timedelta(minutes=window):
+        return True, False  # still inside the sitting that is running
+    if since >= dt.timedelta(minutes=gap):
+        return True, True  # the gap has elapsed: the next one may start
+    return False, False  # spent, and the gap has not come round yet
+
+
+def _next_sitting(node: GraphNode, now: dt.datetime) -> dt.datetime | None:
+    """When a spent pulse may be sat down to again."""
+    if node.last_fired_at is None:
+        return None
+    gap = max(1, node.every_minutes or DEFAULT_EVERY_MINUTES)
+    return _aware(node.last_fired_at) + dt.timedelta(minutes=gap)
 
 
 def _came_round_within(expression: str, minutes: int, now: dt.datetime) -> bool:

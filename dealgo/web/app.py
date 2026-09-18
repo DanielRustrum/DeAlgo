@@ -862,9 +862,21 @@ def remove_channel(request: Request, channel_id: int, feed: str = Form("")) -> R
 
 
 def _feed_context(
-    session: Session, *, playlist: str = "", query: str = "", owner: OwnerId = None
+    session: Session,
+    *,
+    playlist: str = "",
+    query: str = "",
+    owner: OwnerId = None,
+    sitting: bool = False,
 ) -> Context:
-    """What is in each feed right now, each laid out the way that feed asks."""
+    """What is in each feed right now, each laid out the way that feed asks.
+
+    ``sitting`` says whether somebody actually came to the feed. A pulse on a
+    feed's second input gives a stretch of reading that starts when you sit
+    down, so arriving is what starts it — and a background refresh must not,
+    or a sync landing overnight would spend the day's reading before anyone
+    was awake to do it.
+    """
     wanted = int(playlist) if playlist.isdigit() else None
 
     playlists = [p for p in playlist_service.list_playlists(session, owner) if p.enabled or wanted]
@@ -884,16 +896,21 @@ def _feed_context(
         # window is open. Shown as shut rather than hidden: a feed that
         # vanished would read as a feed that had gone.
         opens = windows.get(target.id, [])
-        if opens and not graph_service.is_open(opens, now):
-            sections.append(
-                {
-                    "playlist": target,
-                    "videos": [],
-                    "total": 0,
-                    "shut": [graph_service.window_words(node) for node in opens],
-                }
-            )
-            continue
+        if opens:
+            state = graph_service.window_state(opens, now)
+            if not state.open:
+                sections.append(
+                    {
+                        "playlist": target,
+                        "videos": [],
+                        "total": 0,
+                        "shut": [graph_service.window_words(node) for node in opens],
+                        "opens_at": state.opens_at,
+                    }
+                )
+                continue
+            if sitting:
+                graph_service.begin_sitting(session, state, now)
         # Not `query`: that name is the search text on this function.
         statement = (
             owned(select(Video), Video, owner)
@@ -917,7 +934,9 @@ def _feed_context(
             )
             or 0
         )
-        sections.append({"playlist": target, "videos": videos, "total": total, "shut": []})
+        sections.append(
+            {"playlist": target, "videos": videos, "total": total, "shut": [], "opens_at": None}
+        )
 
     return {
         "sections": sections,
@@ -936,12 +955,14 @@ def _feed_context(
 def feed_page(request: Request, playlist: str = "", q: str = "") -> HTMLResponse:
     owner = owner_of(request)
     with session_scope() as session:
-        context = _feed_context(session, playlist=playlist, query=q, owner=owner)
+        context = _feed_context(session, playlist=playlist, query=q, owner=owner, sitting=True)
     return render(request, "feed.html", context)
 
 
 @app.get("/partials/feed", response_class=HTMLResponse)
 def partial_feed(request: Request, playlist: str = "", q: str = "") -> HTMLResponse:
+    """The sections again after a sync landed. Not a sitting: nobody arrived,
+    the page they were already on caught up."""
     owner = owner_of(request)
     with session_scope() as session:
         context = _feed_context(session, playlist=playlist, query=q, owner=owner)
@@ -967,7 +988,10 @@ def set_feed_view(
 
     if is_htmx(request):
         with session_scope() as session:
-            context = _feed_context(session, playlist=playlist, query=q, owner=owner)
+            # Changing how a feed is laid out is somebody looking at it.
+            context = _feed_context(
+                session, playlist=playlist, query=q, owner=owner, sitting=True
+            )
         return fragment(request, "_feed_sections.html", context)
     return redirect(f"/feed?{urlencode({'playlist': playlist, 'q': q})}")
 

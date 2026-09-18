@@ -612,6 +612,10 @@ class GraphNode(Base):
     # is an instant rather than a stretch of time.
     duration_minutes: Mapped[Optional[int]] = mapped_column(Integer)
     cron: Mapped[Optional[str]] = mapped_column(String(120))
+    # When this trigger last came round: set by the Fire button, and — for a
+    # pulse on a feed's second input — by sitting down to read, which is what
+    # starts that stretch. One column because it is one fact: a trigger wired
+    # to both a channel and a feed goes off for both at once.
     last_fired_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
 
     channel: Mapped[Optional[Channel]] = relationship()

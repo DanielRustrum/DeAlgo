@@ -2235,13 +2235,74 @@ def test_a_feed_with_nothing_on_its_second_input_is_always_open(db):
     assert graph.is_open([], dt.datetime(2026, 5, 1, 3, 0)) is True
 
 
-def test_a_pulse_opens_the_first_part_of_every_gap(db):
-    """Thirty minutes in every sixty: open on the hour, shut on the half."""
+def test_a_pulse_is_a_sitting_that_starts_when_you_sit_down(db):
+    """A pulse says how long you get and how often, and nothing about when.
+    So the stretch starts at the first visit after the gap comes round."""
     hourly = window("pulse", every_minutes=60, duration_minutes=30)
+    nine = dt.datetime(2026, 5, 1, 9, 0)
 
-    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 0)) is True
-    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 29)) is True
-    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 31)) is False
+    # Never sat down: the first visit is let in, and that starts the sitting.
+    first = graph.window_state([hourly], nine)
+    assert first.open is True
+    assert first.starting == [hourly]
+
+    hourly.last_fired_at = nine
+    assert graph.is_open([hourly], nine + dt.timedelta(minutes=29)) is True
+    assert graph.is_open([hourly], nine + dt.timedelta(minutes=31)) is False
+    # Spent, and it stays spent for the rest of the gap.
+    assert graph.is_open([hourly], nine + dt.timedelta(minutes=59)) is False
+
+    # The gap comes round, and the next sitting may begin.
+    next_one = graph.window_state([hourly], nine + dt.timedelta(minutes=60))
+    assert next_one.open is True
+    assert next_one.starting == [hourly]
+
+
+def test_ninety_minutes_a_day_is_not_ninety_minutes_after_midnight_utc(db):
+    """The window used to be counted from the Unix epoch, which put "90 min in
+    every 1 day" between 00:00 and 01:30 UTC — an hour nobody chose, nothing
+    on the canvas mentioned, and no setting could move. Arriving any other
+    time of day found the feed shut with no way to tell why."""
+    daily = window("pulse", every_minutes=1440, duration_minutes=90)
+    evening = dt.datetime(2026, 9, 18, 21, 48)
+
+    state = graph.window_state([daily], evening)
+    assert state.open is True
+    assert state.starting == [daily]
+
+
+def test_a_shut_feed_says_when_it_opens_again(db):
+    """What you actually want to know when you find it shut."""
+    daily = window("pulse", every_minutes=1440, duration_minutes=90)
+    daily.last_fired_at = dt.datetime(2026, 9, 18, 9, 0)
+
+    state = graph.window_state([daily], dt.datetime(2026, 9, 18, 21, 48))
+    assert state.open is False
+    assert state.opens_at == dt.datetime(2026, 9, 19, 9, 0, tzinfo=dt.timezone.utc)
+
+
+def test_asking_whether_a_feed_is_open_starts_nothing(db):
+    """The canvas draws the state on a feed box. Drawing it must not spend a
+    sitting the reader never sat down for."""
+    daily = window("pulse", every_minutes=1440, duration_minutes=90)
+
+    assert graph.is_open([daily], dt.datetime(2026, 9, 18, 21, 48)) is True
+    assert daily.last_fired_at is None
+
+
+def test_a_pulse_does_not_spend_its_sitting_while_something_else_holds_it_shut(db):
+    """Two pulses, and only one of them has come round. The feed stays shut,
+    so neither sitting has begun — otherwise the one that was ready would
+    burn its allowance on a visit that was turned away."""
+    daily = window("pulse", every_minutes=1440, duration_minutes=90)
+    hourly = window("pulse", every_minutes=60, duration_minutes=30)
+    nine = dt.datetime(2026, 5, 1, 9, 0)
+    hourly.last_fired_at = nine  # spent at 9, and it is now half past
+
+    state = graph.window_state([daily, hourly], nine + dt.timedelta(minutes=40))
+
+    assert state.open is False
+    assert state.starting == []
 
 
 def test_a_schedule_opens_for_its_duration_from_when_it_comes_round(db):
@@ -2269,14 +2330,17 @@ def test_more_pulses_narrow_the_times(db):
     condition, which is an and."""
     hourly = window("pulse", every_minutes=60, duration_minutes=30)
     quarterly = window("pulse", every_minutes=15, duration_minutes=5)
+    nine = dt.datetime(2026, 5, 1, 9, 0)
+    hourly.last_fired_at = nine
+    quarterly.last_fired_at = nine
     both = [hourly, quarterly]
 
-    # On the hour both are open.
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 0)) is True
-    # Ten past: the hourly one still is, the quarter-hourly one is not.
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is False
-    # Quarter past: the quarter-hourly one is open again, and the hourly still.
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 16)) is True
+    # Two minutes in, both sittings are still running.
+    assert graph.is_open(both, nine + dt.timedelta(minutes=2)) is True
+    # Ten past: the hourly one still is, the quarter-hourly one is spent.
+    assert graph.is_open(both, nine + dt.timedelta(minutes=10)) is False
+    # Quarter past: the quarter-hourly gap came round, and the hourly still runs.
+    assert graph.is_open(both, nine + dt.timedelta(minutes=16)) is True
 
 
 def test_a_kind_nobody_used_says_nothing_rather_than_no(db):
@@ -2286,6 +2350,7 @@ def test_a_kind_nobody_used_says_nothing_rather_than_no(db):
     assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 10)) is True
 
     hourly = window("pulse", every_minutes=60, duration_minutes=30)
+    hourly.last_fired_at = dt.datetime(2026, 5, 1, 9, 0)
     assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 10)) is True
 
 
@@ -2293,10 +2358,11 @@ def test_schedules_and_pulses_together_are_the_overlap(db):
     """The times a schedule opens, narrowed by the pulses that must agree."""
     morning = window("schedule", cron="0 9 * * *", duration_minutes=60)
     quarterly = window("pulse", every_minutes=15, duration_minutes=5)
+    quarterly.last_fired_at = dt.datetime(2026, 5, 1, 9, 0)
 
     both = [morning, quarterly]
     assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 2)) is True    # in both
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is False  # pulse shut
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is False  # pulse spent
     assert graph.is_open(both, dt.datetime(2026, 5, 1, 15, 2)) is False  # schedule shut
 
 

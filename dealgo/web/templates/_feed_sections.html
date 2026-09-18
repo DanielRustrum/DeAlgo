@@ -74,6 +74,8 @@
       <p class="empty shut-note">
         This feed is shut. You set it to be
         {% for window in section.shut %}{{ window }}{% if not loop.last %}, and {% endif %}{% endfor %}.
+        {# The thing actually worth knowing when you find it shut. #}
+        {% if section.opens_at %}It opens again {{ section.opens_at | ago }}.{% endif %}
       </p>
       {% elif section.videos %}
       <div class="card-grid">
