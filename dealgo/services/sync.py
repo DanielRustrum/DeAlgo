@@ -60,6 +60,11 @@ USER_AGENT = "De-Algo/0.1 (personal feed builder)"
 # What an item from somewhere other than YouTube is addressed by, so an id
 # from a feed can never be mistaken for a video id.
 ITEM_PREFIX = "item-"
+
+# Why an item from somewhere other than YouTube was turned away. Named rather
+# than written twice: wiring the source to a feed that *can* hold it looks for
+# exactly this, so the two must not drift apart.
+WRONG_KIND_OF_FEED = "not a YouTube video, and that feed is a YouTube playlist"
 HTTP_TIMEOUT = 30.0
 MAX_INSERT_ATTEMPTS = 3
 
@@ -1023,7 +1028,7 @@ def _decide(
     # a feed that lives inside De-Algo — said here, once, rather than failing
     # at the insert with whatever YouTube makes of it.
     if not video.is_youtube and not path.playlist.is_generic:
-        return filters.Decision(False, "not a YouTube video, and that feed is a YouTube playlist")
+        return filters.Decision(False, WRONG_KIND_OF_FEED)
 
     if video.kind == "link":
         # Nothing to measure but its words: a feed entry has no duration and

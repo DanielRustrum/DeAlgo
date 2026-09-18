@@ -1308,9 +1308,19 @@ def connect(
     if source.kind == "source" and target.kind == "feed" and not source.tag:
         if source.channel is None or target.playlist is None:
             raise GraphError("That node no longer has anything behind it.")
+        # A wire that could never carry anything, refused where it is drawn
+        # rather than discovered sixty skipped items later. A tag node is let
+        # through: it can stand for YouTube sources too, and those do fill it.
+        if not source.channel.is_youtube and not target.playlist.is_generic:
+            raise GraphError(
+                f"{target.playlist.title} is a YouTube playlist, and a YouTube playlist "
+                "holds YouTube videos only. Wire this one to a feed that lives here — "
+                "make a new feed and keep it generic."
+            )
         if target.playlist not in source.channel.playlists:
             source.channel.playlists.append(target.playlist)
             session.flush()
+            _bring_back_what_it_can_now_hold(session, source.channel, target.playlist, owner)
         return None
 
     if _reaches(session, target, source, owner):
@@ -1328,6 +1338,39 @@ def connect(
     session.add(edge)
     session.flush()
     return edge
+
+
+def _bring_back_what_it_can_now_hold(
+    session: Session, channel: Channel, playlist: Playlist, owner: OwnerId = None
+) -> int:
+    """Requeue items this source had nowhere to put.
+
+    A source that is not YouTube wired only to YouTube playlists has every
+    item turned away. Giving it a feed that can hold them should fill that
+    feed, not leave the backlog stranded and wait for the next new post —
+    the same courtesy turning a filter off already gets.
+    """
+    from . import sync as sync_service
+
+    if not playlist.is_generic or channel.is_youtube:
+        return 0
+
+    stranded = list(
+        session.scalars(
+            owned(select(Video), Video, owner).where(
+                Video.channel_pk == channel.id,
+                Video.status == "skipped",
+                Video.reason == sync_service.WRONG_KIND_OF_FEED,
+            )
+        )
+    )
+    for video in stranded:
+        video.status = "pending"
+        video.reason = None
+        video.attempts = 0
+        video.processed_at = None
+    session.flush()
+    return len(stranded)
 
 
 def unlink(session: Session, source: GraphNode, target: GraphNode) -> bool:

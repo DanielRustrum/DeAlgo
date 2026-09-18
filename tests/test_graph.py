@@ -753,6 +753,89 @@ def test_a_source_box_takes_somewhere_that_is_not_youtube(canvas, db, monkeypatc
         assert made.source_url == "https://www.reddit.com/r/python/.rss"
 
 
+def add_reddit(canvas, db, monkeypatch, *, items=()):
+    """A subscribed Reddit source with a box on the canvas."""
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.services import sync as sync_service
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(
+        syndication, "fetch", lambda _url, _http: syndication.Feed(title="r/python", items=[])
+    )
+    drawn = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    empty = [node for node in boxes(drawn, "source") if node["detail"] is None][0]
+    canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "r/python"})
+
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+        for index, title in enumerate(items):
+            session.add(VideoModel(
+                video_id=f"item-{index}", channel_pk=source.id, kind="link", title=title,
+                link=f"https://reddit.com/{index}", status="skipped",
+                reason=sync_service.WRONG_KIND_OF_FEED,
+            ))
+    return empty["id"]
+
+
+def test_a_source_that_is_not_youtube_cannot_be_wired_to_a_youtube_playlist(
+    canvas, db, monkeypatch
+):
+    """Refused where the wire is drawn. It could never carry anything, and
+    left to a run it says so only in sixty skip reasons nobody goes looking
+    for."""
+    reddit = add_reddit(canvas, db, monkeypatch)
+    feed = only(canvas.get("/api/graph").json(), "feed")  # the fixture's real playlist
+
+    answer = canvas.post("/graph/connect", data={"source": reddit, "target": feed["id"]})
+
+    assert answer.status_code == 400
+    said = answer.json()["error"]
+    assert "YouTube playlist" in said
+    assert "generic" in said  # and what to do instead
+
+
+def test_wiring_it_to_a_feed_that_can_hold_it_brings_back_what_was_stranded(
+    canvas, db, monkeypatch
+):
+    """Wiring it somewhere that works should fill that feed, not leave the
+    backlog stranded waiting for the next new post."""
+    from dealgo.models import Video as VideoModel
+
+    reddit = add_reddit(canvas, db, monkeypatch, items=("One", "Two", "Three"))
+    made = canvas.post("/graph/nodes", data={"kind": "feed", "title": "Reading"}).json()
+    generic = [node for node in boxes(made, "feed") if node["title"] == "Reading"][0]
+
+    answer = canvas.post("/graph/connect", data={"source": reddit, "target": generic["id"]})
+    assert answer.status_code == 200
+
+    with db.session_scope() as session:
+        back = session.scalars(select(VideoModel).where(VideoModel.kind == "link")).all()
+    assert [v.status for v in back] == ["pending"] * 3
+    assert all(v.reason is None for v in back)
+
+
+def test_a_youtube_source_wired_to_a_generic_feed_strands_nothing(canvas, db, monkeypatch):
+    """The requeue is for items that had nowhere to go, not for everything a
+    filter ever turned away."""
+    from dealgo.models import Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        session.add(VideoModel(video_id="v9", channel_pk=channel.id, title="A short",
+                               status="skipped", reason="Shorts are switched off"))
+
+    made = canvas.post("/graph/nodes", data={"kind": "feed", "title": "Reading"}).json()
+    generic = [node for node in boxes(made, "feed") if node["title"] == "Reading"][0]
+    source = [node for node in boxes(made, "source") if node["title"] == "One Channel"][0]
+
+    canvas.post("/graph/connect", data={"source": source["id"], "target": generic["id"]})
+
+    with db.session_scope() as session:
+        held = session.scalar(select(VideoModel).where(VideoModel.video_id == "v9"))
+    assert held.status == "skipped"
+    assert held.reason == "Shorts are switched off"
+
+
 def test_a_source_already_watched_is_attached_however_it_was_written(canvas, db, monkeypatch):
     """A pasted URL and the r/ name that means the same thing are one source,
     so a second box for it wires to the same row rather than being refused."""
@@ -1443,8 +1526,10 @@ def test_a_trial_says_where_everything_would_land(canvas, db):
 
 
 def test_a_trial_says_a_reddit_thread_cannot_go_into_a_youtube_playlist(canvas, db):
-    """The one rule the expansion adds, said on the canvas before a run rather
-    than discovered when YouTube refuses the insert."""
+    """Drawing that wire is refused now, but one drawn before it was — or one
+    reached through a tag node — still has to be explained rather than left to
+    fail at the insert. So the link is made in the database, the way the ones
+    already out there were."""
     from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
@@ -1458,12 +1543,11 @@ def test_a_trial_says_a_reddit_thread_cannot_go_into_a_youtube_playlist(canvas, 
             video_id="item-abc", channel_pk=source.id, kind="link", title="A thread",
             link="https://reddit.com/r/python/comments/abc", status="pending",
         ))
+        # The fixture's feed is a real YouTube playlist, which is the point.
+        source.playlists.append(session.scalars(select(Playlist)).one())
 
     drawn = canvas.get("/api/graph").json()
-    # The fixture's feed is a real YouTube playlist, which is the point.
-    feed = only(drawn, "feed")
     reddit = [node for node in boxes(drawn, "source") if node["title"] == "r/python"][0]
-    canvas.post("/graph/connect", data={"source": reddit["id"], "target": feed["id"]})
 
     trial = canvas.get(f"/graph/nodes/{wire_trigger(canvas, 'r/python')}/test").json()
 
