@@ -244,9 +244,13 @@ def test_the_page_carries_an_offline_banner_to_raise(client):
     assert "hidden" in body.split('id="offline-banner"', 1)[1].split(">", 1)[0]
 
 
-def test_the_sync_buttons_declare_that_they_need_the_network(client):
-    body = client.get("/").text
-    assert body.count("data-needs-network") >= 2
+def test_the_buttons_that_reach_the_server_declare_that_they_need_the_network():
+    """The mark moved with the act. A run is started from a trigger box on the
+    canvas now, so it is those buttons that go quiet when the connection does
+    — the header has nothing left to press."""
+    script = (ROOT / "dealgo/web/static/graph.js").read_text()
+    marked = script.count('needsNetwork')
+    assert marked >= 2, f"only {marked} canvas buttons claim to need the server"
 
 
 def test_the_icons_are_packaged_with_the_app():

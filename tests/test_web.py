@@ -272,27 +272,16 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
     assert len(calls) == 2
 
 
-def test_force_sync_is_offered_and_reported(client, monkeypatch):
-    from dealgo.services import sync as sync_service
+def test_there_is_no_way_to_sync_everything_from_the_header(client):
+    """A run is started from a trigger box on the canvas, which polls what it
+    is wired to and nothing else. A header button that ignored every wire
+    drawn there was a second, contradictory answer to "when does this get
+    polled", so it is gone and so is the route behind it."""
+    body = client.get("/").text
+    assert "Sync now" not in body
+    assert 'name="force" value="1"' not in body
 
-    listing = client.get("/").text
-    assert 'name="force" value="1"' in listing
-
-    calls = []
-    monkeypatch.setattr(sync_service, "run_sync", lambda *a, **k: calls.append((a, k)))
-
-    plain = client.post("/sync", headers=HX)
-    assert "Sync started." in plain.text
-
-    forced = client.post("/sync", data={"force": "1"}, headers=HX)
-    assert "Forced sync started" in forced.text
-    assert "minimum gaps ignored" in forced.text
-
-    for _ in range(50):
-        if len(calls) == 2:
-            break
-        time.sleep(0.02)
-    assert [kwargs["force"] for _, kwargs in calls] == [False, True]
+    assert client.post("/sync", headers=HX).status_code == 404
 
 
 def test_a_playlists_add_limit_can_be_saved(client, db):
@@ -1134,14 +1123,14 @@ def test_the_buttons_name_is_readable_even_though_its_word_is_not(client):
     assert "display:none" not in word
 
 
-def test_the_sync_controls_move_into_the_drawer(client):
-    """On a phone the bar holds identity and the menu; everything you can do
-    lives behind the hamburger with the tabs."""
+def test_the_sync_listener_is_still_in_the_drawer(client):
+    """No buttons left in it, but it is what announces a finished run to the
+    rest of the page — so it has to stay on the page to do the listening."""
     body = client.get("/").text
     panel = body.split('class="menu-panel"', 1)[1].split("</div>", 1)[0]
 
     assert 'id="sync-controls"' in panel
-    assert "Sync now" in panel
+    assert "/partials/sync-status" in panel
 
 
 def test_the_bar_is_unchanged_on_a_wide_screen(client):
@@ -1168,13 +1157,14 @@ def test_the_drawers_controls_outrank_their_plain_rules(client):
     )
 
 
-def test_sync_gets_the_width_and_force_takes_what_it_needs(client):
+def test_what_is_left_of_the_sync_corner_gets_the_width(client):
+    """Only the "Syncing…" note now, and only while one is running."""
     import re
 
     css = client.get("/static/app.css").text
     tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
 
-    assert re.search(r"\.menu-panel \.topbar-action form:first-child\{flex:1\}", tablet)
+    assert re.search(r"\.menu-panel \.topbar-action \.btn\{flex:1\}", tablet)
     assert "width:100%" in re.search(r"\.menu-panel \.btn\{([^}]*)\}", tablet).group(1)
 
 

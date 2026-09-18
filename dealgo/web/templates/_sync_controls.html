@@ -1,24 +1,20 @@
-{# Polls slowly while idle, quickly while a sync is in flight, and fires
-   dealgo:sync-finished at the page when a run lands. #}
+{# The header's ear on the sync. No buttons: a run is started by a trigger box
+   on the Configuration canvas, which is where the thing being polled is drawn
+   and where the schedule that governs it lives. Two ways to start the same run
+   meant a header button that ignored every wire on the canvas.
+
+   Still here because it is doing the listening: it polls slowly while idle,
+   quickly while a run is in flight, and fires dealgo:sync-finished at the page
+   when one lands, which is what tells the feed and the panels to refresh.
+   It is also where a flash message from the other header actions lands. #}
 <div id="sync-controls" class="topbar-action"
      hx-get="/partials/sync-status?seen={{ last_run_id or 0 }}"
      hx-trigger="every {{ 2 if sync_running else 15 }}s"
-     hx-swap="outerHTML"
-     hx-indicator="#sync-controls">
-  <form method="post" action="/sync" hx-post="/sync" hx-target="#sync-controls" hx-swap="outerHTML">
-    <button type="submit" class="btn btn-primary" data-needs-network
-            {{ 'disabled' if sync_running }}>
-      {% if sync_running %}<span class="spinner"></span>Syncing…{% else %}Sync now{% endif %}
-    </button>
-  </form>
-  {# Separate form rather than a second submit button, so the value is sent
-     whether or not JavaScript is doing the posting. #}
-  <form method="post" action="/sync" hx-post="/sync" hx-target="#sync-controls" hx-swap="outerHTML">
-    <input type="hidden" name="force" value="1">
-    <button type="submit" class="btn btn-quiet" data-needs-network
-            {{ 'disabled' if sync_running }}
-            title="Poll every channel now, ignoring each channel's minimum gap">
-      Force
-    </button>
-  </form>
+     hx-swap="outerHTML">
+  {% if sync_running %}
+  <a class="btn btn-quiet sync-busy" href="/channels"
+     title="A sync is running. The canvas shows which box it is on.">
+    <span class="spinner"></span>Syncing…
+  </a>
+  {% endif %}
 </div>

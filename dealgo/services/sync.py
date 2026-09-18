@@ -65,6 +65,10 @@ ITEM_PREFIX = "item-"
 # than written twice: wiring the source to a feed that *can* hold it looks for
 # exactly this, so the two must not drift apart.
 WRONG_KIND_OF_FEED = "not a YouTube video, and that feed is a YouTube playlist"
+
+# Why something the feed still lists was passed over on the first check. Named
+# so that reaching back can find exactly what it set aside and nothing else.
+TOO_OLD = "predates the backfill window"
 HTTP_TIMEOUT = 30.0
 MAX_INSERT_ATTEMPTS = 3
 
@@ -221,6 +225,7 @@ def run_sync(
     owner: OwnerId = None,
     only: Collection[int] | None = None,
     fired_by: int | None = None,
+    reach_back: bool = False,
 ) -> SyncResult:
     """Run one account's sync pass. Returns at once if a pass is in flight.
 
@@ -235,6 +240,12 @@ def run_sync(
     ``fired_by`` is the trigger box somebody pressed, carried through so the
     canvas can light it while its run is going.
 
+    ``reach_back`` takes everything the feed still lists rather than only what
+    is new, and brings back what an earlier run passed over as too old. A feed
+    carries its last dozen or two items and no more, so this reaches as far as
+    that and no further — it is "catch me up on what is there", not a way to
+    read an archive that was never published.
+
     One account at a time, because everything a pass depends on belongs to
     one: its channels, its feeds, its Google connection and its quota.
     """
@@ -243,7 +254,7 @@ def run_sync(
             with http_client() as http, session_scope() as session:
                 return _run(
                     session, http, trigger, force=force, owner=owner, only=only,
-                    fired_by=fired_by,
+                    fired_by=fired_by, reach_back=reach_back,
                 )
     except Busy:
         return SyncResult(ok=True, started=False, messages=["A sync is already running."])
@@ -287,6 +298,7 @@ def _run(
     owner: OwnerId = None,
     only: Collection[int] | None = None,
     fired_by: int | None = None,
+    reach_back: bool = False,
 ) -> SyncResult:
     settings = get_settings(session, owner)
     _start_progress(owner, trigger, fired_by)
@@ -301,7 +313,7 @@ def _run(
     _note(stage="polling")
     _discover(
         session, http, result, backfill=settings.initial_backfill, force=force, owner=owner,
-        only=only,
+        only=only, reach_back=reach_back,
     )
     _note(stage="sorting")
     _fill_missing_details(session, client, result, owner)
@@ -443,6 +455,7 @@ def _discover(
     force: bool = False,
     owner: OwnerId = None,
     only: Collection[int] | None = None,
+    reach_back: bool = False,
 ) -> None:
     channels = list(
         session.scalars(
@@ -475,6 +488,11 @@ def _discover(
             log.warning("feed parse failed for %s: %s", channel.channel_id, exc)
             continue
 
+        if reach_back:
+            # Asked for everything the feed has: what was passed over as too
+            # old is exactly what is being asked for, so it comes back.
+            result.discovered += _unignore(session, channel, owner)
+
         first_check = channel.last_checked_at is None
         known = set(
             session.scalars(
@@ -488,7 +506,10 @@ def _discover(
         # feed only lists the newest ~15 uploads either way, so a long window
         # reaches as far as that and no further.
         cutoff = None
-        if first_check and channel.backfill_days is not None:
+        if reach_back:
+            # Nothing is too old when the whole feed is what was asked for.
+            first_check = False
+        elif first_check and channel.backfill_days is not None:
             cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
 
         found = 0
@@ -513,7 +534,7 @@ def _discover(
                     link=entry.link,
                     body=entry.summary,
                     status="ignored" if beyond_backfill else "pending",
-                    reason="predates the backfill window" if beyond_backfill else None,
+                    reason=TOO_OLD if beyond_backfill else None,
                     processed_at=utcnow() if beyond_backfill else None,
                 )
             )
@@ -535,6 +556,31 @@ def _discover(
         result.channels_checked += 1
         _note_polled(channel.id, found)
         session.flush()
+
+
+def _unignore(session: Session, channel: Channel, owner: OwnerId = None) -> int:
+    """Bring back what an earlier run set aside for being older than wanted.
+
+    Only that: something skipped by a filter was a decision about the thing
+    itself and reaching further back is no argument against it. This undoes
+    one judgement — "before your time" — which is the one being revisited.
+    """
+    stranded = list(
+        session.scalars(
+            owned(select(Video), Video, owner).where(
+                Video.channel_pk == channel.id,
+                Video.status == "ignored",
+                Video.reason == TOO_OLD,
+            )
+        )
+    )
+    for video in stranded:
+        video.status = "pending"
+        video.reason = None
+        video.attempts = 0
+        video.processed_at = None
+    session.flush()
+    return len(stranded)
 
 
 def _discover_posts(
@@ -586,7 +632,7 @@ def _discover_posts(
                 thumbnail_url=post.image_urls[0] if post.image_urls else None,
                 published_at=to_naive_utc(post.published_at),
                 status="ignored" if beyond_backfill else "pending",
-                reason="predates the backfill window" if beyond_backfill else None,
+                reason=TOO_OLD if beyond_backfill else None,
                 processed_at=utcnow() if beyond_backfill else None,
             )
         )

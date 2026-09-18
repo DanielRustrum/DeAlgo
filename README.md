@@ -268,9 +268,10 @@ gap between checks, set from the Channels list — hourly, daily, weekly, or a c
 minutes. A channel that posts once a week does not need looking at every fifteen minutes.
 
 It is a floor, not a schedule: a channel is polled on the first sync at or after its gap elapses, so
-the real spacing is rounded up to the poll interval. **Sync now** respects it, because a minimum
-anything can override is not a minimum — use **Force** beside it (or `dealgo sync --force`) to poll
-every channel regardless. Forcing ignores the gaps, not the pause switch: a paused channel stays
+the real spacing is rounded up to the poll interval. A scheduled run respects it, because a minimum
+anything can override is not a minimum — pressing **Run now** on a trigger box (or `dealgo sync
+--force`) polls what that trigger is wired to regardless, since pressing it is the whole schedule.
+**Backfill** beside it does the same and reaches as far back as those feeds still list. Forcing ignores the gaps, not the pause switch: a paused channel stays
 paused. A channel that has never been checked is always due, and the list shows when each one is
 next up. Forced runs are marked in the run log.
 

@@ -276,7 +276,9 @@ a:hover { color: var(--accent); }
     border-top: 1px solid var(--line);
   }
 
-  // Sync is the reason the app has a top bar at all, so it gets the width.
+  // What is left of the top bar's sync corner: a note while one is running,
+  // and nothing at all otherwise. Runs are started from a trigger box on the
+  // canvas now, so there is no button here to give the width to.
   //
   // Every rule here is scoped to the panel rather than written against the
   // control's own class. A media query adds no specificity, and _forms.scss
@@ -287,10 +289,7 @@ a:hover { color: var(--accent); }
     gap: 8px;
     margin-left: 0;
   }
-  .menu-panel .topbar-action form { display: flex; }
-  // The first form is Sync now; the second is Force, which needs only its
-  // own width.
-  .menu-panel .topbar-action form:first-child { flex: 1; }
+  .menu-panel .topbar-action .btn { flex: 1; }
   .menu-panel .btn {
     width: 100%;
     justify-content: center;

@@ -437,6 +437,88 @@ def test_the_counts_are_kept_so_the_next_run_need_not_ask_again(world, db):
     assert counts["v1"] == (900, 1)
 
 
+# -- reaching back ---------------------------------------------------------
+
+
+def test_reaching_back_revives_what_was_too_old(world, db):
+    """The first check sets aside anything outside the backfill window. Asking
+    for a backfill is asking for exactly those."""
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).first()
+        for index in range(3):
+            session.add(VideoModel(
+                video_id=f"old{index}", channel_pk=channel.id, title=f"Old {index}",
+                status="ignored", reason=sync_service.TOO_OLD,
+            ))
+
+    sync_service.run_sync("backfill", force=True, reach_back=True)
+
+    with db.session_scope() as session:
+        revived = session.scalars(
+            select(VideoModel).where(VideoModel.video_id.like("old%"))
+        ).all()
+    assert all(v.status != "ignored" for v in revived)
+    assert all(v.reason != sync_service.TOO_OLD for v in revived)
+
+
+def test_reaching_back_leaves_a_filters_judgement_alone(world, db):
+    """"Before your time" is the one judgement being revisited. Something a
+    filter turned away was a decision about the thing itself, and reaching
+    further back is no argument against it."""
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).first()
+        session.add(VideoModel(
+            video_id="short1", channel_pk=channel.id, title="A short",
+            status="skipped", reason="Shorts are switched off",
+        ))
+
+    sync_service.run_sync("backfill", force=True, reach_back=True)
+
+    with db.session_scope() as session:
+        held = session.scalar(select(VideoModel).where(VideoModel.video_id == "short1"))
+    assert held.status == "skipped"
+    assert held.reason == "Shorts are switched off"
+
+
+def test_an_ordinary_run_leaves_what_was_too_old_where_it_is(world, db):
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).first()
+        session.add(VideoModel(
+            video_id="old0", channel_pk=channel.id, title="Old",
+            status="ignored", reason=sync_service.TOO_OLD,
+        ))
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        left = session.scalar(select(VideoModel).where(VideoModel.video_id == "old0"))
+    assert left.status == "ignored"
+
+
+def test_reaching_back_takes_the_whole_feed_on_a_first_check(world, db, monkeypatch):
+    """A source added with a tight backfill window would file most of its feed
+    as too old. Reaching back the first time takes all of it instead."""
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+
+    add_rss_source(db, monkeypatch, REDDIT)
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+        source.backfill_days = 0  # nothing but brand new items
+
+    sync_service.run_sync("backfill", force=True, reach_back=True)
+
+    with db.session_scope() as session:
+        item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+    assert item is not None
+    assert item.status != "ignored", "the whole feed was asked for, and it is what the feed lists"
+
+
 # -- sources that are not YouTube ------------------------------------------
 
 

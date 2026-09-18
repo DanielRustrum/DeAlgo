@@ -12,6 +12,7 @@ import json
 import pathlib
 import shutil
 import subprocess
+import time
 
 import pytest
 from sqlalchemy import select
@@ -1554,6 +1555,59 @@ def test_a_trial_says_a_reddit_thread_cannot_go_into_a_youtube_playlist(canvas, 
     held = trial["items"][str(reddit["id"])]["held"]
     assert [item["title"] for item in held] == ["A thread"]
     assert "YouTube playlist" in held[0]["reason"]
+
+
+def test_backfill_brings_back_what_was_passed_over_as_too_old(canvas, db, monkeypatch):
+    """A poll takes what is new. Backfill takes everything the feed still
+    lists, including what the first check set aside for predating the backfill
+    window — which is what somebody means by "catch me up"."""
+    from dealgo.models import Video as VideoModel
+    from dealgo.services import sync as sync_service
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+        for index in range(3):
+            session.add(VideoModel(
+                video_id=f"old{index}", channel_pk=channel.id, title=f"Old {index}",
+                status="ignored", reason=sync_service.TOO_OLD,
+            ))
+        # Something a filter turned away is a different judgement, and reaching
+        # further back is no argument against it.
+        session.add(VideoModel(
+            video_id="short1", channel_pk=channel.id, title="A short",
+            status="skipped", reason="Shorts are switched off",
+        ))
+
+    trigger = wire_trigger(canvas)
+    ran = []
+    monkeypatch.setattr(sync_service, "run_sync", lambda *a, **k: ran.append((a, k)))
+
+    answer = canvas.post(f"/graph/nodes/{trigger}/backfill")
+    assert answer.status_code == 200
+    assert "Reaching back" in answer.json()["said"]
+
+    for _ in range(50):
+        if ran:
+            break
+        time.sleep(0.02)
+    assert ran[0][1]["reach_back"] is True
+    assert ran[0][0] == ("backfill",)
+
+
+def test_running_a_trigger_normally_does_not_reach_back(canvas, db, monkeypatch):
+    from dealgo.services import sync as sync_service
+
+    trigger = wire_trigger(canvas)
+    ran = []
+    monkeypatch.setattr(sync_service, "run_sync", lambda *a, **k: ran.append((a, k)))
+
+    canvas.post(f"/graph/nodes/{trigger}/fire")
+
+    for _ in range(50):
+        if ran:
+            break
+        time.sleep(0.02)
+    assert ran[0][1]["reach_back"] is False
 
 
 def test_a_trial_writes_nothing(canvas, db):

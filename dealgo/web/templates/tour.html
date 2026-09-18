@@ -85,10 +85,12 @@
       {% endif %}
 
     {% elif current.key == 'sync' %}
-      <p>Press <strong>Sync now</strong> in the header. De-Algo reads each channel's public feed —
-        which costs no API quota — filters the new uploads, and puts what survives into your feeds,
+      <p>On <a href="/channels">Configuration</a>, open a <strong>trigger</strong> box and press
+        <strong>Run now</strong>. De-Algo reads the public feed of everything that trigger is wired
+        to — which costs no API quota — filters what is new, and puts what survives into your feeds,
         oldest first.</p>
-      <p><strong>Force</strong> beside it polls every channel regardless of its minimum gap.</p>
+      <p><strong>Backfill</strong> beside it takes everything those feeds still list rather than
+        only what is new, which is how you catch up on a source you have just added.</p>
       <p class="hint">After that it runs on its own, every {{ settings.poll_interval_minutes if settings else 30 }} minutes by default.</p>
 
     {% elif current.key == 'watch' %}

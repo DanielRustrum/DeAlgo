@@ -418,8 +418,18 @@ function graphFireButton(node) {
     const buttons = graphElement("div", "graph-fire");
     const run = graphElement("button", "btn btn-quiet", "Run now");
     run.setAttribute("type", "button");
+    run.title = "Poll what this is wired to, now, whatever its gap says";
+    // Both reach the server, so both go quiet when the connection does.
+    run.dataset["needsNetwork"] = "";
     run.dataset["fire"] = String(node.id);
     buttons.appendChild(run);
+    // The same poll, reaching as far back as the feeds still go.
+    const back = graphElement("button", "btn btn-quiet", "Backfill");
+    back.setAttribute("type", "button");
+    back.title = "Take everything these feeds still list, not only what is new";
+    back.dataset["needsNetwork"] = "";
+    back.dataset["backfill"] = String(node.id);
+    buttons.appendChild(back);
     // Beside it, because it is the same act with the consequences taken out.
     const test = graphElement("button", "btn btn-quiet", "Test");
     test.setAttribute("type", "button");
@@ -804,6 +814,11 @@ function graphNodeForm(state, node) {
         fire.setAttribute("type", "button");
         fire.dataset["fire"] = String(node.id);
         buttons.appendChild(fire);
+        const back = graphElement("button", "btn btn-quiet", "Backfill");
+        back.setAttribute("type", "button");
+        back.title = "Take everything these feeds still list, not only what is new";
+        back.dataset["backfill"] = String(node.id);
+        buttons.appendChild(back);
         const test = graphElement("button", "btn btn-quiet", "Test");
         test.setAttribute("type", "button");
         test.dataset["test"] = String(node.id);
@@ -1724,7 +1739,14 @@ function onGraphClick(state, event) {
     const fireId = fire === null || fire === void 0 ? void 0 : fire.dataset["fire"];
     if (fireId !== undefined) {
         event.preventDefault();
-        void fireGraphPulse(state, fireId);
+        void fireGraphPulse(state, fireId, false);
+        return;
+    }
+    const back = target.closest("[data-backfill]");
+    const backId = back === null || back === void 0 ? void 0 : back.dataset["backfill"];
+    if (backId !== undefined) {
+        event.preventDefault();
+        void fireGraphPulse(state, backId, true);
         return;
     }
     const test = target.closest("[data-test]");
@@ -1773,14 +1795,17 @@ function onGraphClick(state, event) {
         pickGraphNode(state, null);
     }
 }
-/** Press a pulse. The answer carries the graph and a line about what it did. */
-async function fireGraphPulse(state, nodeId) {
+/** Set a trigger off by hand. `reachBack` takes the whole of each feed rather
+ *  than only what is new. The answer carries the graph and a line about what
+ *  it did. */
+async function fireGraphPulse(state, nodeId, reachBack) {
     var _a;
     if (state.busy)
         return;
     state.busy = true;
     try {
-        const answer = await askGraph(`/graph/nodes/${nodeId}/fire`, new URLSearchParams());
+        const where = reachBack ? "backfill" : "fire";
+        const answer = await askGraph(`/graph/nodes/${nodeId}/${where}`, new URLSearchParams());
         const view = asGraph(answer);
         if (view === null) {
             showGraphError(state, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That trigger did not fire.");

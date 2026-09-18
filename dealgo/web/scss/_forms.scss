@@ -60,6 +60,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 
 .topbar-action { display: flex; gap: 6px; align-items: center; }
 .topbar-action form { display: inline; }
+// Shown only while a run is in flight, and a way to the canvas that is doing
+// it rather than a button that starts another one.
+.sync-busy { display: inline-flex; align-items: center; gap: 6px; }
 
 .search { display: flex; align-items: center; gap: 6px; position: relative; }
 .search input[type=search] {

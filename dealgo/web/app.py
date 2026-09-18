@@ -584,39 +584,11 @@ def dashboard(request: Request) -> HTMLResponse:
     return render(request, "dashboard.html", context)
 
 
-@app.post("/sync")
-def trigger_sync(request: Request, force: str = Form("")) -> Response:
-    forced = bool(force)
-    already = sync_service.is_running()
-    owner = owner_of(request)
-    if not already:
-        # The account that pressed it, not the implicit owner: with accounts in
-        # use every channel belongs to somebody, so a pass with no owner polls
-        # nothing at all.
-        threading.Thread(
-            target=sync_service.run_sync,
-            args=("manual",),
-            kwargs={"force": forced, "owner": owner},
-            daemon=True,
-        ).start()
-
-    if already:
-        message = "A sync is already running."
-    elif forced:
-        message = "Forced sync started — every channel is being polled, minimum gaps ignored."
-    else:
-        message = "Sync started."
-
-    if is_htmx(request):
-        # Report it as running straight away: the worker thread may not have
-        # taken the lock yet, and a button that flickers back to idle lies.
-        return fragment(
-            request,
-            "_sync_controls.html",
-            {"sync_running": True, "last_run_id": _last_run_id()},
-            ok=message,
-        )
-    return redirect("/", ok=message)
+# There is no "sync everything now" route any more. A run is started from a
+# trigger box on the canvas, which polls what it is wired to and nothing else
+# — and a header button that ignored every wire drawn there was a second,
+# contradictory answer to "when does this get polled". The scheduler still
+# runs the graph's own schedules, and the CLI still has `dealgo sync`.
 
 
 @app.get("/partials/sync-status", response_class=HTMLResponse)
@@ -2375,12 +2347,28 @@ async def graph_import_group(
 
 @app.post("/graph/nodes/{node_pk}/fire")
 def graph_fire(request: Request, node_pk: int) -> JSONResponse:
-    """Press a pulse: poll the channels it is wired to, and only those.
+    """Press a trigger: poll the channels it is wired to, and only those.
 
     Forced, because pressing it is the whole schedule — a gap that has not
     elapsed is not a reason to ignore somebody's finger. It runs in a thread
     like every other sync, so the answer comes back before the polling does.
     """
+    return _set_off(request, node_pk, reach_back=False)
+
+
+@app.post("/graph/nodes/{node_pk}/backfill")
+def graph_backfill(request: Request, node_pk: int) -> JSONResponse:
+    """The same, reaching as far back as the feeds still list.
+
+    A poll takes what is new. This takes everything there, and brings back
+    what an earlier run passed over for being older than the backfill window
+    allowed — which is what somebody means by "catch me up".
+    """
+    return _set_off(request, node_pk, reach_back=True)
+
+
+def _set_off(request: Request, node_pk: int, *, reach_back: bool) -> JSONResponse:
+    """Set a trigger off by hand, polling only what it is wired to."""
     owner = owner_of(request)
     with session_scope() as session:
         try:
@@ -2405,16 +2393,20 @@ def graph_fire(request: Request, node_pk: int) -> JSONResponse:
 
     threading.Thread(
         target=sync_service.run_sync,
-        args=("pulse",),
+        args=("backfill" if reach_back else "pulse",),
         kwargs={
             "force": True,
             "owner": owner,
             "only": frozenset(targets),
             "fired_by": node_pk,
+            "reach_back": reach_back,
         },
         daemon=True,
     ).start()
-    said = f"Polling {len(targets)} channel{'s' if len(targets) != 1 else ''}…"
+    count = f"{len(targets)} channel{'s' if len(targets) != 1 else ''}"
+    said = (
+        f"Reaching back through {count}…" if reach_back else f"Polling {count}…"
+    )
     return JSONResponse({**payload, "said": said})
 
 
