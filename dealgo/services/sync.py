@@ -382,6 +382,8 @@ def _run(
     _fill_missing_details(session, client, result, owner)
     session.commit()
     _note(stage="filling")
+    pen.at("filling")
+    pen.at("filling")
 
     playlists = list(
         session.scalars(

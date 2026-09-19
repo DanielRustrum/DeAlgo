@@ -223,8 +223,13 @@ def test_a_run_writes_down_what_it_did_to_each_source(world, db):
     assert said[0].startswith("By hand"), said[0]
     assert any("read " in line and "from the feed" in line for line in said), said
     assert said[-1].startswith("Finished:"), said[-1]
-    # And every line is filed under the part of the run it happened in.
-    assert {line.stage for line in lines} >= {"polling", "done"}
+    # And every line is filed under the part of the run it happened in —
+    # reading feeds, then deciding, then filing.
+    assert {line.stage for line in lines} >= {"polling", "filling", "done"}
+    # In that order: a log whose stages interleave is a log nobody can skim.
+    order = ["starting", "polling", "sorting", "filling", "done"]
+    seen = [line.stage for line in lines]
+    assert seen == sorted(seen, key=order.index)
 
 
 def test_a_source_that_could_not_be_read_says_so_in_the_log(world, db, monkeypatch):
