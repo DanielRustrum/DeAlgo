@@ -170,3 +170,27 @@ def test_an_entry_with_nothing_to_name_it_is_skipped():
         "<title>Nameless</title></item></channel></rss>"
     )
     assert feed.items == []
+
+
+# -- somewhere else to read the same feed ----------------------------------
+
+
+def test_a_reddit_source_suggests_a_mirror():
+    """Reddit is the kind that rations a reader, so it is the kind worth
+    offering a second address for."""
+    assert sources.suggest_mirror("reddit", "r/python") == (
+        "https://openrss.org/reddit.com/r/python"
+    )
+
+
+def test_the_kinds_that_do_not_ration_us_suggest_nothing():
+    """A suggestion nobody needs is a field somebody has to think about for
+    no reason."""
+    assert sources.suggest_mirror("youtube", "UCzzzzzzzzzzzzzzzzzzzzzz") is None
+    assert sources.suggest_mirror("rss", "https://example.com/feed") is None
+    assert sources.suggest_mirror("substack", "name.substack.com") is None
+
+
+def test_a_reddit_key_that_is_not_a_subreddit_suggests_nothing():
+    assert sources.suggest_mirror("reddit", "") is None
+    assert sources.suggest_mirror("reddit", "python") is None

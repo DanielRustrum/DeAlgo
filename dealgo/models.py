@@ -278,6 +278,12 @@ class Channel(Base):
     # "rss". Everything that existed before this column is YouTube, which is
     # why that is the default rather than something neutral.
     source_kind: Mapped[str] = mapped_column(String(12), default="youtube")
+    # Somewhere else the same feed can be read, for when the first place will
+    # not have us. Reddit allows an unauthenticated reader about one request a
+    # window; a mirror is how you get a second one without pretending to be
+    # somebody else. Tried only when the primary refuses, so the source stays
+    # the source and the mirror stays a fallback.
+    mirror_url: Mapped[Optional[str]] = mapped_column(Text)
     # Where its feed is. YouTube builds its own from the channel id, so this
     # is only set for the kinds that cannot be worked out from an id.
     source_url: Mapped[Optional[str]] = mapped_column(Text)

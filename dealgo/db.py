@@ -134,6 +134,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("channel", "source_kind", "VARCHAR(12) NOT NULL DEFAULT 'youtube'"),
     ("channel", "source_url", "TEXT"),
     ("video", "link", "TEXT"),
+    # Where else the same feed can be read, when the first place refuses us.
+    ("channel", "mirror_url", "TEXT"),
 )
 
 

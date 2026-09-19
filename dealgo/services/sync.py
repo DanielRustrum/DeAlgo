@@ -451,7 +451,7 @@ def _poll(channel: Channel, http: httpx.Client) -> feeds.FeedResult:
     if channel.is_youtube:
         return feeds.fetch_feed(channel.channel_id, http)
 
-    found = syndication.fetch(channel.feed_url, http)
+    found = _read_feed(channel, http)
     return feeds.FeedResult(
         channel_id=channel.channel_id,
         channel_title=found.title,
@@ -469,6 +469,42 @@ def _poll(channel: Channel, http: httpx.Client) -> feeds.FeedResult:
             for item in found.items
         ],
     )
+
+
+def _read_feed(channel: Channel, http: httpx.Client) -> syndication.Feed:
+    """The source's own feed, or its mirror when the source will not have us.
+
+    Tried in that order and never the other way round: the mirror is somebody
+    else's copy, a step further from the truth and a service we do not run. It
+    earns its place only when the first answer is "not now".
+
+    A mirror that also refuses is not worth a second complaint — the original
+    refusal is the one worth reporting, so that is the one that is raised.
+    """
+    try:
+        return syndication.fetch(channel.feed_url, http)
+    except (patience.RateLimited, httpx.HTTPStatusError) as refused:
+        mirror = (channel.mirror_url or "").strip()
+        if not mirror or not _is_a_refusal(refused):
+            raise
+        log.info("%s refused us; trying its mirror", channel.channel_id)
+        try:
+            return syndication.fetch(mirror, http)
+        except Exception:  # refused, unreachable, or not a feed at all
+            raise refused from None
+
+
+def _is_a_refusal(exc: Exception) -> bool:
+    """Whether this is "not now" rather than "not here".
+
+    A mirror routes around a host that will not have us. It cannot help with a
+    feed that has genuinely gone, and trying it on a 404 would only hide a
+    source that needs fixing.
+    """
+    if isinstance(exc, patience.RateLimited):
+        return True
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status in patience.REFUSALS
 
 
 def _item_id(channel: Channel, item: syndication.Item) -> str:

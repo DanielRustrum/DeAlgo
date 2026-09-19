@@ -1723,6 +1723,51 @@ def test_a_run_that_never_got_going_does_not_hold_the_canvas_for_ever(canvas, mo
     assert canvas.get("/api/graph/run").json()["running"] is False
 
 
+def test_a_mirror_can_be_set_on_a_source_that_is_not_youtube(canvas, db, monkeypatch):
+    from dealgo.models import Channel as ChannelModel
+
+    reddit = add_reddit(canvas, db, monkeypatch)
+    mirror = "https://openrss.org/reddit.com/r/python"
+
+    answer = canvas.post(
+        f"/graph/nodes/{reddit}", data={"box_form": "1", "active": "1", "mirror_url": mirror}
+    )
+    assert answer.status_code == 200
+
+    filled = [n for n in boxes(answer.json(), "source") if n["id"] == reddit][0]
+    assert filled["channel"]["mirror"] == mirror
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+    assert source.mirror_url == mirror
+
+
+def test_a_mirror_has_to_be_a_web_address(canvas, db, monkeypatch):
+    reddit = add_reddit(canvas, db, monkeypatch)
+
+    answer = canvas.post(
+        f"/graph/nodes/{reddit}",
+        data={"box_form": "1", "active": "1", "mirror_url": "r/python somewhere"},
+    )
+
+    assert answer.status_code == 400
+    assert "web address" in answer.json()["error"]
+
+
+def test_clearing_the_mirror_puts_it_back_to_none(canvas, db, monkeypatch):
+    from dealgo.models import Channel as ChannelModel
+
+    reddit = add_reddit(canvas, db, monkeypatch)
+    canvas.post(
+        f"/graph/nodes/{reddit}",
+        data={"box_form": "1", "active": "1", "mirror_url": "https://openrss.org/x"},
+    )
+    canvas.post(f"/graph/nodes/{reddit}", data={"box_form": "1", "active": "1", "mirror_url": ""})
+
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+    assert source.mirror_url is None
+
+
 def test_the_backfill_button_asks_how_far_back_to_reach(canvas):
     """It is a different amount for a daily poster and a yearly one, so the
     person pressing it is asked rather than guessed at."""

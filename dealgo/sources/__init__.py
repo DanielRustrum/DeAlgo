@@ -20,6 +20,7 @@ from .kinds import (
     item_url,
     looks_like_youtube,
     resolve,
+    suggest_mirror,
 )
 from .syndication import Item, Feed, parse, fetch
 
@@ -31,6 +32,7 @@ __all__ = [
     "looks_like_youtube",
     "resolve",
     "item_url",
+    "suggest_mirror",
     "Item",
     "Feed",
     "parse",

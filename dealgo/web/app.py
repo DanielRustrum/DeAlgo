@@ -2080,6 +2080,12 @@ def _channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
             # rather than pretending they mean something there.
             "source": sources.describe(channel.source_kind).label,
             "youtube": channel.is_youtube,
+            "feed_url": channel.feed_url,
+            "mirror": channel.mirror_url,
+            # What to paste, for the kinds where somebody is known to publish
+            # the same feed. A field you have to go and research is a field
+            # nobody fills in.
+            "mirror_hint": sources.suggest_mirror(channel.source_kind, channel.channel_id),
             "takes": {
                 "videos": not channel.skip_videos,
                 "shorts": not channel.skip_shorts,
@@ -2729,6 +2735,7 @@ def graph_save_node(
     takes_shorts: str = Form(""),
     takes_live: str = Form(""),
     takes_posts: str = Form(""),
+    mirror_url: str = Form(""),
     every_minutes: str = Form(""),
     cron: str = Form(""),
     every_unit: str = Form(""),
@@ -2779,14 +2786,17 @@ def graph_save_node(
         if node.kind == "feed" and node.playlist is not None and box_form == "1":
             _save_feed(node.playlist, max_items=max_items, max_per_run=feed_max_per_run)
         elif node.kind == "source" and node.channel is not None and box_form == "1":
-            _save_channel(
+            answer = _save_channel(
                 session,
                 node.channel,
                 takes={
                     "videos": takes_videos, "shorts": takes_shorts,
                     "live": takes_live, "posts": takes_posts,
                 },
+                mirror_url=mirror_url,
             )
+            if answer is not None:
+                return answer
         elif node.kind == "sort":
             try:
                 node.sort_by = graph_service.check_sort_key(sort_by or graph_service.DEFAULT_SORT_BY)
@@ -2874,7 +2884,8 @@ def _save_channel(
     channel: Channel,
     *,
     takes: dict[str, str],
-) -> None:
+    mirror_url: str = "",
+) -> JSONResponse | None:
     """What kinds the channel takes.
 
     Not what it filters: narrowing by title or length is a filter box's job,
@@ -2900,7 +2911,16 @@ def _save_channel(
         if wanted is skipping:  # it was off and is wanted on, or the reverse
             apply(session, channel, include=wanted)
 
+    wanted_mirror = mirror_url.strip()
+    if wanted_mirror and not wanted_mirror.lower().startswith(("http://", "https://")):
+        return JSONResponse(
+            {"error": "A mirror is a web address — it should start with https://."},
+            status_code=400,
+        )
+    channel.mirror_url = wanted_mirror or None
+
     session.flush()
+    return None
 
 
 def _attach_watched(

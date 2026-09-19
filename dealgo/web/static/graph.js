@@ -110,6 +110,9 @@ function asGraphChannel(value) {
         // Absent means YouTube: everything on a canvas drawn before there was
         // anywhere else to draw is one.
         youtube: raw["youtube"] !== false,
+        feedUrl: typeof raw["feed_url"] === "string" ? raw["feed_url"] : "",
+        mirror: typeof raw["mirror"] === "string" ? raw["mirror"] : null,
+        mirrorHint: typeof raw["mirror_hint"] === "string" ? raw["mirror_hint"] : null,
         takes,
         checked: typeof checked === "string" ? checked : null,
         placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
@@ -1014,6 +1017,8 @@ function graphChannelFields(state, form, node) {
         return;
     form.appendChild(graphTakes(channel));
     form.appendChild(graphChecks(node, channel));
+    if (!channel.youtube)
+        form.appendChild(graphMirror(channel));
     form.appendChild(graphChannelCounts(node, channel));
 }
 /** The four switches, and whether the channel is watched at all.
@@ -1047,6 +1052,46 @@ function graphTakes(channel) {
     }
     group.appendChild(switches);
     return group;
+}
+/** Somewhere else to read the same feed, for a host that rations us.
+ *
+ *  Offered only where it can help: YouTube's feed has never turned anybody
+ *  away, and a box full of fields that do nothing is worse than no box.
+ *  Tried only when the source itself refuses, so the source stays the source. */
+function graphMirror(channel) {
+    var _a, _b, _c;
+    const group = graphElement("div", "graph-group");
+    group.appendChild(graphElement("span", "graph-group-name", "If it will not have us"));
+    const field = document.createElement("input");
+    field.type = "url";
+    field.name = "mirror_url";
+    field.placeholder = (_a = channel.mirrorHint) !== null && _a !== void 0 ? _a : "https://…";
+    field.value = (_b = channel.mirror) !== null && _b !== void 0 ? _b : "";
+    group.appendChild(graphLabelled("Read it from here instead", field));
+    // Offered rather than filled in: leaning on somebody else's service is the
+    // reader's call, so the suggestion sits there until it is taken.
+    if (channel.mirrorHint !== null && ((_c = channel.mirror) !== null && _c !== void 0 ? _c : "") === "") {
+        const take = graphElement("button", "btn btn-quiet", "Use Open RSS");
+        take.setAttribute("type", "button");
+        take.title = channel.mirrorHint;
+        take.addEventListener("click", () => {
+            var _a;
+            field.value = (_a = channel.mirrorHint) !== null && _a !== void 0 ? _a : "";
+            take.remove();
+        });
+        group.appendChild(take);
+    }
+    group.appendChild(graphElement("span", "graph-group-note", `Used only when ${graphHostOf(channel.feedUrl)} refuses or rations us — never in its place. A mirror is somebody else's copy of the same feed.`));
+    return group;
+}
+/** The host of an address, for saying which one is doing the refusing. */
+function graphHostOf(url) {
+    try {
+        return new URL(url).hostname;
+    }
+    catch (_a) {
+        return "the source";
+    }
 }
 /** When it was last polled, and what decides when it next will be.
  *

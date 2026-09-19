@@ -507,6 +507,157 @@ class _Client:
         return False
 
 
+# -- somewhere else to read the same feed ----------------------------------
+
+
+def with_mirror(db, *, mirror="https://openrss.org/reddit.com/r/python"):
+    from dealgo.models import Channel as ChannelModel
+
+    with db.session_scope() as session:
+        source = ChannelModel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss",
+            mirror_url=mirror, enabled=True,
+        )
+        session.add(source)
+        session.flush()
+        return source.id
+
+
+def serving(answers):
+    """A client that answers each URL however the map says."""
+    import httpx
+
+    asked = []
+
+    def serve(url, headers=None, params=None):
+        asked.append(url)
+        status, body = answers.get(url, (404, ""))
+        return httpx.Response(status, request=httpx.Request("GET", url), text=body)
+
+    return asked, _Client(serve)
+
+
+def test_a_mirror_is_read_when_the_source_refuses(world, db, monkeypatch):
+    """One request a window is workable until it is not. A mirror is how you
+    get a second answer without pretending to be somebody else."""
+    from dealgo.models import Video as VideoModel
+    from dealgo.sources import patience
+
+    patience.forget()
+    only = {with_mirror(db)}
+    asked, client = serving({
+        "https://www.reddit.com/r/python/.rss": (403, ""),
+        "https://openrss.org/reddit.com/r/python": (200, REDDIT),
+    })
+    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+
+    try:
+        sync_service.run_sync("manual", force=True, only=only)
+    finally:
+        patience.forget()
+
+    assert asked == [
+        "https://www.reddit.com/r/python/.rss",       # the source first, always
+        "https://openrss.org/reddit.com/r/python",    # and only then the mirror
+    ]
+    with db.session_scope() as session:
+        item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+    assert item is not None and item.title == "Something worth reading"
+
+
+def test_the_source_is_always_tried_first(world, db, monkeypatch):
+    """The mirror is somebody else's copy and a service we do not run. It is
+    a fallback, not a shortcut."""
+    from dealgo.sources import patience
+
+    patience.forget()
+    only = {with_mirror(db)}
+    asked, client = serving({
+        "https://www.reddit.com/r/python/.rss": (200, REDDIT),
+        "https://openrss.org/reddit.com/r/python": (200, REDDIT),
+    })
+    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+
+    try:
+        sync_service.run_sync("manual", force=True, only=only)
+    finally:
+        patience.forget()
+
+    assert asked == ["https://www.reddit.com/r/python/.rss"]
+
+
+def test_a_feed_that_is_gone_does_not_fall_through_to_the_mirror(world, db, monkeypatch):
+    """A mirror routes around a host that will not have us. It cannot help
+    with a feed that has genuinely gone, and trying it on a 404 would hide a
+    source that needs fixing."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import patience
+
+    patience.forget()
+    only = {with_mirror(db)}
+    asked, client = serving({
+        "https://www.reddit.com/r/python/.rss": (404, ""),
+        "https://openrss.org/reddit.com/r/python": (200, REDDIT),
+    })
+    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+
+    try:
+        sync_service.run_sync("manual", force=True, only=only)
+    finally:
+        patience.forget()
+
+    assert asked == ["https://www.reddit.com/r/python/.rss"]
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+    assert "no feed there any more" in (source.last_error or "")
+
+
+def test_a_mirror_that_also_fails_reports_the_original_refusal(world, db, monkeypatch):
+    """The source's answer is the one worth knowing. A second complaint about
+    somebody else's copy helps nobody."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import patience
+
+    patience.forget()
+    only = {with_mirror(db)}
+    asked, client = serving({
+        "https://www.reddit.com/r/python/.rss": (429, ""),
+        "https://openrss.org/reddit.com/r/python": (503, ""),  # as it happens, today
+    })
+    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+
+    try:
+        sync_service.run_sync("manual", force=True, only=only)
+    finally:
+        patience.forget()
+
+    assert len(asked) == 2
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+    assert "asked too often" in (source.last_error or ""), source.last_error
+
+
+def test_a_source_with_no_mirror_just_reports_the_refusal(world, db, monkeypatch):
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import patience
+
+    patience.forget()
+    only = {with_mirror(db, mirror=None)}
+    asked, client = serving({"https://www.reddit.com/r/python/.rss": (403, "")})
+    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+
+    try:
+        sync_service.run_sync("manual", force=True, only=only)
+    finally:
+        patience.forget()
+
+    assert asked == ["https://www.reddit.com/r/python/.rss"]
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+    assert "refused us" in (source.last_error or "")
+
+
 # -- reaching back ---------------------------------------------------------
 
 

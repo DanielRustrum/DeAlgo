@@ -66,6 +66,14 @@ interface GraphChannel {
   source: string;
   /** Only YouTube has Shorts, broadcasts and community posts to sort out. */
   youtube: boolean;
+  /** Where it is actually polled. */
+  feedUrl: string;
+  /** Somewhere else the same feed can be read, when the first will not have
+   *  us. Null when there is none, which is the usual case. */
+  mirror: string | null;
+  /** One worth trying, for the kinds where somebody is known to publish the
+   *  same feed. Offered, never filled in: it is a service we do not run. */
+  mirrorHint: string | null;
   takes: Record<string, boolean>;
   /** When it was last polled. When it next will be is the trigger's business. */
   checked: string | null;
@@ -334,6 +342,9 @@ function asGraphChannel(value: unknown): GraphChannel | null {
     // Absent means YouTube: everything on a canvas drawn before there was
     // anywhere else to draw is one.
     youtube: raw["youtube"] !== false,
+    feedUrl: typeof raw["feed_url"] === "string" ? raw["feed_url"] : "",
+    mirror: typeof raw["mirror"] === "string" ? raw["mirror"] : null,
+    mirrorHint: typeof raw["mirror_hint"] === "string" ? raw["mirror_hint"] : null,
     takes,
     checked: typeof checked === "string" ? checked : null,
     placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
@@ -1343,6 +1354,7 @@ function graphChannelFields(
 
   form.appendChild(graphTakes(channel));
   form.appendChild(graphChecks(node, channel));
+  if (!channel.youtube) form.appendChild(graphMirror(channel));
   form.appendChild(graphChannelCounts(node, channel));
 }
 
@@ -1385,6 +1397,54 @@ function graphTakes(channel: GraphChannel): HTMLElement {
   }
   group.appendChild(switches);
   return group;
+}
+
+/** Somewhere else to read the same feed, for a host that rations us.
+ *
+ *  Offered only where it can help: YouTube's feed has never turned anybody
+ *  away, and a box full of fields that do nothing is worse than no box.
+ *  Tried only when the source itself refuses, so the source stays the source. */
+function graphMirror(channel: GraphChannel): HTMLElement {
+  const group = graphElement("div", "graph-group");
+  group.appendChild(graphElement("span", "graph-group-name", "If it will not have us"));
+
+  const field = document.createElement("input");
+  field.type = "url";
+  field.name = "mirror_url";
+  field.placeholder = channel.mirrorHint ?? "https://…";
+  field.value = channel.mirror ?? "";
+  group.appendChild(graphLabelled("Read it from here instead", field));
+
+  // Offered rather than filled in: leaning on somebody else's service is the
+  // reader's call, so the suggestion sits there until it is taken.
+  if (channel.mirrorHint !== null && (channel.mirror ?? "") === "") {
+    const take = graphElement("button", "btn btn-quiet", "Use Open RSS");
+    take.setAttribute("type", "button");
+    take.title = channel.mirrorHint;
+    take.addEventListener("click", (): void => {
+      field.value = channel.mirrorHint ?? "";
+      take.remove();
+    });
+    group.appendChild(take);
+  }
+
+  group.appendChild(
+    graphElement(
+      "span",
+      "graph-group-note",
+      `Used only when ${graphHostOf(channel.feedUrl)} refuses or rations us — never in its place. A mirror is somebody else's copy of the same feed.`,
+    ),
+  );
+  return group;
+}
+
+/** The host of an address, for saying which one is doing the refusing. */
+function graphHostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "the source";
+  }
 }
 
 /** When it was last polled, and what decides when it next will be.

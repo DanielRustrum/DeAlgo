@@ -181,6 +181,25 @@ def _substack(host: str) -> Resolved:
     )
 
 
+# Where somebody else publishes the same feeds, for the hosts that ration us.
+# Open RSS is a nonprofit that generates feeds for sites which do not, and is
+# the usual answer for Reddit. Offered as a suggestion only: it is a service
+# we do not run, and whether to lean on it is the reader's call.
+OPEN_RSS = "https://openrss.org"
+
+
+def suggest_mirror(kind: str, key: str) -> str | None:
+    """A mirror worth trying for this source, where one is known.
+
+    Only for the kinds that actually ration a reader. A suggestion nobody
+    needs is a field somebody has to think about for no reason.
+    """
+    name = (key or "").strip()
+    if kind == "reddit" and name.startswith("r/"):
+        return f"{OPEN_RSS}/reddit.com/{name}"
+    return None
+
+
 def item_url(kind: str, key: str, link: str | None) -> str | None:
     """Where an item lives. The link the feed gave, which every kind but
     YouTube supplies; YouTube items are addressed by their video id and are
