@@ -391,9 +391,15 @@ def init_db() -> None:
     # rather than at the top: accounts reads the models this module defines.
     from .services import accounts
 
+    # Items filed before anything looked at a feed's markup for pictures kept
+    # the address in their words instead. Reading it back out needs no
+    # network, and reaches items the feed has long since stopped listing.
+    from .services import sync
+
     with session_scope() as session:
         accounts.ensure_admin(session)
         accounts.clear_expired(session)
+        sync.repair_stored_pictures(session)
 
 
 def get_settings(session: Session, owner: int | None = None) -> Settings:

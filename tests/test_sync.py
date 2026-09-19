@@ -657,6 +657,120 @@ def test_a_second_reading_does_not_discover_it_twice(world, db, monkeypatch):
     assert len(items) == 1
 
 
+# -- reading pictures back out of what was already stored ------------------
+
+
+def stored_link(db, *, body, thumbnail=None, images=None):
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+
+    with db.session_scope() as session:
+        source = ChannelModel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss", enabled=True,
+        )
+        session.add(source)
+        session.flush()
+        item = VideoModel(
+            video_id="item-old", channel_pk=source.id, kind="link", title="ltspice help",
+            body=body, thumbnail_url=thumbnail, images=images, status="added",
+        )
+        session.add(item)
+        session.flush()
+        return item.id
+
+
+def test_a_picture_is_read_back_out_of_the_words_it_was_left_in(world, db):
+    """It cannot be fixed by polling again: a feed lists its most recent
+    couple of dozen items and no more, and most of what is in hand fell off
+    the end of it long ago. But nothing needs fetching — the address is in
+    the text."""
+    from dealgo.models import Video as VideoModel
+
+    item_pk = stored_link(
+        db,
+        body=(
+            "https://preview.redd.it/e8.png?width=2226&amp;s=big "
+            "ltspice diagram &#32; submitted by &#32; /u/someone"
+        ),
+        thumbnail="https://preview.redd.it/e8.png?width=140&s=small",
+    )
+
+    assert sync_service.repair_stored_pictures_now() == 1
+
+    with db.session_scope() as session:
+        item = session.get(VideoModel, item_pk)
+    # The bigger one wins, and the address comes out of the words.
+    assert item.thumbnail_url == "https://preview.redd.it/e8.png?width=2226&s=big"
+    assert item.image_list == ["https://preview.redd.it/e8.png?width=2226&s=big"]
+    assert item.body == "ltspice diagram submitted by /u/someone"
+
+
+def test_an_item_with_no_picture_is_still_tidied_and_marked_looked_at(world, db):
+    from dealgo.models import Video as VideoModel
+
+    item_pk = stored_link(db, body="just words &#32; submitted by &#32; /u/someone")
+
+    sync_service.repair_stored_pictures_now()
+
+    with db.session_scope() as session:
+        item = session.get(VideoModel, item_pk)
+    assert item.image_list == []
+    assert item.images == "[]", "a row looked at once must not be looked at again"
+    assert item.body == "just words submitted by /u/someone"
+
+
+def test_the_repair_never_throws_away_a_picture_a_reading_found(world, db):
+    """This one looks only at the words, and a feed names pictures the words
+    do not."""
+    from dealgo.models import Video as VideoModel
+
+    item_pk = stored_link(
+        db,
+        body="just words &#32; here",
+        thumbnail="https://preview.redd.it/named.png?width=640&s=x",
+        images='["https://preview.redd.it/named.png?width=640&s=x"]',
+    )
+
+    sync_service.repair_stored_pictures_now()
+
+    with db.session_scope() as session:
+        item = session.get(VideoModel, item_pk)
+    assert item.image_list == ["https://preview.redd.it/named.png?width=640&s=x"]
+    assert item.thumbnail_url == "https://preview.redd.it/named.png?width=640&s=x"
+    assert item.body == "just words here"
+
+
+def test_the_repair_converges(world, db):
+    """It selects exactly what it removes, so a second pass finds nothing."""
+    stored_link(
+        db,
+        body="https://preview.redd.it/e8.png?width=2226&amp;s=big words &#32; here",
+    )
+
+    assert sync_service.repair_stored_pictures_now() == 1
+    assert sync_service.repair_stored_pictures_now() == 0
+
+
+def test_a_youtube_video_is_left_entirely_alone(world, db):
+    """Its thumbnail comes from the feed's own field and its body is a
+    community post's writing. Neither is this repair's business."""
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).first()
+        session.add(VideoModel(
+            video_id="v9", channel_pk=channel.id, kind="post",
+            title="A post", body="words &#32; kept exactly as they were",
+        ))
+
+    sync_service.repair_stored_pictures_now()
+
+    with db.session_scope() as session:
+        post = session.scalar(select(VideoModel).where(VideoModel.video_id == "v9"))
+    assert post.body == "words &#32; kept exactly as they were"
+    assert post.images is None
+
+
 # -- a verdict about the route, revisited ----------------------------------
 
 

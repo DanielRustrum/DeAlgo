@@ -198,7 +198,7 @@ def _thumbnail(node: ElementTree.Element) -> str | None:
     offered = [url for url in _declared(node) + _in_words(node) if url]
     if not offered:
         return None
-    return max(offered, key=_declared_width)
+    return max(offered, key=declared_width)
 
 
 def _declared(node: ElementTree.Element) -> list[str]:
@@ -239,6 +239,23 @@ def _in_words(node: ElementTree.Element) -> list[str]:
     return found
 
 
+def pictures_in(words: str) -> list[str]:
+    """Picture addresses sitting loose in a piece of plain text.
+
+    For entries already stored, whose markup was thrown away before anything
+    knew to look for a picture in it — the address survived as text, which is
+    exactly why it was showing up as the first line of the post. Reading it
+    back out of there needs no network and reaches items the feed has long
+    since stopped listing.
+    """
+    found: list[str] = []
+    for token in html.unescape(words or "").split():
+        if token.startswith(("http://", "https://")) and _is_a_picture(token):
+            if token not in found:
+                found.append(token)
+    return found
+
+
 def _is_a_picture(url: str) -> bool:
     """Whether a link points at an image rather than at another page.
 
@@ -252,7 +269,7 @@ def _is_a_picture(url: str) -> bool:
     return (parsed.hostname or "").lower() in _IMAGE_HOSTS
 
 
-def _declared_width(url: str) -> int:
+def declared_width(url: str) -> int:
     """What the address says it is, for picking between two of the same thing.
 
     Only a hint: an address that does not say is treated as ordinary rather
