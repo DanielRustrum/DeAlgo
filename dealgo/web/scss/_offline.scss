@@ -6,7 +6,6 @@
 .feed-dormant:hover, .feed-dormant:focus-within { opacity: 1; }
 .pill-dormant { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
 
-
 // The connection banner, raised by pwa.js when the browser loses the network.
 .banner-connection { border-left-color: var(--bad); font-size: 13px; }
 .banner-connection strong { color: var(--bad); }
@@ -49,9 +48,6 @@
 // placeholder carries the same aspect ratio.
 
 // -- accounts --------------------------------------------------------------
-
-// Nobody has to sign in, which is worth saying plainly rather than leaving
-// an open instance looking the same as a closed one.
 
 .pill-admin { color: var(--accent); border-color: var(--accent-dim); }
 
