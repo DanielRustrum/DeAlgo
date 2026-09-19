@@ -35,7 +35,7 @@ from ..models import (
     to_naive_utc,
     utcnow,
 )
-from ..sources import syndication
+from ..sources import patience, syndication
 from ..youtube import community, feeds
 from ..youtube.api import (
     QUOTA_COST_DELETE,
@@ -530,6 +530,17 @@ def _discover(
         _note(channel_pk=channel.id)
         try:
             feed = _poll(channel, http)
+        except patience.RateLimited as held:
+            # Not an error and not a failure: a host asked us to wait and we
+            # did. Said out loud, because a source that quietly does nothing
+            # for a minute is indistinguishable from one that is broken.
+            why = f"waiting {round(held.seconds)}s — {held.host} limits how often it is asked"
+            # On the channel too, so its page answers "why is this quiet?".
+            # Cleared by the next poll that gets through, like any other.
+            channel.last_error = why
+            result.messages.append(f"{channel.title}: {why}.")
+            _note_unreachable(channel.id, why)
+            continue
         except httpx.HTTPError as exc:
             why = _why_unreachable(exc)
             channel.last_error = f"{why}: {exc}"
@@ -624,6 +635,9 @@ def _why_unreachable(exc: httpx.HTTPError) -> str:
     """
     status = getattr(getattr(exc, "response", None), "status_code", None)
     if status == 429:
+        wait = patience.wait_for(str(getattr(getattr(exc, "response", None), "url", "")))
+        if wait > 0:
+            return f"asked too often — waiting {round(wait)}s before trying again"
         return "asked too often — it is rate limiting us"
     if status in (401, 403):
         return "refused us"

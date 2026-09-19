@@ -437,6 +437,76 @@ def test_the_counts_are_kept_so_the_next_run_need_not_ask_again(world, db):
     assert counts["v1"] == (900, 1)
 
 
+# -- being asked to wait ---------------------------------------------------
+
+
+def test_three_quick_presses_make_one_request_not_three(world, db, monkeypatch):
+    """What actually happened: three Backfill presses 28 seconds apart, and
+    Reddit allows an unauthenticated reader one request a window. The first
+    succeeded and the other two were refused, which is what deepens a block.
+    Now the other two never reach the network."""
+    import httpx
+
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import patience, syndication
+
+    patience.forget()
+    asked = []
+
+    def serve(url, headers=None):
+        asked.append(url)
+        return httpx.Response(
+            200,
+            headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": "36"},
+            request=httpx.Request("GET", url),
+            text=REDDIT,
+        )
+
+    # The real reader, over a client that serves from memory: the point of
+    # this test is what the reader does with the headers, so it must not be
+    # the stub that other tests put in its place.
+    with db.session_scope() as session:
+        source = ChannelModel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss", enabled=True,
+        )
+        session.add(source)
+        session.flush()
+        only = {source.id}
+
+    monkeypatch.setattr(sync_service, "http_client", lambda: _Client(serve))
+
+    try:
+        for _ in range(3):
+            result = sync_service.run_sync("backfill", force=True, reach_back=0, only=only)
+    finally:
+        patience.forget()
+
+    assert len(asked) == 1, f"asked {len(asked)} times for a budget of one"
+    # And the run says why it did nothing, rather than going quiet.
+    assert any("waiting" in message for message in result.messages), result.messages
+
+    with db.session_scope() as session:
+        source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+    assert "limits how often" in (source.last_error or "")
+
+
+class _Client:
+    """The smallest thing `syndication.fetch` will accept."""
+
+    def __init__(self, serve):
+        self._serve = serve
+
+    def get(self, url, headers=None, params=None):
+        return self._serve(url, headers)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
 # -- reaching back ---------------------------------------------------------
 
 

@@ -14,6 +14,8 @@ from xml.etree import ElementTree
 
 import httpx
 
+from . import patience
+
 _NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "media": "http://search.yahoo.com/mrss/",
@@ -47,7 +49,12 @@ class Feed:
 
 
 def fetch(url: str, client: httpx.Client) -> Feed:
+    # Asked before the request rather than after the refusal: a host that has
+    # told us its budget is spent will only refuse us again, and being refused
+    # is what deepens a block.
+    patience.hold(url)
     response = client.get(url, headers={"Accept": "application/rss+xml, application/atom+xml, */*"})
+    patience.note(response)
     response.raise_for_status()
     return parse(response.text)
 

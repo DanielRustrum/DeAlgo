@@ -16,6 +16,8 @@ from xml.etree import ElementTree
 
 import httpx
 
+from ..sources import patience
+
 FEED_URL = "https://www.youtube.com/feeds/videos.xml"
 
 _NS = {
@@ -109,7 +111,11 @@ def parse_feed(xml_text: str) -> FeedResult:
 
 
 def fetch_feed(channel_id: str, client: httpx.Client) -> FeedResult:
+    # YouTube has never asked us to wait, but the courtesy costs nothing and
+    # the day it starts asking is not the day to begin listening.
+    patience.hold(FEED_URL)
     response = client.get(FEED_URL, params={"channel_id": channel_id})
+    patience.note(response)
     response.raise_for_status()
     return parse_feed(response.text)
 
