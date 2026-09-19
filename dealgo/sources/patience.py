@@ -48,6 +48,17 @@ _lock = threading.Lock()
 # on a schedule at all, and either way an hour is long enough to be polite.
 MOST_WE_WAIT = 3600.0
 
+# How long to leave a host alone when it refuses us and says nothing about
+# why. Being refused is itself the message; a minute is long enough to stop a
+# burst and short enough that a real schedule never notices.
+AFTER_A_REFUSAL = 60.0
+
+#: Statuses that mean "not now". A 403 is in here because that is what Reddit
+#: answers once a burst has spent the budget — and if it ever means "not ever"
+#: instead, a minute's wait costs nothing, since the next scheduled poll is
+#: half an hour out regardless.
+REFUSALS = (403, 429, 503)
+
 
 def host_of(url: str) -> str:
     return (urlparse(url).hostname or "").lower()
@@ -92,17 +103,23 @@ def note(response: httpx.Response) -> None:
     request that would have been refused.
     """
     url = str(response.url)
+    # A Retry-After of zero or less says nothing worth acting on, and must not
+    # be read as "no wait needed" on a response that was itself a refusal.
     after = _retry_after(response.headers.get("retry-after"))
-    if after is not None:
+    if after is not None and after > 0:
         rest(url, after)
         return
 
     remaining = _number(response.headers.get("x-ratelimit-remaining"))
-    if remaining is None or remaining > 0:
+    if remaining is not None and remaining <= 0:
+        reset = _reset(response.headers.get("x-ratelimit-reset"))
+        rest(url, reset if reset is not None else AFTER_A_REFUSAL)
         return
-    reset = _reset(response.headers.get("x-ratelimit-reset"))
-    if reset is not None:
-        rest(url, reset)
+
+    # Refused, and told nothing about when to come back. The refusal is the
+    # message: asking straight again is what turns a busy minute into a block.
+    if response.status_code in REFUSALS:
+        rest(url, AFTER_A_REFUSAL)
 
 
 def forget() -> None:

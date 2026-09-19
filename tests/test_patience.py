@@ -96,11 +96,37 @@ def test_no_host_is_waited_for_longer_than_an_hour():
     assert patience.wait_for("https://www.reddit.com/r/python/.rss") <= patience.MOST_WE_WAIT
 
 
-def test_nonsense_headers_are_ignored_rather_than_believed():
+def test_a_bare_refusal_still_buys_a_pause():
+    """Reddit answers 403 once a burst has spent the budget, and says nothing
+    about when to come back. Asking straight again is what turns a busy minute
+    into a block."""
+    for status in patience.REFUSALS:
+        patience.forget()
+        patience.note(answer(status=status))
+        left = patience.wait_for("https://www.reddit.com/r/python/.rss")
+        assert left > 0, f"{status} bought no pause at all"
+        assert left <= patience.AFTER_A_REFUSAL
+
+
+def test_a_plain_failure_is_not_treated_as_a_rate_limit():
+    """A 404 is not "come back later" — it is "there is nothing here", and
+    waiting on it would hide a source that needs fixing."""
+    patience.note(answer(status=404))
+    assert patience.wait_for("https://www.reddit.com/r/python/.rss") == 0
+
+
+def test_nonsense_headers_fall_back_rather_than_being_believed():
+    """An unreadable Retry-After must not become "no wait at all" on a
+    response that was a refusal."""
     for bad in ("soon", "", "-1"):
         patience.forget()
         patience.note(answer(status=429, **{"retry-after": bad}))
-        assert patience.wait_for("https://www.reddit.com/r/python/.rss") == 0
+        assert patience.wait_for("https://www.reddit.com/r/python/.rss") > 0
+
+    # But on a perfectly good answer, nonsense buys nothing.
+    patience.forget()
+    patience.note(answer(status=200, **{"x-ratelimit-remaining": "soon"}))
+    assert patience.wait_for("https://www.reddit.com/r/python/.rss") == 0
 
 
 def test_a_fetch_refuses_to_ask_a_host_that_is_still_waiting(monkeypatch):
