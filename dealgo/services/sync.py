@@ -630,13 +630,17 @@ def _discover(
                 )
 
         first_check = channel.last_checked_at is None
-        known = set(
-            session.scalars(
-                owned(select(Video.video_id), Video, owner).where(
+        # The rows themselves rather than their ids: an entry we have seen
+        # before may still be carrying something we did not know how to read
+        # when we first stored it.
+        already = {
+            video.video_id: video
+            for video in session.scalars(
+                owned(select(Video), Video, owner).where(
                     Video.video_id.in_([e.video_id for e in feed.entries] or [""])
                 )
             )
-        )
+        }
 
         # A channel can ask for a window of history instead of a count. The
         # feed only lists the newest ~15 uploads either way, so a long window
@@ -650,8 +654,11 @@ def _discover(
             cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
 
         found = 0
+        filled = 0
         for index, entry in enumerate(feed.entries):
-            if entry.video_id in known:
+            seen = already.get(entry.video_id)
+            if seen is not None:
+                filled += _freshen(seen, entry)
                 continue
             if cutoff is not None:
                 published = to_naive_utc(entry.published_at)
@@ -687,6 +694,10 @@ def _discover(
                 first_check=first_check, backfill=backfill, owner=owner,
             )
 
+        if filled:
+            say.write(
+                f"filled in a picture for {filled} already here", about=channel.title
+            )
         if not channel.title and feed.channel_title:
             channel.title = feed.channel_title
         say.write(
@@ -722,6 +733,32 @@ def _why_unreachable(exc: httpx.HTTPError) -> str:
     if status is not None and status >= 500:
         return "its server is having trouble"
     return "feed unreachable"
+
+
+def _freshen(video: Video, entry: feeds.FeedEntry) -> int:
+    """Fill in what we did not know how to read the first time.
+
+    A feed is re-read every poll and keeps saying the same things about the
+    same items, so an entry already stored is a second chance at anything we
+    have since learned to take from it — pictures, most of all, which were
+    being thrown away before there was anywhere to put them.
+
+    Only ever fills gaps. What is already on the row was either read from the
+    feed or put there deliberately, and neither is this function's to
+    overwrite.
+    """
+    gained = 0
+    if not video.thumbnail_url and entry.thumbnail_url:
+        video.thumbnail_url = entry.thumbnail_url
+        gained = 1
+    if not video.images and entry.images:
+        video.images = json.dumps(list(entry.images))
+        gained = 1
+    if not video.body and entry.summary:
+        video.body = entry.summary
+    if not video.link and entry.link:
+        video.link = entry.link
+    return gained
 
 
 def _unignore(

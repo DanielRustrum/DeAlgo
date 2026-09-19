@@ -508,6 +508,93 @@ class _Client:
         return False
 
 
+# -- a second chance at what an entry carries ------------------------------
+
+REDDIT_WITH_A_PICTURE = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <title>r/python</title>
+  <item>
+    <title>Something worth reading</title>
+    <link>https://reddit.com/r/python/comments/abc</link>
+    <guid>t3_abc</guid>
+    <pubDate>Tue, 05 May 2026 09:00:00 +0000</pubDate>
+    <description>&lt;img src="https://preview.redd.it/p.png?width=640&amp;amp;s=sig"&gt;A body</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_an_item_already_here_gains_the_picture_we_can_now_read(world, db, monkeypatch):
+    """The whole backlog was stored before there was anywhere to put a
+    picture, and a feed says the same things about the same items every poll.
+    An entry we have seen before is a second chance at it."""
+    from dealgo.models import Video as VideoModel
+
+    add_rss_source(db, monkeypatch, REDDIT)         # first, with no picture in it
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        stored = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        assert stored.thumbnail_url is None and stored.images is None
+
+    # The same entry, read again by a version that knows how to see pictures.
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(
+        syndication, "fetch", lambda _url, _http: syndication.parse(REDDIT_WITH_A_PICTURE)
+    )
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        again = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+    assert again.thumbnail_url is not None
+    assert "width=640" in again.thumbnail_url
+    assert again.image_list == [again.thumbnail_url]
+
+
+def test_filling_a_gap_does_not_overwrite_what_is_already_there(world, db, monkeypatch):
+    """What is on the row was either read from the feed or put there
+    deliberately, and neither is this function's to overwrite."""
+    from dealgo.models import Video as VideoModel
+    from dealgo.sources import syndication
+
+    add_rss_source(db, monkeypatch, REDDIT_WITH_A_PICTURE)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        stored = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        stored.thumbnail_url = "https://example.com/chosen.png"
+
+    monkeypatch.setattr(
+        syndication, "fetch", lambda _url, _http: syndication.parse(REDDIT_WITH_A_PICTURE)
+    )
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        again = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+    assert again.thumbnail_url == "https://example.com/chosen.png"
+
+
+def test_a_second_reading_does_not_discover_it_twice(world, db, monkeypatch):
+    """Filling a gap is not finding something new, and must not be counted
+    as one."""
+    from dealgo.models import Video as VideoModel
+    from dealgo.sources import syndication
+
+    add_rss_source(db, monkeypatch, REDDIT)
+    sync_service.run_sync("manual", force=True)
+
+    monkeypatch.setattr(
+        syndication, "fetch", lambda _url, _http: syndication.parse(REDDIT_WITH_A_PICTURE)
+    )
+    result = sync_service.run_sync("manual", force=True)
+
+    assert result.discovered == 0
+    with db.session_scope() as session:
+        items = session.scalars(select(VideoModel).where(VideoModel.kind == "link")).all()
+    assert len(items) == 1
+
+
 # -- a verdict about the route, revisited ----------------------------------
 
 
