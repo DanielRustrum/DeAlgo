@@ -313,6 +313,21 @@
 }
 .graph-node.is-dead-end { border-color: var(--warn); }
 
+// It went and could not get in. This one *is* something having gone wrong —
+// the feed refused us, or is rate limiting us, or has gone — and it is the
+// one reading of a run that cannot be checked by looking at the canvas. So it
+// is alarmed about, unlike the two above.
+.graph-node-tally.is-trouble {
+  background: var(--panel-2);
+  color: var(--bad);
+  border: 1px solid var(--bad);
+  font-weight: 500;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .graph-port {
   position: absolute;
   top: 50%;

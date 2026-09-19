@@ -114,6 +114,10 @@ class RunProgress:
     channel_pk: int | None = None
     #: The channels this run has finished with, and what each brought in.
     polled: dict[int, int] = field(default_factory=dict)
+    #: The channels it could not read, and what went wrong. A poll that failed
+    #: is not a poll that found nothing, and a canvas that drew them the same
+    #: way sent people looking for a wiring fault that was not there.
+    unreachable: dict[int, str] = field(default_factory=dict)
     #: How many items each feed has taken so far.
     placed: dict[int, int] = field(default_factory=dict)
     #: Items that got past each channel's own settings, by channel. What a
@@ -126,9 +130,14 @@ class RunProgress:
     through: dict[int, int] = field(default_factory=dict)
     stopped: dict[int, int] = field(default_factory=dict)
     finished: bool = False
+    #: Which run this is. A run is claimed before the thread that will carry
+    #: it starts, so only the claimant may declare it over — otherwise a run
+    #: that never got going would mark the one in flight finished.
+    token: int = 0
 
 
 _progress: RunProgress | None = None
+_next_token = 0
 _progress_lock = threading.Lock()
 
 
@@ -141,13 +150,38 @@ def progress() -> RunProgress | None:
             _progress,
             polled=dict(_progress.polled),
             placed=dict(_progress.placed),
+            unreachable=dict(_progress.unreachable),
         )
 
 
-def _start_progress(owner: OwnerId, trigger: str, fired_by: int | None = None) -> None:
-    global _progress
+def claim(owner: OwnerId, trigger: str, fired_by: int | None = None) -> int:
+    """Say a run is about to begin, before the thread carrying it has started.
+
+    The canvas asks where the run has got to the moment the button answers. A
+    thread takes a little while to get going, and without this the answer
+    would be about the *previous* run — which reads exactly like this one
+    having finished instantly, with the last run's marks on the boxes.
+    """
+    global _progress, _next_token
     with _progress_lock:
-        _progress = RunProgress(owner=owner, trigger=trigger, fired_by=fired_by)
+        _next_token += 1
+        _progress = RunProgress(
+            owner=owner, trigger=trigger, fired_by=fired_by, token=_next_token
+        )
+        return _next_token
+
+
+def _finish(token: int) -> None:
+    """Declare a run over, if it is still the run in hand.
+
+    Guarded by the token: a call that never took the lock must not mark
+    somebody else's run finished on its way out.
+    """
+    with _progress_lock:
+        if _progress is not None and _progress.token == token:
+            _progress.finished = True
+            _progress.stage = "done"
+            _progress.channel_pk = None
 
 
 def _note(**fields: object) -> None:
@@ -164,6 +198,14 @@ def _note_polled(channel_pk: int, found: int) -> None:
         if _progress is None:
             return
         _progress.polled[channel_pk] = found
+        _progress.channel_pk = None
+
+
+def _note_unreachable(channel_pk: int, why: str) -> None:
+    with _progress_lock:
+        if _progress is None:
+            return
+        _progress.unreachable[channel_pk] = why
         _progress.channel_pk = None
 
 
@@ -225,7 +267,8 @@ def run_sync(
     owner: OwnerId = None,
     only: Collection[int] | None = None,
     fired_by: int | None = None,
-    reach_back: bool = False,
+    reach_back: int | None = None,
+    token: int | None = None,
 ) -> SyncResult:
     """Run one account's sync pass. Returns at once if a pass is in flight.
 
@@ -240,15 +283,21 @@ def run_sync(
     ``fired_by`` is the trigger box somebody pressed, carried through so the
     canvas can light it while its run is going.
 
-    ``reach_back`` takes everything the feed still lists rather than only what
-    is new, and brings back what an earlier run passed over as too old. A feed
-    carries its last dozen or two items and no more, so this reaches as far as
-    that and no further — it is "catch me up on what is there", not a way to
-    read an archive that was never published.
+    ``reach_back`` is how many of the latest items to run through, rather than
+    only what is new: it brings back what an earlier run passed over as too
+    old, and takes that many of what each feed lists whatever their age. Zero
+    means as far as each feed goes. None is an ordinary run.
+
+    A feed carries its last dozen or two items and no more, so this reaches as
+    far as that and no further — it is "catch me up on what is there", not a
+    way to read an archive that was never published.
 
     One account at a time, because everything a pass depends on belongs to
     one: its channels, its feeds, its Google connection and its quota.
     """
+    # Claimed here unless the caller claimed it already — which the canvas
+    # does, so that what it draws is this run from the first moment it asks.
+    mine = claim(owner, trigger, fired_by) if token is None else token
     try:
         with playlist_lock():
             with http_client() as http, session_scope() as session:
@@ -261,6 +310,10 @@ def run_sync(
     except Exception as exc:  # pragma: no cover - last-resort guard for the scheduler
         log.exception("sync run failed")
         return SyncResult(ok=False, messages=[f"Sync failed: {exc}"])
+    finally:
+        # However it ended — done, refused the lock, or thrown out of — a run
+        # that is over has to say so, or the canvas watches it for ever.
+        _finish(mine)
 
 
 def owners_with_channels(session: Session) -> list[OwnerId]:
@@ -298,10 +351,9 @@ def _run(
     owner: OwnerId = None,
     only: Collection[int] | None = None,
     fired_by: int | None = None,
-    reach_back: bool = False,
+    reach_back: int | None = None,
 ) -> SyncResult:
     settings = get_settings(session, owner)
-    _start_progress(owner, trigger, fired_by)
     run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force, owner_pk=owner)
     session.add(run)
     session.commit()
@@ -455,7 +507,7 @@ def _discover(
     force: bool = False,
     owner: OwnerId = None,
     only: Collection[int] | None = None,
-    reach_back: bool = False,
+    reach_back: int | None = None,
 ) -> None:
     channels = list(
         session.scalars(
@@ -479,19 +531,23 @@ def _discover(
         try:
             feed = _poll(channel, http)
         except httpx.HTTPError as exc:
-            channel.last_error = f"feed unreachable: {exc}"
-            result.messages.append(f"{channel.title}: feed unreachable.")
+            why = _why_unreachable(exc)
+            channel.last_error = f"{why}: {exc}"
+            result.messages.append(f"{channel.title}: {why}.")
+            _note_unreachable(channel.id, why)
             log.warning("feed fetch failed for %s: %s", channel.channel_id, exc)
             continue
         except Exception as exc:  # malformed XML, etc.
             channel.last_error = f"feed unreadable: {exc}"
+            result.messages.append(f"{channel.title}: feed unreadable.")
+            _note_unreachable(channel.id, "feed unreadable")
             log.warning("feed parse failed for %s: %s", channel.channel_id, exc)
             continue
 
-        if reach_back:
-            # Asked for everything the feed has: what was passed over as too
-            # old is exactly what is being asked for, so it comes back.
-            result.discovered += _unignore(session, channel, owner)
+        if reach_back is not None:
+            # What was passed over as too old is exactly what is being asked
+            # for, so that many of them come back.
+            result.discovered += _unignore(session, channel, owner, limit=reach_back)
 
         first_check = channel.last_checked_at is None
         known = set(
@@ -506,9 +562,10 @@ def _discover(
         # feed only lists the newest ~15 uploads either way, so a long window
         # reaches as far as that and no further.
         cutoff = None
-        if reach_back:
-            # Nothing is too old when the whole feed is what was asked for.
-            first_check = False
+        if reach_back is not None:
+            # Age stops deciding: how many were asked for is what decides.
+            first_check = True
+            backfill = reach_back or len(feed.entries)
         elif first_check and channel.backfill_days is not None:
             cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
 
@@ -558,22 +615,50 @@ def _discover(
         session.flush()
 
 
-def _unignore(session: Session, channel: Channel, owner: OwnerId = None) -> int:
+def _why_unreachable(exc: httpx.HTTPError) -> str:
+    """What went wrong, in words that say what to do about it.
+
+    Being rate limited and being blocked are not the same as a feed that has
+    gone, and neither is a channel id that was wrong from the start — telling
+    them apart is the difference between waiting and going to look.
+    """
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status == 429:
+        return "asked too often — it is rate limiting us"
+    if status in (401, 403):
+        return "refused us"
+    if status == 404:
+        return "no feed there any more"
+    if status is not None and status >= 500:
+        return "its server is having trouble"
+    return "feed unreachable"
+
+
+def _unignore(
+    session: Session, channel: Channel, owner: OwnerId = None, *, limit: int = 0
+) -> int:
     """Bring back what an earlier run set aside for being older than wanted.
+
+    The newest ``limit`` of them, or all of them when that is zero — the same
+    count the caller asked for of the feed itself, so "the latest 25" means
+    the same thing on both halves of what a backfill looks at.
 
     Only that: something skipped by a filter was a decision about the thing
     itself and reaching further back is no argument against it. This undoes
     one judgement — "before your time" — which is the one being revisited.
     """
-    stranded = list(
-        session.scalars(
-            owned(select(Video), Video, owner).where(
-                Video.channel_pk == channel.id,
-                Video.status == "ignored",
-                Video.reason == TOO_OLD,
-            )
+    asking = (
+        owned(select(Video), Video, owner)
+        .where(
+            Video.channel_pk == channel.id,
+            Video.status == "ignored",
+            Video.reason == TOO_OLD,
         )
+        .order_by(Video.published_at.desc().nullslast(), Video.id.desc())
     )
+    if limit > 0:
+        asking = asking.limit(limit)
+    stranded = list(session.scalars(asking))
     for video in stranded:
         video.status = "pending"
         video.reason = None

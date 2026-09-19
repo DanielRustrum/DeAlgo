@@ -1522,7 +1522,7 @@ def test_a_trial_says_where_everything_would_land(canvas, db):
     at_source = trial["items"][str(source["id"])]
     assert [item["title"] for item in at_source["held"]] == ["A short"]
     assert trial["nodes"][str(source["id"])] == {
-        "state": "done", "count": 1, "stopped": 1, "ends": False,
+        "state": "done", "count": 1, "stopped": 1, "ends": False, "trouble": None,
     }
 
 
@@ -1590,7 +1590,7 @@ def test_backfill_brings_back_what_was_passed_over_as_too_old(canvas, db, monkey
         if ran:
             break
         time.sleep(0.02)
-    assert ran[0][1]["reach_back"] is True
+    assert ran[0][1]["reach_back"] == 0  # no count given: as far as the feeds go
     assert ran[0][0] == ("backfill",)
 
 
@@ -1607,7 +1607,130 @@ def test_running_a_trigger_normally_does_not_reach_back(canvas, db, monkeypatch)
         if ran:
             break
         time.sleep(0.02)
-    assert ran[0][1]["reach_back"] is False
+    assert ran[0][1]["reach_back"] is None
+
+
+def test_a_feed_that_refuses_us_is_reported_as_that_not_as_stops_here(canvas, db, monkeypatch):
+    """The whole complaint: a run that plainly happened said "stops here",
+    which reads as a wiring fault you go looking for and never find."""
+    import httpx
+
+    from dealgo.services import sync as sync_service
+
+    drawn = canvas.get("/api/graph").json()
+    source, feed = only(drawn, "source"), only(drawn, "feed")
+    canvas.post("/graph/connect", data={"source": source["id"], "target": feed["id"]})
+    trigger = wire_trigger(canvas)
+
+    def refused(_channel, _http):
+        raise httpx.HTTPStatusError(
+            "429", request=httpx.Request("GET", "https://example.test/feed"),
+            response=httpx.Response(429, request=httpx.Request("GET", "https://example.test/feed")),
+        )
+
+    monkeypatch.setattr(sync_service, "_poll", refused)
+    canvas.post(f"/graph/nodes/{trigger}/fire")
+
+    for _ in range(100):
+        state = canvas.get("/api/graph/run").json()
+        if not state["running"] and state["stage"] == "done":
+            break
+        time.sleep(0.05)
+
+    for node_id in (str(trigger), str(source["id"])):
+        mark = state["nodes"][node_id]
+        assert mark["trouble"] == "asked too often — it is rate limiting us", node_id
+        assert mark["count"] == 0
+
+    # And it is on the channel too, for somebody arriving later.
+    with db.session_scope() as session:
+        channel = session.scalars(select(Channel)).one()
+    assert "rate limiting us" in channel.last_error
+
+
+def test_a_feed_that_is_simply_gone_says_something_different(canvas, db, monkeypatch):
+    """A 404 is not a 429: one is worth waiting out and the other is worth
+    going to look at."""
+    import httpx
+
+    from dealgo.services import sync as sync_service
+
+    trigger = wire_trigger(canvas)
+
+    def gone(_channel, _http):
+        request = httpx.Request("GET", "https://example.test/feed")
+        raise httpx.HTTPStatusError("404", request=request, response=httpx.Response(404, request=request))
+
+    monkeypatch.setattr(sync_service, "_poll", gone)
+    canvas.post(f"/graph/nodes/{trigger}/fire")
+
+    for _ in range(100):
+        state = canvas.get("/api/graph/run").json()
+        if not state["running"] and state["stage"] == "done":
+            break
+        time.sleep(0.05)
+
+    assert state["nodes"][str(trigger)]["trouble"] == "no feed there any more"
+
+
+def test_pressing_a_trigger_does_not_show_the_previous_runs_answer(canvas, db, monkeypatch):
+    """A thread takes a moment to get going, and the canvas asks where the run
+    is the instant the button answers. Without a claim it was told about the
+    run before — which reads as this one having finished immediately, wearing
+    the last one's marks."""
+    import threading
+
+    from dealgo.services import sync as sync_service
+
+    trigger = wire_trigger(canvas)
+
+    # A first run, so there is a finished one to be mistaken for the new one.
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: (_ for _ in ()).throw(RuntimeError("no")))
+    canvas.post(f"/graph/nodes/{trigger}/fire")
+    for _ in range(100):
+        if not canvas.get("/api/graph/run").json()["running"]:
+            break
+        time.sleep(0.05)
+
+    # The second one is held at the gate, so the only thing that can say it is
+    # running is the claim the route made before starting the thread.
+    held = threading.Event()
+    monkeypatch.setattr(sync_service, "run_sync", lambda *a, **k: held.wait(5))
+
+    canvas.post(f"/graph/nodes/{trigger}/fire")
+    try:
+        assert canvas.get("/api/graph/run").json()["running"] is True
+    finally:
+        held.set()
+
+
+def test_a_run_that_never_got_going_does_not_hold_the_canvas_for_ever(canvas, monkeypatch):
+    """The claim has to be given back however the run ends, or the canvas
+    watches a run that threw on its way out of the door."""
+    from dealgo.services import sync as sync_service
+
+    trigger = wire_trigger(canvas)
+    monkeypatch.setattr(
+        sync_service, "_run", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fell over"))
+    )
+
+    canvas.post(f"/graph/nodes/{trigger}/fire")
+
+    for _ in range(100):
+        if not canvas.get("/api/graph/run").json()["running"]:
+            break
+        time.sleep(0.05)
+    assert canvas.get("/api/graph/run").json()["running"] is False
+
+
+def test_the_backfill_button_asks_how_far_back_to_reach(canvas):
+    """It is a different amount for a daily poster and a yearly one, so the
+    person pressing it is asked rather than guessed at."""
+    body = canvas.get("/channels").text
+
+    assert "data-graph-reach" in body
+    assert 'data-graph-reach-count' in body
+    assert "How many of the latest" in body
 
 
 def test_a_trial_writes_nothing(canvas, db):
@@ -1944,11 +2067,11 @@ def test_a_run_says_which_box_it_is_working_on(canvas, db, monkeypatch):
     # write.
     source = only(canvas.get("/api/graph").json(), "source")
 
-    sync_service._start_progress(None, "pulse")
+    sync_service.claim(None, "pulse")
     sync_service._note(stage="polling", channel_pk=channel_pk)
     answer = canvas.get("/api/graph/run").json()
     assert answer["stage"] == "polling"
-    assert answer["nodes"][str(source["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False}
+    assert answer["nodes"][str(source["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}
 
     # Finished with it, and a feed has taken something.
     sync_service._note_polled(channel_pk, 3)
@@ -1960,7 +2083,7 @@ def test_a_run_says_which_box_it_is_working_on(canvas, db, monkeypatch):
     # The channel found three; how many left it is a separate question, and
     # nothing has said yet, so none have.
     assert answer["nodes"][str(source["id"])]["stopped"] == 3
-    assert answer["nodes"][str(feed["id"])] == {"state": "done", "count": 1, "stopped": 0,
+    assert answer["nodes"][str(feed["id"])] == {"state": "done", "count": 1, "stopped": 0, "trouble": None,
                                                 "ends": False}
 
 
@@ -2019,7 +2142,7 @@ def test_a_channel_with_nothing_new_leaves_its_feed_alone(world, db):
 
     with db.session_scope() as session:
         marks = web_app._run_marks(session, state, None)
-    assert marks[str(source_pk)] == {"state": "done", "count": 0, "stopped": 0, "ends": False}
+    assert marks[str(source_pk)] == {"state": "done", "count": 0, "stopped": 0, "ends": False, "trouble": None}
     assert str(feed_pk) not in marks
 
 
@@ -2067,17 +2190,17 @@ def test_a_trigger_wired_to_a_switched_off_channel_says_it_stopped_there(canvas,
         channel_pk = session.scalars(select(ChannelModel)).one().id
 
     # The run polled nothing: its only channel is switched off.
-    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service.claim(None, "pulse", trigger["id"])
     sync_service._note(stage="done", finished=True)
     idle = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
-    assert idle == {"state": "done", "count": 0, "stopped": 0, "ends": True}
+    assert idle == {"state": "done", "count": 0, "stopped": 0, "ends": True, "trouble": None}
 
     # And when its channel was polled, it counts that one.
-    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service.claim(None, "pulse", trigger["id"])
     sync_service._note_polled(channel_pk, 2)
     sync_service._note(stage="done", finished=True)
     ran = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
-    assert ran == {"state": "done", "count": 1, "stopped": 0, "ends": False}
+    assert ran == {"state": "done", "count": 1, "stopped": 0, "trouble": None, "ends": False}
 
 
 def test_a_trigger_does_not_count_channels_that_are_not_its_own(canvas, db):
@@ -2096,7 +2219,7 @@ def test_a_trigger_does_not_count_channels_that_are_not_its_own(canvas, db):
     with db.session_scope() as session:
         others = session.scalar(select(ChannelModel.id).where(ChannelModel.channel_id == "UCother"))
 
-    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service.claim(None, "pulse", trigger["id"])
     sync_service._note_polled(others, 7)  # somebody else's channel
     sync_service._note(stage="done", finished=True)
 
@@ -2113,10 +2236,10 @@ def test_the_trigger_that_was_pressed_stays_lit_for_the_whole_run(canvas, db):
     trigger, source = only(added, "trigger"), only(added, "source")
     canvas.post("/graph/connect", data={"source": trigger["id"], "target": source["id"]})
 
-    sync_service._start_progress(None, "pulse", trigger["id"])
+    sync_service.claim(None, "pulse", trigger["id"])
     sync_service._note(stage="polling")
     marks = canvas.get("/api/graph/run").json()["nodes"]
-    assert marks[str(trigger["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False}
+    assert marks[str(trigger["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}
 
     # It stops pulsing when the run ends, and keeps what it set off.
     sync_service._note(stage="done", finished=True)
@@ -2223,8 +2346,8 @@ def test_the_canvas_reads_what_a_run_is_doing(canvas_report):
     assert run["stage"] == "polling"
     # The rubbish entry is dropped rather than drawn as a blank mark.
     assert run["marks"] == [
-        [3, {"state": "busy", "count": 0, "stopped": 0, "ends": False}],
-        [7, {"state": "done", "count": 2, "stopped": 0, "ends": False}],
+        [3, {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}],
+        [7, {"state": "done", "count": 2, "stopped": 0, "ends": False, "trouble": None}],
     ]
 
 
@@ -2249,9 +2372,9 @@ def test_a_wire_is_found_by_name_not_by_where_it_sits(canvas_report):
 
 @needs_node
 def test_a_box_that_passed_nothing_on_says_so(canvas_report):
-    """Four different answers that all used to look like a blank box: this
+    """Five different answers that all used to look like a blank box: this
     brought something, there was nothing to bring, something was held here,
-    and this never looked at all."""
+    this never looked at all, and this looked and was turned away."""
     tallies = canvas_report["tallies"]
     assert tallies["idle"]["text"] == "stops here"
     assert tallies["found"]["text"] == "+3"
@@ -2262,6 +2385,26 @@ def test_a_box_that_passed_nothing_on_says_so(canvas_report):
     # state of a channel, and it reads as such.
     assert tallies["barren"] == {"text": "nothing new", "muted": True, "end": False,
                                  "deadEnd": False}
+
+
+@needs_node
+def test_a_feed_that_turned_us_away_says_so_rather_than_stops_here(canvas_report):
+    """The complaint this answers: a run that plainly happened reported "stops
+    here", which reads as a wiring fault. The feed was rate limiting us — the
+    one reading of a run you cannot check by looking at the canvas."""
+    refused = canvas_report["tallies"]["refused"]
+
+    assert refused["text"] == "asked too often — it is rate limiting us"
+    # Not the warn colour a filter doing its job wears: this is a fault.
+    assert refused["end"] is False
+    assert refused["deadEnd"] is True
+
+
+@needs_node
+def test_a_mark_without_the_field_does_not_print_undefined(canvas_report):
+    """`undefined !== null`, so asking the wrong question here put the word
+    "undefined" on the canvas for every mark built anywhere that omits it."""
+    assert canvas_report["tallies"]["oldShape"]["text"] == "stops here"
 
 
 @needs_node
@@ -3154,7 +3297,7 @@ def test_a_run_marks_a_tag_node_from_all_the_sources_it_stands_for(canvas, db):
     added = canvas.post("/graph/nodes", data={"kind": "tagged", "title": "news"}).json()
     tagged = [node for node in boxes(added, "source") if node["tag"] is not None][0]
 
-    sync_service._start_progress(None, "pulse")
+    sync_service.claim(None, "pulse")
     for channel_pk, found in zip(both, (2, 3)):
         sync_service._note_polled(channel_pk, found)
         sync_service._note_left(channel_pk)

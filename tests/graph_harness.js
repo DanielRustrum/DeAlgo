@@ -143,7 +143,9 @@ function main() {
       deadEnd,
     };
   };
-  const mark = (fields) => ({ state: "done", count: 0, stopped: 0, ends: false, ...fields });
+  const mark = (fields) => ({
+    state: "done", count: 0, stopped: 0, ends: false, trouble: null, ...fields,
+  });
   report.tallies = {
     found: badge(mark({ count: 3 })),
     empty: badge(mark({})),
@@ -155,6 +157,12 @@ function main() {
     // A trigger that set nothing off: it never looked, so it cannot report
     // having found nothing.
     idle: badge(mark({ ends: true })),
+    // It went and could not get in. Not a wiring fault, and it must not be
+    // drawn as one.
+    refused: badge(mark({ ends: true, trouble: "asked too often — it is rate limiting us" })),
+    // A mark from somewhere that leaves the field out: it must not print
+    // "undefined" on the canvas.
+    oldShape: badge({ state: "done", count: 0, stopped: 0, ends: true }),
     working: badge(mark({ state: "busy" })),
     untouched: badge(undefined),
   };

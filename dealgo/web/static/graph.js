@@ -1739,14 +1739,14 @@ function onGraphClick(state, event) {
     const fireId = fire === null || fire === void 0 ? void 0 : fire.dataset["fire"];
     if (fireId !== undefined) {
         event.preventDefault();
-        void fireGraphPulse(state, fireId, false);
+        void fireGraphPulse(state, fireId, null);
         return;
     }
     const back = target.closest("[data-backfill]");
     const backId = back === null || back === void 0 ? void 0 : back.dataset["backfill"];
     if (backId !== undefined) {
         event.preventDefault();
-        void fireGraphPulse(state, backId, true);
+        askHowFarBack(state, backId);
         return;
     }
     const test = target.closest("[data-test]");
@@ -1795,17 +1795,23 @@ function onGraphClick(state, event) {
         pickGraphNode(state, null);
     }
 }
-/** Set a trigger off by hand. `reachBack` takes the whole of each feed rather
- *  than only what is new. The answer carries the graph and a line about what
- *  it did. */
+/** Set a trigger off by hand.
+ *
+ *  `reachBack` is how many of the latest posts to run through: null for an
+ *  ordinary poll, which takes only what is new, and a count for a backfill.
+ *  Zero means as far as the feeds go. The answer carries the graph and a line
+ *  about what it did. */
 async function fireGraphPulse(state, nodeId, reachBack) {
     var _a;
     if (state.busy)
         return;
     state.busy = true;
     try {
-        const where = reachBack ? "backfill" : "fire";
-        const answer = await askGraph(`/graph/nodes/${nodeId}/${where}`, new URLSearchParams());
+        const asking = new URLSearchParams();
+        const where = reachBack === null ? "fire" : "backfill";
+        if (reachBack !== null && reachBack > 0)
+            asking.set("count", String(reachBack));
+        const answer = await askGraph(`/graph/nodes/${nodeId}/${where}`, asking);
         const view = asGraph(answer);
         if (view === null) {
             showGraphError(state, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That trigger did not fire.");
@@ -2112,6 +2118,7 @@ function asGraphRun(value) {
             count: typeof mark["count"] === "number" ? mark["count"] : 0,
             stopped: typeof mark["stopped"] === "number" ? mark["stopped"] : 0,
             ends: mark["ends"] === true,
+            trouble: typeof mark["trouble"] === "string" ? mark["trouble"] : null,
         });
     }
     return {
@@ -2181,6 +2188,7 @@ function paintGraphRun(state) {
  *  blank would look the same as a channel the run never reached, and "there
  *  was nothing new" is an answer worth having — it is the usual one. */
 function graphTally(box, mark) {
+    var _a;
     const showing = box.querySelector(".graph-node-tally");
     if (mark === undefined || mark.state !== "done") {
         showing === null || showing === void 0 ? void 0 : showing.remove();
@@ -2189,16 +2197,27 @@ function graphTally(box, mark) {
     }
     const tally = showing !== null && showing !== void 0 ? showing : graphElement("span", "graph-node-tally");
     tally.textContent = graphTallyWords(mark);
-    // Three readings, and they are not the same thing: something came through,
-    // nothing was there to come through, and something was there and this box
-    // is where it stopped.
+    // Four readings, and they are not the same thing: something came through,
+    // nothing was there to come through, something was there and this box is
+    // where it stopped, and it went and could not get in.
     tally.classList.toggle("is-empty", mark.count === 0 && !mark.ends);
-    tally.classList.toggle("is-end", mark.ends);
+    const refused = typeof mark.trouble === "string" && mark.trouble !== "";
+    tally.classList.toggle("is-end", mark.ends && !refused);
+    tally.classList.toggle("is-trouble", refused);
+    tally.title = refused ? ((_a = mark.trouble) !== null && _a !== void 0 ? _a : "") : "";
     box.classList.toggle("is-dead-end", mark.ends);
     if (showing === null)
         box.appendChild(tally);
 }
 function graphTallyWords(mark) {
+    // It went and could not get in. Said in its own words, because "stops here"
+    // sent people looking for a wiring fault when the feed was simply refusing
+    // them — which is the one reading of a run they cannot check by looking.
+    //
+    // Asked for a non-empty string rather than "not null": a mark from anywhere
+    // that leaves the field out gives undefined, which is also not null.
+    if (typeof mark.trouble === "string" && mark.trouble !== "")
+        return mark.trouble;
     if (mark.count > 0)
         return `+${mark.count}`;
     // Held something and passed none of it on: this is where the flow stopped.
@@ -2330,6 +2349,69 @@ async function dropGraphNode(state, kind, x, y) {
     rememberGraphUndo(state, `the ${kind} you added`, async () => {
         await applyGraph(state, `/graph/nodes/${fresh}/delete`, new URLSearchParams());
     });
+}
+/** Open the box that asks how far back to reach, remembering which trigger
+ *  asked. The trigger is kept on the dialog rather than in a variable up here:
+ *  this file is re-run on every htmx swap, so nothing may live at the top
+ *  level between runs. */
+function askHowFarBack(state, nodeId) {
+    var _a;
+    const dialog = graphReachDialog(state);
+    if (dialog === null) {
+        // No dialog on the page: reach back as far as the feeds go rather than
+        // refusing to do the thing that was asked for.
+        void fireGraphPulse(state, nodeId, 0);
+        return;
+    }
+    dialog.dataset["forNode"] = nodeId;
+    graphReachTrouble(dialog, null);
+    openGraphCatch(dialog);
+    (_a = dialog.querySelector("[data-graph-reach-count]")) === null || _a === void 0 ? void 0 : _a.select();
+}
+function graphReachDialog(state) {
+    var _a;
+    var _b;
+    return ((_b = (_a = state.parts.canvas
+        .closest(".graph-panel")) === null || _a === void 0 ? void 0 : _a.querySelector("[data-graph-reach]")) !== null && _b !== void 0 ? _b : null);
+}
+/** Wire the box up once, the way the group-file one is wired. */
+function listenForGraphReach(state, panel) {
+    var _a;
+    const dialog = panel.querySelector("[data-graph-reach]");
+    if (dialog === null)
+        return;
+    dialog.querySelectorAll("[data-graph-reach-close]").forEach((shut) => {
+        shut.addEventListener("click", () => dialog.close());
+    });
+    dialog.addEventListener("click", (event) => {
+        if (event.target === dialog)
+            dialog.close();
+    });
+    dialog.addEventListener("close", () => holdPageForGraph(false));
+    (_a = dialog.querySelector("[data-graph-reach-form]")) === null || _a === void 0 ? void 0 : _a.addEventListener("submit", (event) => {
+        var _a;
+        event.preventDefault();
+        const field = dialog.querySelector("[data-graph-reach-count]");
+        const wanted = Number.parseInt((_a = field === null || field === void 0 ? void 0 : field.value) !== null && _a !== void 0 ? _a : "", 10);
+        if (!Number.isFinite(wanted) || wanted < 1) {
+            graphReachTrouble(dialog, "Give it a number of posts, one or more.");
+            return;
+        }
+        const nodeId = dialog.dataset["forNode"];
+        if (nodeId === undefined) {
+            graphReachTrouble(dialog, "That trigger is no longer there.");
+            return;
+        }
+        dialog.close();
+        void fireGraphPulse(state, nodeId, wanted);
+    });
+}
+function graphReachTrouble(dialog, message) {
+    const said = dialog.querySelector("[data-graph-reach-error]");
+    if (said === null)
+        return;
+    said.textContent = message !== null && message !== void 0 ? message : "";
+    said.hidden = message === null;
 }
 /** The box that asks for a group file, and what it does with one. */
 function listenForGraphLoad(state, panel) {
@@ -2562,6 +2644,8 @@ function listenToGraph(state) {
     });
     if (panel !== null)
         listenForGraphLoad(state, panel);
+    if (panel !== null)
+        listenForGraphReach(state, panel);
     if (panel !== null)
         listenForGraphFinder(state, panel);
     const catching = graphCatchDialog(state);

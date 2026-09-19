@@ -160,6 +160,38 @@
     </form>
   </dialog>
 
+  {# How far back a Backfill reaches. Asked rather than assumed: "everything
+     the feed still lists" is a different amount for a daily poster and a
+     yearly one, and the person pressing it knows which they want. #}
+  <dialog class="modal graph-reach" data-graph-reach>
+    <div class="modal-head">
+      <h2>Backfill</h2>
+      <button class="modal-close" type="button" data-graph-reach-close aria-label="Close">✕</button>
+    </div>
+    <form class="modal-body" data-graph-reach-form>
+      <p class="hint">
+        How many of the latest posts to run through, from each source this
+        trigger is wired to. They go through the same filters as anything
+        else — this decides how much is offered to them, not what survives.
+      </p>
+      <label>
+        How many of the latest
+        <input type="number" name="count" min="1" max="200" value="25" required
+               data-graph-reach-count>
+      </label>
+      <p class="hint">
+        A feed lists only its most recent items — usually a dozen or two — so
+        asking for more than it carries reaches as far as it goes and no
+        further.
+      </p>
+      <p class="error-note" data-graph-reach-error hidden></p>
+      <div class="modal-foot">
+        <button class="btn btn-quiet" type="button" data-graph-reach-close>Cancel</button>
+        <button class="btn btn-primary" type="submit">Run it</button>
+      </div>
+    </form>
+  </dialog>
+
   {# What a filter catches. A real <dialog>, so the browser paints it in the
      top layer — nothing on the canvas can clip it — and gives it Esc and a
      backdrop. Filled in and opened by graph.js. #}

@@ -453,7 +453,7 @@ def test_reaching_back_revives_what_was_too_old(world, db):
                 status="ignored", reason=sync_service.TOO_OLD,
             ))
 
-    sync_service.run_sync("backfill", force=True, reach_back=True)
+    sync_service.run_sync("backfill", force=True, reach_back=0)
 
     with db.session_scope() as session:
         revived = session.scalars(
@@ -476,7 +476,7 @@ def test_reaching_back_leaves_a_filters_judgement_alone(world, db):
             status="skipped", reason="Shorts are switched off",
         ))
 
-    sync_service.run_sync("backfill", force=True, reach_back=True)
+    sync_service.run_sync("backfill", force=True, reach_back=0)
 
     with db.session_scope() as session:
         held = session.scalar(select(VideoModel).where(VideoModel.video_id == "short1"))
@@ -501,6 +501,33 @@ def test_an_ordinary_run_leaves_what_was_too_old_where_it_is(world, db):
     assert left.status == "ignored"
 
 
+def test_reaching_back_takes_only_as_many_as_were_asked_for(world, db):
+    """"The latest 2" means the latest 2, on the backlog as well as the feed."""
+    import datetime as dt
+
+    from dealgo.models import Channel as ChannelModel, Video as VideoModel, utcnow
+
+    with db.session_scope() as session:
+        channel = session.scalars(select(ChannelModel)).first()
+        for index in range(5):
+            session.add(VideoModel(
+                video_id=f"old{index}", channel_pk=channel.id, title=f"Old {index}",
+                published_at=utcnow() - dt.timedelta(days=index),
+                status="ignored", reason=sync_service.TOO_OLD,
+            ))
+
+    sync_service.run_sync("backfill", force=True, reach_back=2)
+
+    with db.session_scope() as session:
+        revived = [
+            v.video_id
+            for v in session.scalars(select(VideoModel).where(VideoModel.video_id.like("old%")))
+            if v.status != "ignored"
+        ]
+    # The two newest, which are the two with the smallest day offsets.
+    assert sorted(revived) == ["old0", "old1"]
+
+
 def test_reaching_back_takes_the_whole_feed_on_a_first_check(world, db, monkeypatch):
     """A source added with a tight backfill window would file most of its feed
     as too old. Reaching back the first time takes all of it instead."""
@@ -511,7 +538,7 @@ def test_reaching_back_takes_the_whole_feed_on_a_first_check(world, db, monkeypa
         source = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
         source.backfill_days = 0  # nothing but brand new items
 
-    sync_service.run_sync("backfill", force=True, reach_back=True)
+    sync_service.run_sync("backfill", force=True, reach_back=0)
 
     with db.session_scope() as session:
         item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))

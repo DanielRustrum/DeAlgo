@@ -2353,21 +2353,25 @@ def graph_fire(request: Request, node_pk: int) -> JSONResponse:
     elapsed is not a reason to ignore somebody's finger. It runs in a thread
     like every other sync, so the answer comes back before the polling does.
     """
-    return _set_off(request, node_pk, reach_back=False)
+    return _set_off(request, node_pk, reach_back=None)
 
 
 @app.post("/graph/nodes/{node_pk}/backfill")
-def graph_backfill(request: Request, node_pk: int) -> JSONResponse:
-    """The same, reaching as far back as the feeds still list.
+def graph_backfill(request: Request, node_pk: int, count: str = Form("")) -> JSONResponse:
+    """The same, running through the latest ``count`` posts of each source.
 
-    A poll takes what is new. This takes everything there, and brings back
-    what an earlier run passed over for being older than the backfill window
-    allowed — which is what somebody means by "catch me up".
+    A poll takes what is new. This takes that many whatever their age, and
+    brings back what an earlier run passed over for being older than the
+    backfill window allowed — which is what somebody means by "catch me up".
+
+    An unreadable count means as far as the feeds go, which is the most the
+    button could ever have done and so cannot surprise anybody.
     """
-    return _set_off(request, node_pk, reach_back=True)
+    wanted = count.strip()
+    return _set_off(request, node_pk, reach_back=int(wanted) if wanted.isdigit() else 0)
 
 
-def _set_off(request: Request, node_pk: int, *, reach_back: bool) -> JSONResponse:
+def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONResponse:
     """Set a trigger off by hand, polling only what it is wired to."""
     owner = owner_of(request)
     with session_scope() as session:
@@ -2391,22 +2395,32 @@ def _set_off(request: Request, node_pk: int, *, reach_back: bool) -> JSONRespons
     if sync_service.is_running():
         return JSONResponse({**payload, "said": "A sync is already running."})
 
+    # Claimed here rather than in the thread: the canvas asks where the run
+    # has got to as soon as this answers, and a thread takes a moment to get
+    # going. Without the claim it would be told about the previous run, which
+    # reads as this one having finished instantly.
+    trigger = "pulse" if reach_back is None else "backfill"
+    token = sync_service.claim(owner, trigger, node_pk)
     threading.Thread(
         target=sync_service.run_sync,
-        args=("backfill" if reach_back else "pulse",),
+        args=(trigger,),
         kwargs={
             "force": True,
             "owner": owner,
             "only": frozenset(targets),
             "fired_by": node_pk,
             "reach_back": reach_back,
+            "token": token,
         },
         daemon=True,
     ).start()
-    count = f"{len(targets)} channel{'s' if len(targets) != 1 else ''}"
-    said = (
-        f"Reaching back through {count}…" if reach_back else f"Polling {count}…"
-    )
+    where = f"{len(targets)} channel{'s' if len(targets) != 1 else ''}"
+    if reach_back is None:
+        said = f"Polling {where}…"
+    elif reach_back > 0:
+        said = f"Reaching back through the latest {reach_back} of {where}…"
+    else:
+        said = f"Reaching back as far as {where} still list…"
     return JSONResponse({**payload, "said": said})
 
 
@@ -2433,7 +2447,11 @@ def graph_run_state(request: Request) -> JSONResponse:
 
     return JSONResponse(
         {
-            "running": running and not state.finished,
+            # A claimed run counts as running even before its thread has taken
+            # the lock, so the canvas follows it from the first moment rather
+            # than deciding on its first look that it was already over. Whose
+            # run it is was settled above.
+            "running": running or not state.finished,
             "stage": state.stage,
             "trigger": state.trigger,
             "nodes": marks,
@@ -2582,7 +2600,8 @@ def _trigger_targets(
 
 
 def _busy() -> Context:
-    return {"state": "busy", "count": 0, "stopped": 0, "ends": False}
+    # The same shape as a finished mark, so the canvas reads one kind of thing.
+    return {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}
 
 
 def _mark_for(
@@ -2604,13 +2623,23 @@ def _mark_for(
         # was, and saying "nothing new" would credit it with a look it never
         # took.
         reached = [channel_pk for channel_pk in targets if channel_pk in state.polled]
-        return _mark(len(reached), 0, ends=not reached)
+        if reached:
+            return _mark(len(reached), 0)
+        # It went, and could not get in. That is a different thing from a
+        # trigger that never set off, and the two used to read the same.
+        failed = [why for pk, why in state.unreachable.items() if pk in targets]
+        if failed:
+            return _mark(0, 0, ends=True, trouble=_one_voice(failed))
+        return _mark(0, 0, ends=True)
 
     if node.kind == "source":
         # Every channel it stands for, added up: a tag node is one box over
         # several channels, and reports what all of them did.
         polled = [channel_pk for channel_pk in stands_for if channel_pk in state.polled]
         if not polled:
+            failed = [why for pk, why in state.unreachable.items() if pk in stands_for]
+            if failed:
+                return _mark(0, 0, ends=True, trouble=_one_voice(failed))
             return None
         found = sum(state.polled.get(channel_pk, 0) for channel_pk in polled)
         left = sum(state.left.get(channel_pk, 0) for channel_pk in polled)
@@ -2626,15 +2655,34 @@ def _mark_for(
     return _mark(taken, 0) if taken else None
 
 
-def _mark(count: int, stopped: int, *, ends: bool | None = None) -> Context:
+def _one_voice(reasons: list[str]) -> str:
+    """One line for however many channels failed the same way."""
+    first = reasons[0]
+    rest = len(reasons) - 1
+    return first if rest == 0 else f"{first} (and {rest} more like it)"
+
+
+def _mark(
+    count: int, stopped: int, *, ends: bool | None = None, trouble: str | None = None
+) -> Context:
     """One box's answer. ``ends`` is worked out unless a box knows better.
 
     A filter knows it ended the flow because it held things back. A trigger
     knows because nothing it is wired to was polled, and it has nothing to
     hold — so it says so rather than being read as having found nothing.
+
+    ``trouble`` is why it could not look at all, which is a third thing again:
+    not "nothing was there" and not "this is where it stopped", but "it went
+    and could not get in".
     """
     stopping = (count == 0 and stopped > 0) if ends is None else ends
-    return {"state": "done", "count": count, "stopped": stopped, "ends": stopping}
+    return {
+        "state": "done",
+        "count": count,
+        "stopped": stopped,
+        "ends": stopping,
+        "trouble": trouble,
+    }
 
 
 def _judged(item: graph_service.Judged) -> Context:
