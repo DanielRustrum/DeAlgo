@@ -46,6 +46,7 @@ from ..youtube.api import (
 )
 from . import filters
 from . import quota
+from . import runlog
 from .auth import build_client
 from . import graph
 from .scope import OwnerId, belongs_to, owned
@@ -362,12 +363,22 @@ def _run(
     quota_before = quota.state(session, owner).used
     client = build_client(session, http, owner)
 
+    pen = runlog.Pen(session, run.id, owner)
+    pen.write(
+        f"{run.how} — {'forced' if force else 'on its own terms'}"
+        + (f", reaching back through the latest {reach_back}" if reach_back else "")
+        + (f", set off by box {fired_by}" if fired_by is not None else "")
+    )
+    session.commit()
+
     _note(stage="polling")
+    pen.at("polling")
     _discover(
         session, http, result, backfill=settings.initial_backfill, force=force, owner=owner,
-        only=only, reach_back=reach_back,
+        only=only, reach_back=reach_back, pen=pen,
     )
     _note(stage="sorting")
+    pen.at("sorting")
     _fill_missing_details(session, client, result, owner)
     session.commit()
     _note(stage="filling")
@@ -392,7 +403,7 @@ def _run(
             f"No Google account connected — {len(youtube_feeds)} YouTube feed(s) are collecting "
             "inside De-Algo. Nothing is written to YouTube until you connect one."
         )
-        _publish(session, client, settings, result, owner)
+        _publish(session, client, settings, result, owner, pen=pen)
         session.commit()
     elif youtube_feeds and quota_state.spendable < QUOTA_COST_INSERT:
         # Feeds cost nothing, so discovery already ran; only writing stops.
@@ -402,14 +413,21 @@ def _run(
             f"Queued videos will be added after it resets {quota.describe_reset()}."
         )
         log.info("skipping the insert phase: quota exhausted until %s", quota_state.resets_at)
-        _publish(session, client, settings, result, owner)
+        pen.warn(f"YouTube quota is spent ({quota_state.used}/{quota_state.budget} units).")
+        _publish(session, client, settings, result, owner, pen=pen)
         session.commit()
     else:
-        _publish(session, client, settings, result, owner)
+        _publish(session, client, settings, result, owner, pen=pen)
         session.commit()
         _prune(session, client, playlists, result, owner)
 
     _note(stage="done", finished=True, channel_pk=None)
+    pen.at("done")
+    pen.write(
+        f"Finished: looked at {result.channels_checked}, found {result.discovered}, "
+        f"added {result.added}, held back {result.skipped}, failed {result.failed}."
+    )
+    runlog.prune(session, owner)
     run.finished_at = utcnow()
     run.ok = result.failed == 0 and all("failed" not in m.lower() for m in result.messages)
     run.channels_checked = result.channels_checked
@@ -465,6 +483,7 @@ def _poll(channel: Channel, http: httpx.Client) -> feeds.FeedResult:
                 kind="link",
                 link=item.link,
                 summary=item.summary,
+                images=tuple(item.images),
             )
             for item in found.items
         ],
@@ -544,7 +563,9 @@ def _discover(
     owner: OwnerId = None,
     only: Collection[int] | None = None,
     reach_back: int | None = None,
+    pen: runlog.Pen | None = None,
 ) -> None:
+    say = pen or runlog.Quiet()
     channels = list(
         session.scalars(
             owned(select(Channel), Channel, owner)
@@ -562,6 +583,7 @@ def _discover(
             # it. Polling is free, so this is about how often the user wants to
             # hear from a channel, not about cost.
             result.channels_waiting += 1
+            say.write("not due yet, so it was left alone", about=channel.title)
             continue
         _note(channel_pk=channel.id)
         try:
@@ -576,25 +598,34 @@ def _discover(
             channel.last_error = why
             result.messages.append(f"{channel.title}: {why}.")
             _note_unreachable(channel.id, why)
+            say.warn(why, about=channel.title)
             continue
         except httpx.HTTPError as exc:
             why = _why_unreachable(exc)
             channel.last_error = f"{why}: {exc}"
             result.messages.append(f"{channel.title}: {why}.")
             _note_unreachable(channel.id, why)
+            say.bad(f"{why} ({channel.feed_url})", about=channel.title)
             log.warning("feed fetch failed for %s: %s", channel.channel_id, exc)
             continue
         except Exception as exc:  # malformed XML, etc.
             channel.last_error = f"feed unreadable: {exc}"
             result.messages.append(f"{channel.title}: feed unreadable.")
             _note_unreachable(channel.id, "feed unreadable")
+            say.bad(f"what came back was not a feed: {exc}", about=channel.title)
             log.warning("feed parse failed for %s: %s", channel.channel_id, exc)
             continue
 
         if reach_back is not None:
             # What was passed over as too old is exactly what is being asked
             # for, so that many of them come back.
-            result.discovered += _unignore(session, channel, owner, limit=reach_back)
+            revived = _unignore(session, channel, owner, limit=reach_back)
+            result.discovered += revived
+            if revived:
+                say.write(
+                    f"brought back {revived} that an earlier run thought too old",
+                    about=channel.title,
+                )
 
         first_check = channel.last_checked_at is None
         known = set(
@@ -637,6 +668,7 @@ def _discover(
                     kind=entry.kind,
                     link=entry.link,
                     body=entry.summary,
+                    images=json.dumps(list(entry.images)) if entry.images else None,
                     status="ignored" if beyond_backfill else "pending",
                     reason=TOO_OLD if beyond_backfill else None,
                     processed_at=utcnow() if beyond_backfill else None,
@@ -655,6 +687,12 @@ def _discover(
 
         if not channel.title and feed.channel_title:
             channel.title = feed.channel_title
+        say.write(
+            f"read {len(feed.entries)} from the feed; {found} of them new"
+            if found
+            else f"read {len(feed.entries)} from the feed; nothing new",
+            about=channel.title,
+        )
         channel.last_checked_at = utcnow()
         channel.last_error = None
         result.channels_checked += 1
@@ -975,12 +1013,16 @@ def _publish(
     settings: Settings,
     result: SyncResult,
     owner: OwnerId = None,
+    pen: runlog.Pen | None = None,
 ) -> None:
+    say = pen or runlog.Quiet()
     added_per_playlist: dict[int, int] = {}
     if _retry_deferred(session, client, result, added_per_playlist, owner):
         return
 
-    _reconsider_routing(session, result, owner)
+    brought = _reconsider_routing(session, result, owner)
+    if brought:
+        say.write(f"{brought} item(s) had nowhere to go before, and now do")
 
     # Channel priority decides who gets in first when the budget is short;
     # within a channel it stays chronological, so playlists read in order.
@@ -996,7 +1038,9 @@ def _publish(
         )
     )
     if not pending:
+        say.write("nothing was waiting to be filed")
         return
+    say.write(f"{len(pending)} waiting to be filed")
 
     # Read once: walking the graph per video would be the same answer many
     # times over.
@@ -1095,8 +1139,14 @@ def _publish(
 
         if not allowed:
             # Every path said no; the first reason is the one worth showing.
-            _reject(video, result, refusals[0] if refusals else "filtered out")
+            why = refusals[0] if refusals else "filtered out"
+            _reject(video, result, why)
+            say.write(f"held back — {why}", about=video.title or video.video_id)
             continue
+        say.write(
+            "goes to " + ", ".join(sorted(p.title for p in allowed)),
+            about=video.title or video.video_id,
+        )
 
         if video.is_post:
             _place_locally(

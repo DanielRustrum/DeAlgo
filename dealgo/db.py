@@ -138,6 +138,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("channel", "mirror_url", "TEXT"),
 )
 
+# run_event is a new table rather than new columns, so it needs no entry here:
+# create_all makes it, and an install that predates it simply has no history
+# from before it existed.
+
 
 # Columns removed after the first release. An existing table still has them,
 # and they are NOT NULL with no SQL default, so leaving them would break every

@@ -52,6 +52,7 @@ from ..services import accounts
 from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
 from ..services import graph as graph_service
+from ..services import runlog
 from ..services import migration
 from ..services import channels as channel_service
 from ..services import ordering as ordering_service
@@ -218,9 +219,15 @@ def _stamp(value: dt.datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M UTC") if value else "—"
 
 
+def _clock(value: dt.datetime | None) -> str:
+    """Just the time of day, for lines that are all from the same run."""
+    return value.strftime("%H:%M:%S") if value else "—"
+
+
 TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).label
 TEMPLATES.env.filters["ago"] = _ago
 TEMPLATES.env.filters["stamp"] = _stamp
+TEMPLATES.env.filters["clock"] = _clock
 # What a template is handed. Jinja takes anything, so this says only that the
 # keys are names — the value types are the templates' business.
 Context = dict[str, Any]
@@ -589,6 +596,58 @@ def dashboard(request: Request) -> HTMLResponse:
 # — and a header button that ignored every wire drawn there was a second,
 # contradictory answer to "when does this get polled". The scheduler still
 # runs the graph's own schedules, and the CLI still has `dealgo sync`.
+
+
+# -- the log ---------------------------------------------------------------
+#
+# Which runs, started how, and what each of them did on the way.
+
+#: What the filter offers, and what each name means. "By hand" covers every
+#: way a person can start one; the clock is the only thing that is not a
+#: person, so the split is the honest one rather than one name per button.
+LOG_FILTERS: tuple[tuple[str, str], ...] = (
+    ("all", "Everything"),
+    ("hand", "Started by me"),
+    ("clock", "On a schedule"),
+    ("trouble", "Went wrong"),
+)
+
+
+@app.get("/log", response_class=HTMLResponse)
+def log_page(request: Request, show: str = "") -> HTMLResponse:
+    owner = owner_of(request)
+    wanted = show if show in {name for name, _ in LOG_FILTERS} else "all"
+
+    with session_scope() as session:
+        asking = owned(select(SyncRun), SyncRun, owner)
+        if wanted == "hand":
+            asking = asking.where(SyncRun.trigger.in_(SyncRun.BY_HAND))
+        elif wanted == "clock":
+            asking = asking.where(SyncRun.trigger.not_in(SyncRun.BY_HAND))
+        elif wanted == "trouble":
+            # A run still going has not failed yet, so it is not trouble.
+            asking = asking.where(
+                SyncRun.ok.is_(False), SyncRun.finished_at.is_not(None)
+            )
+
+        runs = list(session.scalars(asking.order_by(SyncRun.id.desc()).limit(60)))
+        counts = runlog.counted(session, owner)
+        # Read once for the runs on the page rather than per open <details>:
+        # the page is server-rendered and every one of them may be opened.
+        lines: dict[int, list[Any]] = {}
+        for run in runs:
+            if counts.get(run.id):
+                lines[run.id] = runlog.lines_for(session, run.id, owner)
+
+        context = {
+            "runs": runs,
+            "lines": lines,
+            "counts": counts,
+            "show": wanted,
+            "filters": LOG_FILTERS,
+            "runs_with_detail": runlog.RUNS_WITH_DETAIL,
+        }
+    return render(request, "log.html", context)
 
 
 @app.get("/partials/sync-status", response_class=HTMLResponse)
@@ -2530,7 +2589,62 @@ def graph_try(request: Request, node_pk: int) -> JSONResponse:
         }
         marks.setdefault(str(node.id), _mark(len(reaches), 0))
 
+        _log_the_trial(session, node, trial, boxes, owner)
+
         return JSONResponse({"trigger": node.title, "nodes": marks, "items": items})
+
+
+def _log_the_trial(
+    session: Session,
+    node: GraphNode,
+    trial: graph_service.Trial,
+    boxes: dict[int, GraphNode],
+    owner: OwnerId,
+) -> None:
+    """Write a trial into the log like any other run.
+
+    A trial writes nothing to a feed and sends nothing to YouTube, and that is
+    the whole point of it — but "I pressed Test and it said nothing useful" is
+    a thing that happens, and it is answered by the same log that answers it
+    for a real run. The row says it wrote nothing, so nobody reads it as one.
+    """
+    run = SyncRun(
+        owner_pk=owner,
+        trigger="test",
+        started_at=utcnow(),
+        finished_at=utcnow(),
+        forced=False,
+        ok=True,
+    )
+    session.add(run)
+    session.flush()
+
+    pen = runlog.Pen(session, run.id, owner)
+    pen.at("trial")
+    pen.write(f"Test of {node.title} — nothing was written and nothing was sent.")
+
+    landed = held = 0
+    for node_id, through in sorted(trial.through.items()):
+        box = boxes.get(node_id)
+        if box is None or box.kind != "feed":
+            continue
+        landed += len(through)
+        pen.write(f"{len(through)} would land here", about=box.title)
+    for node_id, holding in sorted(trial.held.items()):
+        box = boxes.get(node_id)
+        held += len(holding)
+        for item in holding:
+            pen.write(
+                f"would be held — {item.reason or 'filtered out'}",
+                about=f"{box.title if box else '?'} · {item.title}",
+                level="warn",
+            )
+
+    run.discovered = landed + held
+    run.added = landed
+    run.skipped = held
+    run.message = f"Trial: {landed} would land, {held} would be held back."
+    runlog.prune(session, owner)
 
 
 @app.get("/graph/nodes/{node_pk}/filtered")

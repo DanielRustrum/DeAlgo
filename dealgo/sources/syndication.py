@@ -8,6 +8,7 @@ knows what a Reddit post or a YouTube video is, only what a feed entry is.
 from __future__ import annotations
 
 import datetime as dt
+import html
 import re
 from dataclasses import dataclass, field
 from xml.etree import ElementTree
@@ -26,6 +27,8 @@ _NS = {
 # Timestamps arrive in two standards and several dialects of each.
 _RFC_822 = "%a, %d %b %Y %H:%M:%S %z"
 _TAG_RE = re.compile(r"<[^>]+>")
+_IMG_RE = re.compile(r"""<img\b[^>]*?\bsrc=["']([^"']+)["']""", re.I)
+_WIDTH_RE = re.compile(r"[?&]width=(\d+)")
 
 
 @dataclass(frozen=True)
@@ -40,6 +43,9 @@ class Item:
     published_at: dt.datetime | None
     summary: str | None = None
     thumbnail_url: str | None = None
+    #: Every picture the entry carries, in the order it carried them. Reddit
+    #: puts them in the post's own HTML; a plain blog often does too.
+    images: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -99,6 +105,7 @@ def _read_rss(root: ElementTree.Element) -> Feed:
                 published_at=_stamp(node.findtext("pubDate") or node.findtext("dc:date", namespaces=_NS)),
                 summary=_summary(node, ("description", "content:encoded")),
                 thumbnail_url=_thumbnail(node),
+                images=_images(node, ("description", "content:encoded")),
             )
         )
     return Feed(title=_clean(channel.findtext("title") or ""), items=items)
@@ -126,6 +133,7 @@ def _read_atom(root: ElementTree.Element) -> Feed:
                 ),
                 summary=_summary(node, ("atom:summary", "atom:content")),
                 thumbnail_url=_thumbnail(node),
+                images=_images(node, ("atom:summary", "atom:content")),
             )
         )
     return Feed(title=_clean(root.findtext("atom:title", namespaces=_NS) or ""), items=items)
@@ -140,19 +148,86 @@ def _summary(node: ElementTree.Element, wanted: tuple[str, ...]) -> str | None:
     for name in wanted:
         found = node.findtext(name, namespaces=_NS)
         if found and found.strip():
-            return _clean(_TAG_RE.sub(" ", found))[:2000]
+            return _clean(html.unescape(_TAG_RE.sub(" ", found)))[:2000]
     return None
 
 
 def _thumbnail(node: ElementTree.Element) -> str | None:
+    """The best picture to lead with.
+
+    "Best" is "biggest it offered", because a feed's declared thumbnail is
+    often a 140px crop while the same picture sits in the entry's own HTML at
+    640. The card is sized for a video still, and a 140px image in it looks
+    like a mistake.
+
+    The URL is used exactly as given. Reddit signs its preview addresses over
+    the size parameters, so asking for a bigger one by editing the query only
+    earns a 403.
+    """
+    offered = [url for url in _declared(node) + _in_words(node) if url]
+    if not offered:
+        return None
+    return max(offered, key=_declared_width)
+
+
+def _declared(node: ElementTree.Element) -> list[str]:
+    """Pictures the feed names as pictures, rather than ones in its prose."""
+    found: list[str] = []
     for name in ("media:thumbnail", "media:content"):
-        found = node.find(name, _NS)
-        if found is not None and found.get("url"):
-            return found.get("url")
+        for element in node.findall(name, _NS):
+            url = element.get("url")
+            if url and (element.get("type") or "image/").startswith("image/"):
+                found.append(url)
     enclosure = node.find("enclosure")
     if enclosure is not None and (enclosure.get("type") or "").startswith("image/"):
-        return enclosure.get("url")
-    return None
+        url = enclosure.get("url")
+        if url:
+            found.append(url)
+    return found
+
+
+def _in_words(node: ElementTree.Element) -> list[str]:
+    """Pictures inside the entry's own HTML, which is where Reddit puts them."""
+    found: list[str] = []
+    for name in ("description", "content:encoded", "atom:summary", "atom:content"):
+        body = node.findtext(name, namespaces=_NS)
+        if not body:
+            continue
+        # The HTML arrives escaped inside the XML, so it is text to us until
+        # it is unescaped — the parser has already done that by this point.
+        # The HTML is escaped inside the XML, so one unescape gets us the
+        # markup and its entities survive into the attributes. A Reddit
+        # preview address is signed over its query, so an "&amp;" left in it
+        # is not a cosmetic difference — it is a URL that will be refused.
+        found.extend(html.unescape(match.group(1)) for match in _IMG_RE.finditer(body))
+    return found
+
+
+def _declared_width(url: str) -> int:
+    """What the address says it is, for picking between two of the same thing.
+
+    Only a hint: an address that does not say is treated as ordinary rather
+    than as huge, so a named size always beats an unnamed one.
+    """
+    found = _WIDTH_RE.search(url)
+    return int(found.group(1)) if found else 1
+
+
+def _images(node: ElementTree.Element, wanted: tuple[str, ...]) -> list[str]:
+    """Every picture the entry carries, in order and without repeats.
+
+    The lead picture first where it is one of them, so opening an item shows
+    the same image the card did rather than starting somewhere else.
+    """
+    seen: list[str] = []
+    for url in _in_words(node) + _declared(node):
+        if url and url not in seen:
+            seen.append(url)
+    lead = _thumbnail(node)
+    if lead in seen:
+        seen.remove(lead)
+        seen.insert(0, lead)
+    return seen[:20]
 
 
 def _clean(raw: str) -> str:

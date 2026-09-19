@@ -44,6 +44,9 @@ class FeedEntry:
     kind: str = "video"
     link: str | None = None
     summary: str | None = None
+    #: Pictures the entry carries. YouTube's own feed has none to give — a
+    #: video's still is the thumbnail above — so this is for the rest.
+    images: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

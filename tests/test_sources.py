@@ -194,3 +194,76 @@ def test_the_kinds_that_do_not_ration_us_suggest_nothing():
 def test_a_reddit_key_that_is_not_a_subreddit_suggests_nothing():
     assert sources.suggest_mirror("reddit", "") is None
     assert sources.suggest_mirror("reddit", "python") is None
+
+
+# -- pictures --------------------------------------------------------------
+
+# Reddit's shape, cut down: the post's HTML sits escaped inside <content>, and
+# the same picture is named again as a media:thumbnail at a much smaller size.
+REDDIT_WITH_A_PICTURE = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title>r/ElectricalEngineering</title>
+  <entry>
+    <title>What value is this resistor?</title>
+    <link href="https://www.reddit.com/r/ee/comments/abc/" />
+    <id>t3_abc</id>
+    <published>2026-09-19T02:19:24+00:00</published>
+    <media:thumbnail url="https://preview.redd.it/pic.png?width=140&amp;height=54&amp;s=sig140" />
+    <content type="html">&lt;div&gt;&lt;a href="x"&gt;&lt;img src="https://preview.redd.it/pic.png?width=640&amp;amp;crop=smart&amp;amp;s=sig640"&gt;&lt;/a&gt;&lt;p&gt;Any ideas?&lt;/p&gt;&lt;/div&gt;</content>
+  </entry>
+</feed>
+"""
+
+
+def test_the_biggest_picture_offered_is_the_one_led_with():
+    """A feed's declared thumbnail is often a 140px crop while the same
+    picture sits in the entry's HTML at 640. The card is sized for a video
+    still, and 140px in it looks like a mistake."""
+    item = syndication.parse(REDDIT_WITH_A_PICTURE).items[0]
+
+    assert item.thumbnail_url is not None
+    assert "width=640" in item.thumbnail_url
+
+
+def test_entities_in_an_embedded_address_are_undone():
+    """A Reddit preview address is signed over its query, so an "&amp;" left
+    in it is not cosmetic — it is a URL that will be refused."""
+    item = syndication.parse(REDDIT_WITH_A_PICTURE).items[0]
+
+    assert "&amp;" not in (item.thumbnail_url or "")
+    assert item.thumbnail_url.endswith("s=sig640")
+
+
+def test_the_same_picture_twice_is_carried_once():
+    item = syndication.parse(REDDIT_WITH_A_PICTURE).items[0]
+
+    assert len(item.images) == 2, item.images   # the 640 and the 140 are different URLs
+    # And the one led with comes first, so opening it shows what the card did.
+    assert item.images[0] == item.thumbnail_url
+
+
+NO_PICTURE = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <title>r/ee</title>
+  <item>
+    <title>Why is RF so rare?</title>
+    <link>https://www.reddit.com/r/ee/comments/def/</link>
+    <guid>t3_def</guid>
+    <description>&lt;p&gt;Just wondering.&lt;/p&gt;</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_a_post_with_no_picture_carries_none():
+    """Most of a subreddit is words. A card for one leads with its words."""
+    item = syndication.parse(NO_PICTURE).items[0]
+
+    assert item.thumbnail_url is None
+    assert item.images == []
+
+
+def test_the_words_of_a_post_are_unescaped():
+    item = syndication.parse(REDDIT_WITH_A_PICTURE).items[0]
+
+    assert item.summary == "Any ideas?"

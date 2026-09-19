@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Log{% endblock %}
+{% block content %}
+
+{# What happened, in the order it happened. The dashboard's "Recent runs"
+   says how much; this says what, and which of the things that can go quiet
+   went quiet — the question actually asked of a run that did not do what was
+   expected. #}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Log</h2>
+    <nav class="log-filters">
+      {% for name, label in filters %}
+      <a class="btn btn-quiet {{ 'is-on' if show == name }}"
+         href="/log{{ '' if name == 'all' else '?show=' ~ name }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  {% if runs %}
+  <ol class="log-runs">
+    {% for run in runs %}
+    {# Open the newest one: arriving here usually means wanting to know what
+       just happened. #}
+    <li class="log-run {{ 'is-bad' if not run.ok and run.finished_at }}">
+      <details {{ 'open' if loop.first and lines.get(run.id) }}>
+        <summary>
+          <span class="log-how {{ 'by-hand' if run.by_hand else 'by-clock' }}">
+            {{ run.how }}</span>
+          {% if run.wrote_nothing %}
+          <span class="pill" title="A trial: nothing was written and nothing was sent">
+            wrote nothing</span>
+          {% endif %}
+          {% if run.forced %}<span class="pill" title="Minimum gaps ignored">forced</span>{% endif %}
+
+          <span class="log-when" title="{{ run.started_at | stamp }}">
+            {{ run.started_at | ago }}</span>
+
+          <span class="log-tally">
+            {% if run.finished_at %}
+              looked at {{ run.channels_checked }} ·
+              found {{ run.discovered }} ·
+              added {{ run.added }}
+              {%- if run.skipped %} · held {{ run.skipped }}{% endif %}
+              {%- if run.failed %} · <strong>failed {{ run.failed }}</strong>{% endif %}
+              {%- if run.quota_spent %} · {{ run.quota_spent }} units{% endif %}
+            {% else %}
+              <span class="spinner"></span>still going
+            {% endif %}
+          </span>
+
+          {% if counts.get(run.id) %}
+          <span class="log-count">{{ counts[run.id] }} line{{ 's' if counts[run.id] != 1 }}</span>
+          {% endif %}
+        </summary>
+
+        {% if run.message %}<p class="log-message">{{ run.message }}</p>{% endif %}
+
+        {% set shown = lines.get(run.id) %}
+        {% if shown %}
+        <div class="table-scroll">
+          <table class="table log-lines">
+            <thead>
+              <tr><th>At</th><th>Stage</th><th>About</th><th>What happened</th></tr>
+            </thead>
+            <tbody>
+              {% for line in shown %}
+              <tr class="log-line is-{{ line.level }}">
+                <td class="log-at" title="{{ line.at | stamp }}">{{ line.at | clock }}</td>
+                <td class="log-stage">{{ line.stage }}</td>
+                <td class="log-about">{{ line.about or '—' }}</td>
+                <td>{{ line.message }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="empty">
+          No detail kept for this one. Only the last {{ runs_with_detail }} runs keep
+          their lines; the counts above are the whole of what is left.
+        </p>
+        {% endif %}
+      </details>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">
+    Nothing has run yet. Press <strong>Run now</strong> on a trigger box on the
+    <a href="/channels">Configuration</a> canvas.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

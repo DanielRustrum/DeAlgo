@@ -15,8 +15,9 @@
          id="feed-card-{{ video.id }}">
   <a class="card-thumb" href="/focus?start={{ video.id }}{{ from_feed }}"
      title="{{ video.title or video.video_id }} — {{ video.channel.title }}">
-    {% if video.thumbnail_url %}
-      <img src="{{ video.thumbnail_url }}" alt="{{ video.title or video.video_id }}" loading="lazy"
+    {% set lead = video.thumbnail_url or (video.image_list | first) %}
+    {% if lead %}
+      <img src="{{ lead }}" alt="{{ video.title or video.video_id }}" loading="lazy"
            referrerpolicy="no-referrer">
     {% elif video.is_post or video.is_link %}
       <span class="card-thumb-words">{{ video.body or video.title }}</span>

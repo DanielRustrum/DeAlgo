@@ -49,7 +49,7 @@
      for the one that opens, so it is readable before the script runs. #}
   <article class="focus-post" id="focus-post" {{ 'hidden' if queue[0].kind == 'video' }}>
     <div class="focus-tiles" id="focus-tiles">
-      {% if queue[0].kind == 'post' %}
+      {% if queue[0].kind != 'video' %}
         {% for image in queue[0].images %}
         <a class="focus-tile" href="{{ image }}" target="_blank" rel="noopener">
           <img src="{{ image }}" alt="" loading="lazy" referrerpolicy="no-referrer">

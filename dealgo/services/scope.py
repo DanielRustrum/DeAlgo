@@ -23,6 +23,7 @@ from ..models import (
     GraphNode,
     Playlist,
     QuotaUsage,
+    RunEvent,
     Settings,
     SyncRun,
     Video,
@@ -30,7 +31,10 @@ from ..models import (
 
 # Anything with an owner. Listed rather than inferred, so adding a table is a
 # deliberate decision about who it belongs to.
-Owned = Channel | Playlist | Video | Settings | SyncRun | QuotaUsage | GraphNode | GraphEdge
+Owned = (
+    Channel | Playlist | Video | Settings | SyncRun | QuotaUsage | GraphNode | GraphEdge
+    | RunEvent
+)
 
 # A select of anything: one column, several, or a count. The rows it yields
 # are not this helper's business — only the table they come from is.
