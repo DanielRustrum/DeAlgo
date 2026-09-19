@@ -15,12 +15,23 @@ SECOND = "PL_second"
 
 
 def add_channel(db, channel_id: str, title: str, *, playlists=None):
+    from dealgo.models import GraphEdge, GraphNode
+
     with db.session_scope() as session:
         channel = Channel(channel_id=channel_id, title=title)
         session.add(channel)
         session.flush()
         ordering.append(session, channel)
         channel.playlists = list(session.scalars(select(Playlist))) if playlists is None else playlists
+
+        # On the canvas and wired to the trigger the fixture drew, because a
+        # source with none is not polled at all.
+        box = GraphNode(kind="source", channel_pk=channel.id, enabled=True, x=0, y=0)
+        session.add(box)
+        session.flush()
+        pulse = session.scalar(select(GraphNode).where(GraphNode.kind == "trigger"))
+        if pulse is not None:
+            session.add(GraphEdge(source_pk=pulse.id, target_pk=box.id))
         return channel.id
 
 

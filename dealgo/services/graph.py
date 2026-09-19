@@ -126,13 +126,21 @@ def split_every(minutes: int) -> tuple[int, str]:
 
 
 def every_minutes_from(amount: int, unit: str) -> int:
-    """An amount and a unit as the minutes to store."""
+    """An amount and a unit as the minutes to store.
+
+    Zero survives, because zero means something: every run there is. Anything
+    negative is nonsense and becomes the smallest gap the unit can express.
+    """
     size = next((size for name, size, _ in EVERY_UNITS if name == unit), 1)
+    if amount == 0:
+        return 0
     return max(1, amount) * size
 
 
 def every_words(minutes: int) -> str:
     """A gap said the way it was most likely meant."""
+    if minutes == 0:
+        return "run"  # reads as "every run", which is what it means
     amount, unit = split_every(minutes)
     return f"{amount} {unit[:-1] if amount == 1 else unit}"
 
@@ -457,6 +465,11 @@ class When:
             # Never polled. Both kinds agree that is overdue.
             return True
         if self.kind == "pulse":
+            if self.every_minutes == 0:
+                # Every run there is. The plainest thing a pulse can say, and
+                # what a channel with no minimum gap always did before the
+                # canvas had triggers to say it with.
+                return True
             gap = self.every_minutes or DEFAULT_EVERY_MINUTES
             return now >= last_checked + dt.timedelta(minutes=gap)
         return self.came_round_since(last_checked, now)
@@ -501,9 +514,10 @@ def triggers_for(session: Session, owner: OwnerId = None) -> dict[int, list[Grap
 def polling_plan(session: Session, owner: OwnerId = None) -> dict[int, list[When]]:
     """When each wired channel wants polling, by channel primary key.
 
-    A channel absent from this has no trigger wired, and keeps following the
-    account's own sync settings — which is what every setup did before
-    triggers existed, and what an upgrade must not change.
+    A channel absent from this has no trigger wired, and is not polled at all.
+    A trigger is how a run starts; a source fetched on a schedule that is
+    drawn nowhere is a source filling feeds for reasons the canvas cannot
+    explain.
 
     A channel with several is polled when *any* of them says so. Two triggers
     are two reasons to poll, not a negotiation.

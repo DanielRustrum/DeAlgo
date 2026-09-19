@@ -1181,8 +1181,10 @@ def test_a_gap_is_stored_in_minutes_whatever_it_was_typed_in(db):
     assert graph.every_minutes_from(1, "weeks") == 10080
     # A unit nobody offered counts as minutes rather than as nothing.
     assert graph.every_minutes_from(5, "fortnights") == 5
-    # And a gap of nothing is a gap of one: zero would poll for ever.
-    assert graph.every_minutes_from(0, "hours") == 60
+    # Zero survives, because zero means something: every run there is. It is
+    # not "as often as possible" — runs happen on the account's own clock.
+    assert graph.every_minutes_from(0, "hours") == 0
+    assert graph.every_words(0) == "run"
 
 
 def test_a_gap_is_said_the_way_it_was_most_likely_meant(db):
@@ -1247,7 +1249,7 @@ def test_a_cron_that_makes_no_sense_is_refused_with_a_reason(canvas):
 def test_a_pulse_wired_to_a_channel_says_so_on_the_channel(canvas):
     added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
     trigger, source = only(added, "trigger"), only(added, "source")
-    assert "account's sync settings" in source["polled"]
+    assert "Nothing polls this" in source["polled"]
 
     wired = canvas.post(
         "/graph/connect", data={"source": trigger["id"], "target": source["id"]}

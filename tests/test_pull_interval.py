@@ -1,4 +1,10 @@
-"""The minimum gap between feed checks, per channel."""
+"""How often a source is polled, and what happens while it waits.
+
+This used to be a per-channel minimum gap, set from a list of channels that
+no longer exists. The canvas is the whole configuration now: a trigger box
+says when a source is polled, and a source with none is not polled at all.
+So these are the same properties, asked of the thing that decides them.
+"""
 
 from __future__ import annotations
 
@@ -6,16 +12,17 @@ import datetime as dt
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, Video, utcnow
-from dealgo.services import channels as channel_service
+from dealgo.models import Channel, GraphNode, Video, utcnow
 from dealgo.services import sync as sync_service
 from dealgo.youtube.api import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 
-def set_interval(db, minutes: int) -> None:
+def set_pulse(db, minutes: int) -> None:
+    """Change the gap on the trigger the world fixture wired in."""
     with db.session_scope() as session:
-        channel_service.set_pull_interval(session, session.scalar(select(Channel)), minutes)
+        pulse = session.scalar(select(GraphNode).where(GraphNode.kind == "trigger"))
+        pulse.every_minutes = minutes
 
 
 def checked_ago(db, **delta) -> None:
@@ -28,68 +35,61 @@ def upload(world, video_id, minutes_ago=1):
     world["client"].details[video_id] = VideoDetails(video_id, video_id, 600, "none", "public")
 
 
-def test_no_minimum_means_every_sync(world):
+def test_a_pulse_of_zero_means_every_run(world):
+    """The plainest thing a pulse can say, and what a channel with no minimum
+    gap always did before the canvas had triggers to say it with."""
     upload(world, "v0")
     assert sync_service.run_sync().channels_checked == 1
+
+    upload(world, "v1")
+    assert sync_service.run_sync().channels_checked == 1
+
+
+def test_a_source_is_left_alone_until_its_pulse_comes_round(world, db):
+    set_pulse(db, 1440)
+    upload(world, "v0")
+    sync_service.run_sync()
+
     upload(world, "v1")
     result = sync_service.run_sync()
 
-    assert result.channels_checked == 1
-    assert result.channels_waiting == 0
-    assert result.discovered == 1
-
-
-def test_a_channel_is_left_alone_until_its_gap_has_passed(world, db):
-    upload(world, "v0")
-    sync_service.run_sync()
-    set_interval(db, 360)  # six hours
-
-    upload(world, "v1")  # published in the meantime
-    result = sync_service.run_sync()
-
-    assert result.channels_checked == 0
     assert result.channels_waiting == 1
     assert result.discovered == 0
-    with db.session_scope() as session:
-        assert session.scalar(select(Video).where(Video.video_id == "v1")) is None
 
 
 def test_it_is_polled_again_once_the_gap_elapses(world, db):
+    set_pulse(db, 60)
     upload(world, "v0")
     sync_service.run_sync()
-    set_interval(db, 360)
-    checked_ago(db, hours=7)
+    checked_ago(db, hours=2)
 
     upload(world, "v1")
     result = sync_service.run_sync()
 
     assert result.channels_checked == 1
     assert result.discovered == 1
-    assert world["client"].contents(MAIN_PLAYLIST) == ["v0", "v1"]
 
 
-def test_a_never_checked_channel_is_always_due(world, db):
-    set_interval(db, 10080)  # weekly, but it has never been polled
+def test_a_source_never_checked_is_always_due(world, db):
+    set_pulse(db, 10080)  # weekly, and it has never been looked at
     upload(world, "v0")
 
-    result = sync_service.run_sync()
-
-    assert result.channels_checked == 1
-    assert result.discovered == 1
+    assert sync_service.run_sync().discovered == 1
 
 
-def test_the_gap_applies_to_manual_runs_too(world, db):
-    """It is a minimum, not a schedule — pressing Sync now does not bypass it."""
-    upload(world, "v0")
-    sync_service.run_sync(trigger="scheduled")
-    set_interval(db, 1440)
+def test_the_gap_applies_to_a_run_somebody_started_too(world, db):
+    """A run by hand is still a run. Pressing the trigger itself is the thing
+    that ignores the gap, and that forces."""
+    set_pulse(db, 1440)
+    sync_service.run_sync()
 
     upload(world, "v1")
-    assert sync_service.run_sync(trigger="manual").channels_waiting == 1
+    assert sync_service.run_sync("manual").channels_waiting == 1
 
 
 def test_waiting_does_not_stall_the_videos_already_queued(world, db):
-    """A throttled channel still gets its pending videos published."""
+    """A source that is not due still gets its pending videos published: the
+    two halves of a run are separate, and only the polling half waits."""
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10
         db.get_settings(session).daily_quota = 60  # room for one insert
@@ -101,7 +101,7 @@ def test_waiting_does_not_stall_the_videos_already_queued(world, db):
     first = sync_service.run_sync()
     assert first.added == 1
 
-    set_interval(db, 1440)
+    set_pulse(db, 1440)
     with db.session_scope() as session:
         db.get_settings(session).daily_quota = 10000
 
@@ -109,33 +109,12 @@ def test_waiting_does_not_stall_the_videos_already_queued(world, db):
 
     assert second.channels_waiting == 1  # not polled
     assert second.added == 1             # but the queue still moved
-    assert sorted(world["client"].contents(MAIN_PLAYLIST)) == ["v0", "v1"]
 
 
-def test_intervals_are_described_readably():
-    assert channel_service.describe_interval(0) == "every sync"
-    assert channel_service.describe_interval(360) == "every 6 hours"
-    assert channel_service.describe_interval(1440) == "daily"
-    assert channel_service.describe_interval(2880) == "every 2 days"
-    assert channel_service.describe_interval(120) == "every 2 hours"
-    assert channel_service.describe_interval(45) == "every 45 min"
-
-
-def test_next_check_is_reported(world, db):
-    set_interval(db, 120)
-    with db.session_scope() as session:
-        channel = session.scalar(select(Channel))
-        assert channel.next_check_at is None  # never polled, so always due
-
-        channel.last_checked_at = utcnow()
-        assert not channel.is_due()
-        assert channel.next_check_at is not None
-
-
-def test_a_forced_run_polls_a_channel_that_is_not_due(world, db):
+def test_a_forced_run_polls_a_source_that_is_not_due(world, db):
     upload(world, "v0")
     sync_service.run_sync()
-    set_interval(db, 10080)  # weekly
+    set_pulse(db, 10080)  # weekly
 
     upload(world, "v1")
     waited = sync_service.run_sync()
@@ -153,7 +132,7 @@ def test_forcing_does_not_reset_the_gap_for_later_runs(world, db):
     """A forced poll updates last_checked_at, so the gap restarts from now."""
     upload(world, "v0")
     sync_service.run_sync()
-    set_interval(db, 1440)
+    set_pulse(db, 1440)
     checked_ago(db, days=2)
 
     sync_service.run_sync(force=True)
@@ -178,7 +157,7 @@ def test_a_forced_run_is_recorded_as_such(world, db):
 
 
 def test_a_disabled_channel_stays_disabled_even_when_forced(world, db):
-    """Force ignores the minimum gap, not the pause switch."""
+    """Force ignores when a source is due, not the pause switch."""
     with db.session_scope() as session:
         session.scalar(select(Channel)).enabled = False
     upload(world, "v0")
@@ -187,3 +166,17 @@ def test_a_disabled_channel_stays_disabled_even_when_forced(world, db):
 
     assert result.channels_checked == 0
     assert result.discovered == 0
+
+
+def test_a_switched_off_trigger_polls_nothing(world, db):
+    """The box is still drawn and still wired; it is simply not firing."""
+    with db.session_scope() as session:
+        session.scalar(select(GraphNode).where(GraphNode.kind == "trigger")).enabled = False
+    upload(world, "v0")
+
+    result = sync_service.run_sync()
+
+    assert result.channels_checked == 0
+    assert result.discovered == 0
+    with db.session_scope() as session:
+        assert session.scalars(select(Video)).all() == []

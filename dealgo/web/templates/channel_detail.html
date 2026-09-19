@@ -48,8 +48,9 @@
     <dt>Added</dt><dd>{{ channel.added_at | stamp }}</dd>
     <dt>Last checked</dt>
     <dd>
+      {# When it is next looked at is the trigger's business, and the trigger
+         is drawn on the canvas rather than described here. #}
       {{ channel.last_checked_at | ago }}
-      {% if channel.next_check_at %} · next {{ channel.next_check_at | ago }}{% endif %}
     </dd>
     <dt>Status</dt>
     <dd>

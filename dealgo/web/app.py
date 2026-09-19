@@ -457,7 +457,6 @@ def _channel_list_context(
 
     return {
         "channels": channels,
-        "pull_intervals": channel_service.PULL_INTERVALS,
         "tracking": tracking,
         "query": query,
         "all_feeds": playlists,
@@ -867,8 +866,7 @@ def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
             "settings": get_settings(session, owner),
             "all_playlists": _matching_feeds(playlist_service.list_playlists(session, owner), q),
             "query": q,
-            "pull_intervals": channel_service.PULL_INTERVALS,
-            "channel_playlist_pks": {p.id for p in channel.playlists},
+                "channel_playlist_pks": {p.id for p in channel.playlists},
             "placed": session.scalar(
                 select(func.count(func.distinct(Placement.video_pk)))
                 .join(Video, Video.id == Placement.video_pk)
@@ -2188,7 +2186,7 @@ def _how_polled(node: GraphNode, plan: dict[int, list[graph_service.When]]) -> s
     """
     wired = None if node.channel_pk is None else plan.get(node.channel_pk)
     if not wired:
-        return "Polled on this account's sync settings — wire a trigger in to change that."
+        return "Nothing polls this. Wire a trigger into it, or it just sits here."
     return "Polled by " + _join_clauses([_when_clause(when) for when in wired]) + "."
 
 
@@ -3106,12 +3104,15 @@ def _save_trigger(
         return None
     wanted = every_minutes.strip()
     # The number is in whatever unit was chosen beside it; minutes is what is
-    # stored, and what an older form with no unit at all meant.
-    node.every_minutes = (
-        graph_service.every_minutes_from(int(wanted), every_unit or "minutes")
-        if wanted.isdigit() and int(wanted) > 0
-        else graph_service.DEFAULT_EVERY_MINUTES
-    )
+    # stored, and what an older form with no unit at all meant. Zero is a real
+    # answer — "every run there is" — rather than a missing one, so it is kept
+    # instead of being replaced by the default.
+    if wanted.isdigit():
+        node.every_minutes = graph_service.every_minutes_from(
+            int(wanted), every_unit or "minutes"
+        )
+    else:
+        node.every_minutes = graph_service.DEFAULT_EVERY_MINUTES
     return None
 
 

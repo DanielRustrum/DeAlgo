@@ -252,6 +252,11 @@ class Channel(Base):
     # Insert order when quota is short: lower goes first.
     priority: Mapped[int] = mapped_column(Integer, default=0, index=True)
     # Shortest gap between feed checks, in minutes. 0 means every sync.
+    # A per-channel minimum gap, from when a list of channels was where you
+    # set such things. A trigger box on the canvas decides when a source is
+    # polled now, and a source with no trigger is not polled at all — so this
+    # decides nothing. Kept only so a backup written before the canvas still
+    # restores without losing a field.
     min_pull_minutes: Mapped[int] = mapped_column(Integer, default=0)
     # How much history to take on the first check: None uses the global count,
     # 0 takes nothing, and a number is how many days back to reach.
@@ -329,17 +334,6 @@ class Channel(Base):
     @property
     def tag_list(self) -> list[str]:
         return [tag.strip() for tag in (self.tags or "").split(",") if tag.strip()]
-
-    @property
-    def next_check_at(self) -> "dt.datetime | None":
-        """When this channel may next be polled, or None if it always may."""
-        if not self.min_pull_minutes or self.last_checked_at is None:
-            return None
-        return self.last_checked_at + dt.timedelta(minutes=self.min_pull_minutes)
-
-    def is_due(self, now: "dt.datetime | None" = None) -> bool:
-        due_at = self.next_check_at
-        return due_at is None or (now or utcnow()) >= due_at
 
     @property
     def is_youtube(self) -> bool:

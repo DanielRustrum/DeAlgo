@@ -233,35 +233,9 @@ def parse_backfill(raw: str | None) -> int | None:
         return None
 
 
-# Offered in the channel list. 0 means "check on every sync".
-PULL_INTERVALS: tuple[tuple[int, str], ...] = (
-    (0, "every sync"),
-    (60, "hourly"),
-    (180, "every 3 hours"),
-    (360, "every 6 hours"),
-    (720, "every 12 hours"),
-    (1440, "daily"),
-    (4320, "every 3 days"),
-    (10080, "weekly"),
-)
-
-
-def describe_interval(minutes: int) -> str:
-    for value, label in PULL_INTERVALS:
-        if value == minutes:
-            return label
-    if minutes % 1440 == 0:
-        days = minutes // 1440
-        return f"every {days} day{'s' if days != 1 else ''}"
-    if minutes % 60 == 0:
-        hours = minutes // 60
-        return f"every {hours} hour{'s' if hours != 1 else ''}"
-    return f"every {minutes} min"
-
-
-def set_pull_interval(session: Session, channel: Channel, minutes: int) -> None:
-    channel.min_pull_minutes = max(0, minutes)
-    session.flush()
+# The per-channel poll interval used to be offered here, from a list of
+# channels that no longer exists. A trigger box on the canvas says when a
+# source is polled now, so there is nothing left for these to set.
 
 
 SHORTS_REASON = "Short%"

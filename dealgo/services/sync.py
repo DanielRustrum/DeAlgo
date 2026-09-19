@@ -544,14 +544,16 @@ def _channel_due(
 ) -> bool:
     """Whether this channel wants polling now.
 
-    The trigger boxes wired to it have the last word, and any one of them
-    saying yes is enough. Without one the channel's own minimum gap decides,
-    which is how every setup worked before the canvas had triggers. A forced
-    run never asks.
+    The trigger boxes wired to it decide, and any one of them saying yes is
+    enough. With none wired, nothing polls it: a trigger is how a run starts,
+    and a source quietly fetched on a schedule drawn nowhere is a source
+    filling feeds for reasons the canvas cannot explain.
+
+    A forced run never asks — pressing a button is the whole schedule.
     """
     wired = plan.get(channel.id)
-    if wired is None:
-        return channel.is_due(now)
+    if not wired:
+        return False
     return any(when.due(channel.last_checked_at, now) for when in wired)
 
 
@@ -585,7 +587,12 @@ def _discover(
             # it. Polling is free, so this is about how often the user wants to
             # hear from a channel, not about cost.
             result.channels_waiting += 1
-            say.write("not due yet, so it was left alone", about=channel.title)
+            say.write(
+                "nothing polls this — wire a trigger to it"
+                if not plan.get(channel.id)
+                else "not due yet, so it was left alone",
+                about=channel.title,
+            )
             continue
         _note(channel_pk=channel.id)
         try:
@@ -743,20 +750,27 @@ def _freshen(video: Video, entry: feeds.FeedEntry) -> int:
     have since learned to take from it — pictures, most of all, which were
     being thrown away before there was anywhere to put them.
 
-    Only ever fills gaps. What is already on the row was either read from the
-    feed or put there deliberately, and neither is this function's to
-    overwrite.
+    The feed's current answer wins, rather than only filling a blank. Nothing
+    in the app lets a person write any of these fields, so what is on the row
+    came from an earlier reading of this same entry — and an earlier reading
+    is exactly what is being corrected. A row stored before the words were
+    unescaped keeps its "&#32;" for ever under a fill-only rule.
+
+    Never replaces something with nothing, though: a parse that comes back
+    empty is a reason to keep what we have, not to throw it away.
     """
     gained = 0
-    if not video.thumbnail_url and entry.thumbnail_url:
+    fresh = json.dumps(list(entry.images)) if entry.images else None
+
+    if entry.thumbnail_url and video.thumbnail_url != entry.thumbnail_url:
         video.thumbnail_url = entry.thumbnail_url
         gained = 1
-    if not video.images and entry.images:
-        video.images = json.dumps(list(entry.images))
+    if fresh and video.images != fresh:
+        video.images = fresh
         gained = 1
-    if not video.body and entry.summary:
+    if entry.summary and video.body != entry.summary:
         video.body = entry.summary
-    if not video.link and entry.link:
+    if entry.link and video.link != entry.link:
         video.link = entry.link
     return gained
 

@@ -251,16 +251,23 @@ def test_a_failed_picture_lookup_does_not_stop_the_sync(world, db, monkeypatch):
 # -- what the trigger boxes do ---------------------------------------------
 #
 # A trigger on the canvas is only meaningful if the sync engine obeys it. The
-# case that matters most is the one with no trigger at all: every setup that
-# existed before triggers did has none, and must go on syncing as it always has.
+# case that matters most is the one with no trigger at all: nothing polls it,
+# because a trigger is how a run starts.
 
 
 def wire_trigger(db, *, kind: str, every_minutes: int | None = None, cron: str | None = None):
-    """Put a trigger box on the canvas and wire it into the only channel."""
+    """Put a trigger box on the canvas and wire it into the only channel.
+
+    Whatever was wired before comes off first: these tests are about what one
+    trigger does, and a second one saying yes underneath would answer for it.
+    """
     from dealgo.services import graph
 
     with db.session_scope() as session:
         graph.load(session)
+        for existing in [n for n in graph.nodes(session) if n.kind == "trigger"]:
+            session.delete(existing)
+        session.flush()
         source = next(n for n in graph.nodes(session) if n.kind == "source")
         trigger = graph.add_trigger(
             session, trigger_kind=kind, every_minutes=every_minutes, cron=cron
@@ -274,11 +281,39 @@ def last_checked(db, when):
         session.scalars(select(Channel)).one().last_checked_at = when
 
 
-def test_a_channel_with_no_trigger_syncs_as_it_always_did(world):
+def test_a_channel_with_no_trigger_is_not_polled_at_all(world, db):
+    """A trigger is how a run starts. A source fetched on a schedule drawn
+    nowhere is a source filling feeds for reasons the canvas cannot explain,
+    which is exactly how a channel nobody wired ends up in somebody's feed."""
+    from dealgo.models import GraphNode
+
+    with db.session_scope() as session:
+        for node in session.scalars(select(GraphNode).where(GraphNode.kind == "trigger")):
+            session.delete(node)
+
     world["entries"] = [entry("v0", minutes_ago=5)]
     world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
 
-    assert sync_service.run_sync().discovered == 1
+    result = sync_service.run_sync()
+
+    assert result.discovered == 0
+    assert result.channels_checked == 0
+    assert result.channels_waiting == 1
+
+
+def test_an_unwired_channel_is_still_polled_when_a_person_forces_it(world, db):
+    """Force means force: the CLI's `--force` is somebody saying "poll
+    everything now", and it is the way to reach a source not yet wired."""
+    from dealgo.models import GraphNode
+
+    with db.session_scope() as session:
+        for node in session.scalars(select(GraphNode).where(GraphNode.kind == "trigger")):
+            session.delete(node)
+
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    assert sync_service.run_sync(force=True).discovered == 1
 
 
 def test_a_pulse_replaces_the_channels_own_gap(world):
@@ -552,9 +587,32 @@ def test_an_item_already_here_gains_the_picture_we_can_now_read(world, db, monke
     assert again.image_list == [again.thumbnail_url]
 
 
-def test_filling_a_gap_does_not_overwrite_what_is_already_there(world, db, monkeypatch):
-    """What is on the row was either read from the feed or put there
-    deliberately, and neither is this function's to overwrite."""
+def test_a_stale_reading_is_corrected_by_a_fresh_one(world, db, monkeypatch):
+    """Nothing in the app lets a person write these fields, so what is on the
+    row came from an earlier reading of this same entry — and an earlier
+    reading is exactly what wants correcting. Under a fill-only rule a body
+    stored before the words were unescaped keeps its "&#32;" for ever."""
+    from dealgo.models import Video as VideoModel
+    from dealgo.sources import syndication
+
+    add_rss_source(db, monkeypatch, REDDIT)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        stored = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+        stored.body = "A body &#32; read by an older version"
+
+    monkeypatch.setattr(syndication, "fetch", lambda _url, _http: syndication.parse(REDDIT))
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        again = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
+    assert again.body == "A body"
+
+
+def test_a_reading_that_comes_back_empty_takes_nothing_away(world, db, monkeypatch):
+    """A parse that finds nothing is a reason to keep what we have, not to
+    throw it away."""
     from dealgo.models import Video as VideoModel
     from dealgo.sources import syndication
 
@@ -563,16 +621,20 @@ def test_filling_a_gap_does_not_overwrite_what_is_already_there(world, db, monke
 
     with db.session_scope() as session:
         stored = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
-        stored.thumbnail_url = "https://example.com/chosen.png"
+        assert stored.thumbnail_url is not None
+        had = stored.thumbnail_url
 
-    monkeypatch.setattr(
-        syndication, "fetch", lambda _url, _http: syndication.parse(REDDIT_WITH_A_PICTURE)
+    # The same entry, with everything but its identity gone.
+    bare = REDDIT_WITH_A_PICTURE.replace(
+        '<description>&lt;img src="https://preview.redd.it/p.png?width=640&amp;amp;s=sig"&gt;A body</description>',
+        "<description></description>",
     )
+    monkeypatch.setattr(syndication, "fetch", lambda _url, _http: syndication.parse(bare))
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
         again = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
-    assert again.thumbnail_url == "https://example.com/chosen.png"
+    assert again.thumbnail_url == had
 
 
 def test_a_second_reading_does_not_discover_it_twice(world, db, monkeypatch):

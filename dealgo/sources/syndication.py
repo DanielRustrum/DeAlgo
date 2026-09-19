@@ -11,6 +11,7 @@ import datetime as dt
 import html
 import re
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 import httpx
@@ -28,7 +29,20 @@ _NS = {
 _RFC_822 = "%a, %d %b %Y %H:%M:%S %z"
 _TAG_RE = re.compile(r"<[^>]+>")
 _IMG_RE = re.compile(r"""<img\b[^>]*?\bsrc=["']([^"']+)["']""", re.I)
+# A picture is not always in an <img>. Reddit writes an image post as a link
+# to the file, and that link is the full-size one — the <img> and the
+# media:thumbnail beside it are both crops a few hundred pixels wide.
+_HREF_RE = re.compile(r"""<a\b[^>]*?\bhref=["']([^"']+)["']""", re.I)
 _WIDTH_RE = re.compile(r"[?&]width=(\d+)")
+_IMAGE_FILE_RE = re.compile(r"\.(?:png|jpe?g|gif|webp|avif)$", re.I)
+# Hosts that serve nothing but images, for the addresses that carry no
+# extension to go on.
+_IMAGE_HOSTS = (
+    "preview.redd.it",
+    "external-preview.redd.it",
+    "i.redd.it",
+    "i.imgur.com",
+)
 
 
 @dataclass(frozen=True)
@@ -103,9 +117,9 @@ def _read_rss(root: ElementTree.Element) -> Feed:
                 title=_clean(node.findtext("title") or ""),
                 link=link,
                 published_at=_stamp(node.findtext("pubDate") or node.findtext("dc:date", namespaces=_NS)),
-                summary=_summary(node, ("description", "content:encoded")),
+                summary=_summary(node, ("description", "content:encoded"), _images(node)),
                 thumbnail_url=_thumbnail(node),
-                images=_images(node, ("description", "content:encoded")),
+                images=_images(node),
             )
         )
     return Feed(title=_clean(channel.findtext("title") or ""), items=items)
@@ -131,15 +145,17 @@ def _read_atom(root: ElementTree.Element) -> Feed:
                     node.findtext("atom:published", namespaces=_NS)
                     or node.findtext("atom:updated", namespaces=_NS)
                 ),
-                summary=_summary(node, ("atom:summary", "atom:content")),
+                summary=_summary(node, ("atom:summary", "atom:content"), _images(node)),
                 thumbnail_url=_thumbnail(node),
-                images=_images(node, ("atom:summary", "atom:content")),
+                images=_images(node),
             )
         )
     return Feed(title=_clean(root.findtext("atom:title", namespaces=_NS) or ""), items=items)
 
 
-def _summary(node: ElementTree.Element, wanted: tuple[str, ...]) -> str | None:
+def _summary(
+    node: ElementTree.Element, wanted: tuple[str, ...], pictures: list[str] | None = None
+) -> str | None:
     """The entry's own words, with the markup taken out.
 
     Kept as text rather than as HTML: it is shown in a card, and a feed is not
@@ -148,8 +164,23 @@ def _summary(node: ElementTree.Element, wanted: tuple[str, ...]) -> str | None:
     for name in wanted:
         found = node.findtext(name, namespaces=_NS)
         if found and found.strip():
-            return _clean(html.unescape(_TAG_RE.sub(" ", found)))[:2000]
+            words = _clean(html.unescape(_TAG_RE.sub(" ", found)))
+            return _without_addresses(words, pictures)[:2000] or None
     return None
+
+
+def _without_addresses(words: str, pictures: list[str] | None) -> str:
+    """Take the picture's address out of the words.
+
+    Reddit writes an image post as a link whose visible text is the address
+    itself, so stripping the markup leaves a line of URL above the writing.
+    The picture is shown as a picture; its address is not the post.
+    """
+    if not pictures:
+        return words
+    wanted = set(pictures)
+    kept = [piece for piece in words.split(" ") if piece not in wanted]
+    return " ".join(kept).strip()
 
 
 def _thumbnail(node: ElementTree.Element) -> str | None:
@@ -200,7 +231,25 @@ def _in_words(node: ElementTree.Element) -> list[str]:
         # preview address is signed over its query, so an "&amp;" left in it
         # is not a cosmetic difference — it is a URL that will be refused.
         found.extend(html.unescape(match.group(1)) for match in _IMG_RE.finditer(body))
+        found.extend(
+            url
+            for url in (html.unescape(m.group(1)) for m in _HREF_RE.finditer(body))
+            if _is_a_picture(url)
+        )
     return found
+
+
+def _is_a_picture(url: str) -> bool:
+    """Whether a link points at an image rather than at another page.
+
+    By the file it names, or by a host that serves nothing else — Reddit's
+    preview addresses carry the extension before the query, and its [link]
+    and [comments] anchors point at neither.
+    """
+    parsed = urlparse(url)
+    if _IMAGE_FILE_RE.search(parsed.path):
+        return True
+    return (parsed.hostname or "").lower() in _IMAGE_HOSTS
 
 
 def _declared_width(url: str) -> int:
@@ -213,7 +262,7 @@ def _declared_width(url: str) -> int:
     return int(found.group(1)) if found else 1
 
 
-def _images(node: ElementTree.Element, wanted: tuple[str, ...]) -> list[str]:
+def _images(node: ElementTree.Element) -> list[str]:
     """Every picture the entry carries, in order and without repeats.
 
     The lead picture first where it is one of them, so opening an item shows

@@ -73,11 +73,27 @@ def world(db, monkeypatch):
     monkeypatch.setattr(sync_service, "build_client", fake_build_client)
     monkeypatch.setattr(watched_service, "build_client", fake_build_client)
 
+    from dealgo.models import GraphEdge, GraphNode
+
     with db.session_scope() as session:
         channel = Channel(channel_id=CHANNEL_ID, title="Fake Channel")
         playlist = Playlist(playlist_id=MAIN_PLAYLIST, title="My Feed")
         channel.playlists.append(playlist)
         session.add_all([channel, playlist])
+        session.flush()
+
+        # A trigger, because nothing polls a source without one. A channel
+        # with no trigger is a channel nobody has finished setting up, and a
+        # fixture that leaves one that way is testing an install nobody has.
+        box = GraphNode(kind="source", channel_pk=channel.id, enabled=True, x=0, y=0)
+        # Every run there is, which is what this channel did before a trigger
+        # was needed to say so. Tests about *when* a trigger fires replace it.
+        pulse = GraphNode(
+            kind="trigger", trigger_kind="pulse", every_minutes=0, enabled=True, x=0, y=0
+        )
+        session.add_all([box, pulse])
+        session.flush()
+        session.add(GraphEdge(source_pk=pulse.id, target_pk=box.id))
 
     state["db"] = db
     return state
