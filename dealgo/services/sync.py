@@ -822,6 +822,57 @@ def _fill_missing_details(
 # -- phase 2: filter and insert -------------------------------------------
 
 
+def _reconsider_routing(session: Session, result: SyncResult, owner: OwnerId = None) -> int:
+    """Bring back items that only had nowhere to go.
+
+    "Not a YouTube video, and that feed is a YouTube playlist" is a verdict
+    about the *route*, not about the item — and routes change. A wire is
+    redrawn, a second feed is added, or a YouTube playlist is turned into a
+    feed that lives here, and suddenly the thing that was refused is welcome.
+
+    Connecting a wire already brings these back, but that only catches one of
+    the ways it can happen: nothing was reconnected when the feed on the end
+    of an existing wire changed underneath it. So the question is asked again
+    on every run, which is cheap and cannot go stale.
+
+    Only where somewhere would now take them. Reviving them into the same
+    refusal every run would be churn that reads as a feed doing something.
+    """
+    stranded = list(
+        session.scalars(
+            owned(select(Video), Video, owner).where(
+                Video.status == "skipped", Video.reason == WRONG_KIND_OF_FEED
+            )
+        )
+    )
+    if not stranded:
+        return 0
+
+    # Which channels can now reach a feed that could hold such an item.
+    welcomed: set[int] = set()
+    for path in graph.routes(session, owner):
+        if path.playlist.enabled and path.playlist.is_generic:
+            welcomed.add(path.channel.id)
+
+    brought = 0
+    for video in stranded:
+        if video.channel_pk not in welcomed:
+            continue
+        video.status = "pending"
+        video.reason = None
+        video.attempts = 0
+        video.processed_at = None
+        brought += 1
+
+    if brought:
+        session.flush()
+        result.messages.append(
+            f"{brought} item{'s' if brought != 1 else ''} had nowhere to go before, "
+            "and now do."
+        )
+    return brought
+
+
 def _retry_deferred(
     session: Session,
     client: YouTubeClient,
@@ -928,6 +979,8 @@ def _publish(
     added_per_playlist: dict[int, int] = {}
     if _retry_deferred(session, client, result, added_per_playlist, owner):
         return
+
+    _reconsider_routing(session, result, owner)
 
     # Channel priority decides who gets in first when the budget is short;
     # within a channel it stays chronological, so playlists read in order.

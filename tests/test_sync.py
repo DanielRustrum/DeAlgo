@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from dealgo.models import Channel, Video
 from dealgo.services import sync as sync_service
+from dealgo.youtube import feeds
 from dealgo.youtube.api import VideoDetails
 from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry
 
@@ -505,6 +506,87 @@ class _Client:
 
     def __exit__(self, *_):
         return False
+
+
+# -- a verdict about the route, revisited ----------------------------------
+
+
+def stranded_reddit(db, *, playlist_id="generic:reading"):
+    """A Reddit source whose items were refused for having nowhere to go, and
+    a feed on the end of its wire."""
+    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel, Video as VideoModel
+
+    with db.session_scope() as session:
+        source = ChannelModel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss", enabled=True,
+        )
+        feed = PlaylistModel(playlist_id=playlist_id, title="Reading", enabled=True)
+        session.add_all([source, feed])
+        session.flush()
+        source.playlists.append(feed)
+        for index in range(3):
+            session.add(VideoModel(
+                video_id=f"item-{index}", channel_pk=source.id, kind="link",
+                title=f"A thread {index}", link=f"https://reddit.com/{index}",
+                status="skipped", reason=sync_service.WRONG_KIND_OF_FEED,
+            ))
+        return source.id, feed.id
+
+
+def test_a_feed_turned_generic_brings_back_what_it_could_not_hold(world, db, monkeypatch):
+    """The wire was never redrawn — the feed on the end of it changed
+    underneath. Connecting brings these back; nothing else did, so they sat
+    there skipped for ever."""
+    from dealgo.models import Video as VideoModel
+
+    stranded_reddit(db)
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: feeds.FeedResult("r/python", "r/python", []))
+
+    result = sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        back = session.scalars(select(VideoModel).where(VideoModel.kind == "link")).all()
+    assert [v.status for v in back] == ["added"] * 3
+    assert any("nowhere to go before" in m for m in result.messages), result.messages
+
+
+def test_items_stay_put_while_the_only_feed_is_still_a_youtube_one(world, db, monkeypatch):
+    """Reviving them into the same refusal every run would be churn that
+    reads as a feed doing something."""
+    from dealgo.models import Video as VideoModel
+
+    stranded_reddit(db, playlist_id="PLarealyoutubeplaylist")
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: feeds.FeedResult("r/python", "r/python", []))
+
+    result = sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        held = session.scalars(select(VideoModel).where(VideoModel.kind == "link")).all()
+    assert [v.status for v in held] == ["skipped"] * 3
+    assert all(v.reason == sync_service.WRONG_KIND_OF_FEED for v in held)
+    assert not any("nowhere to go before" in m for m in result.messages)
+
+
+def test_a_filters_verdict_is_not_reconsidered(world, db, monkeypatch):
+    """Only the routing one. What a filter decided was about the item itself,
+    and a rewiring is no argument against it."""
+    from dealgo.models import Video as VideoModel
+
+    source_pk, _ = stranded_reddit(db)
+    with db.session_scope() as session:
+        session.add(VideoModel(
+            video_id="item-filtered", channel_pk=source_pk, kind="link",
+            title="Held by a rule", status="skipped", reason="title did not match",
+        ))
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: feeds.FeedResult("r/python", "r/python", []))
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        held = session.scalar(select(VideoModel).where(VideoModel.video_id == "item-filtered"))
+    assert held.status == "skipped"
+    assert held.reason == "title did not match"
 
 
 # -- somewhere else to read the same feed ----------------------------------
