@@ -15,7 +15,7 @@
          id="feed-card-{{ video.id }}">
   <a class="card-thumb" href="/focus?start={{ video.id }}{{ from_feed }}"
      title="{{ video.title or video.video_id }} — {{ video.channel.title }}">
-    {% set lead = video.thumbnail_url or (video.image_list | first) %}
+    {% set lead = video.pictures | first %}
     {% if lead %}
       <img src="{{ lead }}" alt="{{ video.title or video.video_id }}" loading="lazy"
            referrerpolicy="no-referrer">

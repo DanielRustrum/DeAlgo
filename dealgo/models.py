@@ -424,6 +424,23 @@ class Video(Base):
         return self.kind in ("video", "post")
 
     @property
+    def pictures(self) -> list[str]:
+        """Every picture worth showing for this item, best first.
+
+        A feed often names one picture and carries no others — Reddit's
+        media:thumbnail with nothing in the post's own words. That one still
+        wants showing, so it stands in when there is no list.
+
+        One definition because there were two: the card fell back to the
+        thumbnail and Focus did not, so a post showed its picture in the feed
+        and nothing at all when opened.
+        """
+        listed = self.image_list
+        if listed:
+            return listed
+        return [self.thumbnail_url] if self.thumbnail_url else []
+
+    @property
     def is_link(self) -> bool:
         """An item from somewhere that is not YouTube: a post on Reddit or
         Bluesky, an entry in a newsletter, an article in a feed. There is

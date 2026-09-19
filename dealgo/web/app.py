@@ -1050,7 +1050,9 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
         "thumbnail": video.thumbnail_url,
         # Posts carry their whole content: there is no player to fetch it.
         "body": video.body or "",
-        "images": video.image_list,
+        # Not `image_list`: a feed that names one picture and carries no
+        # others still has a picture to show.
+        "images": video.pictures,
         "url": video.url,
     }
 

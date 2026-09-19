@@ -348,6 +348,54 @@ def test_an_item_from_a_feed_is_read_rather_than_played(client, db):
     assert "Some words" in body
 
 
+def test_a_feed_item_shows_the_one_picture_its_feed_named(client, db):
+    """The bug this answers: the card showed the picture and opening it showed
+    nothing. A feed often names one picture and carries no others — Reddit's
+    media:thumbnail with nothing in the post's own words — and the card fell
+    back to it while Focus did not."""
+    from dealgo.models import Video
+
+    item_id = make_link(db)
+    with db.session_scope() as session:
+        item = session.get(Video, item_id)
+        item.thumbnail_url = "https://preview.redd.it/xor.jpeg?width=640&s=x"
+        item.images = None          # nothing in the words to find
+
+    body = client.get(f"/focus?start={item_id}").text
+
+    assert "https://preview.redd.it/xor.jpeg?width=640&amp;s=x" in body
+    assert "focus-tile" in body
+
+
+def test_the_pictures_a_feed_carries_win_over_the_one_it_named(client, db):
+    """When there is a list, it is the list: it is in the post's own order and
+    the named one is already first in it."""
+    import json
+
+    from dealgo.models import Video
+
+    item_id = make_link(db)
+    with db.session_scope() as session:
+        item = session.get(Video, item_id)
+        item.thumbnail_url = "https://preview.redd.it/small.jpeg?width=140&s=x"
+        item.images = json.dumps(["https://preview.redd.it/big.jpeg?width=2226&s=y"])
+
+    body = client.get(f"/focus?start={item_id}").text
+    tiles = body.split('id="focus-tiles"', 1)[1].split("</div>", 1)[0]
+
+    assert "big.jpeg" in tiles
+    assert "small.jpeg" not in tiles
+
+
+def test_an_item_with_no_picture_at_all_shows_no_tiles(client, db):
+    item_id = make_link(db)
+
+    body = client.get(f"/focus?start={item_id}").text
+    tiles = body.split('id="focus-tiles"', 1)[1].split("</div>", 1)[0]
+
+    assert "focus-tile" not in tiles
+
+
 def test_the_way_out_of_an_item_says_where_it_goes(client, db):
     """"Open the post on YouTube" would be a lie about a Reddit thread."""
     item_id = make_link(db, link="https://reddit.com/r/python/comments/abc")
