@@ -2395,6 +2395,52 @@ async function dropGraphNode(state, kind, x, y) {
         await applyGraph(state, `/graph/nodes/${fresh}/delete`, new URLSearchParams());
     });
 }
+/** The run log, in a box on the canvas rather than a page away from it.
+ *
+ *  Fetched when it is opened rather than drawn with the page: most visits to
+ *  the canvas are not about what the last run did, and a log nobody asked for
+ *  should cost nothing. */
+function listenForGraphLog(state, panel) {
+    var _a;
+    const dialog = panel.querySelector("[data-graph-log]");
+    const body = dialog === null || dialog === void 0 ? void 0 : dialog.querySelector("[data-graph-log-body]");
+    if (dialog === null || !body)
+        return;
+    (_a = panel.querySelector("[data-graph-log-open]")) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => {
+        openGraphCatch(dialog);
+        void fillGraphLog(body);
+    });
+    dialog.querySelectorAll("[data-graph-log-close]").forEach((shut) => {
+        shut.addEventListener("click", () => dialog.close());
+    });
+    dialog.addEventListener("click", (event) => {
+        if (event.target === dialog)
+            dialog.close();
+    });
+    dialog.addEventListener("close", () => holdPageForGraph(false));
+}
+/** Ask for the log and put it in the box.
+ *
+ *  Through htmx rather than fetch, because what comes back has htmx
+ *  attributes of its own — the filter buttons — and htmx swapping it in is
+ *  what makes those live without this file knowing anything about them. */
+async function fillGraphLog(body) {
+    body.textContent = "";
+    body.appendChild(graphElement("p", "empty", "Reading the log…"));
+    const htmx = window.htmx;
+    if (htmx === undefined) {
+        body.textContent = "";
+        body.appendChild(graphElement("p", "empty", "The log needs JavaScript to load."));
+        return;
+    }
+    try {
+        await htmx.ajax("GET", "/partials/log", { target: "#graph-log-body", swap: "innerHTML" });
+    }
+    catch (_a) {
+        body.textContent = "";
+        body.appendChild(graphElement("p", "empty", "The log could not be read just now."));
+    }
+}
 /** Open the box that asks how far back to reach, remembering which trigger
  *  asked. The trigger is kept on the dialog rather than in a variable up here:
  *  this file is re-run on every htmx swap, so nothing may live at the top
@@ -2691,6 +2737,8 @@ function listenToGraph(state) {
         listenForGraphLoad(state, panel);
     if (panel !== null)
         listenForGraphReach(state, panel);
+    if (panel !== null)
+        listenForGraphLog(state, panel);
     if (panel !== null)
         listenForGraphFinder(state, panel);
     const catching = graphCatchDialog(state);

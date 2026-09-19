@@ -6,9 +6,6 @@
 .feed-dormant:hover, .feed-dormant:focus-within { opacity: 1; }
 .pill-dormant { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
 
-.banner-offline { border-left-color: var(--warn); font-size: 13px; }
-.banner-offline strong { display: block; margin-bottom: 2px; font-size: 13.5px; }
-.banner-offline a { margin-left: 4px; white-space: nowrap; }
 
 // The connection banner, raised by pwa.js when the browser loses the network.
 .banner-connection { border-left-color: var(--bad); font-size: 13px; }
@@ -55,8 +52,6 @@
 
 // Nobody has to sign in, which is worth saying plainly rather than leaving
 // an open instance looking the same as a closed one.
-.banner-open { border-left-color: var(--bad); font-size: 13px; }
-.banner-open strong { color: var(--bad); }
 
 .pill-admin { color: var(--accent); border-color: var(--accent-dim); }
 
@@ -111,3 +106,75 @@
 .account-icon-large { width: 34px; height: 34px; }
 .account-icon-large .avatar-letter { font-size: 15px; border-radius: 9px; }
 .account-panel .panel-head { align-items: center; }
+
+
+// -- toasts ----------------------------------------------------------------
+//
+// Beside the work rather than on top of it. A standing warning used to push
+// the thing you came for down the screen on every load; here it is still
+// unmissable and still there until dealt with.
+//
+// Bottom-right, stacked upwards, so the newest is nearest the corner the eye
+// is already drawn to and nothing moves under the pointer when one goes.
+
+.toasts {
+  position: fixed;
+  right: css-max("16px, env(safe-area-inset-right)");
+  bottom: css-max("16px, env(safe-area-inset-bottom)");
+  z-index: 40;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  width: css-min("380px, calc(100vw - 32px)");
+  // Never taller than the window: a dozen at once must not become a column
+  // that cannot be reached past.
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  // The region is only a frame; clicks land on the toasts inside it, so the
+  // page underneath stays usable where there is nothing to press.
+  pointer-events: none;
+}
+
+.toast {
+  position: relative;
+  pointer-events: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 38px 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.toast strong { display: block; margin-bottom: 2px; font-size: 13.5px; }
+.toast a { margin-left: 4px; white-space: nowrap; }
+.toast code { font-size: 12px; }
+
+.toast-ok { border-left-color: var(--ok); }
+.toast-warn { border-left-color: var(--warn); }
+.toast-warn strong { color: var(--warn); }
+.toast-bad { border-left-color: var(--bad); }
+.toast-bad strong { color: var(--bad); }
+
+.toast-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.toast-close:hover { background: var(--panel-2); color: var(--text); }
+
+.toast.is-going { opacity: 0; transform: translateY(6px); }
+.toast { transition: opacity 180ms ease, transform 180ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+}

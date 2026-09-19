@@ -137,7 +137,7 @@ def test_remove_watched_refuses_when_it_could_not_work(client, db):
 
     # A playlist exists but no account can act on the user's behalf.
     no_account = client.post("/playlist/remove-watched", headers=HX)
-    assert "flash-err" in no_account.text
+    assert "toast-bad" in no_account.text
     assert "Connect a Google account" in no_account.text
 
     # With every target disabled there is nowhere to remove from either.
@@ -1352,7 +1352,7 @@ def test_one_switch_covers_both_google_notices(client, db):
         get_settings(session).hide_connect_notice = True
 
     body = client.get("/").text
-    assert "banner-offline" not in body
+    assert 'data-toast="no-google"' not in body
     assert "Connect your YouTube account" not in body
 
 

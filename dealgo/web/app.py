@@ -613,8 +613,15 @@ LOG_FILTERS: tuple[tuple[str, str], ...] = (
 )
 
 
-@app.get("/log", response_class=HTMLResponse)
-def log_page(request: Request, show: str = "") -> HTMLResponse:
+@app.get("/partials/log", response_class=HTMLResponse)
+def log_partial(request: Request, show: str = "") -> HTMLResponse:
+    """The log, for the dialog on the canvas.
+
+    A fragment rather than a page: it is read while looking at the canvas that
+    caused it, and walking away from the drawing to read about it was the
+    wrong way round. Fetched when the dialog opens, so a canvas nobody asks
+    about costs nothing to draw.
+    """
     owner = owner_of(request)
     wanted = show if show in {name for name, _ in LOG_FILTERS} else "all"
 
@@ -647,7 +654,7 @@ def log_page(request: Request, show: str = "") -> HTMLResponse:
             "filters": LOG_FILTERS,
             "runs_with_detail": runlog.RUNS_WITH_DETAIL,
         }
-    return render(request, "log.html", context)
+    return fragment(request, "_log.html", context)
 
 
 @app.get("/partials/sync-status", response_class=HTMLResponse)

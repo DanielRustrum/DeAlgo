@@ -139,14 +139,22 @@ def test_old_runs_lose_their_detail_but_keep_their_counts(db):
 # -- reading it ------------------------------------------------------------
 
 
-def test_the_log_is_a_tab(client):
-    assert 'href="/log"' in client.get("/").text
+def test_the_log_opens_from_the_canvas(client):
+    """It is read while looking at the canvas that caused it, so walking away
+    to a page of its own was the wrong way round."""
+    canvas = client.get("/channels").text
+
+    assert "data-graph-log-open" in canvas   # the button on the overlay
+    assert "data-graph-log" in canvas        # and the box it opens
+    # And it is no longer a place of its own.
+    assert 'href="/log"' not in client.get("/").text
+    assert client.get("/log").status_code == 404
 
 
 def test_a_run_says_how_it_was_started(client, db):
     a_run(db, trigger="backfill", lines=["read 25 from the feed"])
 
-    body = client.get("/log").text
+    body = client.get("/partials/log").text
 
     assert "Backfill" in body
     assert "read 25 from the feed" in body
@@ -156,11 +164,11 @@ def test_the_log_can_be_narrowed_to_what_a_person_started(client, db):
     a_run(db, trigger="scheduled", lines=["the clock did this"])
     a_run(db, trigger="pulse", lines=["a finger did this"])
 
-    by_hand = client.get("/log?show=hand").text
+    by_hand = client.get("/partials/log?show=hand").text
     assert "a finger did this" in by_hand
     assert "the clock did this" not in by_hand
 
-    by_clock = client.get("/log?show=clock").text
+    by_clock = client.get("/partials/log?show=clock").text
     assert "the clock did this" in by_clock
     assert "a finger did this" not in by_clock
 
@@ -169,7 +177,7 @@ def test_the_log_can_be_narrowed_to_what_went_wrong(client, db):
     a_run(db, trigger="pulse", ok=True, lines=["this one was fine"])
     a_run(db, trigger="pulse", ok=False, lines=["this one was not"])
 
-    body = client.get("/log?show=trouble").text
+    body = client.get("/partials/log?show=trouble").text
 
     assert "this one was not" in body
     assert "this one was fine" not in body
@@ -179,29 +187,29 @@ def test_a_run_still_going_is_not_counted_as_trouble(client, db):
     """It has not failed yet; it has not finished."""
     a_run(db, trigger="pulse", ok=False, finished=False, lines=["still at it"])
 
-    assert "still at it" not in client.get("/log?show=trouble").text
-    assert "still going" in client.get("/log").text
+    assert "still at it" not in client.get("/partials/log?show=trouble").text
+    assert "still going" in client.get("/partials/log").text
 
 
 def test_a_nonsense_filter_falls_back_to_everything(client, db):
     a_run(db, trigger="pulse", lines=["something happened"])
 
-    assert "something happened" in client.get("/log?show=nonsense").text
+    assert "something happened" in client.get("/partials/log?show=nonsense").text
 
 
 def test_a_run_whose_detail_was_pruned_says_so(client, db):
     a_run(db, trigger="pulse")  # no lines at all
 
-    body = client.get("/log").text
+    body = client.get("/partials/log").text
 
     assert "No detail kept for this one" in body
 
 
 def test_with_nothing_run_it_says_where_to_start(client):
-    body = client.get("/log").text
+    body = client.get("/partials/log").text
 
     assert "Nothing has run yet" in body
-    assert "/channels" in body
+    assert "Run now" in body
 
 
 # -- what a real run leaves behind -----------------------------------------
@@ -294,4 +302,4 @@ def test_a_trial_is_logged_as_a_run_that_wrote_nothing(canvas, db):
     assert "nothing was written" in lines[0].message
 
     # And it says so on the page, so nobody reads it as a real run.
-    assert "wrote nothing" in canvas.get("/log").text
+    assert "wrote nothing" in canvas.get("/partials/log").text

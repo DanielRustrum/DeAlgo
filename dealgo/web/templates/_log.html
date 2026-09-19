@@ -1,21 +1,17 @@
-{% extends "base.html" %}
-{% block title %}De-Algo — Log{% endblock %}
-{% block content %}
-
+{# The log itself, without the page around it: shown in a dialog on the
+   canvas, and swapped in place when a filter is pressed. #}
 {# What happened, in the order it happened. The dashboard's "Recent runs"
    says how much; this says what, and which of the things that can go quiet
    went quiet — the question actually asked of a run that did not do what was
    expected. #}
-<section class="panel">
-  <div class="panel-head">
-    <h2>Log</h2>
-    <nav class="log-filters">
-      {% for name, label in filters %}
-      <a class="btn btn-quiet {{ 'is-on' if show == name }}"
-         href="/log{{ '' if name == 'all' else '?show=' ~ name }}">{{ label }}</a>
-      {% endfor %}
-    </nav>
-  </div>
+<div class="log-panel" id="log-panel">
+  <nav class="log-filters">
+    {% for name, label in filters %}
+    <button class="btn btn-quiet {{ 'is-on' if show == name }}" type="button"
+            hx-get="/partials/log?show={{ name }}" hx-target="#log-panel"
+            hx-swap="outerHTML">{{ label }}</button>
+    {% endfor %}
+  </nav>
 
   {% if runs %}
   <ol class="log-runs">
@@ -87,9 +83,7 @@
   </ol>
   {% else %}
   <p class="empty">
-    Nothing has run yet. Press <strong>Run now</strong> on a trigger box on the
-    <a href="/channels">Configuration</a> canvas.
+    Nothing has run yet. Press <strong>Run now</strong> on a trigger box.
   </p>
   {% endif %}
-</section>
-{% endblock %}
+</div>

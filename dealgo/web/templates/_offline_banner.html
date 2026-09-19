@@ -3,7 +3,7 @@
    a surprise which state you are in. #}
 {% set offline = youtube_offline(identity.user_pk if identity else none) if show_connect_notice else none %}
 {% if offline %}
-<div class="banner banner-offline">
+<div class="toast toast-warn" data-toast="no-google">
   <strong>
     {% if offline.stale %}
       The Google account needs reconnecting.

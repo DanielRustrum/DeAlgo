@@ -21,6 +21,7 @@
   <script src="/static/sections.js?v={{ asset_version }}" defer></script>
   <script src="/static/menu.js?v={{ asset_version }}" defer></script>
   <script src="/static/pwa.js?v={{ asset_version }}" defer></script>
+  <script src="/static/toast.js?v={{ asset_version }}" defer></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
 </head>
 {# hx-boost turns ordinary links and forms into partial page swaps, so the
@@ -73,7 +74,6 @@
     <a href="/sources" class="{{ 'active' if request.url.path.startswith('/sources') }}">Sources</a>
     <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
     <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Raw</a>
-    <a href="/log" class="{{ 'active' if request.url.path.startswith('/log') }}">Log</a>
     <a href="/settings" class="{{ 'active' if request.url.path == '/settings' }}">Settings</a>
     {% if identity and identity.is_admin %}
     <a href="/admin" class="{{ 'active' if request.url.path.startswith('/admin') }}">Admin</a>
@@ -106,13 +106,24 @@
     changed since.
   </p>
 
+  {% block content %}{% endblock %}
+</main>
+
+{# Out of the way of the page, because none of it is about the page. A
+   standing warning used to push the thing you came for down the screen on
+   every single load; as a toast it is still unmissable and still there until
+   you deal with it, but it is beside the work rather than on top of it.
+
+   Rendered server-side and dismissed by script: with no JavaScript they
+   simply stay, which is the truthful state of a condition nobody has fixed. #}
+<div class="toasts" id="toasts" aria-live="polite">
   {% if not auth_enabled and show_open_notice %}
-  <p class="banner banner-open" id="no-auth-banner">
+  <div class="toast toast-bad" data-toast="no-auth">
     <strong>No sign-in required.</strong>
     Anyone who can reach this address can use De-Algo and read the Google credentials in
     Settings. Set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code>, then
     restart, to turn accounts on.
-  </p>
+  </div>
   {% endif %}
 
   {# The admin's password comes from the environment and is not held to the
@@ -120,17 +131,19 @@
      saying, for as long as it stands. Shown only to the admin: nobody else
      can act on it. #}
   {% if weak_admin_password and identity and identity.is_admin %}
-  <p class="banner banner-open" id="weak-password-banner">
+  <div class="toast toast-bad" data-toast="weak-password">
     <strong>The admin password is a short one.</strong>
     Fine while you are trying De-Algo out. Change <code>DEALGO_ADMIN_PASSWORD</code> and restart
     before this address is reachable by anyone else.
-  </p>
+  </div>
   {% endif %}
 
-  {% include "_flash.html" %}
   {% include "_offline_banner.html" %}
-  {% block content %}{% endblock %}
-</main>
+  {# Still #flash, and still swapped out of band by every form that reports
+     something — so a message that arrives mid-page becomes a toast with no
+     further arrangement. #}
+  {% include "_flash.html" %}
+</div>
 
 <footer>
   <span>De-Algo {{ version }}</span>

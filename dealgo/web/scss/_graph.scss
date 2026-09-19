@@ -558,6 +558,33 @@
 // question is always "why is that one over there and not over here".
 .graph-catch { width: css-min("820px, calc(100% - 32px)"); }
 .graph-load { width: css-min("520px, calc(100% - 32px)"); }
+// A log is a wide, long thing: four columns of it, and many rows. Wider than
+// the dialogs that hold a form, and it does its own scrolling inside so the
+// filter buttons stay put while the lines move.
+.graph-log {
+  width: css-min("980px, calc(100% - 32px)");
+  max-height: css-min("88vh, 900px");
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.graph-log .modal-body {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.log-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.log-panel .log-filters { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.log-panel .log-runs { overflow-y: auto; padding: 0 20px 14px; }
+.log-panel > .empty { padding: 20px; }
+
 .graph-load .modal-body { gap: 14px; }
 .graph-load .modal-foot { padding: 0; border-top: none; }
 .graph-catch .modal-body {

@@ -51,6 +51,15 @@
                   stroke-width="1.6" stroke-linecap="round"/>
           </svg>
         </button>
+        <button class="graph-add is-quiet" type="button" data-graph-log-open
+                aria-label="Run log" title="What the runs have been doing">
+          {# A clock face: what happened, and when. #}
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.75" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M8 4.75 V8 l2.25 1.75" fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button class="graph-add is-quiet" type="button" data-graph-undo
                 aria-label="Undo" title="Undo the last change (Ctrl+Z)">
           {# An arrow curving back on itself. #}
@@ -158,6 +167,22 @@
         <button class="btn btn-primary" type="submit">Load it</button>
       </div>
     </form>
+  </dialog>
+
+  {# What the runs have been doing. A dialog rather than a page of its own:
+     it is read while looking at the canvas that caused it, and walking away
+     from the drawing to read about it was the wrong way round.
+
+     Filled by htmx on open rather than with the page, so a canvas nobody
+     asks about costs nothing to draw. #}
+  <dialog class="modal graph-log" data-graph-log>
+    <div class="modal-head">
+      <h2>Log</h2>
+      <button class="modal-close" type="button" data-graph-log-close aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="graph-log-body" data-graph-log-body>
+      <p class="empty">Reading the log…</p>
+    </div>
   </dialog>
 
   {# How far back a Backfill reaches. Asked rather than assumed: "everything

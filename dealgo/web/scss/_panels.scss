@@ -33,9 +33,6 @@
   border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px;
 }
 
-.flash { border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--line); }
-.flash-ok { border-left: 3px solid var(--ok); background: var(--panel); }
-.flash-err { border-left: 3px solid var(--bad); background: var(--panel); }
 
 .facts { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; margin: 0; }
 

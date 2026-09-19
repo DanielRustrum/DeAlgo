@@ -527,7 +527,7 @@ def test_without_an_account_the_feed_page_warns(client, db):
 
     body = client.get("/feed").text
 
-    assert "banner-offline" in body
+    assert 'data-toast="no-google"' in body
     assert "No Google account is connected" in body
     assert "2 feeds point at a YouTube playlist" in body
 
@@ -556,7 +556,7 @@ def test_the_warning_names_a_stale_account_differently(client, db):
 def test_a_connected_account_gets_no_warning(client):
     body = client.get("/feed").text
 
-    assert "banner-offline" not in body
+    assert 'data-toast="no-google"' not in body
     assert "pill-dormant" not in body
 
 
@@ -571,7 +571,7 @@ def test_generic_feeds_are_not_greyed_out(client, db):
 
     body = client.get("/feed").text
 
-    assert "banner-offline" not in body      # no YouTube feed to warn about
+    assert 'data-toast="no-google"' not in body      # no YouTube feed to warn about
     assert "pill-dormant" not in body
 
 

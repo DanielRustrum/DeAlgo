@@ -1,4 +1,7 @@
+{# Something that just happened, as against a condition that is standing.
+   These go of their own accord; a warning about the state of the install
+   does not. #}
 <div id="flash"{% if oob %} hx-swap-oob="true"{% endif %}>
-  {% if ok_message %}<div class="flash flash-ok">{{ ok_message }}</div>{% endif %}
-  {% if error_message %}<div class="flash flash-err">{{ error_message }}</div>{% endif %}
+  {% if ok_message %}<div class="toast toast-ok" data-toast-passing>{{ ok_message }}</div>{% endif %}
+  {% if error_message %}<div class="toast toast-bad" data-toast-passing>{{ error_message }}</div>{% endif %}
 </div>
