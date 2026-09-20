@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from dealgo.models import Channel, GraphNode, Video, utcnow
 from dealgo.services import sync as sync_service
-from dealgo.youtube.api import VideoDetails
+from dealgo.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 

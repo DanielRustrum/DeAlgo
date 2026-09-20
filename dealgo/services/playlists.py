@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..models import GENERIC_PLAYLIST_PREFIX, Channel, Placement, Playlist
 from .scope import OwnerId, belongs_to, owned
-from ..youtube.api import YouTubeAPIError
+from ..plugins.publisher import PublishError
 from . import ordering
 from .auth import build_client
 from collections.abc import Mapping
@@ -70,7 +70,7 @@ def add_existing(
         raise PlaylistError("Connect a Google account first.")
     try:
         info = client.get_playlist(playlist_id)
-    except YouTubeAPIError as exc:
+    except PublishError as exc:
         raise PlaylistError(f"YouTube API error: {exc}") from exc
     if info is None:
         raise PlaylistError("That playlist could not be found on your account.")
@@ -111,7 +111,7 @@ def create(
             description="Built by De-Algo from the channels you chose.",
             privacy=privacy,
         )
-    except YouTubeAPIError as exc:
+    except PublishError as exc:
         raise PlaylistError(f"YouTube API error: {exc}") from exc
     return _store(session, info.playlist_id, info.title, owner)
 
@@ -175,20 +175,20 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
         return False
 
     from . import quota
-    from ..youtube.api import QUOTA_COST_INSERT
+    from ..plugins.publisher import cost_of
 
     client = build_client(session, http, playlist.owner_pk)
     if not client.has_write_access:
         raise PlaylistError(
             f"Renamed here, but not on YouTube: no account is connected."
         )
-    if not quota.can_afford(session, QUOTA_COST_INSERT, use_reserve=True):
+    if not quota.can_afford(session, cost_of("add"), use_reserve=True):
         raise PlaylistError(
             "Renamed here, but not on YouTube: the daily API quota is spent."
         )
     try:
         client.rename_playlist(playlist.playlist_id, title)
-    except YouTubeAPIError as exc:
+    except PublishError as exc:
         if exc.is_quota_error:
             quota.mark_exhausted(session)
         raise PlaylistError(f"Renamed here, but YouTube refused: {exc}") from exc

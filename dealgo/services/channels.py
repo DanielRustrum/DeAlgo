@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..models import Channel, Video
 from .. import sources
 from ..sources import syndication
-from ..youtube.api import ChannelInfo, YouTubeAPIError, parse_channel_reference
+from ..plugins.publisher import ChannelInfo, PublishError
 from . import filters
 from . import ordering
 from . import playlists
@@ -59,7 +59,7 @@ def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo
         )
     try:
         info = client.resolve_channel(reference)
-    except YouTubeAPIError as exc:
+    except PublishError as exc:
         raise ChannelError(f"YouTube API error: {exc}") from exc
     if info is None or not info.channel_id:
         raise ChannelError(f"no channel found for {reference!r}")

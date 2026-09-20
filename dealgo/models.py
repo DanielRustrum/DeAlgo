@@ -340,24 +340,41 @@ class Channel(Base):
         return self.source_kind == "youtube"
 
     @property
+    def publishable(self) -> bool:
+        """Whether a real playlist on the service could ever hold this.
+
+        The plugin's own claim, not a name checked here. It is what decides
+        whether a wire to a service feed could ever carry anything.
+        """
+        from .sources.kinds import describe
+
+        return describe(self.source_kind).playlistable
+
+    @property
     def feed_url(self) -> str:
-        """Where to poll. YouTube's is built from its id; the rest say so."""
+        """Where to poll.
+
+        Stored when the source was added. A row from before there was a
+        column for it asks the plugin that owns the kind, which is the only
+        thing left that knows how a feed address is spelled.
+        """
         if self.source_url:
             return self.source_url
-        return f"https://www.youtube.com/feeds/videos.xml?channel_id={self.channel_id}"
+        from .sources.kinds import feed_url
+
+        return feed_url(self.source_kind, self.channel_id) or ""
 
     @property
     def url(self) -> str:
-        """Where the source itself lives, for a link out to it."""
-        if self.is_youtube:
-            return f"https://www.youtube.com/channel/{self.channel_id}"
-        if self.source_kind == "reddit":
-            return f"https://www.reddit.com/{self.channel_id}/"
-        if self.source_kind == "bluesky":
-            return f"https://bsky.app/profile/{self.channel_id.lstrip('@')}"
-        if self.source_kind == "substack":
-            return f"https://{self.channel_id}"
-        return self.channel_id
+        """Where the source itself lives, for a link out to it.
+
+        Its plugin's to build. The host held a chain of these once, one
+        branch per service, which is exactly the knowledge that stopped
+        being the host's.
+        """
+        from .sources.kinds import home_url
+
+        return home_url(self.source_kind, self.channel_id) or self.channel_id
 
 
 class Video(Base):

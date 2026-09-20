@@ -8,7 +8,7 @@ from dealgo.models import Channel, Video
 from dealgo.services import channels as channel_service
 from dealgo.services import sync as sync_service
 from dealgo.sources import syndication
-from dealgo.youtube.api import VideoDetails
+from dealgo.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 

@@ -58,6 +58,11 @@ return {
         return found
       end,
 
+      -- Where the account itself lives.
+      home = function(key)
+        return "https://bsky.app/profile/" .. (string.gsub(key, "^@", ""))
+      end,
+
       item_url = function(_, link)
         return link
       end,

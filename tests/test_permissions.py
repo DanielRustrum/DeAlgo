@@ -19,7 +19,7 @@ def a_client(answers):
     asked: list[str] = []
 
     class Client:
-        def get(self, url):
+        def get(self, url, headers=None):
             asked.append(url)
             status, body = answers.get(url, (404, b""))
             return httpx.Response(status, request=httpx.Request("GET", url), content=body)
@@ -101,7 +101,7 @@ def test_a_plugins_fetch_feeds_what_it_learns_back_to_patience():
     url = "https://www.reddit.com/r/x/.rss"
 
     class Limiting:
-        def get(self, url):
+        def get(self, url, headers=None):
             return httpx.Response(
                 200,
                 headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": "40"},
@@ -194,3 +194,117 @@ def test_a_plugins_log_line_is_bounded(caplog):
     assert len(caplog.records) == 1
     assert len(caplog.records[0].getMessage()) < 800
     assert "Noisy" in caplog.records[0].getMessage()
+
+
+# -- reading a page that keeps its content in a script ---------------------
+
+
+def a_page(body: str) -> str:
+    return "<html><script>var blob = " + body + ";</script></html>"
+
+
+def a_net(answers=None):
+    from dealgo.plugins import runtime
+
+    box, _ = runtime.load("reader", "return { api = 1, name = 'Reader' }")
+    _, client = a_client(answers or {})
+    return permissions.capabilities(
+        "Reader", frozenset({"network"}), client, box._lua
+    )["net"]
+
+
+def test_a_page_hands_over_only_what_was_asked_for():
+    """Not the blob. One of these pages is a megabyte, and a megabyte of JSON
+    as Lua tables would not fit in the memory a plugin is allowed."""
+    net = a_net()
+    page = a_page('{"top": {"post": {"id": "a"}}, "more": [{"post": {"id": "b"}}]}')
+
+    found = net.embedded(page, "blob", "post")
+
+    assert [found[1]["id"], found[2]["id"]] == ["a", "b"]
+
+
+def test_a_brace_inside_the_text_does_not_end_the_blob():
+    """A post can hold one, and matching to the first `};` would cut the page
+    in half wherever somebody wrote about code."""
+    net = a_net()
+    page = a_page('{"post": {"text": "use {this} instead"}}')
+
+    found = net.embedded(page, "blob", "post")
+
+    assert found[1]["text"] == "use {this} instead"
+
+
+@pytest.mark.parametrize("page", ["", "<html>nothing</html>", "<script>var blob = {oops;</script>"])
+def test_a_page_it_cannot_read_is_nothing_rather_than_an_error(page):
+    assert a_net().embedded(page, "blob", "post") is None
+
+
+def test_the_search_works_on_something_already_in_hand():
+    """For the second look inside a match. Those are small by then, which is
+    why this one takes a table and the other takes a page."""
+    net = a_net()
+    inner = net.embedded(a_page('{"post": {"bits": [{"url": "a"}, {"deep": {"url": "b"}}]}}'),
+                         "blob", "post")
+
+    found = net.find(inner[1], "url")
+
+    assert sorted([found[1], found[2]]) == ["a", "b"]
+
+
+def test_a_plugin_may_send_a_user_agent_and_nothing_with_authority():
+    """A site that serves a consent wall to anything without a browser's user
+    agent is a real problem for a plugin. A `Cookie` is not."""
+    sent: dict[str, str] = {}
+
+    class Watching:
+        def get(self, url, headers=None):
+            sent.update(headers or {})
+            return httpx.Response(200, request=httpx.Request("GET", url), content=b"ok")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    net = permissions.capabilities("Asker", frozenset({"network"}), lambda: Watching())["net"]
+    net.get("https://example.com/a", {
+        "User-Agent": "Mozilla/5.0", "Cookie": "session=secret", "Authorization": "Bearer x",
+    })
+
+    assert sent == {"User-Agent": "Mozilla/5.0"}
+
+
+def test_the_request_budget_is_per_call_not_for_ever():
+    """A capability is built once, when the plugin loads. A counter that was
+    never put back would give a plugin four requests in its life — and then
+    have it quietly do nothing for the rest of the day."""
+    from dealgo.plugins import registry
+
+    source = """
+    return {
+      api = 1, name = "Fetcher",
+      permissions = { { name = "network", why = "To read a page." } },
+      nodes = { { kind = "probe", label = "Probe", keep = function()
+        for _ = 1, 3 do net.get("https://example.com/a") end
+        return net.get("https://example.com/a") ~= nil
+      end } },
+    }
+    """
+    import pathlib
+    import tempfile
+
+    folder = pathlib.Path(tempfile.mkdtemp())
+    (folder / "fetcher.lua").write_text(source, encoding="utf-8")
+    _, client = a_client({"https://example.com/a": (200, b"hello")})
+    found = registry.read(folder, granted={"fetcher": frozenset({"network"})}, http=client)
+    plugin = found.plugins[0]
+    probe = found.node("fetcher:probe")
+
+    said = [
+        plugin.box.call(probe._keep, plugin.box.table(), plugin.box.table())
+        for _ in range(3)
+    ]
+
+    assert said == [True, True, True]

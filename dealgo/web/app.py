@@ -69,9 +69,9 @@ from ..services.auth import (
     store_token,
 )
 from ..services.filters import format_duration
-from ..youtube import oauth
+from ..plugins.publisher import PlaylistInfo, PublishError
+from ..services import oauth
 from . import guard
-from ..youtube.api import PlaylistInfo, YouTubeAPIError
 
 log = logging.getLogger(__name__)
 
@@ -500,7 +500,7 @@ def _account_playlists(
         if client.has_write_access:
             try:
                 items = client.my_playlists()
-            except YouTubeAPIError as exc:
+            except PublishError as exc:
                 error = str(exc)
     _account_playlists_cache.update({"at": now, "items": items, "error": error})
     return items, error
@@ -1816,8 +1816,8 @@ def oauth_callback(
         store_token(session, token, owner=owner)
         client = build_client(session, http)
         try:
-            account = client.my_channel_title()
-        except YouTubeAPIError:
+            account = client.account_name()
+        except PublishError:
             account = None
         if account:
             store_token(session, token, account_title=account, owner=owner)

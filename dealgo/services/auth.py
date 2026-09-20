@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from ..config import CONFIG
 from ..db import get_settings, get_token
 from ..models import OAuthToken, to_naive_utc, utcnow
-from ..youtube import oauth
-from ..youtube.api import YouTubeClient
+from ..plugins.publisher import Publisher
+from . import oauth
 from .scope import OwnerId
 
 log = logging.getLogger(__name__)
@@ -83,19 +83,21 @@ def valid_access_token(
     return token.access_token
 
 
-def build_client(session: Session, http: httpx.Client, owner: OwnerId = None) -> YouTubeClient:
-    """A client carrying this account's credentials, if it has any.
+def build_client(session: Session, http: httpx.Client, owner: OwnerId = None) -> Publisher:
+    """A way to write back for this account, if it has anything to write with.
 
-    Every request it makes is charged to that account's own quota ledger:
+    It holds no credential and knows no endpoints. What it knows is whether
+    there is a sign-in and a key here; everything past that is the plugin's,
+    and the token is attached on the way out by the host, never handed over.
+
+    Every request it causes is charged to this account's own quota ledger:
     each brings its own Google project, so each spends its own allowance.
     """
-    from .quota import meter
-
-    return YouTubeClient(
-        http=http,
-        access_token=valid_access_token(session, http, owner),
-        api_key=api_key(session, owner),
-        meter=meter(session, owner),
+    token = valid_access_token(session, http, owner)
+    return Publisher(
+        owner,
+        writable=bool(token),
+        readable=bool(token or api_key(session, owner)),
     )
 
 

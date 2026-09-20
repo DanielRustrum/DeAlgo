@@ -39,6 +39,11 @@ return {
         return nil
       end,
 
+      -- Where the newsletter itself lives. The key is its domain.
+      home = function(key)
+        return "https://" .. key
+      end,
+
       item_url = function(_, link)
         return link
       end,

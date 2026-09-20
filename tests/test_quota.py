@@ -11,17 +11,18 @@ from dealgo.models import Channel, Playlist, SyncRun, Video
 from dealgo.services import quota
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
-from dealgo.youtube.api import QUOTA_COST_INSERT, VideoDetails, YouTubeAPIError, cost_of
+from dealgo.plugins.publisher import PublishError, VideoDetails, cost_of
 from fakes import MAIN_PLAYLIST, entry
 
 
 def test_costs_match_googles_published_table():
-    assert cost_of("POST", "playlistItems") == 50
-    assert cost_of("DELETE", "playlistItems") == 50
-    assert cost_of("GET", "videos") == 1
-    assert cost_of("GET", "playlistItems") == 1
-    assert cost_of("GET", "search") == 100  # why handles are resolved cheaply first
-    assert cost_of("GET", "somethingNew") == 1  # unknown calls still count
+    """Asked of the plugin rather than kept here: a service's price list is
+    its own, and a second copy would be a second thing to keep in step."""
+    assert cost_of("add") == 50
+    assert cost_of("remove") == 50
+    assert cost_of("read") == 1
+    assert cost_of("search") == 100  # why handles are resolved cheaply first
+    assert cost_of("somethingNew") == 1  # a call nobody priced still counts
 
 
 def test_the_quota_day_follows_pacific_not_utc():
@@ -86,7 +87,7 @@ def test_a_sync_spends_and_records_what_it_used(loaded):
 
     assert result.added == 3
     # Three inserts at 50 each, plus the cheap reads around them.
-    assert result.quota_spent >= 3 * QUOTA_COST_INSERT
+    assert result.quota_spent >= 3 * cost_of("add")
     with loaded["db"].session_scope() as session:
         run = session.scalar(select(SyncRun).order_by(SyncRun.id.desc()))
         assert run.quota_spent == result.quota_spent
@@ -155,7 +156,7 @@ def test_youtube_refusing_mid_run_pauses_the_rest(loaded, monkeypatch):
     def refuse_after_one(playlist_id, video_id):
         calls.append(video_id)
         if len(calls) > 1:
-            raise YouTubeAPIError("quota", status=403, reason="quotaExceeded")
+            raise PublishError("quota", status=403, reason="quotaExceeded")
         return real_insert(playlist_id, video_id)
 
     monkeypatch.setattr(loaded["client"], "insert_playlist_item", refuse_after_one)
@@ -166,7 +167,7 @@ def test_youtube_refusing_mid_run_pauses_the_rest(loaded, monkeypatch):
     with loaded["db"].session_scope() as session:
         assert quota.state(session).exhausted
         # A later run must not even try again today.
-        assert not quota.can_afford(session, QUOTA_COST_INSERT)
+        assert not quota.can_afford(session, cost_of("add"))
 
 
 def test_removal_may_dip_into_the_reserve(loaded):
@@ -180,54 +181,6 @@ def test_removal_may_dip_into_the_reserve(loaded):
     result = watched_service.remove_watched()
 
     assert result.removed >= 1
-
-
-def test_the_real_client_charges_each_request(db):
-    """The fake meters like the client; this checks the client itself does."""
-    import httpx
-
-    from dealgo.youtube.api import YouTubeClient
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/playlistItems") and request.method == "POST":
-            return httpx.Response(200, json={"id": "item-1"})
-        return httpx.Response(200, json={"items": []})
-
-    spent: list[int] = []
-    transport = httpx.MockTransport(handler)
-    with httpx.Client(transport=transport) as http:
-        client = YouTubeClient(http=http, access_token="token", meter=spent.append)
-        client.video_details(["a", "b"])          # 1
-        client.playlist_items("PL")               # 1
-        client.insert_playlist_item("PL", "a")    # 50
-
-    assert spent == [1, 1, 50]
-
-
-def test_a_request_youtube_refuses_is_still_charged(db):
-    """Google bills failed calls too — except the one refused for no quota."""
-    import httpx
-
-    from dealgo.youtube.api import YouTubeClient
-
-    responses = iter(
-        [
-            httpx.Response(
-                404, json={"error": {"message": "gone", "errors": [{"reason": "videoNotFound"}]}}
-            ),
-            httpx.Response(
-                403, json={"error": {"message": "no", "errors": [{"reason": "quotaExceeded"}]}}
-            ),
-        ]
-    )
-    spent: list[int] = []
-    with httpx.Client(transport=httpx.MockTransport(lambda request: next(responses))) as http:
-        client = YouTubeClient(http=http, access_token="token", meter=spent.append)
-        for _ in range(2):
-            with pytest.raises(YouTubeAPIError):
-                client.insert_playlist_item("PL", "a")
-
-    assert spent == [50]  # charged for the 404, not for the quota refusal
 
 
 def test_a_fan_out_cut_short_is_finished_next_run(world, add_playlist, db):
@@ -270,7 +223,7 @@ def test_a_transient_insert_failure_is_retried_then_given_up_on(world, add_playl
 
     def always_fail(playlist_id, video_id):
         attempts.append(video_id)
-        raise YouTubeAPIError("server error", status=500, reason="backendError")
+        raise PublishError("server error", status=500, reason="backendError")
 
     monkeypatch.setattr(world["client"], "insert_playlist_item", always_fail)
     for _ in range(4):

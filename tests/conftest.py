@@ -30,16 +30,21 @@ def db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def no_community_scraping(monkeypatch):
-    """Community posts come from a live page, so no test may reach for one.
+def no_community_scraping(monkeypatch, request):
+    """A source's extras come from a live page, so no test may reach for one.
 
-    Autouse rather than opt-in: a test that runs a sync without knowing posts
-    exist would otherwise quietly hit YouTube. `world` overrides this with its
-    own controllable list.
+    Stopped at the registry rather than inside the plugin, because that is
+    the one door every one of them goes through. Autouse rather than opt-in:
+    a test running a sync without knowing posts exist would otherwise quietly
+    hit YouTube. `world` overrides this with its own controllable list.
     """
-    from dealgo.youtube import community
+    from dealgo.plugins import registry
 
-    monkeypatch.setattr(community, "fetch_posts", lambda channel_id, _http: [])
+    # Unless the test is about that reading itself, in which case it says so
+    # and stubs the page it is fed.
+    if request.node.get_closest_marker("reads_pages"):
+        return
+    monkeypatch.setattr(registry.Registry, "posts", lambda self, kind, key: [])
 
 
 @pytest.fixture
@@ -48,8 +53,8 @@ def world(db, monkeypatch):
     from dealgo.models import Channel, Playlist
     from dealgo.services import sync as sync_service
     from dealgo.services import watched as watched_service
+    from dealgo.plugins import registry
     from dealgo.sources import syndication
-    from dealgo.youtube import community
 
     from fakes import CHANNEL_ID, MAIN_PLAYLIST, FakeYouTube
 
@@ -72,7 +77,7 @@ def world(db, monkeypatch):
     # Posts are scraped from a real page, so the tests must never reach for
     # one. Nothing is posted unless a test says so.
     monkeypatch.setattr(
-        community, "fetch_posts", lambda channel_id, _http: list(state["posts"])
+        registry.Registry, "posts", lambda self, kind, key: list(state["posts"])
     )
     from dealgo.services import quota
 

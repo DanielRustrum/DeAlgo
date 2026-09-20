@@ -1,4 +1,4 @@
-"""Shared stand-ins for YouTube, used by the sync and watched test suites."""
+"""Shared stand-ins for a publisher, used by the sync and watched suites."""
 
 from __future__ import annotations
 
@@ -6,16 +6,18 @@ import datetime as dt
 from collections import defaultdict
 
 from dealgo.sources import syndication
-from dealgo.youtube.api import ChannelInfo, PlaylistItem, cost_of
+from dealgo.plugins.publisher import ChannelInfo, PlaylistItem, cost_of
 
 CHANNEL_ID = "UCzzzzzzzzzzzzzzzzzzzzzz"
 MAIN_PLAYLIST = "PL_target"
 
 
 class FakeYouTube:
-    """Stands in for YouTubeClient, recording what would have been written.
+    """Stands in for the Publisher, recording what would have been written.
 
-    Holds any number of playlists, since a channel may feed several.
+    Holds any number of playlists, since a channel may feed several. Asked in
+    the same neutral words the real one is, because what sits behind it is a
+    plugin and no test here should be talking to YouTube.
     """
 
     def __init__(self, *, details=None, write=True, read=True):
@@ -33,19 +35,19 @@ class FakeYouTube:
         self._meter = meter
         return self
 
-    def _charge(self, method: str, path: str) -> None:
+    def _charge(self, what: str) -> None:
         if self._meter is not None:
-            self._meter(cost_of(method, path))
+            self._meter(cost_of(what))
 
-    # -- the YouTubeClient surface sync and watched actually use ---------
+    # -- the Publisher surface sync and watched actually use -------------
 
     def video_details(self, video_ids):
         for _ in range(0, max(1, len(video_ids)), 50):
-            self._charge("GET", "videos")
+            self._charge("read")
         return {vid: self.details[vid] for vid in video_ids if vid in self.details}
 
     def get_channels(self, channel_ids):
-        self._charge("GET", "channels")
+        self._charge("read")
         return {
             channel_id: ChannelInfo(
                 channel_id=channel_id,
@@ -58,11 +60,11 @@ class FakeYouTube:
         }
 
     def playlist_items(self, playlist_id):
-        self._charge("GET", "playlistItems")
+        self._charge("read")
         return list(self.playlists[playlist_id])
 
     def insert_playlist_item(self, playlist_id, video_id):
-        self._charge("POST", "playlistItems")
+        self._charge("add")
         self._counter += 1
         item_id = f"item-{self._counter}"
         self.playlists[playlist_id].append(
@@ -77,7 +79,7 @@ class FakeYouTube:
         return item_id
 
     def delete_playlist_item(self, item_id):
-        self._charge("DELETE", "playlistItems")
+        self._charge("remove")
         self.deleted.append(item_id)
         for playlist_id, items in self.playlists.items():
             self.playlists[playlist_id] = [i for i in items if i.item_id != item_id]

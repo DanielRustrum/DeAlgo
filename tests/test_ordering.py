@@ -8,7 +8,7 @@ from dealgo.models import Channel, Playlist, Video
 from dealgo.services import ordering
 from dealgo.services import quota
 from dealgo.services import sync as sync_service
-from dealgo.youtube.api import VideoDetails
+from dealgo.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 SECOND = "PL_second"

@@ -10,7 +10,7 @@ from dealgo.models import Channel, Placement, Playlist, Video
 from dealgo.services import playlists as playlist_service
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
-from dealgo.youtube.api import VideoDetails, YouTubeAPIError
+from dealgo.plugins.publisher import PublishError, VideoDetails
 from fakes import MAIN_PLAYLIST, FakeYouTube, entry
 
 SECOND = "PL_second"
@@ -110,7 +110,7 @@ def test_one_failing_playlist_does_not_block_the_others(world, add_playlist, mon
 
     def flaky(playlist_id, video_id):
         if playlist_id == SECOND:
-            raise YouTubeAPIError("nope", status=403, reason="playlistOperationUnsupported")
+            raise PublishError("nope", status=403, reason="playlistOperationUnsupported")
         return real_insert(playlist_id, video_id)
 
     monkeypatch.setattr(world["client"], "insert_playlist_item", flaky)
@@ -247,13 +247,13 @@ def test_a_rename_youtube_refuses_still_lands_locally(world, db, monkeypatch):
     """Better a name that differs than an edit that silently vanished."""
     import httpx
 
-    from dealgo.youtube.api import YouTubeAPIError
+    from dealgo.plugins.publisher import PublishError
 
     class Refusing(FakeYouTube):
         has_write_access = True
 
         def rename_playlist(self, playlist_id, title):
-            raise YouTubeAPIError("nope", status=403, reason="forbidden")
+            raise PublishError("nope", status=403, reason="forbidden")
 
     monkeypatch.setattr(playlist_service, "build_client", lambda session, http, owner=None: Refusing())
 

@@ -33,6 +33,10 @@ log = logging.getLogger(__name__)
 #: than half-run.
 API = 1
 
+#: How many extras one source may hand back in one poll. A page holds a
+#: dozen; a plugin answering with thousands is answering with something else.
+MOST_POSTS = 200
+
 #: A plugin id has to survive being a filename, a form field and a CSS class.
 PLAIN = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 
@@ -68,6 +72,18 @@ class SourceKind:
     _item_url: Any = None
     _mirror: Any = None
     _refine: Any = None
+    _posts: Any = None
+    _home: Any = None
+
+    @property
+    def has_posts(self) -> bool:
+        """Whether this kind has anything beyond its feed.
+
+        YouTube does — community posts live on a page with no feed and no API
+        behind them. Most sources do not, and asking would only be a request
+        nobody answers.
+        """
+        return self._posts is not None
 
 
 @dataclass(frozen=True)
@@ -139,6 +155,12 @@ class Plugin:
     trouble: str | None = None
     sources: list[SourceKind] = field(default_factory=list)
     nodes: list[NodeKind] = field(default_factory=list)
+    #: How it writes back to its own service, if it can. The functions are
+    #: the plugin's; what they are called is the host's vocabulary.
+    publishes: dict[str, Any] = field(default_factory=dict)
+    #: What each of those calls costs against the day's allowance. The
+    #: service's own price list, which is the service's to keep.
+    costs: dict[str, int] = field(default_factory=dict)
     #: What it asked for, in the order it asked.
     wants: list[Asked] = field(default_factory=list)
     #: What it actually has. Never more than it asked for, and never anything
@@ -304,6 +326,37 @@ class Registry:
         said = self._ask(kind, "_refine", item)
         return said if isinstance(said, dict) else {}
 
+    def home(self, kind: str, key: str) -> str | None:
+        """Where a source itself lives, for a link out to it.
+
+        Built from the key rather than stored, because it is the plugin's
+        address to build: a channel id becomes one address, a subreddit
+        another, and neither is the host's to spell.
+        """
+        said = self._ask(kind, "_home", key)
+        return said if isinstance(said, str) and said else None
+
+    def has_extras(self, kind: str) -> bool:
+        """Whether this kind keeps anything its feed does not carry.
+
+        Asked before fetching, so a source with nothing beyond its feed is
+        not made to load a page to find that out.
+        """
+        found = self.kind(kind)
+        return found is not None and found.has_posts
+
+    def posts(self, kind: str, key: str) -> list[dict[str, object]]:
+        """Whatever this kind publishes that its feed does not carry.
+
+        Scraped rather than fetched from an API, wherever a plugin offers it,
+        so it is wrapped the way everything optional is: a source whose extras
+        cannot be read still has everything its feed gave.
+        """
+        said = self._ask(kind, "_posts", key)
+        if not isinstance(said, list):
+            return []
+        return [row for row in said[:MOST_POSTS] if isinstance(row, dict)]
+
     def mirror(self, kind: str, key: str) -> str | None:
         """A second address for the same feed, where the plugin offers one."""
         said = self._ask(kind, "_mirror", key)
@@ -388,7 +441,10 @@ def _everything() -> Registry:
     from ..services.sync import http_client
 
     off, granted = _state()
-    return read(shipped(), folder(), paused=off, granted=granted, http=http_client)
+    return read(
+        shipped(), folder(),
+        paused=off, granted=granted, trusted=shipped(), http=http_client,
+    )
 
 
 def _state() -> tuple[frozenset[str], dict[str, frozenset[str]]]:
@@ -470,6 +526,7 @@ def read(
     given: dict[str, object] | None = None,
     paused: frozenset[str] = frozenset(),
     granted: dict[str, frozenset[str]] | None = None,
+    trusted: Path | None = None,
     http: Callable[[], Any] | None = None,
 ) -> Registry:
     """Load every ``.lua`` in each folder, in name order.
@@ -481,6 +538,13 @@ def read(
     second, so dropping a `youtube.lua` into the data folder replaces the one
     that came with De-Algo rather than fighting it — which is the only way to
     change a shipped plugin without editing the image.
+
+    ``trusted`` is the folder whose plugins start with what they asked for.
+    That is the shipped folder and nothing else: those arrive inside the
+    image, they are how De-Algo does the things it has always done, and
+    nobody chose to install them — so there is no moment at which a consent
+    popup would have been shown. They are still listed with everything they
+    hold, and every one of them can be revoked on the Admin page.
     """
     found = Registry()
     by_id: dict[str, Plugin] = {}
@@ -489,7 +553,13 @@ def read(
             continue
         for path in sorted(where.glob("*.lua")):
             plugin = _one(path, given or {})
-            _grant(plugin, (granted or {}).get(plugin.id, frozenset()), http)
+            stored = (granted or {}).get(plugin.id)
+            if stored is None and trusted is not None and where == trusted:
+                # Never decided on, and shipped: it holds what it asked for
+                # until somebody says otherwise. A stored empty set is a
+                # decision and is left alone.
+                stored = frozenset(want.name for want in plugin.wants)
+            _grant(plugin, stored or frozenset(), http)
             earlier = by_id.get(plugin.id)
             if earlier is not None:
                 found.plugins.remove(earlier)
@@ -612,6 +682,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
         plugin.wants = _wants(made.get("permissions"))
         plugin.sources = _sources(plugin, made.get("sources"))
         plugin.nodes = _nodes(plugin, made.get("nodes"))
+        plugin.publishes, plugin.costs = _publisher(made.get("publisher"))
     except PluginError as exc:
         plugin.trouble = str(exc)
         return plugin
@@ -657,6 +728,7 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     try:
         plugin.sources = _sources(plugin, made.get("sources"))
         plugin.nodes = _nodes(plugin, made.get("nodes"))
+        plugin.publishes, plugin.costs = _publisher(made.get("publisher"))
     except PluginError as exc:  # pragma: no cover - it parsed a moment ago
         plugin.trouble = str(exc)
 
@@ -689,6 +761,38 @@ def _wants(given: object) -> list[Asked]:
         seen.add(name)
         asked.append(Asked(name=name, why=why[:400]))
     return asked
+
+
+def _publisher(given: object) -> tuple[dict[str, Any], dict[str, int]]:
+    """How a plugin writes back to its own service.
+
+    Only the names the host asks by. A plugin offering something nobody here
+    calls is offering nothing, and a plugin missing one simply cannot do that
+    — the host says so rather than failing at the call.
+    """
+    if given is None:
+        return {}, {}
+    if not isinstance(given, dict):
+        raise PluginError("`publisher` has to be a table")
+
+    doing = {
+        name: given[name]
+        for name in (
+            "resolve", "describe", "details", "whoami",
+            "playlists", "playlist", "create", "rename",
+            "contents", "add", "remove",
+        )
+        if callable(given.get(name))
+    }
+    prices: dict[str, int] = {}
+    asked = given.get("costs")
+    if isinstance(asked, dict):
+        for name, value in asked.items():
+            try:
+                prices[str(name)] = max(1, int(float(str(value))))
+            except (TypeError, ValueError):
+                continue
+    return doing, prices
 
 
 def _nodes(plugin: Plugin, given: object) -> list[NodeKind]:
@@ -777,6 +881,8 @@ def _sources(plugin: Plugin, given: object) -> list[SourceKind]:
                 _item_url=entry.get("item_url"),
                 _mirror=entry.get("mirror"),
                 _refine=entry.get("refine"),
+                _posts=entry.get("posts"),
+                _home=entry.get("home"),
             )
         )
     return kinds

@@ -61,6 +61,12 @@ class Account:
         self._lua = lua
         self._made = 0
 
+    def afresh(self) -> None:
+        """A new call, a new allowance. Filling a playlist is many calls into
+        this plugin, and a budget that ran out for good after thirty would
+        stop a sync partway through and never start again."""
+        self._made = 0
+
     def connected(self) -> bool:
         """Whether there is a credential to send with at all.
 

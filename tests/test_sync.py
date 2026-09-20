@@ -8,7 +8,7 @@ from sqlalchemy import select
 from dealgo.models import Channel, Video
 from dealgo.services import sync as sync_service
 from dealgo.sources import items
-from dealgo.youtube.api import VideoDetails
+from dealgo.plugins.publisher import VideoDetails
 from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry
 
 def statuses(db) -> dict[str, str]:
@@ -212,7 +212,7 @@ def test_a_channel_with_no_about_text_is_not_asked_about_again(world, db, monkey
     """An empty description is an answer. Storing NULL would mean every sync
     spent a lookup on a channel that simply has nothing to say."""
     from dealgo.models import Channel
-    from dealgo.youtube.api import ChannelInfo
+    from dealgo.plugins.publisher import ChannelInfo
 
     asked: list[int] = []
 

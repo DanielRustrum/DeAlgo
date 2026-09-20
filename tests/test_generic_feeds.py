@@ -10,7 +10,7 @@ from dealgo.services import playlists as playlist_service
 from dealgo.services import quota
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
-from dealgo.youtube.api import VideoDetails
+from dealgo.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 

@@ -1339,7 +1339,7 @@ def connect(
         # A wire that could never carry anything, refused where it is drawn
         # rather than discovered sixty skipped items later. A tag node is let
         # through: it can stand for YouTube sources too, and those do fill it.
-        if not source.channel.is_youtube and not target.playlist.is_generic:
+        if not source.channel.publishable and not target.playlist.is_generic:
             raise GraphError(
                 f"{target.playlist.title} is a YouTube playlist, and a YouTube playlist "
                 "holds YouTube videos only. Wire this one to a feed that lives here — "
@@ -1380,7 +1380,7 @@ def _bring_back_what_it_can_now_hold(
     """
     from . import sync as sync_service
 
-    if not playlist.is_generic or channel.is_youtube:
+    if not playlist.is_generic or channel.publishable:
         return 0
 
     stranded = list(

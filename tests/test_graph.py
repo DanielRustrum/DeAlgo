@@ -297,7 +297,7 @@ def test_a_filter_node_changes_what_reaches_one_feed(world, db):
     turned away from the other, because of a box on the wire."""
     from dealgo.models import Placement, Video
     from dealgo.services import sync as sync_service
-    from dealgo.youtube.api import VideoDetails
+    from dealgo.plugins.publisher import VideoDetails
     from fakes import entry
 
     with db.session_scope() as session:
@@ -2142,7 +2142,7 @@ def test_a_filter_that_lets_nothing_through_is_where_the_flow_stops(world, db):
     from dealgo.models import Channel as ChannelModel
     from dealgo.services import graph, sync as sync_service
     from fakes import CHANNEL_ID, entry
-    from dealgo.youtube.api import VideoDetails
+    from dealgo.plugins.publisher import VideoDetails
 
     with db.session_scope() as session:
         graph.load(session)
@@ -2201,7 +2201,7 @@ def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
     and the channel is the box to point at."""
     from dealgo.models import Channel as ChannelModel
     from dealgo.services import graph, sync as sync_service
-    from dealgo.youtube.api import VideoDetails
+    from dealgo.plugins.publisher import VideoDetails
     from fakes import entry
 
     with db.session_scope() as session:

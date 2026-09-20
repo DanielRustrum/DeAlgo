@@ -48,6 +48,11 @@ return {
 
       -- The feed links each post at its comments page, which is where a
       -- reader wants to end up. Nothing to rewrite.
+      -- Where the community itself lives.
+      home = function(key)
+        return "https://www.reddit.com/" .. key .. "/"
+      end,
+
       item_url = function(_, link)
         return link
       end,

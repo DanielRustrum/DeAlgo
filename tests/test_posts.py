@@ -1,132 +1,37 @@
-"""Community posts: written content, alongside the videos.
+"""Community posts: written content, landing in a feed beside the videos.
 
-There is no API for these, so the parser is fed saved page shapes rather than
-a live channel — the tests must never reach YouTube.
+How they are *read* is the YouTube plugin's business and is tested there.
+This is about what the app does with them once it has them, which is the same
+whichever source keeps things its feed does not carry.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-import json
 
-import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, Placement, Playlist, Video
+from dealgo.models import Channel, Placement, Video
 from dealgo.services import channels as channel_service
 from dealgo.services import sync as sync_service
-from dealgo.youtube import community
-from dealgo.youtube.api import VideoDetails
+from dealgo.plugins.publisher import VideoDetails
 from fakes import entry
-
-
-def page(posts: list[dict]) -> str:
-    """A Posts tab, shaped the way YouTube ships one."""
-    threads = [
-        {
-            "backstagePostThreadRenderer": {
-                "post": {
-                    "backstagePostRenderer": {
-                        "postId": post["id"],
-                        "contentText": {"runs": [{"text": post.get("text", "")}]},
-                        "publishedTimeText": {"runs": [{"text": post.get("age", "2 days ago")}]},
-                        **(
-                            {
-                                "backstageAttachment": {
-                                    "postMultiImageRenderer": {
-                                        "images": [
-                                            {
-                                                "backstageImageRenderer": {
-                                                    "image": {
-                                                        "thumbnails": [
-                                                            {"url": url + "?s=100", "width": 100},
-                                                            {"url": url, "width": 800},
-                                                        ]
-                                                    }
-                                                }
-                                            }
-                                            for url in post["images"]
-                                        ]
-                                    }
-                                }
-                            }
-                            if post.get("images")
-                            else {}
-                        ),
-                    }
-                }
-            }
-        }
-        for post in posts
-    ]
-    data = {"contents": {"twoColumnBrowseResultsRenderer": {"tabs": threads}}}
-    return "<html><script>var ytInitialData = " + json.dumps(data) + ";</script></html>"
-
-
-# -- the parser ------------------------------------------------------------
-
-
-def test_it_reads_the_text_images_and_age_of_a_post():
-    now = dt.datetime(2026, 9, 9, 12, 0, tzinfo=dt.timezone.utc)
-    posts = community.parse_posts(
-        page([{"id": "Ugk1", "text": "Back on Friday", "age": "3 days ago",
-               "images": ["https://img.test/a.jpg", "https://img.test/b.jpg"]}]),
-        now=now,
-    )
-
-    assert len(posts) == 1
-    post = posts[0]
-    assert post.post_id == "Ugk1"
-    assert post.text == "Back on Friday"
-    # The largest thumbnail wins: a tile is displayed big.
-    assert post.image_urls == ["https://img.test/a.jpg", "https://img.test/b.jpg"]
-    assert post.published_at == now - dt.timedelta(days=3)
-
-
-def test_a_post_with_no_date_it_understands_keeps_none():
-    posts = community.parse_posts(page([{"id": "Ugk1", "text": "Hi", "age": "just now"}]))
-    assert posts[0].published_at is None
-
-
-def test_the_title_is_an_excerpt_of_the_first_line():
-    long = "x" * 200
-    posts = community.parse_posts(page([{"id": "Ugk1", "text": long}]))
-    assert posts[0].title.endswith("…")
-    assert len(posts[0].title) <= 80
-
-
-def test_an_image_only_post_still_has_something_to_call_itself():
-    posts = community.parse_posts(page([{"id": "Ugk1", "text": "", "images": ["https://i.test/x"]}]))
-    assert posts[0].title == "(image post)"
-
-
-@pytest.mark.parametrize("html", ["", "<html>nothing here</html>",
-                                  "<script>var ytInitialData = {oops;</script>"])
-def test_a_page_it_cannot_read_yields_nothing_rather_than_raising(html):
-    """YouTube can change this shape whenever it likes. It must not take a
-    sync down when it does."""
-    assert community.parse_posts(html) == []
-
-
-def test_the_same_post_is_only_read_once():
-    """The blob repeats a renderer in more than one place."""
-    once = page([{"id": "Ugk1", "text": "Hello"}])
-    twice = once.replace('"contents"', '"header": {"x": ' + json.dumps(
-        json.loads(once.split("var ytInitialData = ")[1].rsplit(";", 1)[0])["contents"]) + '}, "contents"')
-    assert len(community.parse_posts(twice)) == 1
 
 
 # -- discovery and placement ----------------------------------------------
 
 
 def posted(world, *posts):
+    """What a plugin hands back: plain rows, dated in seconds since the epoch
+    because a plugin has no date type and a number is what it can compare."""
+    now = dt.datetime.now(dt.timezone.utc).timestamp()
     world["posts"] = [
-        community.Post(
-            post_id=p["id"],
-            text=p.get("text", ""),
-            published_at=dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=p.get("hours", 1)),
-            image_urls=p.get("images", []),
-        )
+        {
+            "id": p["id"],
+            "text": p.get("text", ""),
+            "published_at": now - p.get("hours", 1) * 3600,
+            "images": p.get("images", []),
+        }
         for p in posts
     ]
 
@@ -225,11 +130,12 @@ def test_allowing_posts_again_brings_back_what_was_skipped(world, db):
 
 def test_a_channel_that_cannot_be_scraped_still_gets_its_videos(world, db, monkeypatch):
     """The Posts tab is a page, not an API. Losing it must cost nothing else."""
-    def boom(channel_id, http):
+    from dealgo.plugins import registry
+
+    def boom(self, kind, key):
         raise RuntimeError("YouTube changed the page again")
 
-    monkeypatch.setattr(community, "fetch_posts", boom)
-    monkeypatch.setattr(sync_service.community, "fetch_posts", boom)
+    monkeypatch.setattr(registry.Registry, "posts", boom)
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10
     world["entries"] = [entry("v0", 1)]

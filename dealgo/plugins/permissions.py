@@ -158,7 +158,7 @@ def capabilities(
     if "log" in granted:
         given["log"] = _Log(plugin)
     if "network" in granted:
-        given["net"] = _Net(plugin, http)
+        given["net"] = _Net(plugin, http, lua)
     if "account" in granted and lua is not None:
         from .account import Account
 
@@ -220,14 +220,76 @@ class _Net:
     #: What a plugin may reach on this. Anything not named here is
     #: unreachable, which is what keeps `__class__` — and the whole
     #: machine behind it — out of a plugin's hands.
-    LUA_OFFERS = frozenset({"get"})
+    LUA_OFFERS = frozenset({"get", "embedded", "find"})
 
-    def __init__(self, plugin: str, http: Callable[[], httpx.Client] | None):
+    def __init__(self, plugin: str, http: Callable[[], httpx.Client] | None, lua: Any = None):
         self._plugin = plugin
         self._http = http
+        self._lua = lua
         self._made = 0
 
-    def get(self, url: object) -> Any:
+    def embedded(self, text: object, name: object, key: object) -> Any:
+        """Every value under `key` inside the JSON a page assigns to `name`.
+
+        A page with no feed keeps its content in a blob its own scripts read,
+        and pulling that out is a parser's job — the same argument that keeps
+        the XML reader here rather than in Lua. What is a plugin's is saying
+        which variable and which key, which is all this asks for.
+
+        Only the matches cross over, not the blob. One of these pages is a
+        megabyte, and a megabyte of JSON as Lua tables would not fit in the
+        memory a plugin is allowed.
+        """
+        from ..sources import embedded as reading
+
+        document = reading.script_object(str(text or ""), str(name or ""))
+        if document is None:
+            return None
+        return self._list(reading.find(document, str(key or "")))
+
+    def find(self, thing: object, key: object) -> Any:
+        """The same search, over something already in hand.
+
+        For the second look inside a match — a post's attachment, say. Those
+        are small by the time they get here, which is why this one takes a
+        table and the other does not.
+        """
+        from ..sources import embedded as reading
+
+        return self._list(reading.find(_plain(thing), str(key or "")))
+
+    def afresh(self) -> None:
+        """A new call, a new allowance. The limit is on what one call may do,
+        not on what a plugin may do before it is next restarted."""
+        self._made = 0
+
+    def _list(self, found: list[Any]) -> Any:
+        """A list of decoded values as Lua tables, all the way down.
+
+        A nested dictionary handed over as a Python object is one a plugin
+        cannot index, and what comes out of a page is nested by nature.
+        """
+        made = self._lua.table() if self._lua is not None else None
+        if made is None:  # pragma: no cover - only without a runtime to build in
+            return None
+        for index, value in enumerate(found, start=1):
+            made[index] = self._table(value)
+        return made
+
+    def _table(self, value: object) -> Any:
+        if isinstance(value, dict):
+            made = self._lua.table()
+            for key, inner in value.items():
+                made[str(key)] = self._table(inner)
+            return made
+        if isinstance(value, list):
+            made = self._lua.table()
+            for index, inner in enumerate(value, start=1):
+                made[index] = self._table(inner)
+            return made
+        return value
+
+    def get(self, url: object, headers: object = None) -> Any:
         """Fetch a page and hand back its text, or nothing if it could not be.
 
         Nothing rather than an error: a plugin is a filter, and a filter that
@@ -249,7 +311,7 @@ class _Net:
         try:
             patience.hold(address)
             with self._http() as client:
-                response = client.get(address)
+                response = client.get(address, headers=_polite(headers))
             patience.note(response)
             response.raise_for_status()
         except patience.RateLimited as held:
@@ -267,6 +329,42 @@ class _Net:
             return body.decode(response.encoding or "utf-8", errors="replace")
         except (LookupError, UnicodeDecodeError):  # pragma: no cover - a strange encoding
             return body.decode("utf-8", errors="replace")
+
+
+#: The headers a plugin may set on its own request. Everything that carries
+#: authority — a cookie, an authorization, a host — is the host's to set and
+#: not a plugin's to forge.
+ASKABLE_HEADERS = frozenset({"user-agent", "accept", "accept-language", "referer"})
+
+
+def _polite(headers: object) -> dict[str, str] | None:
+    """What a plugin asked to send, less anything it has no business sending.
+
+    A site that serves a consent wall to anything without a browser's user
+    agent is a real problem for a plugin that has to read a page, so this is
+    worth allowing. A `Cookie` is not.
+    """
+    given = _plain(headers)
+    if not isinstance(given, dict):
+        return None
+    return {
+        str(name): str(value)
+        for name, value in given.items()
+        if str(name).lower() in ASKABLE_HEADERS
+    }
+
+
+def _plain(value: object) -> object:
+    """A Lua table as something Python can walk."""
+    import lupa
+
+    if lupa.lua_type(value) != "table":
+        return value
+    table: Any = value
+    keys = list(table.keys())
+    if keys and keys == list(range(1, len(keys) + 1)):
+        return [_plain(table[key]) for key in keys]
+    return {str(key): _plain(table[key]) for key in keys}
 
 
 def _short(message: object) -> str:

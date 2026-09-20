@@ -10,7 +10,7 @@ from sqlalchemy import select
 from dealgo.models import SyncRun, Video
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
-from dealgo.youtube.api import VideoDetails, YouTubeAPIError
+from dealgo.plugins.publisher import PublishError, VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 
@@ -90,7 +90,7 @@ def test_removal_reconciles_items_youtube_no_longer_has(world, monkeypatch):
         watched_service.mark_watched(session, [session.scalar(select(Video)).id])
 
     def gone(_item_id):
-        raise YouTubeAPIError("not found", status=404, reason="playlistItemNotFound")
+        raise PublishError("not found", status=404, reason="playlistItemNotFound")
 
     monkeypatch.setattr(world["client"], "delete_playlist_item", gone)
     result = watched_service.remove_watched()

@@ -425,7 +425,7 @@ def test_the_letter_colour_is_stable_for_a_channel(db):
 def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, monkeypatch):
     from dealgo.models import Channel, Playlist
     from dealgo.services import playlists as playlist_service
-    from dealgo.youtube.api import PlaylistInfo
+    from dealgo.plugins.publisher import PlaylistInfo
 
     made = {}
 

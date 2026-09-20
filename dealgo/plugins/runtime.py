@@ -79,14 +79,23 @@ class Sandbox:
     _lua: Any
     _env: Any
     _checks: list[int] = field(default_factory=lambda: [0])
+    #: Everything handed to this plugin that counts what it has done. Each is
+    #: put back to nothing at the start of every call, because these budgets
+    #: are per call and a capability built once at load would otherwise count
+    #: for the life of the process — a plugin allowed four requests would get
+    #: four ever, and then quietly do nothing for the rest of the day.
+    _meters: list[Any] = field(default_factory=list)
 
     def call(self, fn: Any, *args: object) -> object:
         """Call one of the plugin's functions and bring the answer home.
 
         The instruction budget is per call, so a plugin that does a lot of
-        small pieces of work is not punished for the total.
+        small pieces of work is not punished for the total. So is every other
+        budget it has, which is what `_meters` is for.
         """
         self._checks[0] = 0
+        for meter in self._meters:
+            meter.afresh()
         try:
             return _plain(fn(*args))
         except lupa.LuaMemoryError as exc:
@@ -102,6 +111,25 @@ class Sandbox:
         for key, value in fields.items():
             made[key] = value
         return made
+
+    def given(self, value: object) -> Any:
+        """Something of ours as something a plugin can walk.
+
+        A Python list handed straight across is not a Lua table and `ipairs`
+        finds nothing in it, which is a plugin quietly doing nothing rather
+        than a plugin failing — so everything going in is converted.
+        """
+        if isinstance(value, dict):
+            made = self._lua.table()
+            for key, inner in value.items():
+                made[str(key)] = self.given(inner)
+            return made
+        if isinstance(value, (list, tuple)):
+            made = self._lua.table()
+            for index, inner in enumerate(value, start=1):
+                made[index] = self.given(inner)
+            return made
+        return value
 
 
 def load(
@@ -158,7 +186,9 @@ def load(
     if chunk is None:
         raise PluginError(f"{name}: is not readable Lua")
 
-    box = Sandbox(name=name, _lua=lua, _env=env, _checks=checks)
+    box = Sandbox(
+        name=name, _lua=lua, _env=env, _checks=checks, _meters=_metered(handing)
+    )
     return box, box.call(chunk)
 
 
@@ -196,6 +226,15 @@ def _world(lua: Any, given: dict[str, object]) -> Any:
     for word, thing in given.items():
         env[word] = thing
     return env
+
+
+def _metered(given: dict[str, object]) -> list[Any]:
+    """Which of the things handed over keep a count that has to be put back.
+
+    Asked of the object rather than listed here, so a capability that starts
+    counting something later is reset without this having to hear about it.
+    """
+    return [thing for thing in given.values() if callable(getattr(thing, "afresh", None))]
 
 
 def _complaint(exc: BaseException) -> str:

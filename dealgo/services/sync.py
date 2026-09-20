@@ -38,14 +38,8 @@ from ..models import (
     utcnow,
 )
 from ..sources import items, patience, syndication
-from ..youtube import community
-from ..youtube.api import (
-    QUOTA_COST_DELETE,
-    QUOTA_COST_INSERT,
-    VideoDetails,
-    YouTubeAPIError,
-    YouTubeClient,
-)
+from ..plugins import registry, site
+from ..plugins.publisher import PublishError, Publisher, VideoDetails, cost_of
 from . import filters
 from . import quota
 from . import runlog
@@ -409,7 +403,7 @@ def _run(
         )
         _publish(session, client, settings, result, owner, pen=pen)
         session.commit()
-    elif youtube_feeds and quota_state.spendable < QUOTA_COST_INSERT:
+    elif youtube_feeds and quota_state.spendable < cost_of("add"):
         # Feeds cost nothing, so discovery already ran; only writing stops.
         result.stopped_on_quota = True
         result.messages.append(
@@ -470,7 +464,6 @@ def _poll(channel: Channel, http: httpx.Client) -> items.Batch:
     entries are Shorts, and the channel id the feed belongs to. Everything
     else is a feed like any other, and is read as one.
     """
-    from ..plugins import registry
 
     found = _read_feed(channel, http)
     known = registry.current()
@@ -719,10 +712,12 @@ def _discover(
                 result.discovered += 1
                 found += 1
 
-        # Community posts are a YouTube idea; elsewhere the feed is all there is.
-        if channel.is_youtube and not channel.skip_posts:
+        # Some sources keep things their feed does not carry — YouTube's
+        # community posts are the one shipped example. Whether this is such
+        # a source is the plugin's to say, not a name checked here.
+        if not channel.skip_posts and registry.current().has_extras(channel.source_kind):
             _discover_posts(
-                session, http, channel, result,
+                session, channel, result,
                 first_check=first_check, backfill=backfill, owner=owner,
             )
 
@@ -918,7 +913,6 @@ def _unignore(
 
 def _discover_posts(
     session: Session,
-    http: httpx.Client,
     channel: Channel,
     result: SyncResult,
     *,
@@ -926,43 +920,47 @@ def _discover_posts(
     backfill: int,
     owner: OwnerId = None,
 ) -> None:
-    """Collect a channel's community posts.
+    """Collect whatever a source keeps outside its feed.
 
-    Scraped, not fetched from an API — there is no API for these — so it is
-    wrapped whole: a channel whose posts cannot be read still keeps its videos.
-    The backfill rules are the video ones, so tracking a channel does not drop
-    a year of its writing into a feed on day one.
+    The plugin fetches and reads these, because the shape of a page with no
+    feed behind it is the service's own and changes without notice. It is
+    wrapped whole all the same: a source whose extras cannot be read still
+    keeps everything its feed gave.
+
+    The backfill rules are the feed's, so tracking a source does not drop a
+    year of its writing into a feed on day one.
     """
     try:
-        posts = community.fetch_posts(channel.channel_id, http)
+        with site.acting_for(owner):
+            posts = registry.current().posts(channel.source_kind, channel.channel_id)
+        found = [post for post in (_as_post(row) for row in posts) if post.id]
     except Exception as exc:  # the page shape is not ours to rely on
         log.warning("could not read posts for %s: %s", channel.title, exc)
         return
-    if not posts:
+    if not found:
         return
-
-    known = set(
+    here = set(
         session.scalars(
             owned(select(Video.video_id), Video, owner).where(
-                Video.video_id.in_([p.post_id for p in posts] or [""])
+                Video.video_id.in_([post.id for post in found] or [""])
             )
         )
     )
-    for index, post in enumerate(posts):
-        if post.post_id in known:
+    for index, post in enumerate(found):
+        if post.id in here:
             continue
         beyond_backfill = first_check and index >= max(0, backfill)
         session.add(
             Video(
                 owner_pk=owner,
-                video_id=post.post_id,
+                video_id=post.id,
                 channel_pk=channel.id,
                 kind="post",
                 title=post.title,
-                body=post.text,
-                images=json.dumps(post.image_urls) if post.image_urls else None,
+                body=post.summary,
+                images=json.dumps(list(post.images)) if post.images else None,
                 # The first image is the post's face in the feed list.
-                thumbnail_url=post.image_urls[0] if post.image_urls else None,
+                thumbnail_url=post.images[0] if post.images else None,
                 published_at=to_naive_utc(post.published_at),
                 status="ignored" if beyond_backfill else "pending",
                 reason=TOO_OLD if beyond_backfill else None,
@@ -974,8 +972,47 @@ def _discover_posts(
     session.flush()
 
 
+def _as_post(row: dict[str, object]) -> items.Entry:
+    """One of a plugin's extras, as the same kind of thing a feed gives.
+
+    A post has no title of its own — nothing it is called, only what it says
+    — so it is given one from its first line. That is not the service's idea
+    of anything; it is this list needing something to print.
+    """
+    text = str(row.get("text") or "")
+    given = row.get("images")
+    pictures = (
+        tuple(str(url) for url in given if isinstance(url, str) and url)
+        if isinstance(given, list)
+        else ()
+    )
+    when = row.get("published_at")
+    return items.Entry(
+        id=str(row.get("id") or ""),
+        title=_first_line(text) or ("(image post)" if pictures else ""),
+        published_at=(
+            dt.datetime.fromtimestamp(float(when), dt.timezone.utc)
+            if isinstance(when, (int, float)) and not isinstance(when, bool)
+            else None
+        ),
+        thumbnail_url=pictures[0] if pictures else None,
+        kind="post",
+        summary=text,
+        images=pictures,
+    )
+
+
+def _first_line(text: str) -> str:
+    """A one-line stand-in, for the places that list posts beside videos."""
+    lines = text.strip().splitlines()
+    first = lines[0] if lines else ""
+    if len(first) <= 80:
+        return first
+    return first[:79].rsplit(" ", 1)[0] + "\u2026"
+
+
 def _fill_missing_details(
-    session: Session, client: YouTubeClient, result: SyncResult, owner: OwnerId = None
+    session: Session, client: Publisher, result: SyncResult, owner: OwnerId = None
 ) -> None:
     """Fetch avatars, handles and about text for channels added by bare id.
 
@@ -1029,7 +1066,6 @@ def _plugin_refusal(video: Video, path: "graph.Route") -> filters.Decision | Non
     if not path.checks:
         return None
 
-    from ..plugins import registry, site
 
     found = registry.current()
     item = {
@@ -1126,7 +1162,7 @@ def _reconsider_routing(session: Session, result: SyncResult, owner: OwnerId = N
 
 def _retry_deferred(
     session: Session,
-    client: YouTubeClient,
+    client: Publisher,
     result: SyncResult,
     added_per_playlist: Tally,
     owner: OwnerId = None,
@@ -1182,7 +1218,7 @@ def _retry_deferred(
             session.flush()
             continue
 
-        if not quota.can_afford(session, QUOTA_COST_INSERT, owner=owner):
+        if not quota.can_afford(session, cost_of("add"), owner=owner):
             result.stopped_on_quota = True
             result.messages.append(
                 f"YouTube API quota is spent; {len(open_placements) - index} playlist insertion(s) "
@@ -1193,7 +1229,7 @@ def _retry_deferred(
             item_id = client.insert_playlist_item(
                 placement.playlist.playlist_id, placement.video.video_id
             )
-        except YouTubeAPIError as exc:
+        except PublishError as exc:
             if exc.is_quota_error:
                 quota.mark_exhausted(session, owner)
                 result.stopped_on_quota = True
@@ -1222,7 +1258,7 @@ def _retry_deferred(
 
 def _publish(
     session: Session,
-    client: YouTubeClient,
+    client: Publisher,
     settings: Settings,
     result: SyncResult,
     owner: OwnerId = None,
@@ -1270,7 +1306,7 @@ def _publish(
     if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True, owner=owner):
         try:
             details = client.video_details(clips)
-        except YouTubeAPIError as exc:
+        except PublishError as exc:
             log.warning("could not load video details: %s", exc)
             result.messages.append("Video details unavailable; duration filters were not applied.")
 
@@ -1303,7 +1339,7 @@ def _publish(
             return None
         try:
             items = client.playlist_items(playlist.playlist_id)
-        except YouTubeAPIError as exc:
+        except PublishError as exc:
             unreadable.add(playlist.id)
             playlist.last_error = str(exc)
             result.messages.append(f"Could not read {playlist.title!r}: {exc}")
@@ -1434,7 +1470,7 @@ def _publish(
                 landed = True
                 continue
 
-            if not quota.can_afford(session, QUOTA_COST_INSERT, owner=owner):
+            if not quota.can_afford(session, cost_of("add"), owner=owner):
                 # Stop cleanly on our own ledger rather than being refused, and
                 # leave a marker for every playlist this video still owes so the
                 # next run finishes the job instead of forgetting it.
@@ -1450,7 +1486,7 @@ def _publish(
 
             try:
                 item_id = client.insert_playlist_item(playlist.playlist_id, video.video_id)
-            except YouTubeAPIError as exc:
+            except PublishError as exc:
                 if exc.is_quota_error:
                     quota.mark_exhausted(session, owner)
                     deferred += _defer(session, video, targets, placed)
@@ -1771,7 +1807,7 @@ def _reject(video: Video, result: SyncResult, reason: str) -> None:
 
 def _prune(
     session: Session,
-    client: YouTubeClient,
+    client: Publisher,
     playlists: Sequence[Playlist],
     result: SyncResult,
     owner: OwnerId = None,
@@ -1790,7 +1826,7 @@ def _prune(
 
         try:
             items = client.playlist_items(playlist.playlist_id)
-        except YouTubeAPIError as exc:
+        except PublishError as exc:
             result.messages.append(f"Could not read {playlist.title!r} for pruning: {exc}")
             continue
 
@@ -1800,13 +1836,13 @@ def _prune(
 
         # De-Algo appends oldest-first, so the front of the playlist is the oldest.
         for item in sorted(items, key=lambda i: i.position)[:overflow]:
-            if not quota.can_afford(session, QUOTA_COST_DELETE, owner=owner):
+            if not quota.can_afford(session, cost_of("remove"), owner=owner):
                 result.stopped_on_quota = True
                 result.messages.append("Quota ran out before pruning finished.")
                 return
             try:
                 client.delete_playlist_item(item.item_id)
-            except YouTubeAPIError as exc:
+            except PublishError as exc:
                 if exc.is_quota_error:
                     quota.mark_exhausted(session, owner)
                     result.stopped_on_quota = True

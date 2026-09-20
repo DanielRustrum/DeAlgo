@@ -54,6 +54,12 @@ dealgo = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    # Opts out of the guard that stops every other test reaching for a live
+    # page. Only the tests about that reading itself wear it, and each one
+    # feeds the page it wants to be given.
+    "reads_pages: this test drives a plugin's own page reading",
+]
 filterwarnings = [
     # The per-owner unique indexes are expression-based (COALESCE), which
     # SQLAlchemy's reflection skips with a warning. Nothing reads them back.

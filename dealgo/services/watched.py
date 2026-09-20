@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..db import session_scope
 from ..models import Placement, Playlist, SyncRun, Video, utcnow
-from ..youtube.api import QUOTA_COST_DELETE, YouTubeAPIError
+from ..plugins.publisher import PublishError, cost_of
 from . import quota
 from .auth import build_client
 from .scope import OwnerId, belongs_to, owned
@@ -191,7 +191,7 @@ def _remove(
 
         # Removal is charged the same 50 units as an insert; a manual removal
         # may dip into the reserve, which is what the reserve is for.
-        if not quota.can_afford(session, QUOTA_COST_DELETE, use_reserve=True):
+        if not quota.can_afford(session, cost_of("remove"), use_reserve=True):
             result.stopped_on_quota = True
             result.messages.append(
                 f"Quota ran out; the rest can be removed after the reset {quota.describe_reset()}."
@@ -204,7 +204,7 @@ def _remove(
             continue
         try:
             client.delete_playlist_item(item_id)
-        except YouTubeAPIError as exc:
+        except PublishError as exc:
             if exc.status == 404 or exc.reason == "playlistItemNotFound":
                 # Already gone from YouTube's side; just reconcile our record.
                 _clear(placement, "watched — already gone from the playlist")

@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 
-from .payload import JsonDict
+#: One decoded JSON object from Google. Keys are strings; nothing about the
+#: values is known until the code reading them checks. `Any` inside is
+#: honesty at a boundary, not a gap.
+JsonDict = dict[str, Any]
 
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"

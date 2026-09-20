@@ -356,3 +356,77 @@ def test_the_shipped_plugins_are_packaged_with_the_app():
     globs = config["tool"]["setuptools"]["package-data"]["dealgo"]
 
     assert "plugins/builtin/*.lua" in globs
+
+
+# -- what the plugins that ship in the image start with --------------------
+
+
+def test_a_shipped_plugin_starts_with_what_it_asked_for(tmp_path):
+    """Nobody chose to install it. It arrives inside the image, it is how
+    De-Algo does the things it has always done, and there is no moment at
+    which a consent popup could have been shown — so the alternative is
+    shipping a YouTube plugin that cannot reach YouTube."""
+    (tmp_path / "shipped.lua").write_text("""
+    return {
+      api = 1, name = "Shipped",
+      permissions = { { name = "clock", why = "To tell the time." } },
+    }
+    """, encoding="utf-8")
+
+    found = registry.read(tmp_path, trusted=tmp_path)
+
+    assert found.plugins[0].granted == frozenset({"clock"})
+    assert found.plugins[0].wanting == []
+
+
+def test_a_shipped_plugin_that_was_refused_stays_refused(tmp_path):
+    """A stored empty set is a decision, not a gap. Re-granting it on every
+    start would make the revoke button do nothing at all."""
+    (tmp_path / "shipped.lua").write_text("""
+    return {
+      api = 1, name = "Shipped",
+      permissions = { { name = "clock", why = "To tell the time." } },
+    }
+    """, encoding="utf-8")
+
+    found = registry.read(
+        tmp_path, trusted=tmp_path, granted={"shipped": frozenset()}
+    )
+
+    assert found.plugins[0].granted == frozenset()
+    assert [want.name for want in found.plugins[0].wanting] == ["clock"]
+
+
+def test_a_plugin_somebody_added_starts_with_nothing(tmp_path):
+    """Only the shipped folder is trusted. Anything dropped into the data
+    folder went through the popup, which is where a person decided."""
+    (tmp_path / "theirs.lua").write_text("""
+    return {
+      api = 1, name = "Theirs",
+      permissions = { { name = "network", why = "To fetch things." } },
+    }
+    """, encoding="utf-8")
+
+    found = registry.read(tmp_path, trusted=tmp_path / "somewhere-else")
+
+    assert found.plugins[0].granted == frozenset()
+
+
+# -- where a source lives --------------------------------------------------
+
+
+def test_each_kind_builds_its_own_address():
+    """The host held a chain of these once, one branch per service. That is
+    exactly the knowledge that stopped being the host's."""
+    found = registry.read(SHIPPED)
+
+    assert found.home("youtube", "UCzzzzzzzzzzzzzzzzzzzzzz") == (
+        "https://www.youtube.com/channel/UCzzzzzzzzzzzzzzzzzzzzzz"
+    )
+    assert found.home("reddit", "r/python") == "https://www.reddit.com/r/python/"
+    assert found.home("bluesky", "@me.bsky.social") == "https://bsky.app/profile/me.bsky.social"
+    assert found.home("substack", "on.substack.com") == "https://on.substack.com"
+
+
+def test_a_kind_nobody_provides_has_no_address():
+    assert registry.read(SHIPPED).home("gopher", "x") is None
