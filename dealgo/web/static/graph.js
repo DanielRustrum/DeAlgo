@@ -65,10 +65,22 @@ function asGraphNode(value) {
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
         channel: asGraphChannel(raw["channel"]),
+        asks: asGraphAsks(raw["asks"]),
         tag: asGraphTag(raw["tag"]),
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
         overrides: asGraphOverrides(raw["overrides"]),
+    };
+}
+function asGraphAsks(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    return {
+        kind: typeof raw["kind"] === "string" ? raw["kind"] : "",
+        label: typeof raw["label"] === "string" ? raw["label"] : "",
+        example: typeof raw["example"] === "string" ? raw["example"] : "",
+        known: raw["known"] === true,
     };
 }
 function asGraphFeed(value) {
@@ -262,6 +274,7 @@ function asGraph(value) {
             watched.push({
                 id: source["id"],
                 title: typeof source["title"] === "string" ? source["title"] : "",
+                kind: typeof source["kind"] === "string" ? source["kind"] : "",
             });
         }
     }
@@ -974,7 +987,12 @@ function graphKnownTags(form, known) {
  *  A search box above a real select rather than a list built from scratch: the
  *  select keeps the keyboard, the form and the screen reader it already had,
  *  and the box only decides which options are in it. */
-function graphSourcePicker(state, form) {
+function graphSourcePicker(state, form, kind) {
+    // Only sources of this box's own kind. A Subreddit box that offered a
+    // YouTube channel would be offering something it could not then be.
+    const offered = kind === "" ? state.sources : state.sources.filter((one) => one.kind === kind);
+    if (offered.length === 0)
+        return;
     const search = document.createElement("input");
     search.type = "search";
     search.placeholder = "Search sources…";
@@ -982,7 +1000,7 @@ function graphSourcePicker(state, form) {
     search.autocomplete = "off";
     const pick = document.createElement("select");
     pick.name = "source_pk";
-    pick.size = Math.min(6, state.sources.length + 1);
+    pick.size = Math.min(6, offered.length + 1);
     const fill = () => {
         const chosen = pick.value;
         pick.textContent = "";
@@ -990,7 +1008,7 @@ function graphSourcePicker(state, form) {
         none.value = "";
         none.textContent = "— or add one below —";
         pick.appendChild(none);
-        const matching = state.sources.filter((source) => graphMatches(source.title, search.value));
+        const matching = offered.filter((source) => graphMatches(source.title, search.value));
         for (const source of matching) {
             const option = document.createElement("option");
             option.value = String(source.id);
@@ -1024,23 +1042,36 @@ function graphMatches(name, query) {
 }
 function graphChannelFields(state, form, node) {
     if (node.detail === null) {
-        // An empty box: these are the fields that decide what it stands for.
-        // Something already watched first, because that needs no lookup and no
-        // credentials — and because most of the time it is already there.
-        if (state.sources.length > 0)
-            graphSourcePicker(state, form);
+        // An empty box: these are the fields that decide what it stands for. It
+        // already knows which kind of somewhere it is for, because that is the
+        // box that was dragged out, so it asks for that and nothing else.
+        const asks = node.asks;
+        const kind = asks === null ? "" : asks.kind;
+        // Something already watched first: that needs no lookup and no
+        // credentials, and most of the time it is already there.
+        graphSourcePicker(state, form, kind);
+        if (asks !== null && kind !== "" && !asks.known) {
+            form.appendChild(graphElement("p", "hint", `Nothing here provides ${kind} sources any more. Its plugin may be switched off on the Plugins page. Point this box at something already watched, or delete it.`));
+            return;
+        }
+        if (kind === "") {
+            // A box from before sources had kinds. There is no longer a way to
+            // make one, and no way to tell what it was meant to be.
+            form.appendChild(graphElement("p", "hint", "This box was made before sources had kinds. Point it at something already watched, or delete it and drag out the kind you want."));
+            return;
+        }
         const handle = document.createElement("input");
         handle.type = "text";
         handle.name = "handle";
-        handle.placeholder = "@handle, r/name, a Bluesky handle, or a feed address";
-        form.appendChild(graphLabelled("Or somewhere new", handle));
+        handle.placeholder = asks === null ? "" : asks.example;
+        form.appendChild(graphLabelled(state.sources.length > 0 ? "Or somewhere new" : "Where to watch", handle));
         const backfill = document.createElement("input");
         backfill.type = "number";
         backfill.name = "backfill";
         backfill.min = "0";
         backfill.placeholder = "the newest few";
         form.appendChild(graphLabelled("How far back, in days", backfill));
-        form.appendChild(graphElement("p", "hint", "YouTube, Reddit, Bluesky, Substack, or the address of any feed. A YouTube handle needs Google or an API key; everything else needs nothing at all. A source stays paused until it is wired to a feed."));
+        form.appendChild(graphElement("p", "hint", `${asks === null ? "" : asks.label}: ${asks === null ? "" : asks.example}. A source stays paused until it is wired to a feed.`));
         return;
     }
     const channel = node.channel;
@@ -2414,7 +2445,7 @@ function graphPaletteKind(kind) {
 }
 function graphPaletteName(kind) {
     if (kind === "source")
-        return "Channel";
+        return "Source";
     if (kind === "plugin")
         return "Plugin";
     if (kind === "tagged")
@@ -2448,8 +2479,10 @@ async function dropGraphNode(state, kind, x, y, which = "") {
     toggleGraphPalette(state, false);
     const before = state.nodes;
     const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
+    // The same word off the palette row, sent under whichever name the kind
+    // being made reads it by.
     if (which !== "")
-        asking.set("plugin_node", which);
+        asking.set(kind === "source" ? "source_kind" : "plugin_node", which);
     const made = await applyGraph(state, "/graph/nodes", asking);
     if (!made)
         return;
@@ -2658,14 +2691,15 @@ function listenToPalette(state, panel) {
         .querySelector("[data-graph-palette-close]")) === null || _b === void 0 ? void 0 : _b.addEventListener("click", () => toggleGraphPalette(state, false));
     panel.querySelectorAll("[data-palette]").forEach((item) => {
         var _a;
-        var _b, _c;
+        var _b, _c, _d;
         const kind = item.dataset["palette"];
         if (kind === undefined)
             return;
-        // A plugin's row says which of its boxes it is; every other kind is the
-        // whole answer by itself.
-        const which = (_b = item.dataset["pluginNode"]) !== null && _b !== void 0 ? _b : "";
-        const named = (_c = (_a = item.querySelector(".palette-text strong")) === null || _a === void 0 ? void 0 : _a.textContent) !== null && _c !== void 0 ? _c : "";
+        // A plugin's row says which of its boxes it is, and a source row says
+        // which kind of somewhere it watches. Every other kind is the whole
+        // answer by itself.
+        const which = (_c = (_b = item.dataset["pluginNode"]) !== null && _b !== void 0 ? _b : item.dataset["sourceKind"]) !== null && _c !== void 0 ? _c : "";
+        const named = (_d = (_a = item.querySelector(".palette-text strong")) === null || _a === void 0 ? void 0 : _a.textContent) !== null && _d !== void 0 ? _d : "";
         item.addEventListener("pointerdown", (event) => {
             event.preventDefault();
             beginGraphDrop(state, event, kind, which, named);

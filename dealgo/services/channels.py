@@ -72,6 +72,7 @@ def add_source(
     http: httpx.Client,
     *,
     backfill_days: int | None = None,
+    within: str = "",
     owner: OwnerId = None,
 ) -> Channel:
     """Start watching something, whatever kind of somewhere it is.
@@ -80,10 +81,14 @@ def add_source(
     at its word and checked by being read, which is the only honest test of a
     feed anyway — the exception being a YouTube handle, which no plugin can
     finish because resolving one needs the account's Google connection.
+
+    ``within`` is the kind of box it was typed into, when it was typed into
+    one. That box was dragged out on purpose, so its kind is asked first and
+    asked more generously than a reference nobody has placed.
     """
     typed = (reference or "").strip()
     try:
-        found = sources.resolve(typed)
+        found = sources.resolve(typed, within=within)
     except sources.UnknownSource as exc:
         raise ChannelError(str(exc)) from exc
 

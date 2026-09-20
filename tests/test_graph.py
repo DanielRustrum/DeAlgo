@@ -701,12 +701,19 @@ def test_a_channel_box_arrives_empty_and_is_told_what_it_is(canvas, db):
     stands for nothing, which is a state the rest of the app must tolerate."""
     from dealgo.models import Channel as ChannelModel
 
-    payload = canvas.post("/graph/nodes", data={"kind": "source", "x": 40, "y": 60}).json()
+    payload = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "youtube", "x": 40, "y": 60}).json()
     empty = [node for node in boxes(payload, "source") if node["detail"] is None]
     assert len(empty) == 1
-    assert empty[0]["title"] == "New channel"
-    # It says what it needs without naming one kind of somewhere: a box takes
-    # a handle, an r/ community, a Bluesky account or a feed address.
+    # Named after the kind it was dragged out as. There is no one Channel
+    # box any more: you pick the kind by picking the box, and the box says
+    # which it is while it waits to be filled in.
+    assert empty[0]["title"] == "New YouTube channel"
+    assert empty[0]["asks"] == {
+        "kind": "youtube",
+        "label": "YouTube channel",
+        "example": "@handle, a channel URL, or a UC… id",
+        "known": True,
+    }
     assert "open it" in empty[0]["note"]
     assert (empty[0]["x"], empty[0]["y"]) == (40, 60)
 
@@ -717,7 +724,9 @@ def test_a_channel_box_arrives_empty_and_is_told_what_it_is(canvas, db):
 
 
 def test_a_channel_that_youtube_does_not_have_is_refused_with_a_reason(canvas):
-    payload = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    payload = canvas.post(
+        "/graph/nodes", data={"kind": "source", "source_kind": "youtube"}
+    ).json()
     empty = [node for node in boxes(payload, "source") if node["detail"] is None][0]
 
     answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "@nobody"})
@@ -736,7 +745,7 @@ def test_a_source_box_takes_somewhere_that_is_not_youtube(canvas, db, monkeypatc
         "fetch",
         lambda _url, _http: syndication.Feed(title="r/python", items=[]),
     )
-    payload = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    payload = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(payload, "source") if node["detail"] is None][0]
 
     answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "r/python"})
@@ -763,7 +772,7 @@ def add_reddit(canvas, db, monkeypatch, *, items=()):
     monkeypatch.setattr(
         syndication, "fetch", lambda _url, _http: syndication.Feed(title="r/python", items=[])
     )
-    drawn = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    drawn = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(drawn, "source") if node["detail"] is None][0]
     canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "r/python"})
 
@@ -848,11 +857,11 @@ def test_a_source_already_watched_is_attached_however_it_was_written(canvas, db,
         "fetch",
         lambda _url, _http: syndication.Feed(title="r/python", items=[]),
     )
-    first = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    first = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(first, "source") if node["detail"] is None][0]
     canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "r/python"})
 
-    second = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    second = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     other = [node for node in boxes(second, "source") if node["detail"] is None][0]
     answer = canvas.post(
         f"/graph/nodes/{other['id']}", data={"handle": "https://www.reddit.com/r/python/"}
@@ -2954,7 +2963,7 @@ def test_a_channel_already_watched_is_attached_rather_than_refused(canvas, db):
     differently, which is worth being able to draw."""
     from dealgo.models import Channel as ChannelModel
 
-    payload = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    payload = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(payload, "source") if node["detail"] is None][0]
 
     saved = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "UCone"}).json()
@@ -3370,7 +3379,7 @@ def test_a_node_that_stands_for_nothing_yet_can_be_taken_away(canvas, db):
     with db.session_scope() as session:
         channel_service.set_tags(session, session.scalars(select(ChannelModel)).one(), "news")
 
-    added = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    added = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(added, "source") if node["detail"] is None][0]
     gone = canvas.post(f"/graph/nodes/{empty['id']}/delete")
     assert gone.status_code == 200
@@ -3407,9 +3416,12 @@ def test_an_empty_channel_node_can_be_pointed_at_a_source_already_watched(canvas
     from dealgo.models import Channel as ChannelModel
 
     drawn = canvas.get("/api/graph").json()
-    assert drawn["sources"] == [{"id": 1, "title": "One Channel"}]
+    # Each carries its kind, so an empty box offers only the ones it could
+    # actually be: a Subreddit box that offered a YouTube channel would be
+    # offering something it cannot become.
+    assert drawn["sources"] == [{"id": 1, "title": "One Channel", "kind": "youtube"}]
 
-    added = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    added = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(added, "source") if node["detail"] is None][0]
 
     saved = canvas.post(
@@ -3425,7 +3437,7 @@ def test_an_empty_channel_node_can_be_pointed_at_a_source_already_watched(canvas
 
 
 def test_a_source_that_is_not_yours_cannot_be_pointed_at(canvas):
-    added = canvas.post("/graph/nodes", data={"kind": "source"}).json()
+    added = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(added, "source") if node["detail"] is None][0]
 
     answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"source_pk": "999"})
@@ -3455,3 +3467,91 @@ def test_searching_the_source_list_matches_the_way_the_app_does(canvas_report):
     # Nothing typed, or only spaces, narrows nothing rather than everything.
     assert searching["empty"] is True
     assert searching["spacesOnly"] is True
+
+
+# -- a source box is a box for one kind of somewhere -----------------------
+
+
+def test_a_box_for_a_kind_nobody_provides_is_refused(canvas):
+    """Refused where it is dragged out rather than discovered when nothing
+    typed into it is ever accepted."""
+    answer = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "gopher"})
+
+    assert answer.status_code == 400
+    assert "no source of that kind" in answer.json()["error"]
+
+
+def test_a_source_box_with_no_kind_at_all_is_refused(canvas):
+    """There is no generic source box. Dropping one with nothing to say what
+    it watches would put a box on the canvas that can never be filled in."""
+    answer = canvas.post("/graph/nodes", data={"kind": "source"})
+
+    assert answer.status_code == 400
+
+
+def test_a_box_reads_what_is_typed_the_way_its_own_kind_would(canvas, db, monkeypatch):
+    """"python" is not a subreddit to anybody in general. It is one in a
+    Subreddit box, which is the whole reason the box has a kind."""
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(
+        syndication, "fetch", lambda _url, _http: syndication.Feed(title="r/python", items=[])
+    )
+    drawn = canvas.post(
+        "/graph/nodes", data={"kind": "source", "source_kind": "reddit"}
+    ).json()
+    empty = [node for node in boxes(drawn, "source") if node["detail"] is None][0]
+
+    answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "python"})
+
+    assert answer.status_code == 200
+    with db.session_scope() as session:
+        made = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
+        assert made is not None and made.source_kind == "reddit"
+
+
+def test_what_a_box_refuses_names_its_own_kind(canvas):
+    drawn = canvas.post(
+        "/graph/nodes", data={"kind": "source", "source_kind": "reddit"}
+    ).json()
+    empty = [node for node in boxes(drawn, "source") if node["detail"] is None][0]
+
+    answer = canvas.post(f"/graph/nodes/{empty['id']}", data={"handle": "!!!"})
+
+    assert answer.status_code == 400
+    assert "Reddit" in answer.json()["error"]
+
+
+def test_a_box_from_before_kinds_still_draws_and_can_be_pointed_somewhere(canvas, db):
+    """Nothing makes one any more, but a canvas built earlier may hold one and
+    must not become unreadable because of it."""
+    from dealgo.models import GraphNode
+
+    with db.session_scope() as session:
+        session.add(GraphNode(kind="source", x=0, y=0))
+
+    payload = canvas.get("/api/graph").json()
+    stale = [
+        node for node in boxes(payload, "source")
+        if node["detail"] is None and node["asks"] is not None and node["asks"]["kind"] == ""
+    ]
+
+    assert len(stale) == 1
+    assert stale[0]["title"] == "New channel"
+
+
+def test_a_box_whose_plugin_was_switched_off_says_so(canvas, db, monkeypatch):
+    """Rather than drawing a box that silently refuses everything typed in."""
+    from dealgo.models import GraphNode
+
+    with db.session_scope() as session:
+        session.add(GraphNode(kind="source", source_kind="gopher", x=0, y=0))
+
+    payload = canvas.get("/api/graph").json()
+    lost = [
+        node for node in boxes(payload, "source")
+        if node["asks"] is not None and node["asks"]["kind"] == "gopher"
+    ][0]
+
+    assert lost["asks"]["known"] is False

@@ -22,7 +22,7 @@ from .kinds import (
     UnknownSource,
     describe,
     item_url,
-    kinds,
+    all_kinds,
     resolve,
     suggest_mirror,
 )
@@ -34,7 +34,7 @@ __all__ = [
     "SourceKind",
     "UnknownSource",
     "describe",
-    "kinds",
+    "all_kinds",
     "resolve",
     "item_url",
     "suggest_mirror",

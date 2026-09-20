@@ -1626,21 +1626,27 @@ def add_source(
     *,
     channel: Channel | None = None,
     tag: str | None = None,
+    source_kind: str = "",
     x: int = 0,
     y: int = 0,
 ) -> GraphNode:
     """A box for a channel — which may not have been named yet.
 
-    A channel box is dropped on the canvas first and told which channel it is
-    afterwards, by typing an @handle into it. Until then it stands for nothing,
-    and everything that walks the graph skips it: an empty box cannot route
+    A source box is dropped on the canvas first and told which source it is
+    afterwards, by typing into it. Until then it stands for nothing, and
+    everything that walks the graph skips it: an empty box cannot route
     anything, and saying so is better than refusing to make one.
+
+    It does know which *kind* of somewhere it is for, because that is what
+    was dragged out of the palette. That is the whole reason the box knows
+    what to ask for: a Subreddit box asks for a subreddit.
     """
     node = GraphNode(
         owner_pk=owner,
         kind="source",
         channel_pk=channel.id if channel is not None else None,
         tag=" ".join((tag or "").split()).lower() or None,
+        source_kind=(source_kind or "").strip() or None,
         x=x,
         y=y,
     )

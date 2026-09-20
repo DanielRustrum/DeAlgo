@@ -51,15 +51,28 @@ class SourceKind:
     playlistable: bool = False
     #: Which plugin offers it, or "" for the one kind that is not a plugin.
     plugin: str = ""
+    #: What its box is called on the canvas. You drag out the kind you want,
+    #: so the box has to say which kind that is.
+    noun: str = ""
+    #: The line under that name in the palette.
+    blurb: str = ""
 
 
 #: The floor. Not a plugin, because every plugin's parsing is built on it and
 #: because something has to catch an address nobody claims.
-RSS = SourceKind("rss", "RSS", "the address of any feed", plugin="")
+RSS = SourceKind(
+    "rss", "RSS", "the address of any feed", plugin="",
+    noun="Feed address",
+    blurb="Any RSS or Atom feed, by its address. The one that fits everything else.",
+)
 
 
-def kinds() -> tuple[SourceKind, ...]:
+def all_kinds() -> tuple[SourceKind, ...]:
     """Every kind of somewhere that can be watched, plugins first.
+
+    Not called `kinds`, which is this module's own name: `from ..sources
+    import kinds` then gives back the function rather than the module, and
+    the mistake reads perfectly until something is called on it.
 
     Asked rather than listed, so a plugin dropped in the folder shows up on
     the Sources page without anything here being edited.
@@ -73,6 +86,8 @@ def kinds() -> tuple[SourceKind, ...]:
             example=kind.example,
             playlistable=kind.playlistable,
             plugin=kind.plugin,
+            noun=kind.noun,
+            blurb=kind.blurb,
         )
         for kind in registry.current().source_kinds()
     )
@@ -85,16 +100,22 @@ def describe(kind: str) -> SourceKind:
     A row stored by a plugin that has since been removed still has to draw:
     the item is in a feed, and "reddit" is a better label than a stack trace.
     """
-    for known in kinds():
+    for known in all_kinds():
         if known.name == kind:
             return known
     return SourceKind(kind, kind.title(), "")
 
 
-def resolve(reference: str) -> Resolved:
+def resolve(reference: str, *, within: str = "") -> Resolved:
     """Work out what somebody has typed, without asking anybody.
 
-    The plugins first, then RSS. A certain answer beats a guess — a Bluesky
+    ``within`` is the kind whose box it was typed into. That box was dragged
+    out on purpose, so its own kind is asked first and asked more generously:
+    a bare "python" in a Subreddit box is r/python, which is not something
+    anybody could conclude from the word alone.
+
+    Without a kind — which now means an address pasted into the Sources page
+    — every plugin is asked and a certain answer beats a guess: a Bluesky
     handle may be any domain, so "name.substack.com" is a newsletter rather
     than an account with an unusual name.
     """
@@ -103,6 +124,29 @@ def resolve(reference: str) -> Resolved:
     typed = (reference or "").strip()
     if not typed:
         raise UnknownSource("Give it something to watch.")
+
+    if within and within != RSS.name:
+        said = registry.current().accept(within, typed)
+        if said is not None:
+            return Resolved(
+                kind=said.kind,
+                key=said.key,
+                feed_url=said.feed_url,
+                title=said.title,
+                needs_host=said.needs_host,
+            )
+        raise UnknownSource(
+            f"“{typed}” is not something {describe(within).label} recognises. "
+            f"Try {describe(within).example}."
+        )
+    if within == RSS.name:
+        # The box that takes an address takes an address, and whether it is
+        # a feed is settled by reading it rather than by its spelling.
+        url = typed if "://" in typed else f"https://{typed.lstrip('/')}"
+        host = (urlparse(url).hostname or "").lower()
+        if not host:
+            raise UnknownSource(f"“{typed}” is not an address.")
+        return Resolved(kind=RSS.name, key=url, feed_url=url, title=host)
 
     found = registry.current().recognise(typed)
     if found is not None:

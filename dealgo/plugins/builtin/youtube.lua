@@ -355,7 +355,21 @@ return {
       kind = "youtube",
       label = "YouTube",
       example = "@handle, a channel URL, or a UC… id",
+      noun = "YouTube channel",
+      blurb = "One channel. Uploads, and community posts if you want them.",
       playlistable = true,
+
+      -- Asked when the box is already a YouTube box. A bare word here is
+      -- a channel to go and look up, which `recognise` cannot assume of a
+      -- reference nobody has placed yet — "python" is not YouTube's to
+      -- claim until somebody says it is.
+      accept = function(typed)
+        local name = string.match(typed, "^[%w_%-%. ]+$")
+        if name and not string.find(name, "^UC") then
+          return ask_host(name)
+        end
+        return nil
+      end,
 
       recognise = function(reference)
         -- A channel id, which needs no credentials at all.

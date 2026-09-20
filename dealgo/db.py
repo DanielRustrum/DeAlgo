@@ -139,6 +139,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # Boxes a plugin put in the palette: which one, and what its fields say.
     ("graph_node", "plugin_ref", "VARCHAR(80)"),
     ("graph_node", "plugin_settings", "TEXT"),
+    # Which kind of somewhere a source box is for. Nullable: every source box
+    # that came before this was the one generic kind, and an empty one of
+    # those can still be pointed at something already watched.
+    ("graph_node", "source_kind", "VARCHAR(24)"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

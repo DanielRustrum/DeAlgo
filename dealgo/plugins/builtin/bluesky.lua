@@ -21,9 +21,30 @@ return {
   sources = {
     {
       kind = "bluesky",
+      noun = "Bluesky account",
+      blurb = "One account. Its posts, as they are made.",
       label = "Bluesky",
       example = "@name.bsky.social, or a profile URL",
       playlistable = false,
+
+      -- Asked when the box is already a Bluesky box. A handle here is a
+      -- handle: the guessing in `recognise` below exists only because an
+      -- account may be any domain, and there is nothing left to guess once
+      -- somebody has dragged this box out and typed into it.
+      accept = function(typed)
+        local handle = string.match(typed, "^@?([A-Za-z0-9%-%.]+)$")
+        if not handle or string.find(handle, "%.%.") then
+          return nil
+        end
+        if not string.find(handle, "%.") then
+          -- No dot: they meant the one on Bluesky's own domain.
+          handle = handle .. ".bsky.social"
+        end
+        if string.sub(handle, 1, 1) == "." or string.sub(handle, -1) == "." then
+          return nil
+        end
+        return account(handle)
+      end,
 
       recognise = function(reference)
         local host, path = string.match(reference, "^https?://([^/]+)(/.*)$")

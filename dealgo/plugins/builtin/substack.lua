@@ -24,9 +24,22 @@ return {
   sources = {
     {
       kind = "substack",
+      noun = "Newsletter",
+      blurb = "One Substack. Every piece as it goes out.",
       label = "Substack",
       example = "name.substack.com",
       playlistable = false,
+
+      -- Asked when the box is already a Newsletter box, so a bare name is
+      -- the newsletter of that name on Substack's own domain — which is how
+      -- almost all of them are addressed.
+      accept = function(typed)
+        local name = string.match(typed, "^([A-Za-z0-9%-]+)$")
+        if name then
+          return publication(string.lower(name) .. ".substack.com")
+        end
+        return nil
+      end,
 
       recognise = function(reference)
         local host = string.match(reference, "^https?://([^/]+)")

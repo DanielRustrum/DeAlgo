@@ -23,9 +23,22 @@ return {
       kind = "reddit",
       label = "Reddit",
       example = "r/python, or a subreddit URL",
+      noun = "Subreddit",
+      blurb = "One community. Everything it posts.",
       -- A Reddit post is not a YouTube video, so it can only fill a feed
       -- that lives inside De-Algo.
       playlistable = false,
+
+      -- Asked when the box is already a Subreddit box, so a bare name is
+      -- a subreddit rather than a guess about one. Nobody drags this out
+      -- and types the name of a newsletter.
+      accept = function(typed)
+        local name = string.match(typed, "^([A-Za-z0-9_]+)$")
+        if name and #name >= 2 and #name <= 30 then
+          return subreddit(name)
+        end
+        return nil
+      end,
 
       recognise = function(reference)
         -- Typed as a community: "r/name", or "/r/name", with or without a

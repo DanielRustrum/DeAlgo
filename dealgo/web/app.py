@@ -757,7 +757,7 @@ def sources_page(request: Request) -> HTMLResponse:
         context = {
             "channels": channel_service.list_channels(session, owner),
             "tags": channel_service.all_tags(session, owner),
-            "kinds": sources.kinds(),
+            "kinds": sources.all_kinds(),
         }
     return render(request, "sources.html", context)
 
@@ -823,17 +823,38 @@ def channels_page(
 
 
 def _palette_plugins() -> list[Context]:
-    """What the plugins put in the palette, grouped by the plugin that
-    offers them.
+    """What the plugins put in the palette, grouped by the plugin offering it.
+
+    A plugin's source box comes first in its own group, because that is the
+    box somebody is looking for: there is no generic Channel box any more,
+    and the way to watch a subreddit is to drag out the Subreddit box.
 
     In the order the registry read them, so the palette is the same on every
     visit. A plugin offering nothing is left out entirely rather than shown
     as an empty heading, which would be a question about nothing.
     """
     found = registry.current()
-    grouped: dict[str, list[registry.NodeKind]] = {}
+    grouped: dict[str, list[Context]] = {}
+    for kind in found.source_kinds():
+        grouped.setdefault(kind.plugin, []).append(
+            {
+                "palette": "source",
+                "ref": kind.kind,
+                "label": kind.noun or kind.label,
+                "blurb": kind.blurb or f"One {kind.label} source.",
+                "swatch": "source",
+            }
+        )
     for node in found.node_kinds():
-        grouped.setdefault(node.plugin, []).append(node)
+        grouped.setdefault(node.plugin, []).append(
+            {
+                "palette": "plugin",
+                "ref": node.ref,
+                "label": node.label,
+                "blurb": node.blurb,
+                "swatch": "plugin",
+            }
+        )
     return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
 def _channel_list_response(
     request: Request,
@@ -1972,12 +1993,21 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
         for node in nodes
         if node.kind == "source" and node.tag
     }
+    # What each empty source box is waiting to be told, worked out once per
+    # node because the title and the form both want it.
+    asking = {
+        node.id: _asks_for(node) for node in nodes if node.kind == "source"
+    }
     return {
         "nodes": [
             {
                 "id": node.id,
                 "kind": node.kind,
-                "title": node.title,
+                # An empty source box is named after the kind it was dragged
+                # out as — "New Subreddit". Said here rather than on the model
+                # because the pretty name is the plugin's and the model must
+                # be readable without asking which plugins are loaded.
+                "title": _box_title(node, asking.get(node.id)),
                 "x": node.x,
                 "y": node.y,
                 "detail": (
@@ -1998,6 +2028,11 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 "polled": _how_polled(node, plan) if node.kind == "source" else None,
                 "plugin": _plugin_facts(node) if node.kind == "plugin" else None,
                 "channel": facts.get(node.channel_pk or 0) if node.kind == "source" else None,
+                # Which kind of somewhere an empty box is for, and what to
+                # type into it. Sent per box rather than looked up in the
+                # browser, because the palette is the only other place that
+                # knows and a second copy would be a second thing to keep up.
+                "asks": asking.get(node.id) if node.kind == "source" else None,
                 "tag": (
                     None
                     if not (node.kind == "source" and node.tag)
@@ -2052,13 +2087,49 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
             for node in nodes
         ],
         "wires": graph_service.wires(session, owner),
-        # What is already watched, for a channel node to be pointed at rather
-        # than told again. Sent once for the whole canvas: every empty channel
-        # node offers the same list.
+        # What is already watched, for a source node to be pointed at rather
+        # than told again. Sent once for the whole canvas: every empty source
+        # node offers the same list, narrowed in the browser to its own kind.
         "sources": [
-            {"id": channel.id, "title": channel.title or channel.channel_id}
+            {
+                "id": channel.id,
+                "title": channel.title or channel.channel_id,
+                "kind": channel.source_kind,
+            }
             for channel in channel_service.list_channels(session, owner)
         ],
+    }
+
+
+def _box_title(node: GraphNode, asks: Context | None) -> str:
+    """What a box calls itself on the canvas."""
+    if asks is None or not asks.get("label"):
+        return node.title
+    return f"New {asks['label']}"
+
+
+def _asks_for(node: GraphNode) -> Context | None:
+    """What an empty source box is for, and what to type into it.
+
+    None for a tag box and for one that already has its channel: neither is
+    asking anything. A box from before sources had kinds has no kind to
+    report, and the canvas offers it the one thing that still makes sense —
+    something already being watched.
+    """
+    if node.tag or node.channel_pk:
+        return None
+    wanted = (node.source_kind or "").strip()
+    if not wanted:
+        return {"kind": "", "label": "", "example": "", "known": False}
+    known = sources.describe(wanted)
+    return {
+        "kind": wanted,
+        "label": known.noun or known.label,
+        "example": known.example,
+        # False when the plugin that offered this kind has been switched off
+        # or removed, which is worth saying rather than drawing an empty box
+        # that refuses everything typed into it.
+        "known": any(one.name == wanted for one in sources.all_kinds()),
     }
 
 
@@ -2382,6 +2453,7 @@ def graph_add_node(
     kind: str = Form(...),
     title: str = Form(""),
     plugin_node: str = Form(""),
+    source_kind: str = Form(""),
     x: int = Form(0),
     y: int = Form(0),
 ) -> JSONResponse:
@@ -2395,7 +2467,13 @@ def graph_add_node(
     owner = owner_of(request)
     with session_scope() as session:
         if kind == "source":
-            graph_service.add_source(session, owner, x=x, y=y)
+            wanted = source_kind.strip()
+            if not wanted or wanted not in {known.name for known in sources.all_kinds()}:
+                return JSONResponse(
+                    {"error": "There is no source of that kind. Its plugin may be off."},
+                    status_code=400,
+                )
+            graph_service.add_source(session, owner, source_kind=wanted, x=x, y=y)
         elif kind == "tagged":
             # Named now rather than filled in later: an untagged tag node
             # stands for nothing, and would draw as a node with no meaning.
@@ -3035,13 +3113,15 @@ def _attach_channel(
 
     with sync_service.http_client() as http:
         try:
-            # Whatever kind of somewhere it is: a handle, an r/ community, a
-            # Bluesky account, a Substack, or the address of a feed.
+            # Within the kind this box was dragged out as, so what is typed
+            # is read the way somebody typing into that box meant it: "python"
+            # in a Subreddit box is r/python and nothing else.
             channel = channel_service.add_source(
                 session,
                 wanted,
                 http,
                 backfill_days=channel_service.parse_backfill(backfill),
+                within=node.source_kind or "",
                 owner=owner,
             )
         except channel_service.ChannelError as exc:

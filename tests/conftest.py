@@ -30,6 +30,21 @@ def db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def fresh_plugins():
+    """A registry built against this test's database, not the last one's.
+
+    What a registry offers depends on rows saying which plugins are off and
+    what each is granted, so one cached across a database swap is a registry
+    answering about somewhere else.
+    """
+    from dealgo.plugins import registry
+
+    registry.forget()
+    yield
+    registry.forget()
+
+
+@pytest.fixture(autouse=True)
 def no_community_scraping(monkeypatch, request):
     """A source's extras come from a live page, so no test may reach for one.
 

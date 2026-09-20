@@ -109,10 +109,34 @@
   </li>
 {%- endmacro %}
 
-        {# A channel and a feed are what every graph is made of, so they are
-           not filed under anything. What is optional is folded away. #}
+{# A plugin's own box. Two shapes come through here — the source kinds it
+   provides and the filter boxes it adds — and they differ only in which
+   attribute the canvas reads back. #}
+{% macro plugin_row(node, plugin) -%}
+  <li class="palette-item" data-palette="{{ node.palette }}"
+      {% if node.palette == 'source' %}data-source-kind="{{ node.ref }}"
+      {% else %}data-plugin-node="{{ node.ref }}"{% endif %}
+      tabindex="0" role="button">
+    <span class="palette-swatch kind-{{ node.swatch }}"></span>
+    <span class="palette-text">
+      <strong>{{ node.label }}</strong>
+      <span class="palette-blurb">{{ node.blurb or 'From ' ~ plugin ~ '.' }}</span>
+    </span>
+  </li>
+{%- endmacro %}
+
+        {# A feed is what every graph ends at, so it is not filed under
+           anything. Nor is the one source kind that is not a plugin's: an
+           address is the floor everything else is built on. #}
         <ul class="palette-list">
-          {{ node_row('source', 'Channel', 'One channel, named here.') }}
+          <li class="palette-item" data-palette="source" data-source-kind="rss"
+              tabindex="0" role="button">
+            <span class="palette-swatch kind-source"></span>
+            <span class="palette-text">
+              <strong>Feed address</strong>
+              <span class="palette-blurb">Any RSS or Atom feed, by its address.</span>
+            </span>
+          </li>
           {{ node_row('tagged', 'Tag', 'Every source carrying a tag. Tag them on the Sources page.') }}
           {{ node_row('feed', 'Feed', 'Where things end up. Lives inside De-Algo.') }}
         </ul>
@@ -142,32 +166,14 @@
           <summary>Plugins</summary>
           {% for offered in plugin_nodes %}
             {% if offered.nodes | length == 1 %}
-              {% set node = offered.nodes[0] %}
               <ul class="palette-list">
-                <li class="palette-item" data-palette="plugin" data-plugin-node="{{ node.ref }}"
-                    tabindex="0" role="button">
-                  <span class="palette-swatch kind-plugin"></span>
-                  <span class="palette-text">
-                    <strong>{{ node.label }}</strong>
-                    <span class="palette-blurb">
-                      {{ node.blurb or 'From ' ~ offered.plugin ~ '.' }}</span>
-                  </span>
-                </li>
+                {{ plugin_row(offered.nodes[0], offered.plugin) }}
               </ul>
             {% else %}
               <details class="palette-group palette-nested">
                 <summary>{{ offered.plugin }}</summary>
                 <ul class="palette-list">
-                  {% for node in offered.nodes %}
-                  <li class="palette-item" data-palette="plugin" data-plugin-node="{{ node.ref }}"
-                      tabindex="0" role="button">
-                    <span class="palette-swatch kind-plugin"></span>
-                    <span class="palette-text">
-                      <strong>{{ node.label }}</strong>
-                      <span class="palette-blurb">{{ node.blurb }}</span>
-                    </span>
-                  </li>
-                  {% endfor %}
+                  {% for node in offered.nodes %}{{ plugin_row(node, offered.plugin) }}{% endfor %}
                 </ul>
               </details>
             {% endif %}

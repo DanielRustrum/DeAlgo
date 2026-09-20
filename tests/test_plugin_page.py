@@ -562,3 +562,44 @@ def test_a_member_cannot_change_what_a_plugin_may_do(admin, here):
     assert refused.status_code in (302, 303, 403)
     plugin = next(p for p in registry.current().plugins if p.id == "asks")
     assert plugin.granted == frozenset()
+
+
+# -- a plugin's source box in the palette ----------------------------------
+
+
+def palette(client) -> str:
+    html = client.get("/channels").text
+    start = html.index('class="graph-palette"')
+    return html[start : html.index("</aside>", start)]
+
+
+def test_a_plugin_offers_its_source_box_beside_its_filters(admin):
+    """The way to watch a subreddit is to drag out the Subreddit box. There is
+    no generic Channel box to drag out instead."""
+    drawer = palette(admin)
+
+    assert 'data-source-kind="youtube"' in drawer
+    assert "YouTube channel" in drawer
+    assert 'data-source-kind="reddit"' in drawer
+    assert "Subreddit" in drawer
+
+
+def test_the_only_source_box_that_is_not_a_plugins_is_the_address_one():
+    """RSS is the floor every plugin's parsing is built on, so it is not
+    filed under Plugins with the rest."""
+    from dealgo.sources import kinds
+
+    assert kinds.RSS.noun == "Feed address"
+    assert kinds.RSS.plugin == ""
+
+
+def test_a_paused_plugin_takes_its_source_box_with_it(admin):
+    """It offers nothing while it is off, and a box for a kind nothing
+    provides is a box that refuses everything typed into it."""
+    admin.post("/admin/plugins/reddit/pause", data={"paused": "1"})
+    try:
+        drawer = palette(admin)
+        assert 'data-source-kind="reddit"' not in drawer
+        assert 'data-source-kind="youtube"' in drawer
+    finally:
+        admin.post("/admin/plugins/reddit/pause", data={"paused": ""})

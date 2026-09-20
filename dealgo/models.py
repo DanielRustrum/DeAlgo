@@ -346,9 +346,9 @@ class Channel(Base):
         The plugin's own claim, not a name checked here. It is what decides
         whether a wire to a service feed could ever carry anything.
         """
-        from .sources.kinds import describe
+        from .sources import kinds
 
-        return describe(self.source_kind).playlistable
+        return kinds.describe(self.source_kind).playlistable
 
     @property
     def feed_url(self) -> str:
@@ -360,9 +360,9 @@ class Channel(Base):
         """
         if self.source_url:
             return self.source_url
-        from .sources.kinds import feed_url
+        from .sources import kinds
 
-        return feed_url(self.source_kind, self.channel_id) or ""
+        return kinds.feed_url(self.source_kind, self.channel_id) or ""
 
     @property
     def url(self) -> str:
@@ -372,9 +372,9 @@ class Channel(Base):
         branch per service, which is exactly the knowledge that stopped
         being the host's.
         """
-        from .sources.kinds import home_url
+        from .sources import kinds
 
-        return home_url(self.source_kind, self.channel_id) or self.channel_id
+        return kinds.home_url(self.source_kind, self.channel_id) or self.channel_id
 
 
 class Video(Base):
@@ -638,6 +638,13 @@ class GraphNode(Base):
     plugin_ref: Mapped[Optional[str]] = mapped_column(String(80))
     plugin_settings: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Source boxes only: which kind of somewhere this box is for. Set when it
+    # is dragged out, because there is no one Channel box any more — you pick
+    # the kind by picking the box, and an empty box has to remember which one
+    # it is between being dropped and being filled in. Once it has a channel
+    # the channel's own kind is the truth and this is only how it started.
+    source_kind: Mapped[Optional[str]] = mapped_column(String(24))
+
     # Sort nodes only: what to order the batch by, and which way round.
     sort_by: Mapped[Optional[str]] = mapped_column(String(16))
     sort_dir: Mapped[Optional[str]] = mapped_column(String(4))
@@ -691,9 +698,12 @@ class GraphNode(Base):
             # "shape:not-shouting" reads back as "Not shouting".
             named = (self.plugin_ref or "").split(":")[-1].replace("-", " ").replace("_", " ")
             return named[:1].upper() + named[1:] if named else "Plugin"
-        # An empty box, waiting to be told what it stands for.
+        # An empty box, waiting to be told what it stands for. Named after
+        # the kind it was dragged out as, so a canvas with three empty boxes
+        # on it says which is which.
         if self.kind == "source":
-            return "New channel"
+            named = (self.source_kind or "").strip()
+            return f"New {named}" if named else "New channel"
         return "New feed" if self.kind == "feed" else "Filter"
 
     @property

@@ -14,7 +14,7 @@ import datetime as dt
 import pytest
 
 from dealgo import sources
-from dealgo.sources import syndication
+from dealgo.sources import kinds, syndication
 
 
 # -- what somebody typed ---------------------------------------------------
@@ -102,7 +102,7 @@ def test_an_address_nobody_claims_is_read_as_a_feed():
 def test_every_kind_says_which_plugin_offers_it():
     """Four plugins and one floor, so the Sources page can say where each
     came from and the Admin page can say what a plugin is for."""
-    by_name = {kind.name: kind for kind in sources.kinds()}
+    by_name = {kind.name: kind for kind in sources.all_kinds()}
 
     assert by_name["youtube"].plugin == "YouTube"
     assert by_name["reddit"].plugin == "Reddit"
@@ -307,3 +307,62 @@ def test_the_words_of_a_post_are_unescaped():
     item = syndication.parse(REDDIT_WITH_A_PICTURE).items[0]
 
     assert item.summary == "Any ideas?"
+
+
+# -- a box knows which kind it is ------------------------------------------
+#
+# There is no generic source box any more. You pick the kind by picking the
+# box out of the palette, which means the box can ask for what that kind
+# actually looks like — and can read what is typed the way somebody typing
+# into that box meant it.
+
+
+@pytest.mark.parametrize(
+    ("kind", "typed", "key"),
+    [
+        ("reddit", "python", "r/python"),
+        ("reddit", "r/python", "r/python"),
+        ("bluesky", "jay", "@jay.bsky.social"),
+        ("bluesky", "me.example.com", "@me.example.com"),
+        ("substack", "astralcodexten", "astralcodexten.substack.com"),
+    ],
+)
+def test_a_bare_name_means_what_the_box_it_was_typed_into_means(kind, typed, key):
+    """"python" is not a subreddit to anybody in general. It is one to a
+    Subreddit box, which is the whole reason the box has a kind."""
+    assert kinds.resolve(typed, within=kind).key == key
+
+
+def test_a_guess_stops_being_a_guess_once_the_kind_is_settled():
+    """A Bluesky handle may be any domain, so nothing can be sure "me.example.com"
+    is one — until somebody drags out the Bluesky box and types it in."""
+    assert kinds.resolve("me.example.com", within="bluesky").kind == "bluesky"
+    # Asked of nobody in particular, the same words are only ever a guess,
+    # and a plugin certain about them would win.
+    from dealgo.plugins import registry
+
+    said = registry.current().recognise("me.example.com")
+    assert said is not None and said.guess
+
+
+def test_what_a_box_refuses_says_what_that_box_wants():
+    with pytest.raises(kinds.UnknownSource) as refused:
+        kinds.resolve("!!!", within="reddit")
+
+    assert "Reddit" in str(refused.value)
+    assert "r/python" in str(refused.value)  # its own example, not a generic one
+
+
+def test_the_address_box_takes_an_address_and_asks_nobody():
+    """Whether it is a feed is settled by reading it, not by its spelling."""
+    found = kinds.resolve("example.com/atom.xml", within="rss")
+
+    assert (found.kind, found.feed_url) == ("rss", "https://example.com/atom.xml")
+
+
+def test_every_kind_says_what_its_box_is_called_and_what_to_type():
+    """The palette draws from this, so a kind with nothing to say here would
+    be a row nobody can read."""
+    for kind in kinds.all_kinds():
+        assert kind.noun, kind.name
+        assert kind.example, kind.name

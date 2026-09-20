@@ -594,7 +594,7 @@ def test_the_source_picker_only_offers_your_own(two_accounts):
 
     assert client.get("/api/graph").json()["sources"] == []
 
-    added = client.post("/graph/nodes", data={"kind": "source"}).json()
+    added = client.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in added["nodes"] if node["kind"] == "source"][0]
     refused = client.post(f"/graph/nodes/{empty['id']}", data={"source_pk": "1"})
     assert refused.status_code == 400

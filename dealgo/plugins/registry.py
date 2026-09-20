@@ -68,7 +68,14 @@ class SourceKind:
     playlistable: bool
     #: Which plugin this came from, for the Admin page and for errors.
     plugin: str
+    #: What its box is called on the canvas — "YouTube channel", not
+    #: "YouTube". You drag out the kind you want, so the box has to say
+    #: which kind that is.
+    noun: str = ""
+    #: The line under that name in the palette.
+    blurb: str = ""
     _recognise: Any = None
+    _accept: Any = None
     _item_url: Any = None
     _mirror: Any = None
     _refine: Any = None
@@ -291,21 +298,9 @@ class Registry:
                     continue
                 if not isinstance(said, dict):
                     continue
-                key = str(said.get("key") or "").strip()
-                if not key:
+                answer = self._read(kind, said)
+                if answer is None:
                     continue
-                answer = Recognised(
-                    kind=kind.kind,
-                    key=key,
-                    feed_url=str(said.get("feed") or "").strip(),
-                    title=str(said.get("title") or key),
-                    plugin=plugin.title,
-                    # A plugin may know what something is without being able
-                    # to finish: a YouTube @handle needs this account's Google
-                    # connection, which is not a plugin's to hold.
-                    needs_host=said.get("needs_host") is True,
-                    guess=said.get("guess") is True,
-                )
                 if not answer.guess:
                     return answer
                 guess = guess or answer
@@ -325,6 +320,45 @@ class Registry:
         """
         said = self._ask(kind, "_refine", item)
         return said if isinstance(said, dict) else {}
+
+    def _read(self, kind: SourceKind, said: dict[str, object]) -> "Recognised | None":
+        """A plugin's answer about a reference, whichever way it was asked."""
+        key = str(said.get("key") or "").strip()
+        if not key:
+            return None
+        return Recognised(
+            kind=kind.kind,
+            key=key,
+            feed_url=str(said.get("feed") or "").strip(),
+            title=str(said.get("title") or key),
+            plugin=kind.plugin,
+            # A plugin may know what something is without being able to
+            # finish: a YouTube @handle needs this account's Google
+            # connection, which is not a plugin's to hold.
+            needs_host=said.get("needs_host") is True,
+            guess=said.get("guess") is True,
+        )
+
+    def accept(self, kind: str, reference: str) -> Recognised | None:
+        """What this kind makes of something typed into one of its own boxes.
+
+        Different from `recognise`, which is asked of every plugin about a
+        reference nobody has placed yet and must therefore be sure. Here the
+        kind is already settled — somebody dragged out a Subreddit box — so
+        a bare "python" is a subreddit and not a guess about one.
+
+        A kind with nothing to add falls back to recognising, so this is
+        never worse than the old way round.
+        """
+        found = self.kind(kind)
+        if found is None:
+            return None
+        said = self._ask(kind, "_accept", reference)
+        made = self._read(found, said) if isinstance(said, dict) else None
+        if made is not None:
+            return made
+        known = self.recognise(reference)
+        return known if known is not None and known.kind == kind else None
 
     def home(self, kind: str, key: str) -> str | None:
         """Where a source itself lives, for a link out to it.
@@ -423,6 +457,20 @@ def current() -> Registry:
         if _loaded is None:
             _loaded = _everything()
         return _loaded
+
+
+def forget() -> None:
+    """Drop what was read, so the next question reads the folders again.
+
+    The registry is built from the plugins folder *and* from the database
+    rows saying what is switched off and what is granted. A test that swaps
+    the database underneath it would otherwise keep answering from the last
+    one — which is how a plugin paused in one test stayed paused for the
+    rest of the run.
+    """
+    global _loaded
+    with _lock:
+        _loaded = None
 
 
 def reload() -> Registry:
@@ -877,7 +925,10 @@ def _sources(plugin: Plugin, given: object) -> list[SourceKind]:
                 example=str(entry.get("example") or ""),
                 playlistable=entry.get("playlistable") is True,
                 plugin=plugin.title,
+                noun=str(entry.get("noun") or entry.get("label") or name.title()),
+                blurb=str(entry.get("blurb") or ""),
                 _recognise=entry.get("recognise"),
+                _accept=entry.get("accept"),
                 _item_url=entry.get("item_url"),
                 _mirror=entry.get("mirror"),
                 _refine=entry.get("refine"),

@@ -43,6 +43,9 @@ interface GraphNodeView {
   size: { width: number; height: number } | null;
   /** Channel boxes that stand for a channel: what it does. */
   channel: GraphChannel | null;
+  /** Empty source boxes: which kind of somewhere this one is for, and what
+   *  to type into it. Null once it has a channel, and for a tag box. */
+  asks: GraphAsks | null;
   /** Source boxes that stand for a tag instead of one channel. */
   tag: GraphTag | null;
   /** Feed boxes: how it fills. */
@@ -152,7 +155,7 @@ interface GraphView {
   nodes: GraphNodeView[];
   wires: GraphWireView[];
   /** What is already watched, for a channel node to be pointed at. */
-  sources: { id: number; title: string }[];
+  sources: { id: number; title: string; kind: string }[];
 }
 
 /** A drag in progress — moving a box, or pulling a new wire out of one. */
@@ -204,7 +207,7 @@ interface GraphState {
   drag: GraphDrag | null;
   ghost: SVGPathElement | null;
   /** What is already watched, for a channel node to be pointed at. */
-  sources: { id: number; title: string }[];
+  sources: { id: number; title: string; kind: string }[];
   /** What the run in flight has done to each box, while one is running. */
   run: Map<number, GraphMark>;
   /** Whether something is already asking the server where the run has got to. */
@@ -321,10 +324,22 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     sort: asGraphSort(raw["sort"]),
     size: asGraphSize(raw["size"]),
     channel: asGraphChannel(raw["channel"]),
+    asks: asGraphAsks(raw["asks"]),
     tag: asGraphTag(raw["tag"]),
     plugin: asGraphPlugin(raw["plugin"]),
     feed: asGraphFeed(raw["feed"]),
     overrides: asGraphOverrides(raw["overrides"]),
+  };
+}
+
+function asGraphAsks(value: unknown): GraphAsks | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    kind: typeof raw["kind"] === "string" ? raw["kind"] : "",
+    label: typeof raw["label"] === "string" ? raw["label"] : "",
+    example: typeof raw["example"] === "string" ? raw["example"] : "",
+    known: raw["known"] === true,
   };
 }
 
@@ -505,7 +520,7 @@ function asGraph(value: unknown): GraphView | null {
     const wire = asGraphWire(entry);
     if (wire !== null) readWires.push(wire);
   }
-  const watched: { id: number; title: string }[] = [];
+  const watched: { id: number; title: string; kind: string }[] = [];
   const offered = raw["sources"];
   if (Array.isArray(offered)) {
     for (const entry of offered) {
@@ -514,6 +529,7 @@ function asGraph(value: unknown): GraphView | null {
       watched.push({
         id: source["id"],
         title: typeof source["title"] === "string" ? source["title"] : "",
+        kind: typeof source["kind"] === "string" ? source["kind"] : "",
       });
     }
   }
@@ -589,6 +605,20 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "group") return "Group";
   if (kind === "plugin") return "Plugin";
   return kind === "trigger" ? "Trigger" : "Filter";
+}
+
+/** What an empty source box is waiting to be told. */
+interface GraphAsks {
+  /** The kind it was dragged out as. "" for a box made before kinds. */
+  kind: string;
+  /** What that kind's box is called: "Subreddit". */
+  label: string;
+  /** What to type, said the way somebody would say it. */
+  example: string;
+  /** Whether anything still provides this kind. False when its plugin is
+   *  switched off, which is worth saying rather than silently refusing
+   *  everything typed into it. */
+  known: boolean;
 }
 
 /** What travels down a wire: a nudge to run, or the things being collected. */
@@ -1311,7 +1341,17 @@ function graphKnownTags(form: HTMLElement, known: string[]): void {
  *  A search box above a real select rather than a list built from scratch: the
  *  select keeps the keyboard, the form and the screen reader it already had,
  *  and the box only decides which options are in it. */
-function graphSourcePicker(state: GraphState, form: HTMLElement): void {
+function graphSourcePicker(
+  state: GraphState,
+  form: HTMLElement,
+  kind: string,
+): void {
+  // Only sources of this box's own kind. A Subreddit box that offered a
+  // YouTube channel would be offering something it could not then be.
+  const offered =
+    kind === "" ? state.sources : state.sources.filter((one): boolean => one.kind === kind);
+  if (offered.length === 0) return;
+
   const search = document.createElement("input");
   search.type = "search";
   search.placeholder = "Search sources…";
@@ -1320,7 +1360,7 @@ function graphSourcePicker(state: GraphState, form: HTMLElement): void {
 
   const pick = document.createElement("select");
   pick.name = "source_pk";
-  pick.size = Math.min(6, state.sources.length + 1);
+  pick.size = Math.min(6, offered.length + 1);
 
   const fill = (): void => {
     const chosen = pick.value;
@@ -1331,7 +1371,7 @@ function graphSourcePicker(state: GraphState, form: HTMLElement): void {
     none.textContent = "— or add one below —";
     pick.appendChild(none);
 
-    const matching = state.sources.filter((source): boolean =>
+    const matching = offered.filter((source): boolean =>
       graphMatches(source.title, search.value),
     );
     for (const source of matching) {
@@ -1375,16 +1415,46 @@ function graphChannelFields(
   node: GraphNodeView,
 ): void {
   if (node.detail === null) {
-    // An empty box: these are the fields that decide what it stands for.
-    // Something already watched first, because that needs no lookup and no
-    // credentials — and because most of the time it is already there.
-    if (state.sources.length > 0) graphSourcePicker(state, form);
+    // An empty box: these are the fields that decide what it stands for. It
+    // already knows which kind of somewhere it is for, because that is the
+    // box that was dragged out, so it asks for that and nothing else.
+    const asks = node.asks;
+    const kind = asks === null ? "" : asks.kind;
+
+    // Something already watched first: that needs no lookup and no
+    // credentials, and most of the time it is already there.
+    graphSourcePicker(state, form, kind);
+
+    if (asks !== null && kind !== "" && !asks.known) {
+      form.appendChild(
+        graphElement(
+          "p",
+          "hint",
+          `Nothing here provides ${kind} sources any more. Its plugin may be switched off on the Plugins page. Point this box at something already watched, or delete it.`,
+        ),
+      );
+      return;
+    }
+    if (kind === "") {
+      // A box from before sources had kinds. There is no longer a way to
+      // make one, and no way to tell what it was meant to be.
+      form.appendChild(
+        graphElement(
+          "p",
+          "hint",
+          "This box was made before sources had kinds. Point it at something already watched, or delete it and drag out the kind you want.",
+        ),
+      );
+      return;
+    }
 
     const handle = document.createElement("input");
     handle.type = "text";
     handle.name = "handle";
-    handle.placeholder = "@handle, r/name, a Bluesky handle, or a feed address";
-    form.appendChild(graphLabelled("Or somewhere new", handle));
+    handle.placeholder = asks === null ? "" : asks.example;
+    form.appendChild(
+      graphLabelled(state.sources.length > 0 ? "Or somewhere new" : "Where to watch", handle),
+    );
 
     const backfill = document.createElement("input");
     backfill.type = "number";
@@ -1397,7 +1467,7 @@ function graphChannelFields(
       graphElement(
         "p",
         "hint",
-        "YouTube, Reddit, Bluesky, Substack, or the address of any feed. A YouTube handle needs Google or an API key; everything else needs nothing at all. A source stays paused until it is wired to a feed.",
+        `${asks === null ? "" : asks.label}: ${asks === null ? "" : asks.example}. A source stays paused until it is wired to a feed.`,
       ),
     );
     return;
@@ -2955,7 +3025,7 @@ function graphPaletteKind(kind: string): string {
 }
 
 function graphPaletteName(kind: string): string {
-  if (kind === "source") return "Channel";
+  if (kind === "source") return "Source";
   if (kind === "plugin") return "Plugin";
   if (kind === "tagged") return "Tag";
   if (kind === "feed") return "Feed";
@@ -2994,7 +3064,9 @@ async function dropGraphNode(
   toggleGraphPalette(state, false);
   const before = state.nodes;
   const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
-  if (which !== "") asking.set("plugin_node", which);
+  // The same word off the palette row, sent under whichever name the kind
+  // being made reads it by.
+  if (which !== "") asking.set(kind === "source" ? "source_kind" : "plugin_node", which);
   const made = await applyGraph(state, "/graph/nodes", asking);
   if (!made) return;
 
@@ -3221,9 +3293,10 @@ function listenToPalette(state: GraphState, panel: HTMLElement): void {
   panel.querySelectorAll<HTMLElement>("[data-palette]").forEach((item): void => {
     const kind = item.dataset["palette"];
     if (kind === undefined) return;
-    // A plugin's row says which of its boxes it is; every other kind is the
-    // whole answer by itself.
-    const which = item.dataset["pluginNode"] ?? "";
+    // A plugin's row says which of its boxes it is, and a source row says
+    // which kind of somewhere it watches. Every other kind is the whole
+    // answer by itself.
+    const which = item.dataset["pluginNode"] ?? item.dataset["sourceKind"] ?? "";
     const named = item.querySelector(".palette-text strong")?.textContent ?? "";
 
     item.addEventListener("pointerdown", (event: PointerEvent): void => {
