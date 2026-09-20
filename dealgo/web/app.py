@@ -48,7 +48,7 @@ from ..models import (
     utcnow,
 )
 from .. import sources
-from ..plugins import registry
+from ..plugins import permissions, registry
 from ..services import accounts
 from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
@@ -3330,6 +3330,11 @@ PLUGIN_EXAMPLE = """return {
 
 @app.get("/admin/plugins", response_class=HTMLResponse)
 def plugins_page(request: Request) -> HTMLResponse:
+    return _plugins_view(request)
+
+
+def _plugins_view(request: Request, pending: Context | None = None) -> HTMLResponse:
+    """The page, optionally with a plugin waiting to be agreed to."""
     found = registry.current()
     mine = registry.folder()
     leaning = _sources_per_kind()
@@ -3347,6 +3352,9 @@ def plugins_page(request: Request) -> HTMLResponse:
                     "paused": plugin.paused,
                     "trouble": plugin.trouble,
                     "sources": plugin.sources,
+                    "wants": plugin.wants,
+                    "granted": plugin.granted,
+                    "wanting": plugin.wanting,
                     "path": plugin.path,
                     "replaces": plugin.replaces,
                     # Only a plugin of one's own can be removed from here.
@@ -3362,6 +3370,8 @@ def plugins_page(request: Request) -> HTMLResponse:
             ],
             "folder": mine,
             "example": PLUGIN_EXAMPLE,
+            "pending": pending,
+            "known_permissions": permissions.KNOWN,
         },
     )
 
@@ -3461,20 +3471,82 @@ async def add_plugin(request: Request, file: UploadFile = File(...)) -> Response
     except UnicodeDecodeError:
         return redirect("/admin/plugins", err="That file is not text.")
 
-    # Read it before keeping it. A plugin that will not load is a plugin
-    # nobody wants in the folder, and saying so now beats a broken row later.
-    try:
-        checked = registry.judge(stem, text)
-    except OSError as exc:  # pragma: no cover - a full or unwritable volume
-        return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
+    # Read it before keeping it, with nothing granted. A plugin that will not
+    # load is a plugin nobody wants in the folder, and saying so now beats a
+    # broken row later.
+    checked = registry.judge(stem, text)
     if checked.trouble:
         return redirect("/admin/plugins", err=f"{name}: {checked.trouble}")
 
+    # Nothing is written yet. What it asks for is put to somebody first, and
+    # the file lands only once they have said yes — so a plugin nobody agreed
+    # to is never on disk at all.
+    return _plugins_view(request, pending={"name": name, "source": text, "plugin": checked})
+
+
+@app.post("/admin/plugins/confirm")
+async def confirm_plugin(
+    request: Request, name: str = Form(""), source: str = Form("")
+) -> Response:
+    """Keep a plugin, with exactly the permissions that were ticked.
+
+    Read again rather than trusted from the form: what is judged has to be
+    what lands, and the only thing carried across is the file itself.
+    """
+    stem = name[: -len(".lua")] if name.endswith(".lua") else ""
+    if not stem or not set(stem) <= registry.PLAIN or len(source) > MOST_PLUGIN_BYTES:
+        return redirect("/admin/plugins", err="That was not a plugin this page offered.")
+
+    checked = registry.judge(stem, source)
+    if checked.trouble:
+        return redirect("/admin/plugins", err=f"{name}: {checked.trouble}")
+
+    sent = await request.form()
+    # Only what it asked for: a tick for something it never wanted cannot
+    # grant it, whatever the form says.
+    wanted = {want.name for want in checked.wants if want.known}
+    granting = frozenset(name for name in wanted if sent.get(f"grant_{name}") == "1")
+
     folder = registry.folder()
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / name).write_text(text, encoding="utf-8")
-    registry.reload()
-    return redirect("/admin/plugins", ok=f"{checked.title} added.")
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{stem}.lua").write_text(source, encoding="utf-8")
+    except OSError as exc:  # pragma: no cover - a full or unwritable volume
+        return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
+
+    registry.set_granted(stem, granting)
+    said = f"{checked.title} added"
+    if granting:
+        labels = ", ".join(sorted(permissions.describe(n).label.lower() for n in granting))
+        said += f", allowed to {labels}"
+    elif checked.wants:
+        said += ", with none of what it asked for"
+    return redirect("/admin/plugins", ok=said + ".")
+
+
+@app.post("/admin/plugins/{plugin_id}/permissions")
+async def set_plugin_permissions(request: Request, plugin_id: str) -> Response:
+    """Change what a plugin already here is allowed to do."""
+    if not set(plugin_id) <= registry.PLAIN:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+    found = next((p for p in registry.current().plugins if p.id == plugin_id), None)
+    if found is None:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+
+    sent = await request.form()
+    wanted = {want.name for want in found.wants if want.known}
+    granting = frozenset(name for name in wanted if sent.get(f"grant_{name}") == "1")
+    registry.set_granted(plugin_id, granting)
+
+    gained = granting - found.granted
+    lost = found.granted - granting
+    if not gained and not lost:
+        return redirect("/admin/plugins", ok=f"{found.title} is unchanged.")
+    return redirect(
+        "/admin/plugins",
+        ok=f"{found.title} now has {len(granting)} of the "
+        f"{len(wanted)} thing{'s' if len(wanted) != 1 else ''} it asked for.",
+    )
 
 
 @app.post("/admin/plugins/reload")

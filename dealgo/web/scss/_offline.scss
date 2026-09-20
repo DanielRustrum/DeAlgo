@@ -219,3 +219,41 @@
 
 // Beside the heading rather than under it: it acts on the list below.
 .panel-action { margin-left: auto; }
+
+
+// -- what a plugin is allowed to do ----------------------------------------
+//
+// Shown before it is added, and on its row afterwards. The same shape both
+// times, because it is the same decision.
+
+.consent { width: css-min("680px, calc(100% - 32px)"); }
+.consent .modal-body { gap: 18px; }
+.consent-offers ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.consent-offers li { margin-bottom: 3px; }
+
+.consent-want {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.consent-want > span { display: flex; flex-direction: column; gap: 3px; }
+.consent-want input { margin-top: 2px; }
+.consent-means { color: var(--muted); }
+// Its own words, so they are quoted rather than stated: a plugin explaining
+// itself is not a plugin being believed.
+.consent-why { color: var(--text); font-style: italic; }
+.consent-caution { color: var(--warn); }
+// Something this version has no name for. Nothing is granted for it, and it
+// is shown rather than hidden so the asking is not silently swallowed.
+.consent-want.is-unknown { opacity: 0.6; border-style: dashed; }
+
+.plugin-permissions { margin-top: 10px; }
+.plugin-permissions-head { font-size: 12px; color: var(--muted); }
+.plugin-permissions .btn { margin-top: 8px; }

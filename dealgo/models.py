@@ -854,6 +854,10 @@ class PluginState(Base):
     #: The file's name without .lua, which is what the registry calls it.
     plugin_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    #: The permissions a person granted it, as a JSON list of names. Stored
+    #: rather than inferred, because a grant is a decision somebody made and
+    #: a plugin editing its own manifest must not be able to widen it.
+    granted: Mapped[Optional[str]] = mapped_column(Text)
     changed_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
 

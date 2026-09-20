@@ -60,10 +60,23 @@ def admin(db, monkeypatch, here):
         yield client
 
 
-def upload(client, name, body):
+def offer(client, name, body):
+    """Upload one, which now only *offers* it: nothing is written yet."""
     return client.post(
         "/admin/plugins",
         files={"file": (name, body.encode(), "text/plain")},
+        follow_redirects=True,
+    )
+
+
+def upload(client, name, body, **granting):
+    """Offer one and agree to it, which is what adding a plugin now means."""
+    answer = offer(client, name, body)
+    if "/admin/plugins/confirm" not in answer.text:
+        return answer   # it was refused before anybody was asked anything
+    return client.post(
+        "/admin/plugins/confirm",
+        data={"name": name, "source": body, **{f"grant_{k}": "1" for k in granting}},
         follow_redirects=True,
     )
 
@@ -369,3 +382,183 @@ def test_a_member_cannot_read_a_plugin(admin):
     refused = admin.get("/admin/plugins/reddit/source", follow_redirects=False)
 
     assert refused.status_code in (302, 303, 403)
+
+
+# -- what a plugin is allowed to do ----------------------------------------
+
+ASKS = """return {
+  api = 1, name = "Asker",
+  permissions = {
+    { name = "network", why = "To read the page each post links to." },
+    { name = "clock",   why = "To tell how old a post is." },
+  },
+  nodes = { { kind = "probe", label = "Probe", keep = function()
+    return { net = net ~= nil, clock = clock ~= nil }
+  end } },
+}"""
+
+
+def probe(plugin_id="asks"):
+    """What the plugin can actually see from inside its own sandbox."""
+    found = registry.current()
+    node = found.node(f"{plugin_id}:probe")
+    owner = next(p for p in found.plugins if p.id == plugin_id)
+    return owner.box.call(node._keep, owner.box.table(), owner.box.table())
+
+
+def test_nothing_is_written_until_somebody_agrees(admin, here):
+    """A plugin nobody said yes to is never on disk at all."""
+    answer = offer(admin, "asks.lua", ASKS)
+
+    assert list(here.glob("*.lua")) == []
+    assert "wants to be added" in answer.text
+
+
+def test_the_offer_says_what_it_wants_and_why(admin, here):
+    answer = offer(admin, "asks.lua", ASKS)
+
+    assert "Make network requests" in answer.text
+    assert "To read the page each post links to." in answer.text
+    assert "Read the time" in answer.text
+    assert "To tell how old a post is." in answer.text
+    # And what granting it actually allows, in the host's words rather than
+    # the plugin's.
+    assert "anything it has been shown could leave this machine" in answer.text
+
+
+def test_the_offer_also_says_what_it_offers(admin, here):
+    """The same screen answers "what is this for", which is the other half
+    of deciding."""
+    answer = offer(admin, "asks.lua", ASKS)
+
+    assert "What it offers" in answer.text
+    assert "Probe" in answer.text
+
+
+def test_a_plugin_asking_for_nothing_says_so(admin, here):
+    answer = offer(admin, "mine.lua", GOOD)
+
+    assert "It asks for nothing" in answer.text
+
+
+def test_agreeing_grants_exactly_what_was_ticked(admin, here):
+    upload(admin, "asks.lua", ASKS, clock=True)
+
+    plugin = next(p for p in registry.current().plugins if p.id == "asks")
+    assert plugin.granted == frozenset({"clock"})
+    assert probe() == {"clock": True, "net": False}
+
+
+def test_agreeing_to_none_of_it_still_adds_the_plugin(admin, here):
+    """It loads, it works, and it finds the capability missing."""
+    upload(admin, "asks.lua", ASKS)
+
+    assert (here / "asks.lua").is_file()
+    assert probe() == {"clock": False, "net": False}
+
+
+def test_a_permission_it_never_asked_for_cannot_be_ticked_in(admin, here):
+    """Whatever the form says. The manifest is the ceiling."""
+    offer(admin, "mine.lua", GOOD)
+    admin.post(
+        "/admin/plugins/confirm",
+        data={"name": "mine.lua", "source": GOOD, "grant_network": "1"},
+        follow_redirects=True,
+    )
+
+    plugin = next(p for p in registry.current().plugins if p.id == "mine")
+    assert plugin.granted == frozenset()
+
+
+def test_a_permission_with_no_reason_is_refused(admin, here):
+    """"network" with no explanation is a request nobody can weigh."""
+    answer = offer(admin, "mute.lua", """return {
+      api = 1, name = "Mute", permissions = { { name = "network" } },
+    }""")
+
+    assert "needs a `why`" in answer.text
+    assert list(here.glob("*.lua")) == []
+
+
+def test_a_permission_this_version_does_not_know_grants_nothing(admin, here):
+    answer = offer(admin, "odd.lua", """return {
+      api = 1, name = "Odd",
+      permissions = { { name = "telepathy", why = "To read your mind." } },
+    }""")
+
+    assert "does not know what that is" in answer.text
+    admin.post(
+        "/admin/plugins/confirm",
+        data={"name": "odd.lua", "source": """return {
+          api = 1, name = "Odd",
+          permissions = { { name = "telepathy", why = "To read your mind." } },
+        }""", "grant_telepathy": "1"},
+        follow_redirects=True,
+    )
+    plugin = next(p for p in registry.current().plugins if p.id == "odd")
+    assert plugin.granted == frozenset()
+
+
+# -- changing your mind afterwards -----------------------------------------
+
+
+def test_the_row_says_what_it_may_do(admin, here):
+    upload(admin, "asks.lua", ASKS, clock=True)
+
+    body = admin.get("/admin/plugins").text
+
+    assert "Allowed to" in body
+    assert "To tell how old a post is." in body
+
+
+def test_a_permission_can_be_taken_back(admin, here):
+    upload(admin, "asks.lua", ASKS, clock=True, network=True)
+    assert probe() == {"clock": True, "net": True}
+
+    admin.post("/admin/plugins/asks/permissions", data={"grant_clock": "1"},
+               follow_redirects=True)
+
+    assert probe() == {"clock": True, "net": False}
+
+
+def test_a_permission_can_be_given_later(admin, here):
+    upload(admin, "asks.lua", ASKS)
+    assert probe() == {"clock": False, "net": False}
+
+    admin.post("/admin/plugins/asks/permissions",
+               data={"grant_clock": "1", "grant_network": "1"}, follow_redirects=True)
+
+    assert probe() == {"clock": True, "net": True}
+
+
+def test_a_grant_outlives_a_restart(admin, here):
+    upload(admin, "asks.lua", ASKS, network=True)
+
+    registry.reload()   # as a fresh start would
+
+    plugin = next(p for p in registry.current().plugins if p.id == "asks")
+    assert plugin.granted == frozenset({"network"})
+
+
+def test_the_row_says_when_it_is_doing_less_than_it_was_written_to(admin, here):
+    """A plugin quietly doing less is the hardest kind of broken to notice."""
+    upload(admin, "asks.lua", ASKS, clock=True)
+
+    body = admin.get("/admin/plugins").text
+
+    assert "has not been given" in body
+
+
+def test_a_member_cannot_change_what_a_plugin_may_do(admin, here):
+    upload(admin, "asks.lua", ASKS)
+    admin.post("/logout")
+    admin.post("/login", data={"username": "sam", "password": "member-password"})
+
+    refused = admin.post(
+        "/admin/plugins/asks/permissions",
+        data={"grant_network": "1"}, follow_redirects=False,
+    )
+
+    assert refused.status_code in (302, 303, 403)
+    plugin = next(p for p in registry.current().plugins if p.id == "asks")
+    assert plugin.granted == frozenset()

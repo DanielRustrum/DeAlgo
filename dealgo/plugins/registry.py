@@ -19,9 +19,11 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from . import permissions
 from .runtime import PluginError, Sandbox, load
 
 log = logging.getLogger(__name__)
@@ -65,6 +67,27 @@ class SourceKind:
     _recognise: Any = None
     _item_url: Any = None
     _mirror: Any = None
+
+
+@dataclass(frozen=True)
+class Asked:
+    """One permission a plugin wants, and the reason it gave.
+
+    The reason is the plugin's own words. It is shown to the person deciding
+    and never acted on: a plugin explaining itself is not a plugin being
+    believed.
+    """
+
+    name: str
+    why: str
+
+    @property
+    def known(self) -> bool:
+        return self.name in permissions.BY_NAME
+
+    @property
+    def detail(self) -> permissions.Permission:
+        return permissions.describe(self.name)
 
 
 @dataclass(frozen=True)
@@ -115,6 +138,11 @@ class Plugin:
     trouble: str | None = None
     sources: list[SourceKind] = field(default_factory=list)
     nodes: list[NodeKind] = field(default_factory=list)
+    #: What it asked for, in the order it asked.
+    wants: list[Asked] = field(default_factory=list)
+    #: What it actually has. Never more than it asked for, and never anything
+    #: this version does not understand.
+    granted: frozenset[str] = frozenset()
     box: Sandbox | None = None
     #: What the file said it was, for showing on the Admin page even when the
     #: rest of it was refused.
@@ -142,6 +170,15 @@ class Plugin:
     @property
     def title(self) -> str:
         return self.name or self.id
+
+    @property
+    def wanting(self) -> list[Asked]:
+        """What it asked for and has not been given.
+
+        Shown on its row, because a plugin quietly doing less than it was
+        written to do is the hardest kind of broken to notice.
+        """
+        return [want for want in self.wants if want.name not in self.granted]
 
 
 @dataclass
@@ -323,37 +360,93 @@ def reload() -> Registry:
 
 
 def _everything() -> Registry:
-    """Both folders, with the switches applied."""
-    return read(shipped(), folder(), paused=paused_ids())
+    """Both folders, with the switches and the grants applied."""
+    from ..services.sync import http_client
+
+    off, granted = _state()
+    return read(shipped(), folder(), paused=off, granted=granted, http=http_client)
 
 
-def paused_ids() -> frozenset[str]:
-    """Which plugins have been switched off.
+def _state() -> tuple[frozenset[str], dict[str, frozenset[str]]]:
+    """Which plugins are off, and what each has been granted.
 
-    Read here rather than passed in, because every caller of ``current`` would
-    otherwise have to know that a registry has a database behind it. A
-    database that cannot be reached is read as "nothing is paused": a plugin
-    that silently stops working because a query failed would be the worst of
-    both.
+    One read for both, because they live in one row. A database that cannot
+    be reached is read as "everything on, nothing granted": the safe way
+    round, since a plugin quietly keeping a capability through a failed query
+    is the one outcome nobody would want.
     """
+    import json
+
     from ..db import session_scope
     from ..models import PluginState
 
     try:
         with session_scope() as session:
-            return frozenset(
-                row.plugin_id
-                for row in session.query(PluginState).filter(PluginState.enabled.is_(False))
-            )
+            off: set[str] = set()
+            granted: dict[str, frozenset[str]] = {}
+            for row in session.query(PluginState):
+                if not row.enabled:
+                    off.add(row.plugin_id)
+                granted[row.plugin_id] = _names(row.granted)
+            return frozenset(off), granted
     except Exception:  # pragma: no cover - a database that is not there yet
-        log.warning("could not read which plugins are paused; treating all as on")
+        log.warning("could not read plugin state; nothing is granted")
+        return frozenset(), {}
+
+
+def _names(stored: str | None) -> frozenset[str]:
+    import json
+
+    if not stored:
         return frozenset()
+    try:
+        loaded = json.loads(stored)
+    except (TypeError, ValueError):
+        return frozenset()
+    if not isinstance(loaded, list):
+        return frozenset()
+    return frozenset(str(name) for name in loaded)
+
+
+def paused_ids() -> frozenset[str]:
+    """Which plugins have been switched off."""
+    return _state()[0]
+
+
+def set_granted(plugin_id: str, names: frozenset[str]) -> None:
+    """Record what a person granted a plugin, and hand it over.
+
+    Only names this version understands are kept: a grant for a permission
+    that has since been removed from the vocabulary would be a row nobody can
+    read, and quietly dropping it is better than storing a promise that
+    cannot be honoured.
+    """
+    import json
+
+    from ..db import session_scope
+    from ..models import PluginState, utcnow
+
+    kept = sorted(name for name in names if name in permissions.BY_NAME)
+    with session_scope() as session:
+        row = (
+            session.query(PluginState)
+            .filter(PluginState.plugin_id == plugin_id)
+            .one_or_none()
+        )
+        if row is None:
+            row = PluginState(plugin_id=plugin_id)
+            session.add(row)
+        row.granted = json.dumps(kept)
+        row.changed_at = utcnow()
+    reload()
 
 
 def read(
     *folders: Path,
     given: dict[str, object] | None = None,
     paused: frozenset[str] = frozenset(),
+    granted: dict[str, frozenset[str]] | None = None,
+    http: Callable[[], Any] | None = None,
 ) -> Registry:
     """Load every ``.lua`` in each folder, in name order.
 
@@ -372,6 +465,7 @@ def read(
             continue
         for path in sorted(where.glob("*.lua")):
             plugin = _one(path, given or {})
+            _grant(plugin, (granted or {}).get(plugin.id, frozenset()), http)
             earlier = by_id.get(plugin.id)
             if earlier is not None:
                 found.plugins.remove(earlier)
@@ -432,7 +526,14 @@ def judge(stem: str, source: str) -> Plugin:
 
 
 def _one(path: Path, given: dict[str, object]) -> Plugin:
-    """Read one file, and turn anything that goes wrong into a sentence."""
+    """Read one file, and turn anything that goes wrong into a sentence.
+
+    Twice, when it has been granted something. The first pass is with an
+    empty world, which is how its manifest is read without its own code ever
+    having had a capability in scope; only then is it loaded again with what
+    it was actually granted. A plugin cannot talk its way into a permission
+    by what it does while being read.
+    """
     plugin = Plugin(id=path.stem, path=path)
     try:
         source = path.read_text(encoding="utf-8")
@@ -474,12 +575,77 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
         return plugin
 
     try:
+        plugin.wants = _wants(made.get("permissions"))
         plugin.sources = _sources(plugin, made.get("sources"))
         plugin.nodes = _nodes(plugin, made.get("nodes"))
     except PluginError as exc:
         plugin.trouble = str(exc)
         return plugin
     return plugin
+
+
+def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | None) -> None:
+    """Hand a plugin what it was granted, by loading it again with it.
+
+    Only what it asked for, and only what this version understands: a grant
+    stored against a permission that has since been removed from the
+    vocabulary gives nothing, rather than giving something nobody can name.
+    """
+    wanted = {want.name for want in plugin.wants if want.known}
+    plugin.granted = frozenset(allowed & wanted)
+    if not plugin.granted or plugin.trouble is not None:
+        return
+
+    able = permissions.capabilities(plugin.title, plugin.granted, http)
+    try:
+        source = plugin.path.read_text(encoding="utf-8")
+        box, made = load(plugin.path.name, source, given=able)
+    except (OSError, UnicodeDecodeError, PluginError) as exc:
+        # It loaded a moment ago with nothing, so this is something about the
+        # capabilities themselves. It keeps what it had and is left with none.
+        log.warning("%s could not be given what it was granted: %s", plugin.title, exc)
+        plugin.granted = frozenset()
+        return
+    if not isinstance(made, dict):  # pragma: no cover - it was a dict a moment ago
+        plugin.granted = frozenset()
+        return
+
+    plugin.box = box
+    try:
+        plugin.sources = _sources(plugin, made.get("sources"))
+        plugin.nodes = _nodes(plugin, made.get("nodes"))
+    except PluginError as exc:  # pragma: no cover - it parsed a moment ago
+        plugin.trouble = str(exc)
+
+
+def _wants(given: object) -> list[Asked]:
+    """The permissions a plugin asks for, and why.
+
+    A reason is required. "network" with no explanation is a request nobody
+    can weigh, and refusing it here means the person deciding always has
+    something to decide on.
+    """
+    if given is None:
+        return []
+    if not isinstance(given, list):
+        raise PluginError("`permissions` has to be a list of tables")
+
+    asked: list[Asked] = []
+    seen: set[str] = set()
+    for entry in given:
+        if not isinstance(entry, dict):
+            raise PluginError("every entry in `permissions` has to be a table")
+        name = str(entry.get("name") or "").strip()
+        why = " ".join(str(entry.get("why") or "").split())
+        if not name:
+            raise PluginError("a permission needs a `name`")
+        if not why:
+            raise PluginError(f"permission “{name}” needs a `why` — say what it is for")
+        if name in seen:
+            raise PluginError(f"permission “{name}” is asked for twice")
+        seen.add(name)
+        asked.append(Asked(name=name, why=why[:400]))
+    return asked
 
 
 def _nodes(plugin: Plugin, given: object) -> list[NodeKind]:

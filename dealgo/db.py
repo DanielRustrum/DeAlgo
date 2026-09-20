@@ -139,6 +139,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # Boxes a plugin put in the palette: which one, and what its fields say.
     ("graph_node", "plugin_ref", "VARCHAR(80)"),
     ("graph_node", "plugin_settings", "TEXT"),
+    # What a person granted each plugin. plugin_state may already exist from
+    # before permissions did, so this is a column rather than part of the
+    # table's creation.
+    ("plugin_state", "granted", "TEXT"),
 )
 
 # run_event is a new table rather than new columns, so it needs no entry here:
