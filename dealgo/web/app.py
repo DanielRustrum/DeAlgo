@@ -3304,8 +3304,20 @@ def add_account(
 MOST_PLUGIN_BYTES = 256 * 1024
 
 #: Shown on the page, so the shape is learnable without leaving it.
-PLUGIN_EXAMPLE = """return {
+PLUGIN_EXAMPLE = """-- What you return is configuration. It says what this plugin is and what
+-- it offers; nothing in it does anything by itself.
+--
+-- Anything it *does* to the site goes through `dealgo`, which it is handed
+-- rather than importing — and which answers nothing it was not granted.
+
+return {
   id = "example",  name = "Example",  version = "1.0.0",  api = 1,
+
+  -- Asked for by name, with a reason somebody can weigh. Untick any of them
+  -- and this still loads; it just finds that capability missing.
+  permissions = {
+    { name = "read", why = "To suggest a tag based on what you already watch." },
+  },
 
   sources = {
     {
@@ -3322,6 +3334,22 @@ PLUGIN_EXAMPLE = """return {
           feed  = "https://example.com/" .. name .. "/feed",
           title = name,
         }
+      end,
+    },
+  },
+
+  nodes = {
+    {
+      kind = "already-watched",
+      label = "Not already watched",
+      blurb = "Holds anything from a source you are watching twice.",
+      keep = function(item)
+        -- `dealgo` is always there. Without the read permission it simply
+        -- answers with nothing, so this does no harm either way.
+        for _, source in ipairs(dealgo.sources()) do
+          if source.title == item.title then return false end
+        end
+        return true
       end,
     },
   },

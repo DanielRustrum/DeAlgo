@@ -68,6 +68,28 @@ KNOWN: tuple[Permission, ...] = (
         means="Ask what the time is now, so it can judge how old something is.",
     ),
     Permission(
+        name="read",
+        label="See what you are watching",
+        means=(
+            "Read the shape of the account it is working for: which sources "
+            "are watched, which feeds exist, what is tagged what. Never what "
+            "you have read or watched, and never another account's."
+        ),
+    ),
+    Permission(
+        name="manage",
+        label="Change what you are watching",
+        means=(
+            "Add a source, tag one, or switch one off — for the account it is "
+            "working for. Anything it adds arrives paused, so it can suggest "
+            "and cannot start fetching."
+        ),
+        caution=(
+            "It can rearrange a setup you built. Nothing is deleted, but "
+            "things can appear and be switched off."
+        ),
+    ),
+    Permission(
         name="log",
         label="Write to the log",
         means=(
@@ -95,14 +117,25 @@ def describe(name: str) -> Permission:
 
 
 def capabilities(
-    plugin: str, granted: frozenset[str], http: Callable[[], httpx.Client] | None = None
+    plugin: str,
+    granted: frozenset[str],
+    http: Callable[[], httpx.Client] | None = None,
+    lua: Any = None,
 ) -> dict[str, object]:
     """What to put in a plugin's world, given what it has been granted.
 
     Absent rather than refusing: a plugin without the network permission finds
     no `net` at all. That is the honest shape — there is nothing to probe, and
     an author testing `if net then` gets the right answer.
+
+    ``dealgo`` is the exception. It is always there, because a plugin needs
+    somewhere to ask what version it is talking to, and every question on it
+    that touches an account's data answers nothing until somebody has been
+    granted the permission for it. One object with parts that stay shut is
+    kinder to write against than an object that might not exist.
     """
+    from .site import Site
+
     given: dict[str, object] = {}
     if "clock" in granted:
         given["clock"] = _Clock()
@@ -110,6 +143,10 @@ def capabilities(
         given["log"] = _Log(plugin)
     if "network" in granted:
         given["net"] = _Net(plugin, http)
+    if lua is not None:
+        given["dealgo"] = Site(
+            plugin, lua, reading="read" in granted, managing="manage" in granted
+        )
     return given
 
 

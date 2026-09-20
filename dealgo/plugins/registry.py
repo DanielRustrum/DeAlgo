@@ -593,10 +593,12 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     """
     wanted = {want.name for want in plugin.wants if want.known}
     plugin.granted = frozenset(allowed & wanted)
-    if not plugin.granted or plugin.trouble is not None:
+    if plugin.trouble is not None:
         return
 
-    able = permissions.capabilities(plugin.title, plugin.granted, http)
+    def able(lua: Any) -> dict[str, object]:
+        return permissions.capabilities(plugin.title, plugin.granted, http, lua)
+
     try:
         source = plugin.path.read_text(encoding="utf-8")
         box, made = load(plugin.path.name, source, given=able)

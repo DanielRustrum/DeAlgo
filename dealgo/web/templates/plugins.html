@@ -229,12 +229,27 @@
   <h2>Writing one</h2>
   <pre class="plugin-example"><code>{{ example }}</code></pre>
   <p class="hint">
-    <code>recognise</code> is the whole of it: given what somebody typed,
-    answer with the key to file it under and the address of its feed, or
-    nothing at all if it is not yours. Return <code>guess = true</code> when
-    you are offering rather than asserting — a certain answer from another
-    plugin then wins, which is what stops a Bluesky handle from swallowing
-    every domain name.
+    <strong>What you return is configuration.</strong> It says what the plugin
+    is and what it offers, and nothing in it acts by itself. Anything it
+    <em>does</em> to the site goes through <code>dealgo</code>, which it is
+    handed rather than importing.
+  </p>
+  <p class="hint">
+    <code>recognise</code> is the whole of a source: given what somebody
+    typed, answer with the key to file it under and the address of its feed,
+    or nothing at all if it is not yours. Return <code>guess = true</code>
+    when you are offering rather than asserting — a certain answer from
+    another plugin then wins, which is what stops a Bluesky handle from
+    swallowing every domain name.
+  </p>
+  <p class="hint">
+    <code>dealgo</code> is always there, and answers nothing it was not
+    granted: <code>dealgo.version</code> always;
+    <code>dealgo.sources()</code> and <code>dealgo.feeds()</code> with
+    <em>see what you are watching</em>; <code>dealgo.watch()</code>,
+    <code>dealgo.tag()</code> and <code>dealgo.pause()</code> with
+    <em>change what you are watching</em>. All of it is about the one account
+    whose work is in hand — never another's, and nothing at all outside a run.
   </p>
 </section>
 {% endblock %}

@@ -1006,7 +1006,7 @@ def _plugin_refusal(video: Video, path: "graph.Route") -> filters.Decision | Non
     if not path.checks:
         return None
 
-    from ..plugins import registry
+    from ..plugins import registry, site
 
     found = registry.current()
     item = {
@@ -1020,16 +1020,20 @@ def _plugin_refusal(video: Video, path: "graph.Route") -> filters.Decision | Non
         "is_short": video.is_short,
         "source": video.channel.source_kind if video.channel else "",
     }
-    for node in path.checks:
-        ref = node.plugin_ref or ""
-        box = found.node(ref)
-        if box is None:
-            # Its plugin is switched off or gone. The box stays on the canvas
-            # and stops narrowing anything, which is the same thing a filter
-            # with no rules does.
-            continue
-        if not found.keeps(ref, item, _plugin_settings(node)):
-            return filters.Decision(False, f"held by {node.title}")
+    # Whose work this is, for the whole of the asking. A plugin reaching the
+    # site through `dealgo` sees this account and no other, and outside a
+    # block like this it sees nobody at all.
+    with site.acting_for(path.channel.owner_pk):
+        for node in path.checks:
+            ref = node.plugin_ref or ""
+            box = found.node(ref)
+            if box is None:
+                # Its plugin is switched off or gone. The box stays on the
+                # canvas and stops narrowing anything, which is the same
+                # thing a filter with no rules does.
+                continue
+            if not found.keeps(ref, item, _plugin_settings(node)):
+                return filters.Decision(False, f"held by {node.title}")
     return None
 
 

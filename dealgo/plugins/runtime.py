@@ -22,6 +22,7 @@ function, and turns what comes back into Python. What those functions mean is
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -96,12 +97,21 @@ class Sandbox:
         return made
 
 
-def load(name: str, source: str, *, given: dict[str, object] | None = None) -> tuple[Sandbox, object]:
+def load(
+    name: str,
+    source: str,
+    *,
+    given: dict[str, object] | Callable[[Any], dict[str, object]] | None = None,
+) -> tuple[Sandbox, object]:
     """Run a plugin's file once and return it with whatever it returned.
 
     A plugin is expected to end in ``return { … }``. What that table has to
     contain is not this function's business; it hands back whatever came and
     lets the registry judge it.
+
+    ``given`` may be a function taking the runtime, for capabilities that have
+    to build Lua tables to answer with — a Python list handed straight across
+    is something `ipairs` cannot walk, which is not an answer.
     """
     lua = lupa.LuaRuntime(
         register_eval=False,
@@ -122,7 +132,8 @@ def load(name: str, source: str, *, given: dict[str, object] | None = None) -> t
     lua.globals()["__tripwire"] = tripwire
     lua.execute(f"debug.sethook(function() __tripwire() end, '', {CHECK_EVERY})")
 
-    env = _world(lua, given or {})
+    handing = given(lua) if callable(given) else (given or {})
+    env = _world(lua, handing)
     try:
         chunk = lua.eval("function(src, name, env) return load(src, name, 't', env) end")(
             source, f"@{name}", env
