@@ -1226,7 +1226,7 @@ async function removeGraphPicked(state: GraphState): Promise<void> {
     costly.length === 0
       ? `Remove ${going.length} node${going.length === 1 ? "" : "s"}? (${named})`
       : `Remove ${named}? The channels and feeds among them go too, with their history; anything already in a feed stays put.`;
-  if (!window.confirm(asked)) return;
+  if (!(await askGraphSure(state, asked))) return;
 
   state.selectedNode = null;
   state.picked = new Set<number>();
@@ -2360,9 +2360,7 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     // A filter or a trigger stands for nothing else and just goes. A channel
     // or a feed takes its history with it, so that is said out loud first.
     const warning = remove?.dataset["what"] ?? "";
-    if (warning !== "" && !window.confirm(warning)) return;
-    state.selectedNode = null;
-    void applyGraph(state, `/graph/nodes/${removeId}/delete`, new URLSearchParams());
+    void removeGraphNode(state, removeId, warning);
     return;
   }
 
@@ -2430,6 +2428,17 @@ function graphSaid(value: unknown): string | null {
   const raw = asGraphRecord(value);
   const said = raw === null ? null : raw["said"];
   return typeof said === "string" ? said : null;
+}
+
+/** Take one box away, once the question about it has been answered. */
+async function removeGraphNode(
+  state: GraphState,
+  nodeId: string,
+  warning: string,
+): Promise<void> {
+  if (warning !== "" && !(await askGraphSure(state, warning))) return;
+  state.selectedNode = null;
+  await applyGraph(state, `/graph/nodes/${nodeId}/delete`, new URLSearchParams());
 }
 
 function onGraphKeyDown(state: GraphState, event: KeyboardEvent): void {
@@ -2551,6 +2560,63 @@ function graphCatchDialog(state: GraphState): HTMLDialogElement | null {
 }
 
 /** Open it as a modal where the browser supports one, and plainly where not. */
+/** Ask before taking something away, and wait for the answer.
+ *
+ *  Not `window.confirm`. A browser that has been told to stop this page making
+ *  dialogs — the "prevent this page from creating additional dialogs" tick,
+ *  which appears after a few in a row — answers confirm() with "no" and says
+ *  nothing about it. The Remove button then did nothing at all: no question,
+ *  no request, no error, for the rest of the tab's life. Everything else in
+ *  the panel kept working, because nothing else asked first.
+ *
+ *  Falls back to `confirm` only when the dialog is not on the page, which is
+ *  the same courtesy the backfill box gets. */
+function askGraphSure(state: GraphState, question: string): Promise<boolean> {
+  const dialog = graphSureDialog(state);
+  if (dialog === null) return Promise.resolve(window.confirm(question));
+
+  const said = dialog.querySelector<HTMLElement>("[data-graph-sure-what]");
+  if (said !== null) said.textContent = question;
+
+  return new Promise<boolean>((answer): void => {
+    let done = false;
+    const finish = (yes: boolean): void => {
+      if (done) return;
+      done = true;
+      dialog.removeEventListener("close", onClose);
+      shutGraphSure(dialog);
+      answer(yes);
+    };
+    function onClose(): void {
+      finish(false);
+    }
+    dialog.addEventListener("close", onClose);
+    dialog.querySelectorAll<HTMLElement>("[data-graph-sure-yes]").forEach((yes): void => {
+      yes.onclick = (): void => finish(true);
+    });
+    dialog.querySelectorAll<HTMLElement>("[data-graph-sure-no]").forEach((no): void => {
+      no.onclick = (): void => finish(false);
+    });
+    openGraphCatch(dialog);
+  });
+}
+
+function graphSureDialog(state: GraphState): HTMLDialogElement | null {
+  return (
+    state.parts.canvas
+      .closest(".graph-panel")
+      ?.querySelector<HTMLDialogElement>("[data-graph-sure]") ?? null
+  );
+}
+
+function shutGraphSure(dialog: HTMLDialogElement): void {
+  if (dialog.open) {
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  }
+  holdPageForGraph(false);
+}
+
 function openGraphCatch(dialog: HTMLDialogElement): void {
   if (dialog.open) return;
   if (typeof dialog.showModal === "function") dialog.showModal();

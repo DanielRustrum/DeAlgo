@@ -3234,6 +3234,19 @@ def test_a_node_that_stands_for_nothing_yet_can_be_taken_away(canvas):
 
 
 @needs_node
+def test_removing_a_node_does_not_need_the_browsers_own_dialog(canvas_report):
+    """`window.confirm` answers "no" and says nothing once a browser has been
+    told to stop this page making dialogs — the tick that appears after a few
+    in a row. A Remove button that asked with it did nothing at all: no
+    question, no request, no error, for the rest of the tab's life. Everything
+    else in the panel kept working, because nothing else asked first."""
+    removing = canvas_report["removing"]
+
+    assert removing["asked"] == "Stop watching A Channel?"
+    assert removing["requests"] == ["/graph/nodes/7/delete"]
+
+
+@needs_node
 def test_removing_a_node_only_asks_where_something_is_at_stake(canvas_report):
     """An empty source box names no source. Asking "its history goes too" of
     a box with no history is a frightening question about nothing — and a
@@ -3243,7 +3256,6 @@ def test_removing_a_node_only_asks_where_something_is_at_stake(canvas_report):
     assert asks["watchedChannel"].startswith("Stop watching")
     assert asks["feed"].startswith("Remove the feed")
     assert asks["emptyChannel"] == ""
-    assert asks["tagNode"] == ""
     assert asks["filter"] == ""
 
 

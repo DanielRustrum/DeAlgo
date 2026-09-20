@@ -264,6 +264,24 @@
     </form>
   </dialog>
 
+  {# Asking before taking something away. A real <dialog> rather than
+     window.confirm: a browser that has been told to stop this page making
+     dialogs answers confirm() with "no" and says nothing, which turned the
+     Remove button into a button that did nothing at all. #}
+  <dialog class="modal graph-sure" data-graph-sure>
+    <div class="modal-head">
+      <h2>Remove</h2>
+      <button class="modal-close" type="button" data-graph-sure-no aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p data-graph-sure-what></p>
+      <div class="modal-foot">
+        <button class="btn btn-quiet" type="button" data-graph-sure-no>Keep it</button>
+        <button class="btn btn-danger" type="button" data-graph-sure-yes>Remove</button>
+      </div>
+    </div>
+  </dialog>
+
   {# What a filter catches. A real <dialog>, so the browser paints it in the
      top layer — nothing on the canvas can clip it — and gives it Esc and a
      backdrop. Filled in and opened by graph.js. #}

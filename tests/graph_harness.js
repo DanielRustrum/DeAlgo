@@ -45,7 +45,7 @@ function loadGraph(context) {
   vm.runInContext(fs.readFileSync(SCRIPT, "utf8"), context);
 }
 
-function main() {
+async function main() {
   // `instanceof Element` is how the script tells an element from anything
   // else, so the stub has to be one as far as the check can tell.
   class Element {
@@ -327,11 +327,10 @@ function main() {
   // question about nothing — and a question people say no to.
   const warns = (node) => context.graphRemovalWarning(node);
   report.removalAsks = {
-    watchedChannel: warns({ kind: "source", tag: null, detail: "/channels/1", title: "A" }),
-    emptyChannel: warns({ kind: "source", tag: null, detail: null, title: "New channel" }),
-    tagNode: warns({ kind: "source", tag: { name: "news" }, detail: null, title: "#news" }),
-    feed: warns({ kind: "feed", tag: null, detail: "/feeds/1", title: "News" }),
-    filter: warns({ kind: "filter", tag: null, detail: null, title: "Trim" }),
+    watchedChannel: warns({ kind: "source", detail: "/channels/1", title: "A" }),
+    emptyChannel: warns({ kind: "source", detail: null, title: "New channel" }),
+    feed: warns({ kind: "feed", detail: "/feeds/1", title: "News" }),
+    filter: warns({ kind: "filter", detail: null, title: "Trim" }),
   };
 
   // A group is drawn as a rectangle rather than a box, so it carries its own
@@ -466,7 +465,77 @@ function main() {
   report.wiresLitByTheTrigger = [...lit];
   report.wireSelectors = asked;
 
+  report.removing = await removingWithDialogsBlocked();
   process.stdout.write(JSON.stringify(report));
+}
+
+/** Press Remove in a browser that has been told to stop this page making
+ *  dialogs.
+ *
+ *  `window.confirm` answers "no" in that state and says nothing about it, so
+ *  a Remove button that asked with it did nothing at all: no question, no
+ *  request, no error, for the rest of the tab's life. Everything else in the
+ *  panel kept working, because nothing else asked first. */
+async function removingWithDialogsBlocked() {
+  const nothing = { forEach() {} };
+  const make = (tag) => ({
+    tag, className: "", textContent: "", style: {}, dataset: {}, children: [],
+    classList: { names: new Set(), add() {}, remove() {}, toggle() {} },
+    setAttribute() {}, removeAttribute() {}, addEventListener() {},
+    removeEventListener() {}, appendChild(c) { this.children.push(c); return c; },
+    querySelector() { return null; }, querySelectorAll() { return nothing; },
+  });
+  class Element {
+    constructor(fields) { Object.assign(this, fields); }
+  }
+
+  const sent = [];
+  const yes = { onclick: null };
+  const what = { textContent: "" };
+  const dialog = {
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    setAttribute() {}, removeAttribute() {},
+    addEventListener() {}, removeEventListener() {},
+    querySelector: (selector) => (selector.includes("what") ? what : null),
+    querySelectorAll: (selector) => ({
+      forEach(run) { run(selector.includes("yes") ? yes : { onclick: null }); },
+    }),
+  };
+  const panel = { querySelector: (s) => (s.includes("graph-sure") ? dialog : null) };
+  const canvas = Object.assign(make("div"), { closest: () => panel });
+
+  const context = vm.createContext({
+    document: {
+      addEventListener() {},
+      body: { addEventListener() {}, classList: { toggle() {} } },
+      querySelectorAll() { return nothing; },
+      createElement: make,
+      createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
+    },
+    window: { confirm: () => false },  // the browser is refusing to ask
+    console,
+    Element,
+    URLSearchParams,
+    fetch: async (url) => {
+      sent.push(String(url));
+      return { ok: true, json: async () => ({ nodes: [], wires: [], sources: [] }) };
+    },
+  });
+  loadGraph(context);
+
+  const state = {
+    nodes: [], wires: [], sources: [], picked: new Set(), busy: false,
+    selectedNode: 1, selectedWire: null, tab: "settings",
+    parts: { canvas, layer: make("div"), error: make("p"), verdict: make("p") },
+    boxes: new Map(), marks: new Map(),
+  };
+
+  const done = context.removeGraphNode(state, "7", "Stop watching A Channel?");
+  if (yes.onclick) yes.onclick();
+  await done;
+  return { asked: what.textContent, requests: sent };
 }
 
 main();
