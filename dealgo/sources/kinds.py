@@ -1,16 +1,21 @@
-"""The kinds of source, and how a reference becomes a feed.
+"""What a reference turns out to be, asked of the plugins that know.
 
-Each kind answers three questions: does this look like one of mine, where is
-its feed, and where does an item from it live. Nothing else varies — polling,
-filtering and routing are the same whatever the answer.
+This used to hold a regex per site. It holds none now: every kind of
+somewhere — YouTube, Reddit, Bluesky, Substack — is a plugin, and this asks
+them in turn. What is left here is the part that cannot be a plugin:
 
-Adding a kind is adding an entry here. That is the point of the shape: the
-rest of the app asks the registry rather than knowing the list.
+* **RSS**, the floor. Anything with no plugin to claim it is taken at its
+  word as the address of a feed, which is what it most often is. It is not a
+  peer of the others; it is what they are all built on.
+* **the vocabulary** — ``Resolved``, ``SourceKind``, ``UnknownSource`` — so
+  the rest of the app talks about sources without knowing a plugin exists.
+
+Nothing here makes a request. A plugin says where a feed is by the shape of
+what was typed; reading it is the host's business, and so are rate limits.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -29,6 +34,10 @@ class Resolved:
     key: str
     feed_url: str
     title: str
+    #: True when the plugin knows what this is but cannot finish alone. The
+    #: one case is a YouTube handle, which needs this account's Google
+    #: connection — not something a plugin is ever handed.
+    needs_host: bool = False
 
 
 @dataclass(frozen=True)
@@ -37,28 +46,46 @@ class SourceKind:
     label: str
     #: What to type, said the way somebody would say it.
     example: str
-    #: Only YouTube videos can be put into a YouTube playlist. Everything else
-    #: can only fill a feed that lives inside De-Algo.
+    #: Only YouTube videos can be put into a YouTube playlist. Everything
+    #: else can only fill a feed that lives inside De-Algo.
     playlistable: bool = False
+    #: Which plugin offers it, or "" for the one kind that is not a plugin.
+    plugin: str = ""
 
 
-KINDS: tuple[SourceKind, ...] = (
-    SourceKind("youtube", "YouTube", "@handle, a channel URL, or a UC… id", playlistable=True),
-    SourceKind("reddit", "Reddit", "r/python, or a subreddit URL"),
-    SourceKind("bluesky", "Bluesky", "@name.bsky.social, or a profile URL"),
-    SourceKind("substack", "Substack", "name.substack.com"),
-    SourceKind("rss", "RSS", "the address of any feed"),
-)
+#: The floor. Not a plugin, because every plugin's parsing is built on it and
+#: because something has to catch an address nobody claims.
+RSS = SourceKind("rss", "RSS", "the address of any feed", plugin="")
 
-_SUBREDDIT = re.compile(r"^/?r/([A-Za-z0-9_]{2,30})/?$")
-_BLUESKY_HANDLE = re.compile(r"^@?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)$")
-_YOUTUBE_HOSTS = ("youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be")
+
+def kinds() -> tuple[SourceKind, ...]:
+    """Every kind of somewhere that can be watched, plugins first.
+
+    Asked rather than listed, so a plugin dropped in the folder shows up on
+    the Sources page without anything here being edited.
+    """
+    from ..plugins import registry
+
+    offered = tuple(
+        SourceKind(
+            name=kind.kind,
+            label=kind.label,
+            example=kind.example,
+            playlistable=kind.playlistable,
+            plugin=kind.plugin,
+        )
+        for kind in registry.current().source_kinds()
+    )
+    return offered + (RSS,)
 
 
 def describe(kind: str) -> SourceKind:
-    """What a kind is called, falling back rather than failing: a row stored
-    by a later version should still draw on an earlier one."""
-    for known in KINDS:
+    """What a kind is called, falling back rather than failing.
+
+    A row stored by a plugin that has since been removed still has to draw:
+    the item is in a feed, and "reddit" is a better label than a stack trace.
+    """
+    for known in kinds():
         if known.name == kind:
             return known
     return SourceKind(kind, kind.title(), "")
@@ -67,29 +94,32 @@ def describe(kind: str) -> SourceKind:
 def resolve(reference: str) -> Resolved:
     """Work out what somebody has typed, without asking anybody.
 
-    Nothing here makes a request: a subreddit, a Bluesky handle and a feed
-    address all say where their feed is by their shape alone. YouTube is the
-    exception and is resolved by its own service, which may need an API key to
-    turn a handle into a channel id — so it is recognised here and sent there.
+    The plugins first, then RSS. A certain answer beats a guess — a Bluesky
+    handle may be any domain, so "name.substack.com" is a newsletter rather
+    than an account with an unusual name.
     """
+    from ..plugins import registry
+
     typed = (reference or "").strip()
     if not typed:
         raise UnknownSource("Give it something to watch.")
 
-    subreddit = _SUBREDDIT.match(typed)
-    if subreddit:
-        return _reddit(subreddit.group(1))
+    found = registry.current().recognise(typed)
+    if found is not None:
+        return Resolved(
+            kind=found.kind,
+            key=found.key,
+            feed_url=found.feed_url,
+            title=found.title,
+            needs_host=found.needs_host,
+        )
 
+    # Nobody claimed it. An address is taken at its word — whether it is a
+    # feed is settled by reading it, not by guessing from the spelling.
     if "://" in typed or typed.startswith("www."):
-        return _from_url(typed if "://" in typed else f"https://{typed}")
-
-    # A bare host, which is how a Substack is usually written down.
-    if typed.endswith(".substack.com"):
-        return _substack(typed)
-
-    handle = _BLUESKY_HANDLE.match(typed)
-    if handle and (typed.endswith(".bsky.social") or typed.count(".") >= 1):
-        return _bluesky(handle.group(1))
+        url = typed if "://" in typed else f"https://{typed}"
+        host = (urlparse(url).hostname or "").lower()
+        return Resolved(kind=RSS.name, key=url, feed_url=url, title=host or url)
 
     raise UnknownSource(
         f"“{typed}” is not something this knows how to follow. Try r/name, a "
@@ -97,111 +127,22 @@ def resolve(reference: str) -> Resolved:
     )
 
 
-def _from_url(url: str) -> Resolved:
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").lower()
-    path = parsed.path.rstrip("/")
+def item_url(kind: str, key: str, link: str | None) -> str | None:
+    """Where an item lives. The link the feed gave, unless its plugin knows
+    better — YouTube items are addressed by a video id and are built
+    elsewhere."""
+    from ..plugins import registry
 
-    if host in _YOUTUBE_HOSTS:
-        # Left to the YouTube service: a handle needs an API call to become a
-        # channel id, and that is its business rather than this file's.
-        raise _IsYouTube(url)
-
-    if host.endswith("reddit.com"):
-        found = re.match(r"^/r/([A-Za-z0-9_]{2,30})", path)
-        if found:
-            return _reddit(found.group(1))
-
-    if host.endswith("bsky.app"):
-        found = re.match(r"^/profile/([^/]+)", path)
-        if found:
-            return _bluesky(found.group(1))
-
-    if host.endswith(".substack.com"):
-        return _substack(host)
-
-    # Anything else is taken at its word: the address of a feed, or of a page
-    # that is one. Whether it parses is settled by reading it, not by guessing
-    # from the address.
-    return Resolved(kind="rss", key=url, feed_url=url, title=host or url)
-
-
-class _IsYouTube(UnknownSource):
-    """Recognised as YouTube, which resolves its own references.
-
-    An ``UnknownSource`` because that is true from here: this file does not
-    know how to follow it, and callers reach YouTube by asking
-    ``looks_like_youtube`` first. One that forgot gets an error it already
-    catches rather than one escaping to the top.
-    """
-
-    def __init__(self, url: str):
-        super().__init__(f"{url} is a YouTube address; that kind resolves its own.")
-        self.url = url
-
-
-def looks_like_youtube(reference: str) -> bool:
-    """Whether this is YouTube's to resolve rather than ours."""
-    typed = (reference or "").strip()
-    if not typed:
-        return False
-    if re.match(r"^UC[\w-]{22}$", typed):
-        return True
-    if typed.startswith("@") and "." not in typed:
-        return True  # a bare @handle is YouTube's shape; a dotted one is Bluesky's
-    host = (urlparse(typed if "://" in typed else f"https://{typed}").hostname or "").lower()
-    return host in _YOUTUBE_HOSTS
-
-
-def _reddit(name: str) -> Resolved:
-    return Resolved(
-        kind="reddit",
-        key=f"r/{name}",
-        feed_url=f"https://www.reddit.com/r/{name}/.rss",
-        title=f"r/{name}",
-    )
-
-
-def _bluesky(handle: str) -> Resolved:
-    return Resolved(
-        kind="bluesky",
-        key=f"@{handle}",
-        feed_url=f"https://bsky.app/profile/{handle}/rss",
-        title=f"@{handle}",
-    )
-
-
-def _substack(host: str) -> Resolved:
-    name = host.split(".")[0]
-    return Resolved(
-        kind="substack",
-        key=host,
-        feed_url=f"https://{host}/feed",
-        title=name.replace("-", " ").title(),
-    )
-
-
-# Where somebody else publishes the same feeds, for the hosts that ration us.
-# Open RSS is a nonprofit that generates feeds for sites which do not, and is
-# the usual answer for Reddit. Offered as a suggestion only: it is a service
-# we do not run, and whether to lean on it is the reader's call.
-OPEN_RSS = "https://openrss.org"
+    return registry.current().item_url(kind, key, link)
 
 
 def suggest_mirror(kind: str, key: str) -> str | None:
-    """A mirror worth trying for this source, where one is known.
+    """A second address for the same feed, where the plugin offers one.
 
-    Only for the kinds that actually ration a reader. A suggestion nobody
-    needs is a field somebody has to think about for no reason.
+    Only the kinds that actually ration a reader have anything to say here.
+    A suggestion nobody needs is a field somebody has to think about for no
+    reason.
     """
-    name = (key or "").strip()
-    if kind == "reddit" and name.startswith("r/"):
-        return f"{OPEN_RSS}/reddit.com/{name}"
-    return None
+    from ..plugins import registry
 
-
-def item_url(kind: str, key: str, link: str | None) -> str | None:
-    """Where an item lives. The link the feed gave, which every kind but
-    YouTube supplies; YouTube items are addressed by their video id and are
-    built elsewhere."""
-    return link
+    return registry.current().mirror(kind, key)

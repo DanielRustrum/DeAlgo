@@ -756,7 +756,7 @@ def sources_page(request: Request) -> HTMLResponse:
         context = {
             "channels": channel_service.list_channels(session, owner),
             "tags": channel_service.all_tags(session, owner),
-            "kinds": sources.KINDS,
+            "kinds": sources.kinds(),
         }
     return render(request, "sources.html", context)
 
@@ -3075,15 +3075,20 @@ def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Chan
             )
         )
     )
-    if found is not None or sources.looks_like_youtube(typed):
+    if found is not None:
         return found
 
     # A source elsewhere is filed under the short name its kind reduces to, so
-    # a pasted URL and the r/ name that means the same thing find one row.
+    # a pasted URL and the r/ name that means the same thing find one row. A
+    # YouTube handle is the exception: nothing here can turn one into a
+    # channel id, so there is no key to look up and the caller resolves it.
     try:
-        key = sources.resolve(typed).key
+        said = sources.resolve(typed)
     except sources.UnknownSource:
         return None
+    if said.needs_host:
+        return None
+    key = said.key
     return session.scalar(
         owned(select(Channel), Channel, owner).where(Channel.channel_id == key)
     )

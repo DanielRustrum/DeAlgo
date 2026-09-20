@@ -90,19 +90,23 @@ def add_source(
 ) -> Channel:
     """Start watching something, whatever kind of somewhere it is.
 
-    YouTube is resolved by its own service, because turning a handle into a
-    channel id may need an API key. Everything else says where its feed is by
-    the shape of what was typed, so it is taken at its word and checked by
-    being read — which is the only honest test of a feed anyway.
+    A plugin says what a reference is and where its feed lives. It is taken
+    at its word and checked by being read, which is the only honest test of a
+    feed anyway — the exception being a YouTube handle, which no plugin can
+    finish because resolving one needs the account's Google connection.
     """
     typed = (reference or "").strip()
-    if sources.looks_like_youtube(typed):
-        return add_channel(session, typed, http, backfill_days=backfill_days, owner=owner)
-
     try:
         found = sources.resolve(typed)
     except sources.UnknownSource as exc:
         raise ChannelError(str(exc)) from exc
+
+    # A plugin may know what something is without being able to finish. The
+    # one case is a YouTube handle: turning it into a channel id needs this
+    # account's Google connection, which is not a plugin's to hold, so the
+    # code that does hold it takes over here.
+    if found.needs_host:
+        return add_channel(session, typed, http, backfill_days=backfill_days, owner=owner)
 
     existing = session.scalar(
         owned(select(Channel), Channel, owner).where(Channel.channel_id == found.key)

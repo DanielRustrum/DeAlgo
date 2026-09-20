@@ -64,9 +64,16 @@ files = ["dealgo"]
 pretty = true
 show_error_codes = true
 
-# Two dependencies ship no type information. Naming them here keeps `strict`
-# meaningful everywhere else: the gap is declared, not waved through globally.
+# Three dependencies ship no type information we can use. Naming them here
+# keeps `strict` meaningful everywhere else: the gap is declared, not waved
+# through globally.
+#
+# lupa has a `types-lupa` on PyPI, and it is behind the wheel we install: it
+# does not know `max_memory`, `register_eval` or `register_builtins`, all of
+# which lupa 2.8 has and this depends on. A stub that is wrong about the API
+# is worse than no stub, so the module is untyped here on purpose and every
+# value crossing out of it is checked in `runtime`.
 [[tool.mypy.overrides]]
-module = ["sass", "apscheduler.*"]
+module = ["sass", "apscheduler.*", "lupa"]
 ignore_missing_imports = true
 

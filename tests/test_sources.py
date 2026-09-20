@@ -48,8 +48,11 @@ def test_a_reddit_feed_is_the_subreddits_own():
 
 def test_a_substack_feed_is_the_sites_own():
     found = sources.resolve("astralcodexten.substack.com")
+    assert found.kind == "substack"
     assert found.feed_url == "https://astralcodexten.substack.com/feed"
-    assert found.title == "Astralcodexten"
+    # A working title until the first poll, when the feed says what it is
+    # actually called.
+    assert found.title == "astralcodexten"
 
 
 @pytest.mark.parametrize(
@@ -58,17 +61,54 @@ def test_a_substack_feed_is_the_sites_own():
      "https://youtube.com/channel/UCzzzzzzzzzzzzzzzzzzzzzz"],
 )
 def test_youtube_is_left_to_youtube(typed):
-    """Turning a handle into a channel id may need an API key, which is that
-    service's business rather than this one's."""
-    assert sources.looks_like_youtube(typed) is True
+    """The plugin recognises all four, and finishes the two that need no
+    credentials. A handle needs this account's Google connection to become a
+    channel id, so the plugin says so and the host takes over."""
+    found = sources.resolve(typed)
+
+    assert found.kind == "youtube"
+    if typed.startswith("UC") or "/channel/" in typed:
+        assert found.needs_host is False
+        assert found.feed_url.endswith("channel_id=UCzzzzzzzzzzzzzzzzzzzzzz")
+    else:
+        assert found.needs_host is True
 
 
 def test_a_dotted_handle_is_bluesky_and_a_bare_one_is_youtube():
     """Both are written with an @, and the dots are the only thing telling
     them apart without asking somebody."""
-    assert sources.looks_like_youtube("@mkbhd") is True
-    assert sources.looks_like_youtube("@jay.bsky.social") is False
+    assert sources.resolve("@mkbhd").kind == "youtube"
     assert sources.resolve("@jay.bsky.social").kind == "bluesky"
+
+
+def test_a_certain_answer_beats_a_guess():
+    """A Bluesky handle may be any domain, so a plugin that is sure about an
+    address has to be able to answer over one that is only offering. Without
+    it the winner would be whichever plugin's file sorts first."""
+    assert sources.resolve("name.substack.com").kind == "substack"
+    # And with nobody certain, the guess still stands rather than nothing.
+    assert sources.resolve("someone.example").kind == "bluesky"
+
+
+def test_an_address_nobody_claims_is_read_as_a_feed():
+    """RSS is the floor: it is not a plugin, because every plugin's parsing
+    is built on it and because something has to catch what nobody claims."""
+    found = sources.resolve("https://example.com/atom.xml")
+
+    assert found.kind == "rss"
+    assert found.feed_url == "https://example.com/atom.xml"
+
+
+def test_every_kind_says_which_plugin_offers_it():
+    """Four plugins and one floor, so the Sources page can say where each
+    came from and the Admin page can say what a plugin is for."""
+    by_name = {kind.name: kind for kind in sources.kinds()}
+
+    assert by_name["youtube"].plugin == "YouTube"
+    assert by_name["reddit"].plugin == "Reddit"
+    assert by_name["rss"].plugin == "", "RSS is not a plugin"
+    # And only one of them may fill a real YouTube playlist.
+    assert [name for name, k in by_name.items() if k.playlistable] == ["youtube"]
 
 
 def test_nonsense_is_refused_in_words():
