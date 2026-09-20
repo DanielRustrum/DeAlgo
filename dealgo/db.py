@@ -147,6 +147,11 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # takes. Nullable, because every box drawn before them is neither.
     ("graph_node", "repository", "VARCHAR(60)"),
     ("graph_node", "takes", "INTEGER"),
+    # Which box a jigsaw piece is slotted under. Added without the foreign
+    # key an ALTER cannot carry: the constraint is on the table SQLAlchemy
+    # creates from scratch, and a column added to an existing one goes in
+    # plain. Nothing reads it but the walk up a chain, which checks anyway.
+    ("graph_node", "attached_to", "INTEGER"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.
@@ -177,6 +182,58 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
     ("channel", "tags"),
     ("graph_node", "tag"),
 )
+
+
+def _feed_windows_become_pieces() -> None:
+    """Turn a trigger wired to a feed into the pieces that say the same thing.
+
+    A feed used to take a trigger on a second input to say when it could be
+    read. That is a Reset and a Timer slotted under it now — when it opens,
+    and how long for — so the wire is unpicked into the two pieces it was
+    carrying rather than dropped along with what somebody set up.
+
+    A pulse said "this long, this often" with no clock time to anchor it, and
+    there is no cron that means the same. It becomes a Timer alone, which
+    keeps the duration and leaves the feed open — the honest half of it,
+    rather than a made-up hour nobody chose.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if not {"graph_node", "graph_edge"} <= tables:
+        return
+    if "attached_to" not in {c["name"] for c in inspector.get_columns("graph_node")}:
+        return
+
+    with engine.begin() as connection:
+        windows = connection.execute(text("""
+            SELECT e.id, t.id, t.owner_pk, s.trigger_kind, s.duration_minutes, s.cron
+            FROM graph_edge e
+            JOIN graph_node s ON s.id = e.source_pk AND s.kind = 'trigger'
+            JOIN graph_node t ON t.id = e.target_pk AND t.kind = 'feed'
+        """)).fetchall()
+        for edge_pk, feed_pk, owner_pk, kind, minutes, cron in windows:
+            made = connection.execute(
+                text(
+                    "INSERT INTO graph_node (owner_pk, kind, enabled, x, y, "
+                    "attached_to, duration_minutes) "
+                    "VALUES (:owner, 'timer', 1, 0, 0, :host, :minutes)"
+                ),
+                {"owner": owner_pk, "host": feed_pk, "minutes": minutes or 30},
+            )
+            if kind == "schedule" and cron:
+                connection.execute(
+                    text(
+                        "INSERT INTO graph_node (owner_pk, kind, enabled, x, y, "
+                        "attached_to, cron) VALUES (:owner, 'reset', 1, 0, 0, :host, :cron)"
+                    ),
+                    {"owner": owner_pk, "host": made.lastrowid, "cron": cron},
+                )
+            connection.execute(
+                text("DELETE FROM graph_edge WHERE id = :pk"), {"pk": edge_pk}
+            )
+    if windows:
+        log.info("turned %d feed window(s) into jigsaw pieces", len(windows))
 
 
 def _wires_belong_to_boxes() -> None:
@@ -484,6 +541,7 @@ def init_db() -> None:
     _migrate_single_playlist()
     _retire_tag_nodes()
     _wires_belong_to_boxes()
+    _feed_windows_become_pieces()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     _drop_removed_columns()

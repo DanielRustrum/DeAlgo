@@ -249,6 +249,27 @@
 .graph-node.kind-deposit,
 .graph-node.kind-withdraw { border-left-color: #e0af68; }
 
+// A jigsaw piece. Drawn under the box it is slotted into, narrower and
+// tucked up against it, so a chain of them reads as one thing with parts
+// rather than as several boxes that happen to be near each other.
+.graph-node.kind-timer,
+.graph-node.kind-reset {
+  border-left-color: #9ece6a;
+  min-width: 150px;
+  padding: 6px 10px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.graph-node.is-piece { border-top: 1px dashed var(--line); }
+.graph-node.is-piece .graph-node-title { font-size: 12px; }
+// The tab that makes it look slotted in rather than merely below.
+.graph-node.is-piece::before {
+  content: ""; position: absolute; top: -5px; left: 18px;
+  width: 16px; height: 5px; border-radius: 3px 3px 0 0; background: #9ece6a;
+}
+// The box a piece would land on, while one is being dragged over it.
+.graph-node.is-slot { outline: 2px dashed #9ece6a; outline-offset: 2px; }
+
 .graph-node-kind {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
 }
@@ -767,6 +788,8 @@
 .palette-swatch.kind-plugin { background: #bb9af7; }
 .palette-swatch.kind-deposit,
 .palette-swatch.kind-withdraw { background: #e0af68; }
+.palette-swatch.kind-timer,
+.palette-swatch.kind-reset { background: #9ece6a; }
 
 // A plugin with more than one box gets a fold of its own inside the Plugins
 // one. Indented, so two levels of fold read as two levels.

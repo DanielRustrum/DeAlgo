@@ -150,6 +150,16 @@
           </ul>
         </details>
 
+        {# Pieces rather than boxes: each slots under something and changes
+           what that something does, instead of sitting on a path. #}
+        <details class="palette-group">
+          <summary>Jigsaw</summary>
+          <ul class="palette-list">
+            {{ node_row('timer', 'Timer', 'How long a feed stays open once you start reading. Drop it on a box.') }}
+            {{ node_row('reset', 'Reset', 'When that time comes back — a cron. Drop it on a box.') }}
+          </ul>
+        </details>
+
         <details class="palette-group">
           <summary>Triggers</summary>
           <ul class="palette-list">

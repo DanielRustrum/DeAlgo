@@ -911,9 +911,9 @@ def _feed_context(
         if wanted and target.id != wanted:
             continue
 
-        # A feed with a trigger on its second input is only read while that
-        # window is open. Shown as shut rather than hidden: a feed that
-        # vanished would read as a feed that had gone.
+        # A feed with a Reset slotted under it is only read while that window
+        # is open. Shown as shut rather than hidden: a feed that vanished
+        # would read as a feed that had gone.
         opens = windows.get(target.id, [])
         if opens:
             state = graph_service.window_state(opens, now)
@@ -923,7 +923,7 @@ def _feed_context(
                         "playlist": target,
                         "videos": [],
                         "total": 0,
-                        "shut": [graph_service.window_words(node) for node in opens],
+                        "shut": _window_words(opens),
                         "opens_at": state.opens_at,
                     }
                 )
@@ -1979,6 +1979,18 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 # knows and a second copy would be a second thing to keep up.
                 "asks": asking.get(node.id) if node.kind == "source" else None,
                 "store": stores.get(node.id),
+                # A jigsaw piece: what it is slotted under, and what it says.
+                # Drawn under its host rather than at its own position, so the
+                # canvas needs to know which box that is.
+                "piece": (
+                    {
+                        "under": node.attached_to,
+                        "minutes": node.duration_minutes or graph_service.DEFAULT_DURATION_MINUTES,
+                        "cron": node.cron or graph_service.DEFAULT_CRON,
+                    }
+                    if node.kind in graph_service.JIGSAW
+                    else None
+                ),
                 "feed": (
                     _feed_facts(node, windows.get(node.playlist_pk or 0, []))
                     if node.kind == "feed"
@@ -2153,10 +2165,29 @@ def _feed_facts(node: GraphNode, windows: list[GraphNode]) -> Context | None:
         "max_per_run": playlist.max_per_run,
         "generic": playlist.is_generic,
         # When it may be read. Empty means always, which is what a feed with
-        # nothing wired to its second input has always been.
-        "windows": [graph_service.window_words(node) for node in windows],
+        # no pieces slotted under it has always been.
+        "windows": _window_words(windows),
         "open": graph_service.is_open(windows, utcnow()),
     }
+
+
+def _window_words(pieces: list[GraphNode]) -> list[str]:
+    """What the pieces under a feed say about when it can be read.
+
+    The Timer is a modifier rather than a line of its own: it says how long a
+    Reset's window lasts, so it is read into the Reset's sentence and only
+    speaks for itself when there is no Reset to speak for.
+    """
+    resets = [one for one in pieces if one.kind == "reset"]
+    timers = [one for one in pieces if one.kind == "timer"]
+    window = (
+        max(1, timers[0].duration_minutes or graph_service.DEFAULT_DURATION_MINUTES)
+        if timers
+        else graph_service.DEFAULT_DURATION_MINUTES
+    )
+    said = [graph_service.piece_words(one) for one in timers[:1]]
+    said += [graph_service.piece_words(one, window) for one in resets]
+    return said
 
 
 def _channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
@@ -2292,6 +2323,10 @@ def _node_note(
         if box is None:
             return "its plugin is switched off — it narrows nothing"
         return box.blurb or f"from {box.plugin}"
+    if node.kind in graph_service.JIGSAW:
+        if node.attached_to is None:
+            return "drop it on a box to slot it in"
+        return graph_service.piece_words(node)
     if node.kind in ("deposit", "withdraw"):
         name = str((store or {}).get("name") or "")
         if not name:
@@ -2404,6 +2439,7 @@ def graph_add_node(
     title: str = Form(""),
     plugin_node: str = Form(""),
     source_kind: str = Form(""),
+    attach_to: str = Form(""),
     x: int = Form(0),
     y: int = Form(0),
 ) -> JSONResponse:
@@ -2451,6 +2487,23 @@ def graph_add_node(
                 x=x,
                 y=y,
             )
+        elif kind in graph_service.JIGSAW:
+            # Slotted under whatever it was dropped on. Without a host it is
+            # a piece lying on the canvas, which is a thing you can pick up
+            # and put somewhere rather than a thing that was refused.
+            host = (
+                session.scalar(
+                    owned(select(GraphNode), GraphNode, owner).where(
+                        GraphNode.id == int(attach_to)
+                    )
+                )
+                if attach_to.strip().isdigit()
+                else None
+            )
+            try:
+                graph_service.add_piece(session, owner, kind=kind, host=host, x=x, y=y)
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
         elif kind in ("deposit", "withdraw"):
             graph_service.add_store(
                 session, owner, kind=kind, repository=title.strip(), x=x, y=y
@@ -3049,6 +3102,18 @@ async def graph_save_node(
             except graph_service.GraphError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
             node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind in graph_service.JIGSAW:
+            if node.kind == "timer":
+                wanted = duration_minutes.strip()
+                node.duration_minutes = (
+                    int(wanted) if wanted.isdigit() and int(wanted) > 0 else None
+                )
+            else:
+                try:
+                    graph_service.cron_trigger(cron.strip() or graph_service.DEFAULT_CRON)
+                except graph_service.GraphError as exc:
+                    return JSONResponse({"error": str(exc)}, status_code=400)
+                node.cron = cron.strip() or graph_service.DEFAULT_CRON
         elif node.kind in ("deposit", "withdraw"):
             # The name is what joins the two ends. Filed the way the walk
             # files it, so a name typed two ways is still one repository.

@@ -392,21 +392,27 @@ def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
 # -- a window on when a feed may be read ------------------------------------
 
 
-def daily_window(db, *, minutes=90, every=1440, last_fired_at=None):
-    """A pulse on the Science feed's second input: 90 min in every 1 day."""
-    from dealgo.models import GraphEdge, GraphNode, Playlist
+def daily_window(db, *, minutes=90, last_fired_at=None):
+    """Pieces under the Science feed: 90 minutes once you sit down, and
+    another 90 every midnight."""
+    from dealgo.models import GraphNode, Playlist
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
         feed = GraphNode(kind="feed", playlist_pk=science.id, enabled=True, x=0, y=0)
-        pulse = GraphNode(
-            kind="trigger", trigger_kind="pulse", every_minutes=every,
-            duration_minutes=minutes, enabled=True, last_fired_at=last_fired_at, x=0, y=0,
-        )
-        session.add_all([feed, pulse])
+        session.add(feed)
         session.flush()
-        session.add(GraphEdge(source_pk=pulse.id, target_pk=feed.id))
-        return pulse.id
+        timer = GraphNode(
+            kind="timer", duration_minutes=minutes, enabled=True,
+            attached_to=feed.id, last_fired_at=last_fired_at, x=0, y=0,
+        )
+        session.add(timer)
+        session.flush()
+        session.add(GraphNode(
+            kind="reset", cron="0 0 * * *", enabled=True,
+            attached_to=timer.id, x=0, y=0,
+        ))
+        return timer.id
 
 
 def test_a_daily_window_is_open_when_you_first_come_to_it(client, db):
@@ -439,7 +445,7 @@ def test_a_spent_sitting_shuts_the_feed_and_says_when_it_opens(client, db):
     body = client.get("/feed").text
 
     assert "This feed is shut" in body
-    assert "open 90 min in every 1 day" in body
+    assert "90 minutes once you start reading" in body
     # The thing actually worth knowing, rather than leaving you to work it out.
     assert "It opens again" in body
 

@@ -410,9 +410,10 @@ def wire(session, source, target):
     graph.connect(session, source, target)
 
 
-def test_a_trigger_feeds_a_channel_or_a_feed_and_nothing_else(db):
-    """Into a channel it says when to poll; into a feed it says when that feed
-    may be read. It carries no content either way, so nothing feeds it."""
+def test_a_trigger_sets_something_off_and_nothing_feeds_it(db):
+    """Into a channel it says when to poll; into a Withdraw box it says when
+    to pull. It carries no content either way, so nothing feeds it — and a
+    feed is no longer one of the things it wires to."""
     build(db)
     with db.session_scope() as session:
         trigger = graph.add_trigger(session, trigger_kind="schedule")
@@ -421,8 +422,9 @@ def test_a_trigger_feeds_a_channel_or_a_feed_and_nothing_else(db):
 
         with pytest.raises(graph.GraphError):
             graph.connect(session, source, trigger)
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, trigger, feed)
         assert graph.connect(session, trigger, source) is not None
-        assert graph.connect(session, trigger, feed) is not None
 
 
 def test_a_channel_with_no_trigger_keeps_the_accounts_own_settings(db):
@@ -1358,20 +1360,18 @@ def test_a_channel_under_two_triggers_names_them_both(canvas):
     )
 
 
-def test_a_trigger_wired_to_a_feed_opens_a_window_on_it(canvas):
-    """The feed's second input: when it may be read, rather than what goes
-    into it."""
-    added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
-    trigger, feed = only(added, "trigger"), only(added, "feed")
+def test_a_reset_slotted_under_a_feed_opens_a_window_on_it(canvas):
+    """When a feed may be read is a property of the feed now, slotted under
+    it rather than arriving along a wire."""
+    feed = only(canvas.get("/api/graph").json(), "feed")
 
-    wired = canvas.post(
-        "/graph/connect", data={"source": trigger["id"], "target": feed["id"]}
+    added = canvas.post(
+        "/graph/nodes", data={"kind": "reset", "attach_to": feed["id"]}
     ).json()
 
-    assert only(wired, "feed")["feed"]["windows"] == ["open 30 min in every 1 hour"]
-    # And the trigger says what it opens rather than what it sets off.
-    assert only(wired, "trigger")["note"] == "open 30 min in every 1 hour"
-    assert only(wired, "trigger")["trigger"]["opens"] is True
+    assert only(added, "feed")["feed"]["windows"] == ["another 30 minutes on “0 9 * * *”"]
+    piece = boxes(added, "reset")[0]
+    assert piece["piece"]["under"] == feed["id"]
 
 
 def test_pressing_a_pulse_with_nothing_wired_to_it_says_so(canvas):
@@ -1455,9 +1455,10 @@ def test_the_palette_folds_away_what_is_optional(canvas):
 
     assert "<summary>Operations</summary>" in body
     assert "<summary>Triggers</summary>" in body
-    # Operations, Triggers, Plugins, Layout. The plugins one is there because
-    # a shipped plugin offers boxes; a plugin offering none adds nothing.
-    assert body.count('<details class="palette-group">') == 4
+    # Operations, Jigsaw, Triggers, Plugins, Layout. The plugins one is there
+    # because a shipped plugin offers boxes; a plugin offering none adds
+    # nothing.
+    assert body.count('<details class="palette-group">') == 5
     assert "<summary>Plugins</summary>" in body
     assert "palette-group\" open" not in body
 
@@ -2631,179 +2632,300 @@ def test_a_press_in_a_panel_over_the_canvas_is_not_a_press_on_it(canvas_report):
 
 # -- when a feed may be read -----------------------------------------------
 #
-# The opposite of a trigger wired to a channel: that one says when to go and
-# fetch, this one says when you may sit down and read.
+# Slotted under the feed rather than wired into it: when it may be read is a
+# property of the feed, not something arriving along a wire. A Reset says
+# when the window opens; a Timer says how long it stays open.
 
 
-def window(kind, **fields):
+def piece(kind, **fields):
     from dealgo.models import GraphNode as Node
 
-    return Node(kind="trigger", trigger_kind=kind, enabled=True, **fields)
+    return Node(kind=kind, enabled=True, **fields)
 
 
-def test_a_feed_with_nothing_on_its_second_input_is_always_open(db):
+def test_a_feed_with_nothing_slotted_under_it_is_always_open(db):
     assert graph.is_open([], dt.datetime(2026, 5, 1, 3, 0)) is True
 
 
-def test_a_pulse_is_a_sitting_that_starts_when_you_sit_down(db):
-    """A pulse says how long you get and how often, and nothing about when.
-    So the stretch starts at the first visit after the gap comes round."""
-    hourly = window("pulse", every_minutes=60, duration_minutes=30)
-    nine = dt.datetime(2026, 5, 1, 9, 0)
+def test_a_timer_is_a_sitting_that_starts_when_you_sit_down(db):
+    """There is no clock time in a Timer, so the sitting starts at the first
+    visit rather than at whatever hour the arithmetic would land on — which
+    is what "ninety minutes a day" means to the person who asked for it."""
+    timer = piece("timer", duration_minutes=90)
+    nightly = piece("reset", cron="0 0 * * *")
+    now = dt.datetime(2026, 5, 1, 10, 0)
 
-    # Never sat down: the first visit is let in, and that starts the sitting.
-    first = graph.window_state([hourly], nine)
+    first = graph.window_state([timer, nightly], now)
     assert first.open is True
-    assert first.starting == [hourly]
+    assert first.starting == [timer]  # this visit begins it
 
-    hourly.last_fired_at = nine
-    assert graph.is_open([hourly], nine + dt.timedelta(minutes=29)) is True
-    assert graph.is_open([hourly], nine + dt.timedelta(minutes=31)) is False
-    # Spent, and it stays spent for the rest of the gap.
-    assert graph.is_open([hourly], nine + dt.timedelta(minutes=59)) is False
+    timer.last_fired_at = dt.datetime(2026, 5, 1, 9, 30)
+    assert graph.is_open([timer, nightly], now) is True  # half an hour in
 
-    # The gap comes round, and the next sitting may begin.
-    next_one = graph.window_state([hourly], nine + dt.timedelta(minutes=60))
-    assert next_one.open is True
-    assert next_one.starting == [hourly]
+    timer.last_fired_at = dt.datetime(2026, 5, 1, 7, 0)
+    assert graph.is_open([timer, nightly], now) is False  # spent
 
 
-def test_ninety_minutes_a_day_is_not_ninety_minutes_after_midnight_utc(db):
-    """The window used to be counted from the Unix epoch, which put "90 min in
-    every 1 day" between 00:00 and 01:30 UTC — an hour nobody chose, nothing
-    on the canvas mentioned, and no setting could move. Arriving any other
-    time of day found the feed shut with no way to tell why."""
-    daily = window("pulse", every_minutes=1440, duration_minutes=90)
-    evening = dt.datetime(2026, 9, 18, 21, 48)
+def test_a_reset_gives_you_another_sitting_when_it_comes_round(db):
+    timer = piece("timer", duration_minutes=90)
+    nightly = piece("reset", cron="0 0 * * *")
+    now = dt.datetime(2026, 5, 1, 10, 0)
 
-    state = graph.window_state([daily], evening)
+    # Sat down yesterday evening, and midnight has been past since.
+    timer.last_fired_at = dt.datetime(2026, 4, 30, 23, 0)
+    state = graph.window_state([timer, nightly], now)
+
     assert state.open is True
-    assert state.starting == [daily]
+    assert state.starting == [timer]
+
+
+def test_a_timer_with_no_reset_gives_you_one_sitting_and_no_more(db):
+    """Which is the honest answer: nothing on the canvas says when it would
+    come back, so it does not pretend that it will."""
+    timer = piece("timer", duration_minutes=30)
+    now = dt.datetime(2026, 5, 1, 10, 0)
+    assert graph.is_open([timer], now) is True
+
+    timer.last_fired_at = dt.datetime(2026, 5, 1, 8, 0)
+    state = graph.window_state([timer], now)
+
+    assert state.open is False
+    assert state.opens_at is None
+
+
+def test_a_reset_with_no_timer_gives_the_usual_half_hour(db):
+    nightly = piece("reset", cron="0 0 * * *")
+    now = dt.datetime(2026, 5, 1, 10, 0)
+
+    nightly.last_fired_at = dt.datetime(2026, 5, 1, 9, 50)
+    assert graph.is_open([nightly], now) is True   # ten minutes in
+    nightly.last_fired_at = dt.datetime(2026, 5, 1, 9, 0)
+    assert graph.is_open([nightly], now) is False  # an hour ago, so spent
+
+
+def test_the_timer_nearest_the_feed_has_the_last_word(db):
+    """The same rule a filter nearest a feed lives by. `pieces_under` hands
+    them over nearest first, so the first one is the one that counts."""
+    nearest = piece("timer", duration_minutes=5)
+    further = piece("timer", duration_minutes=180)
+    nearest.last_fired_at = dt.datetime(2026, 5, 1, 9, 30)
+
+    assert graph.is_open([nearest, further], dt.datetime(2026, 5, 1, 10, 0)) is False
+
+
+def test_more_resets_are_more_chances_to_read(db):
+    """Any one of them coming round is enough: a second Reset is a second
+    chance, not a further condition."""
+    timer = piece("timer", duration_minutes=30)
+    morning = piece("reset", cron="0 9 * * *")
+    evening = piece("reset", cron="0 18 * * *")
+    timer.last_fired_at = dt.datetime(2026, 5, 1, 6, 0)  # spent long ago
+
+    both = [timer, morning, evening]
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 5)) is True
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 18, 5)) is True
 
 
 def test_a_shut_feed_says_when_it_opens_again(db):
-    """What you actually want to know when you find it shut."""
-    daily = window("pulse", every_minutes=1440, duration_minutes=90)
-    daily.last_fired_at = dt.datetime(2026, 9, 18, 9, 0)
+    timer = piece("timer", duration_minutes=30)
+    morning = piece("reset", cron="0 9 * * *")
+    timer.last_fired_at = dt.datetime(2026, 5, 1, 9, 0)
 
-    state = graph.window_state([daily], dt.datetime(2026, 9, 18, 21, 48))
+    state = graph.window_state([timer, morning], dt.datetime(2026, 5, 1, 12, 0))
+
     assert state.open is False
-    assert state.opens_at == dt.datetime(2026, 9, 19, 9, 0, tzinfo=dt.timezone.utc)
+    assert state.opens_at is not None and state.opens_at.hour == 9
 
 
 def test_asking_whether_a_feed_is_open_starts_nothing(db):
-    """The canvas draws the state on a feed box. Drawing it must not spend a
-    sitting the reader never sat down for."""
-    daily = window("pulse", every_minutes=1440, duration_minutes=90)
+    """What the canvas draws on a feed box. Showing the state must not spend
+    a sitting the reader never sat down for."""
+    timer = piece("timer", duration_minutes=30)
 
-    assert graph.is_open([daily], dt.datetime(2026, 9, 18, 21, 48)) is True
-    assert daily.last_fired_at is None
-
-
-def test_a_pulse_does_not_spend_its_sitting_while_something_else_holds_it_shut(db):
-    """Two pulses, and only one of them has come round. The feed stays shut,
-    so neither sitting has begun — otherwise the one that was ready would
-    burn its allowance on a visit that was turned away."""
-    daily = window("pulse", every_minutes=1440, duration_minutes=90)
-    hourly = window("pulse", every_minutes=60, duration_minutes=30)
-    nine = dt.datetime(2026, 5, 1, 9, 0)
-    hourly.last_fired_at = nine  # spent at 9, and it is now half past
-
-    state = graph.window_state([daily, hourly], nine + dt.timedelta(minutes=40))
-
-    assert state.open is False
-    assert state.starting == []
+    assert graph.is_open([timer], dt.datetime(2026, 5, 1, 10, 0)) is True
+    assert timer.last_fired_at is None
 
 
-def test_a_schedule_opens_for_its_duration_from_when_it_comes_round(db):
-    morning = window("schedule", cron="0 9 * * *", duration_minutes=30)
-
-    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 10)) is True
-    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 45)) is False
-    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 8, 55)) is False
+# -- slotting pieces in ----------------------------------------------------
 
 
-def test_more_schedules_open_more_times(db):
-    """Any one of them is enough — a second schedule is a second chance to
-    read, which is an or."""
-    morning = window("schedule", cron="0 9 * * *", duration_minutes=30)
-    evening = window("schedule", cron="0 21 * * *", duration_minutes=30)
-    both = [morning, evening]
+def test_a_piece_dropped_on_a_box_is_slotted_into_it(canvas):
+    """Dropped rather than wired: the canvas says which box it landed on and
+    the piece goes under it."""
+    feed = only(canvas.get("/api/graph").json(), "feed")
 
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is True
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 21, 10)) is True
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 15, 0)) is False
+    added = canvas.post(
+        "/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]}
+    ).json()
 
-
-def test_more_pulses_narrow_the_times(db):
-    """Every one of them has to be in its window — a second pulse is a further
-    condition, which is an and."""
-    hourly = window("pulse", every_minutes=60, duration_minutes=30)
-    quarterly = window("pulse", every_minutes=15, duration_minutes=5)
-    nine = dt.datetime(2026, 5, 1, 9, 0)
-    hourly.last_fired_at = nine
-    quarterly.last_fired_at = nine
-    both = [hourly, quarterly]
-
-    # Two minutes in, both sittings are still running.
-    assert graph.is_open(both, nine + dt.timedelta(minutes=2)) is True
-    # Ten past: the hourly one still is, the quarter-hourly one is spent.
-    assert graph.is_open(both, nine + dt.timedelta(minutes=10)) is False
-    # Quarter past: the quarter-hourly gap came round, and the hourly still runs.
-    assert graph.is_open(both, nine + dt.timedelta(minutes=16)) is True
+    made = boxes(added, "timer")[0]
+    assert made["piece"]["under"] == feed["id"]
+    assert made["note"] == "30 minutes once you start reading"
 
 
-def test_a_kind_nobody_used_says_nothing_rather_than_no(db):
-    """Two schedules and no pulses is open when either schedule is, not never
-    — which is what an unguarded "all pulses agree" would have made it."""
-    morning = window("schedule", cron="0 9 * * *", duration_minutes=30)
-    assert graph.is_open([morning], dt.datetime(2026, 5, 1, 9, 10)) is True
+def test_a_piece_dropped_on_nothing_is_loose_and_says_so(canvas):
+    """Not refused: a piece on the canvas is a thing you can pick up and put
+    somewhere, and refusing the drop would leave nothing to pick up."""
+    added = canvas.post("/graph/nodes", data={"kind": "reset"}).json()
 
-    hourly = window("pulse", every_minutes=60, duration_minutes=30)
-    hourly.last_fired_at = dt.datetime(2026, 5, 1, 9, 0)
-    assert graph.is_open([hourly], dt.datetime(2026, 5, 1, 9, 10)) is True
-
-
-def test_schedules_and_pulses_together_are_the_overlap(db):
-    """The times a schedule opens, narrowed by the pulses that must agree."""
-    morning = window("schedule", cron="0 9 * * *", duration_minutes=60)
-    quarterly = window("pulse", every_minutes=15, duration_minutes=5)
-    quarterly.last_fired_at = dt.datetime(2026, 5, 1, 9, 0)
-
-    both = [morning, quarterly]
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 2)) is True    # in both
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 9, 10)) is False  # pulse spent
-    assert graph.is_open(both, dt.datetime(2026, 5, 1, 15, 2)) is False  # schedule shut
+    made = boxes(added, "reset")[0]
+    assert made["piece"]["under"] is None
+    assert made["note"] == "drop it on a box to slot it in"
 
 
-def test_a_switched_off_window_is_no_window_at_all(db):
+def test_pieces_chain_from_the_canvas_and_both_reach_the_feed(canvas):
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    timer = boxes(
+        canvas.post("/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]}).json(),
+        "timer",
+    )[0]
+
+    added = canvas.post(
+        "/graph/nodes", data={"kind": "reset", "attach_to": timer["id"]}
+    ).json()
+
+    assert boxes(added, "reset")[0]["piece"]["under"] == timer["id"]
+    assert only(added, "feed")["feed"]["windows"] == [
+        "30 minutes once you start reading",
+        "another 30 minutes on “0 9 * * *”",
+    ]
+
+
+def test_what_a_timer_says_is_saved_from_its_panel(canvas):
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    timer = boxes(
+        canvas.post("/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]}).json(),
+        "timer",
+    )[0]
+
+    answer = canvas.post(
+        f"/graph/nodes/{timer['id']}",
+        data={"box_form": "1", "active": "1", "duration_minutes": "90"},
+    )
+
+    assert answer.status_code == 200
+    assert only(answer.json(), "feed")["feed"]["windows"][0] == (
+        "90 minutes once you start reading"
+    )
+
+
+def test_a_reset_that_is_not_a_cron_is_refused_with_a_reason(canvas):
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    reset = boxes(
+        canvas.post("/graph/nodes", data={"kind": "reset", "attach_to": feed["id"]}).json(),
+        "reset",
+    )[0]
+
+    answer = canvas.post(
+        f"/graph/nodes/{reset['id']}",
+        data={"box_form": "1", "active": "1", "cron": "every tuesday-ish"},
+    )
+
+    assert answer.status_code == 400
+    assert answer.json()["error"]
+
+
+def test_the_palette_offers_the_pieces(canvas):
+    body = canvas.get("/channels").text
+    assert 'data-palette="timer"' in body
+    assert 'data-palette="reset"' in body
+    assert "<summary>Jigsaw</summary>" in body
+
+
+def test_a_piece_is_slotted_under_a_box_rather_than_wired_to_it(db):
     build(db)
     with db.session_scope() as session:
         feed = node_for(session, "feed", "PLone")
-        trigger = graph.add_trigger(session, trigger_kind="pulse")
-        graph.connect(session, trigger, feed)
+        made = graph.add_piece(session, kind="reset", host=feed, cron="0 9 * * *")
+
+        assert made.attached_to == feed.id
+        assert graph.consumption(session)[feed.playlist_pk] == [made]
+
+
+def test_pieces_chain_and_the_chain_belongs_to_the_box(db):
+    """A piece may be slotted under another, and what it changes is always
+    the box at the top rather than the piece above it."""
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        first = graph.add_piece(session, kind="timer", host=feed, duration_minutes=5)
+        second = graph.add_piece(session, kind="reset", host=first, cron="0 9 * * *")
+
+        under = graph.consumption(session)[feed.playlist_pk]
+        assert [one.id for one in under] == [first.id, second.id]
+        assert graph.host_of(graph.nodes(session), second).id == feed.id
+
+
+def test_a_piece_cannot_be_slotted_under_itself(db):
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        first = graph.add_piece(session, kind="timer", host=feed)
+        second = graph.add_piece(session, kind="reset", host=first)
+
+        with pytest.raises(graph.GraphError):
+            graph.attach(session, first, second)
+
+
+def test_a_box_is_not_a_piece(db):
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        source = node_for(session, "source", "UCone")
+
+        with pytest.raises(graph.GraphError):
+            graph.attach(session, source, feed)
+
+
+def test_a_piece_can_be_taken_back_out(db):
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        made = graph.add_piece(session, kind="reset", host=feed)
+
+        assert graph.detach(session, made) is True
+        assert graph.consumption(session) == {}
+
+
+def test_a_switched_off_piece_is_no_window_at_all(db):
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        made = graph.add_piece(session, kind="reset", host=feed)
         assert graph.consumption(session)[feed.playlist_pk] != []
 
-        trigger.enabled = False
+        made.enabled = False
         session.flush()
         assert graph.consumption(session) == {}
 
 
+def test_a_trigger_can_no_longer_be_wired_to_a_feed(db):
+    """That input is gone: when a feed may be read is slotted under it now."""
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        trigger = graph.add_trigger(session, trigger_kind="pulse")
+
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, trigger, feed)
+
+
 def test_a_shut_feed_says_it_is_shut_rather_than_going_quiet(canvas, db):
     """A feed that vanished would read as a feed that had gone."""
-    from dealgo.models import Playlist as PlaylistModel
+    from dealgo.models import Playlist as PlaylistModel, utcnow
 
     with db.session_scope() as session:
         graph.load(session)
         feed = next(n for n in graph.nodes(session) if n.kind == "feed")
-        # A window that is never open: one minute a day, which has passed.
-        trigger = graph.add_trigger(session, trigger_kind="schedule", cron="0 0 1 1 *")
-        trigger.duration_minutes = 1
-        graph.connect(session, trigger, feed)
+        # A window that is never open: one minute a year, which has passed.
+        made = graph.add_piece(session, kind="timer", host=feed, duration_minutes=1)
+        # Sat down an hour ago, so the one minute is long spent.
+        made.last_fired_at = utcnow() - dt.timedelta(hours=1)
+        graph.add_piece(session, kind="reset", host=feed, cron="0 0 1 1 *")
 
     body = canvas.get("/feed").text
     assert "This feed is shut" in body
-    assert "open 1 min from" in body
+    assert "1 minute once you start reading" in body
 
 
 # -- groups ----------------------------------------------------------------

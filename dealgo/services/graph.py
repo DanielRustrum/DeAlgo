@@ -52,7 +52,15 @@ KINDS = (
     # every source funnel into one place and be pulled from when a pipeline
     # is ready, instead of each source pushing on its own schedule.
     "deposit", "withdraw",
+    # Jigsaw pieces. These are not on any path and have no wires: each is
+    # slotted under a box and changes what that box does. Pieces chain, and
+    # a chain belongs to the box at the top of it.
+    "timer", "reset",
 )
+
+#: The pieces, as against the boxes. Kept together so "is this a piece"
+#: is one question asked in one place.
+JIGSAW = ("timer", "reset")
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -92,7 +100,10 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # Into a channel it says when to poll; into a feed it says when that feed
     # may be read; into a withdraw it says when to pull. A trigger carries no
     # content any of those ways.
-    "trigger": ("source", "feed", "withdraw"),
+    # A feed used to take one too, on a second input, to say when it could
+    # be read. That is a Timer and a Reset slotted under it now: it is a
+    # property of the feed rather than something arriving along a wire.
+    "trigger": ("source", "withdraw"),
     "source": MIDDLE + ENDS,
     "filter": MIDDLE + ENDS,
     # A plugin box is a filter whose rule is somebody's Lua, so it sits
@@ -107,6 +118,9 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # The end of the line. What is in it comes out through a Withdraw box,
     # which is a path of its own rather than a continuation of this one.
     "deposit": (),
+    # A piece is slotted, not wired. Nothing runs into or out of one.
+    "timer": (),
+    "reset": (),
 }
 
 # Where a newly laid-out graph puts things: sources on the left, feeds on the
@@ -738,24 +752,99 @@ def wired_channels(
 # -- when a feed may be read -----------------------------------------------
 
 
+def attach(
+    session: Session, piece: GraphNode, host: GraphNode, owner: OwnerId = None
+) -> GraphNode:
+    """Slot a jigsaw piece under a box, or under another piece.
+
+    Refused where it would make no sense, said at the moment of the drop
+    rather than discovered later by a piece that quietly does nothing.
+    """
+    if piece.kind not in JIGSAW:
+        raise GraphError(f"A {piece.kind} box is not a jigsaw piece.")
+    if piece.id == host.id:
+        raise GraphError("A piece cannot be slotted under itself.")
+    if host.kind == "group":
+        raise GraphError("A group is a background, not something to slot into.")
+
+    # No rings. Walking up from the host must not arrive back at the piece.
+    seen = {piece.id}
+    walk: GraphNode | None = host
+    while walk is not None:
+        if walk.id in seen:
+            raise GraphError("That would slot a piece under itself.")
+        seen.add(walk.id)
+        walk = session.get(GraphNode, walk.attached_to) if walk.attached_to else None
+
+    piece.attached_to = host.id
+    session.flush()
+    return piece
+
+
+def detach(session: Session, piece: GraphNode) -> bool:
+    """Take a piece out of whatever it was slotted under."""
+    if piece.attached_to is None:
+        return False
+    piece.attached_to = None
+    session.flush()
+    return True
+
+
+def pieces_under(all_nodes: list[GraphNode], host_pk: int) -> list[GraphNode]:
+    """Every jigsaw piece in the chain under one box, nearest first.
+
+    A chain rather than a list: a piece may be slotted under another, and all
+    of them belong to the box at the top. Nearest first because that is the
+    order they are read in — the one closest to the box has the last word,
+    the same rule a filter nearest a feed lives by.
+    """
+    below: dict[int, list[GraphNode]] = {}
+    for node in all_nodes:
+        if node.kind in JIGSAW and node.attached_to is not None:
+            below.setdefault(node.attached_to, []).append(node)
+
+    found: list[GraphNode] = []
+    queue = list(below.get(host_pk, []))
+    seen: set[int] = set()
+    while queue:
+        piece = queue.pop(0)
+        if piece.id in seen:
+            continue  # a ring somebody built before this refused to make one
+        seen.add(piece.id)
+        found.append(piece)
+        queue.extend(below.get(piece.id, []))
+    return found
+
+
+def host_of(all_nodes: list[GraphNode], piece: GraphNode) -> GraphNode | None:
+    """The box at the top of a piece's chain, which is what it changes."""
+    by_id = {node.id: node for node in all_nodes}
+    seen: set[int] = {piece.id}
+    walk = by_id.get(piece.attached_to) if piece.attached_to else None
+    while walk is not None and walk.kind in JIGSAW:
+        if walk.id in seen:
+            return None
+        seen.add(walk.id)
+        walk = by_id.get(walk.attached_to) if walk.attached_to else None
+    return walk
+
+
 def consumption(session: Session, owner: OwnerId = None) -> dict[int, list[GraphNode]]:
-    """The triggers wired into each feed's second input, by playlist.
+    """The jigsaw pieces slotted under each feed, by playlist.
 
     A feed with none is always open. What these do is the opposite of what a
-    trigger wired to a channel does: that one says when to go and fetch, this
-    one says when you may sit down and read.
+    trigger wired to a channel does: that one says when to go and fetch,
+    these say when you may sit down and read.
     """
-    all_nodes, all_edges = load(session, owner)
-    by_id = {node.id: node for node in all_nodes}
-
-    wired: dict[int, list[GraphNode]] = {}
-    for edge in all_edges:
-        start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
-        if start is None or end is None or not start.enabled:
+    all_nodes, _ = load(session, owner)
+    under: dict[int, list[GraphNode]] = {}
+    for node in all_nodes:
+        if node.kind != "feed" or node.playlist_pk is None:
             continue
-        if start.kind == "trigger" and end.kind == "feed" and end.playlist_pk is not None:
-            wired.setdefault(end.playlist_pk, []).append(start)
-    return wired
+        pieces = [one for one in pieces_under(all_nodes, node.id) if one.enabled]
+        if pieces:
+            under.setdefault(node.playlist_pk, []).extend(pieces)
+    return under
 
 
 @dataclass
@@ -773,61 +862,86 @@ class Window:
     opens_at: dt.datetime | None = None
 
 
-def window_state(triggers: list[GraphNode], now: dt.datetime) -> Window:
+def window_state(pieces: list[GraphNode], now: dt.datetime) -> Window:
     """Whether a feed may be read at this moment, and why not if not.
 
-    Two kinds of trigger, combined the two ways they read:
+    Two pieces, each answering half of it:
 
-    * **Schedules open times up.** Any one of them being in its window is
-      enough, so a second schedule is a second chance to read — an *or*.
-    * **Pulses narrow them.** Every one of them has to be in its window, so a
-      second pulse is a further condition — an *and*.
+    * **Timer says how long you get**, counted from when you sit down. There
+      is no clock time in it, so the sitting starts at the first visit rather
+      than at whatever hour the arithmetic would otherwise land on — which is
+      what "ninety minutes a day" means to the person who asked for it.
+    * **Reset says when you get another.** A cron: the sitting is re-armed the
+      next time it comes round. Any one of several is enough, so a second
+      Reset is a second chance to read rather than a further condition.
 
-    A kind nobody used says nothing rather than saying no: a feed with two
-    schedules and no pulses is open when either schedule is, not never.
+    A Timer with no Reset gives you one sitting and no more, and says so.
+    A Reset with no Timer gives the usual half hour each time it comes round.
+    The Timer nearest the feed has the last word, which is the rule a filter
+    nearest a feed already lives by.
     """
-    if not triggers:
+    if not pieces:
         return Window(open=True)
 
-    schedules = [node for node in triggers if node.trigger_kind == "schedule"]
-    pulses = [node for node in triggers if node.trigger_kind != "schedule"]
+    timers = [node for node in pieces if node.kind == "timer"]
+    resets = [node for node in pieces if node.kind == "reset"]
+    if not timers and not resets:
+        return Window(open=True)
 
-    shut_at: list[dt.datetime] = []
+    # Nearest first, so the first Timer in the chain is the one that counts.
+    window = max(1, timers[0].duration_minutes or DEFAULT_DURATION_MINUTES) if timers else (
+        DEFAULT_DURATION_MINUTES
+    )
+    # The piece that remembers when the sitting began. A Timer if there is
+    # one, since that is the piece the sitting belongs to; otherwise the
+    # Reset, which is then keeping the time for a sitting of the usual length.
+    anchor = timers[0] if timers else resets[0]
 
-    opened = True
-    if schedules:
-        opened = any(_came_round(node, now) for node in schedules)
-        if not opened:
-            # Any one of them is enough, so the soonest of them is the answer.
-            soonest = [when for when in (_next_firing(node, now) for node in schedules) if when]
-            if soonest:
-                shut_at.append(min(soonest))
+    began = anchor.last_fired_at
+    if began is None:
+        # Never sat down. This visit starts the first sitting.
+        return Window(open=True, starting=[anchor])
 
-    narrowed = True
-    starting: list[GraphNode] = []
-    for node in pulses:
-        allowed, begins = _sitting(node, now)
-        if not allowed:
-            narrowed = False
-            when = _next_sitting(node, now)
-            if when is not None:
-                # Every pulse has to agree, so the last of them is the answer.
-                shut_at.append(when)
-        elif begins:
-            starting.append(node)
+    if _aware(now) - _aware(began) < dt.timedelta(minutes=window):
+        return Window(open=True)  # still inside the sitting
 
-    if opened and narrowed:
-        return Window(open=True, starting=starting)
-    return Window(open=False, opens_at=max(shut_at) if shut_at else None)
+    # Spent. It comes back when a Reset next comes round.
+    if not resets:
+        return Window(open=False)
+
+    if any(_fired_between(node.cron or DEFAULT_CRON, began, now) for node in resets):
+        return Window(open=True, starting=[anchor])
+
+    soonest = [when for when in (_next_firing(node, now) for node in resets) if when]
+    return Window(open=False, opens_at=min(soonest) if soonest else None)
 
 
-def is_open(triggers: list[GraphNode], now: dt.datetime) -> bool:
+def _fired_between(expression: str, since: dt.datetime, now: dt.datetime) -> bool:
+    """Whether this cron came round after `since` and no later than now.
+
+    Which is the question a spent sitting asks: not "is it in a window" but
+    "has it been re-armed since I last sat down".
+    """
+    try:
+        trigger = cron_trigger(expression)
+    except GraphError:
+        return False
+    moment = _aware(now)
+    # Strictly after: the firing that started this sitting is not a reason to
+    # start another one, and `get_next_fire_time` counts `since` itself.
+    came: dt.datetime | None = trigger.get_next_fire_time(None, _aware(since))
+    while came is not None and came <= _aware(since):
+        came = trigger.get_next_fire_time(came, came + dt.timedelta(seconds=1))
+    return came is not None and came <= moment
+
+
+def is_open(pieces: list[GraphNode], now: dt.datetime) -> bool:
     """Whether a feed may be read, asked without letting anybody in.
 
     What the canvas draws on a feed box, where showing the state must not
     start a sitting that the reader never sat down for.
     """
-    return window_state(triggers, now).open
+    return window_state(pieces, now).open
 
 
 def begin_sitting(session: Session, state: Window, now: dt.datetime) -> None:
@@ -907,6 +1021,15 @@ def _came_round_within(expression: str, minutes: int, now: dt.datetime) -> bool:
     moment = _aware(now)
     began = trigger.get_next_fire_time(None, moment - dt.timedelta(minutes=minutes))
     return began is not None and began <= moment
+
+
+def piece_words(piece: GraphNode, window: int | None = None) -> str:
+    """What one jigsaw piece does, in the words that belong to it."""
+    if piece.kind == "timer":
+        minutes = max(1, piece.duration_minutes or DEFAULT_DURATION_MINUTES)
+        return f"{every_words(minutes)} once you start reading"
+    held = window if window is not None else DEFAULT_DURATION_MINUTES
+    return f"another {every_words(max(1, held))} on “{piece.cron or DEFAULT_CRON}”"
 
 
 def window_words(node: GraphNode) -> str:
@@ -1857,6 +1980,40 @@ def resize(
     group.height = max(GROUP_LEAST[1], int(height))
     session.flush()
     return True
+
+
+def add_piece(
+    session: Session,
+    owner: OwnerId = None,
+    *,
+    kind: str,
+    host: GraphNode | None = None,
+    duration_minutes: int | None = None,
+    cron: str | None = None,
+    x: int = 0,
+    y: int = 0,
+) -> GraphNode:
+    """A jigsaw piece, slotted under a box if one was named.
+
+    Its own position is kept for the moment it is unslotted: a piece that is
+    attached is drawn under its host and does not use it, but a piece nobody
+    has slotted anywhere has to be somewhere.
+    """
+    if kind not in JIGSAW:
+        raise GraphError(f"There is no {kind} piece.")
+    piece = GraphNode(
+        owner_pk=owner,
+        kind=kind,
+        duration_minutes=duration_minutes if kind == "timer" else None,
+        cron=(cron or DEFAULT_CRON) if kind == "reset" else None,
+        x=x,
+        y=y,
+    )
+    session.add(piece)
+    session.flush()
+    if host is not None:
+        attach(session, piece, host, owner)
+    return piece
 
 
 def add_store(

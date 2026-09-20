@@ -18,7 +18,16 @@ type GraphNodeKind =
   // The two ends of a named repository. A deposit ends a path the way a feed
   // does; a withdraw starts one the way a source does.
   | "deposit"
-  | "withdraw";
+  | "withdraw"
+  // Jigsaw pieces. Not on any path and not wired to anything: each is
+  // slotted under a box and changes what that box does.
+  | "timer"
+  | "reset";
+
+/** Which kinds are pieces rather than boxes. */
+function graphIsPiece(kind: GraphNodeKind): boolean {
+  return kind === "timer" || kind === "reset";
+}
 /** There used to be two: a source's wire was stored against its channel and
  *  drawn from that, which is why two boxes for one channel showed the same
  *  wires. Every wire is an edge now. */
@@ -55,6 +64,8 @@ interface GraphNodeView {
   asks: GraphAsks | null;
   /** Deposit and Withdraw boxes: which repository, and how full it is. */
   store: GraphStore | null;
+  /** Jigsaw pieces: what this one is slotted under, and what it says. */
+  piece: GraphPiece | null;
   /** Feed boxes: how it fills. */
   feed: GraphFeed | null;
   overrides: Record<string, GraphOverride>;
@@ -285,7 +296,9 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "group" ||
     value === "plugin" ||
     value === "deposit" ||
-    value === "withdraw"
+    value === "withdraw" ||
+    value === "timer" ||
+    value === "reset"
   ) {
     return value;
   }
@@ -329,6 +342,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     channel: asGraphChannel(raw["channel"]),
     asks: asGraphAsks(raw["asks"]),
     store: asGraphStore(raw["store"]),
+    piece: asGraphPiece(raw["piece"]),
     plugin: asGraphPlugin(raw["plugin"]),
     feed: asGraphFeed(raw["feed"]),
     overrides: asGraphOverrides(raw["overrides"]),
@@ -344,6 +358,17 @@ function asGraphAsks(value: unknown): GraphAsks | null {
     source: typeof raw["source"] === "string" ? raw["source"] : "",
     example: typeof raw["example"] === "string" ? raw["example"] : "",
     known: raw["known"] === true,
+  };
+}
+
+function asGraphPiece(value: unknown): GraphPiece | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const under = raw["under"];
+  return {
+    under: typeof under === "number" ? under : null,
+    minutes: typeof raw["minutes"] === "number" ? raw["minutes"] : 30,
+    cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
   };
 }
 
@@ -606,6 +631,8 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "source") return "Source";
   if (kind === "deposit") return "Deposit";
   if (kind === "withdraw") return "Withdraw";
+  if (kind === "timer") return "Timer";
+  if (kind === "reset") return "Reset";
   if (kind === "feed") return "Feed";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
@@ -627,6 +654,16 @@ interface GraphAsks {
    *  switched off, which is worth saying rather than silently refusing
    *  everything typed into it. */
   known: boolean;
+}
+
+/** A jigsaw piece: what it is slotted under, and what it carries. */
+interface GraphPiece {
+  /** The box or piece it sits under. Null while it is loose on the canvas. */
+  under: number | null;
+  /** Timer: how long the sitting lasts. */
+  minutes: number;
+  /** Reset: the cron that gives you another. */
+  cron: string;
 }
 
 /** What a Deposit or Withdraw box is about. */
@@ -732,6 +769,14 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   if (state.picked.has(node.id)) box.classList.add("is-picked");
   if (!node.enabled) box.classList.add("is-off");
 
+  if (node.piece !== null) {
+    // A piece is slotted, not wired: nothing runs into or out of one, so it
+    // has no ports at all.
+    box.classList.add("is-piece");
+    box.appendChild(graphElement("span", "graph-node-kind", graphKindLabel(node.kind)));
+    box.appendChild(graphElement("strong", "graph-node-title", node.note));
+    return box;
+  }
   if (node.kind !== "trigger") {
     // A channel and a withdraw are set off by a signal; everything else is
     // fed content.
@@ -832,6 +877,44 @@ function drawGraphNodes(state: GraphState): void {
     const box = drawGraphNode(state, node);
     state.boxes.set(node.id, box);
     state.parts.layer.appendChild(box);
+  }
+  placeGraphPieces(state);
+}
+
+/** Stack each slotted piece under whatever it is slotted into.
+ *
+ *  Measured rather than guessed: a box is as tall as its own contents, and a
+ *  piece has to sit against the bottom of it however tall that turned out.
+ *  Done after everything is in the document, which is the first moment there
+ *  is a height to read. */
+function placeGraphPieces(state: GraphState): void {
+  const under = new Map<number, GraphNodeView[]>();
+  for (const node of state.nodes) {
+    const host = node.piece?.under;
+    if (host === undefined || host === null) continue;
+    const kept = under.get(host);
+    if (kept === undefined) under.set(host, [node]);
+    else kept.push(node);
+  }
+
+  const place = (hostId: number, depth: number): void => {
+    const hostBox = state.boxes.get(hostId);
+    if (hostBox === undefined) return;
+    let top = hostBox.offsetTop + hostBox.offsetHeight;
+    for (const piece of under.get(hostId) ?? []) {
+      const box = state.boxes.get(piece.id);
+      if (box === undefined) continue;
+      box.style.left = `${hostBox.offsetLeft}px`;
+      box.style.top = `${top}px`;
+      top += box.offsetHeight;
+      // Rings cannot be made any more, but one built before they were
+      // refused must not send this round for ever.
+      if (depth < 12) place(piece.id, depth + 1);
+    }
+  };
+  for (const node of state.nodes) {
+    if (node.piece === null && !under.has(node.id)) continue;
+    if (node.piece === null) place(node.id, 0);
   }
 }
 
@@ -1221,6 +1304,7 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   form.appendChild(graphLabelled("Name", name));
 
   if (node.kind === "group") graphGroupFields(form, node);
+  else if (node.piece !== null) graphPieceFields(form, node);
   else if (node.store !== null) graphStoreFields(form, node.store);
   else if (node.kind === "source") graphChannelFields(state, form, node);
   else if (node.kind === "feed") graphFeedFields(form, node);
@@ -1408,6 +1492,41 @@ function graphMatches(name: string, query: string): boolean {
   const terms = query.toLowerCase().split(/\s+/).filter((term): boolean => term !== "");
   const against = name.toLowerCase();
   return terms.every((term): boolean => against.includes(term));
+}
+
+/** A jigsaw piece. One field each: a Timer says how long, a Reset says when
+ *  you get another. */
+function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
+  const piece = node.piece;
+  if (piece === null) return;
+
+  if (node.kind === "timer") {
+    const many = document.createElement("input");
+    many.type = "number";
+    many.name = "duration_minutes";
+    many.min = "1";
+    many.value = String(piece.minutes);
+    form.appendChild(graphLabelled("Minutes once you start reading", many));
+  } else {
+    const when = document.createElement("input");
+    when.type = "text";
+    when.name = "cron";
+    when.value = piece.cron;
+    when.placeholder = "0 9 * * *";
+    form.appendChild(graphLabelled("Comes round on", when));
+  }
+
+  form.appendChild(
+    graphElement(
+      "p",
+      "hint",
+      piece.under === null
+        ? "Loose on the canvas. Drop it on a box to slot it in — it changes what that box does."
+        : node.kind === "timer"
+          ? "The clock starts when you open the feed, not at some hour of the day. Without a Reset under the same box you get one sitting and no more."
+          : "Each time this comes round the Timer starts again. Several Resets are several chances to read.",
+    ),
+  );
 }
 
 /** A Deposit or a Withdraw box: which repository, and how much to pull.
@@ -3147,11 +3266,40 @@ function graphPaletteName(kind: string): string {
   return kind === "pulse" ? "Pulse" : "Schedule";
 }
 
+/** The box under the pointer, for a piece being dropped onto one.
+ *
+ *  Asked of the document rather than worked out from coordinates: the boxes
+ *  are where the browser put them, and the ghost is not in the way because it
+ *  takes no pointer events. */
+/** Outline the box a piece would slot into, while it is dragged over it. */
+function markGraphSlot(state: GraphState, event: PointerEvent): void {
+  const dropping = state.dropping;
+  const wanted =
+    dropping !== null && graphIsPiece(dropping.kind as GraphNodeKind)
+      ? graphBoxAt(state, event)
+      : null;
+  for (const [id, box] of state.boxes) box.classList.toggle("is-slot", id === wanted);
+}
+
+function graphBoxAt(state: GraphState, event: PointerEvent): number | null {
+  const found = document.elementFromPoint(event.clientX, event.clientY);
+  if (!(found instanceof Element)) return null;
+  const box = found.closest<HTMLElement>("[data-node]");
+  const named = box?.dataset["node"];
+  if (named === undefined) return null;
+  const id = Number(named);
+  // A group is a background, not something to slot into.
+  const node = state.nodes.find((one): boolean => one.id === id);
+  if (node === undefined || node.kind === "group") return null;
+  return id;
+}
+
 function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   const dropping = state.dropping;
   if (dropping === null || dropping.pointerId !== event.pointerId) return;
   state.dropping = null;
   dropping.ghost.remove();
+  for (const box of state.boxes.values()) box.classList.remove("is-slot");
 
   const frame = state.parts.canvas.getBoundingClientRect();
   const inside =
@@ -3160,8 +3308,15 @@ function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   if (!inside) return;
 
   const at = pointInGraph(state, event);
+  // A piece is slotted into whatever it was dropped on, rather than left
+  // where it landed. Dropped on nothing it is simply a piece on the canvas,
+  // which can be picked up and put somewhere.
+  const onto = graphIsPiece(dropping.kind as GraphNodeKind)
+    ? graphBoxAt(state, event)
+    : null;
   void dropGraphNode(
-    state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which,
+    state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30),
+    dropping.which, onto,
   );
 }
 
@@ -3172,10 +3327,12 @@ async function dropGraphNode(
   x: number,
   y: number,
   which = "",
+  onto: number | null = null,
 ): Promise<void> {
   toggleGraphPalette(state, false);
   const before = state.nodes;
   const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
+  if (onto !== null) asking.set("attach_to", String(onto));
   // The same word off the palette row, sent under whichever name the kind
   // being made reads it by.
   if (which !== "") asking.set(kind === "source" ? "source_kind" : "plugin_node", which);
@@ -3560,6 +3717,7 @@ function listenToGraph(state: GraphState): void {
   window.addEventListener("pointermove", (event: PointerEvent): void => {
     if (state.dropping !== null && state.dropping.pointerId === event.pointerId) {
       moveGraphGhost(state.dropping.ghost, event);
+      markGraphSlot(state, event);
       return;
     }
     onGraphPointerMove(state, event);

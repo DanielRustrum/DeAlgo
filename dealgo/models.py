@@ -626,6 +626,15 @@ class GraphNode(Base):
     plugin_ref: Mapped[Optional[str]] = mapped_column(String(80))
     plugin_settings: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Jigsaw pieces only: the box this one is slotted under. A piece has one
+    # host and no wires — it augments what it is attached to rather than
+    # sitting on a path. Pieces chain, and a chain belongs to whatever is at
+    # the top of it: what a piece changes is always the box, never the piece
+    # above it.
+    attached_to: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("graph_node.id", ondelete="CASCADE"), index=True
+    )
+
     # Deposit and Withdraw boxes only: which repository this one is about.
     # A label two boxes agree on rather than a row of its own, so typing the
     # same name into a second box is how you join them up.
@@ -683,6 +692,10 @@ class GraphNode(Base):
             return "Schedule" if self.trigger_kind == "schedule" else "Pulse"
         if self.kind == "sort":
             return "Sort"
+        if self.kind == "timer":
+            return "Timer"
+        if self.kind == "reset":
+            return "Reset"
         if self.kind in ("deposit", "withdraw"):
             # Named after the repository it is about: two Deposit boxes only
             # mean the same thing when they carry the same name, so the name
