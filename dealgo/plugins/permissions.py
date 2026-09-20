@@ -90,6 +90,21 @@ KNOWN: tuple[Permission, ...] = (
         ),
     ),
     Permission(
+        name="account",
+        label="Act as your connected account",
+        means=(
+            "Make requests to the service your connected account belongs to — "
+            "reading your playlists, adding to them, looking up channels. "
+            "De-Algo signs and sends them and charges the day's allowance; "
+            "the plugin never sees the credential, and nothing is signed for "
+            "any address but that service's own."
+        ),
+        caution=(
+            "It acts as you there. Anything the account can do, a plugin with "
+            "this can do — including changing playlists."
+        ),
+    ),
+    Permission(
         name="log",
         label="Write to the log",
         means=(
@@ -144,6 +159,10 @@ def capabilities(
         given["log"] = _Log(plugin)
     if "network" in granted:
         given["net"] = _Net(plugin, http)
+    if "account" in granted and lua is not None:
+        from .account import Account
+
+        given["account"] = Account(plugin, lua)
     if lua is not None:
         given["dealgo"] = Site(
             plugin,
@@ -161,6 +180,11 @@ def capabilities(
 class _Clock:
     """The time, and nothing else about the machine."""
 
+    #: What a plugin may reach on this. Anything not named here is
+    #: unreachable, which is what keeps `__class__` — and the whole
+    #: machine behind it — out of a plugin's hands.
+    LUA_OFFERS = frozenset({"now"})
+
     def now(self) -> float:
         """Seconds since the epoch, UTC. A number, because a plugin has no
         date type and comparing two numbers is what it actually wants."""
@@ -169,6 +193,11 @@ class _Clock:
 
 class _Log:
     """A way for a plugin to say what it is doing."""
+
+    #: What a plugin may reach on this. Anything not named here is
+    #: unreachable, which is what keeps `__class__` — and the whole
+    #: machine behind it — out of a plugin's hands.
+    LUA_OFFERS = frozenset({"info", "warn"})
 
     def __init__(self, plugin: str):
         self._plugin = plugin
@@ -187,6 +216,11 @@ class _Net:
     user agent, and the same `patience` — so a plugin cannot spend a host's
     rate-limit budget behind the back of the thing that tracks it.
     """
+
+    #: What a plugin may reach on this. Anything not named here is
+    #: unreachable, which is what keeps `__class__` — and the whole
+    #: machine behind it — out of a plugin's hands.
+    LUA_OFFERS = frozenset({"get"})
 
     def __init__(self, plugin: str, http: Callable[[], httpx.Client] | None):
         self._plugin = plugin

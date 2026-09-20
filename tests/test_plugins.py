@@ -47,6 +47,88 @@ def test_a_plugin_can_still_do_the_work_it_is_for():
     assert box.call(made["go"], "r/python") == "PYTHON"
 
 
+# -- the walls around a capability -----------------------------------------
+#
+# A capability arrives as a Python object, and Lua can ask a Python object for
+# any attribute it likes. These are the tests that stop "granted one
+# permission" from meaning "granted everything".
+
+
+class Offered:
+    """Stands in for a capability: one thing offered, one thing held back."""
+
+    LUA_OFFERS = frozenset({"go"})
+
+    def __init__(self):
+        self.token = "SECRET"
+
+    def go(self):
+        return "did it"
+
+
+class Undeclared:
+    """A capability somebody added without saying what it offers."""
+
+    def __init__(self):
+        self.token = "SECRET"
+
+
+def reaching(body: str, *args):
+    box, made = runtime.load("probe.lua", f"""
+        return {{ try = function(thing)
+          local ok, value = pcall(function() {body} end)
+          return ok and tostring(value) or "blocked"
+        end }}
+    """)
+    return box.call(made["try"], *args)
+
+
+def test_what_a_capability_offers_can_be_called():
+    assert reaching("return thing.go()", Offered()) == "did it"
+
+
+@pytest.mark.parametrize(
+    "reach",
+    [
+        "return thing.token",
+        "return thing.__class__",
+        "return thing.go.__globals__",
+        "return thing.__init__.__globals__['__builtins__']",
+        "return thing.__dict__",
+        "return thing.__getattribute__",
+    ],
+)
+def test_nothing_else_on_a_capability_can_be_reached(reach):
+    """`__class__` leads to `__globals__`, which leads to `__builtins__`,
+    which leads out of the sandbox entirely. Without this one filter,
+    granting any permission at all would be granting everything."""
+    assert reaching(reach, Offered()) == "blocked"
+
+
+def test_a_capability_cannot_be_written_to():
+    assert reaching("thing.go = 1 return 'wrote'", Offered()) == "blocked"
+
+
+def test_a_capability_that_never_said_what_it_offers_offers_nothing():
+    """The safe default. One added later without a declaration is inert
+    rather than wide open."""
+    assert reaching("return thing.token", Undeclared()) == "blocked"
+
+
+def test_every_capability_says_what_it_offers():
+    """Checked over the real ones, so a new capability cannot be added
+    without deciding what a plugin may reach on it."""
+    from dealgo.plugins import permissions
+    from dealgo.plugins.account import Account
+    from dealgo.plugins.site import Site
+
+    handed = [Account, Site, permissions._Clock, permissions._Log, permissions._Net]
+    for thing in handed:
+        offers = getattr(thing, "LUA_OFFERS", None)
+        assert offers, f"{thing.__name__} does not say what it offers"
+        assert all(not name.startswith("_") for name in offers), thing.__name__
+
+
 def test_a_loop_that_never_ends_is_stopped():
     box, made = runtime.load("greedy.lua", "return { go = function() while true do end end }")
 

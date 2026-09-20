@@ -6,6 +6,13 @@ that table is the whole of its world: no ``io``, no ``os``, no ``require``,
 no ``load``, and no way to reach the Python objects behind the functions it
 is given.
 
+A capability it is granted arrives as a Python object, and Lua can ask a
+Python object for any attribute it likes — including ``__class__``, and from
+there ``__globals__``, ``__builtins__``, ``__import__`` and the whole machine.
+So every attribute goes through ``_only_what_is_offered``: a capability lists
+what it offers and nothing else is reachable, reading or writing. Without that
+one function, granting any permission at all would be granting everything.
+
 Three ceilings, because a plugin does not have to be hostile to hang a sync:
 
 * **memory** — a table that grows for ever stops at a few megabytes;
@@ -118,6 +125,7 @@ def load(
         register_builtins=False,
         unpack_returned_tuples=True,
         max_memory=MOST_MEMORY,
+        attribute_filter=_only_what_is_offered,
     )
     checks = [0]
 
@@ -152,6 +160,26 @@ def load(
 
     box = Sandbox(name=name, _lua=lua, _env=env, _checks=checks)
     return box, box.call(chunk)
+
+
+def _only_what_is_offered(thing: object, name: object, setting: bool) -> str:
+    """What a plugin may reach on a Python object it has been handed.
+
+    Only the names that object's class says it offers, and only for reading.
+    Everything else raises, including every dunder — which is the one that
+    matters, because `__class__` leads to `__globals__`, `__globals__` leads
+    to `__builtins__`, and `__builtins__` leads out of the sandbox entirely.
+
+    An object with no list offers nothing. That is the safe default: a
+    capability added later without one is inert rather than wide open.
+    """
+    asked = str(name)
+    if setting:
+        raise AttributeError(f"a plugin may not set {asked!r}")
+    offered: frozenset[str] = getattr(type(thing), "LUA_OFFERS", frozenset())
+    if asked in offered:
+        return asked
+    raise AttributeError(f"a plugin may not read {asked!r}")
 
 
 def _world(lua: Any, given: dict[str, object]) -> Any:

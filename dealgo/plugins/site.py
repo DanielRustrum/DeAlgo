@@ -80,6 +80,11 @@ class Site:
     walk with `ipairs` is not an answer.
     """
 
+    #: What a plugin may reach on this. Anything not named here is
+    #: unreachable, which is what keeps `__class__` — and the whole
+    #: machine behind it — out of a plugin's hands.
+    LUA_OFFERS = frozenset({"version", "permissions", "sources", "feeds", "tag", "pause", "watch"})
+
     def __init__(
         self,
         plugin: str,
