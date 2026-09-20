@@ -1776,27 +1776,35 @@ def withdraw(
             say.write(f"the {name} repository is empty", about=node.title)
         return 0
 
+    settings = get_settings(session, owner)
     sent = 0
+    held_back = 0
     for row in holding:
         video, channel = row.video, row.video.channel if row.video else None
         if video is None or channel is None:
             session.delete(row)   # the item is gone; the row is a leftover
             continue
 
-        paths = [
-            path
-            for path in graph.paths_from(session, node, channel, owner)
-            if path.playlist is not None and path.playlist.enabled
-        ]
+        # Every box between here and a feed still gets a say. A filter wired
+        # after a Withdraw is a filter on what comes out, and ignoring it
+        # would make it a box that draws a wire and does nothing.
+        allowed: list[Playlist] = []
+        for path in graph.paths_from(session, node, channel, owner):
+            if path.playlist is None or not path.playlist.enabled:
+                continue
+            if _decide(video, path, None, settings).accept:
+                allowed.append(path.playlist)
         feeds = sorted(
-            {path.playlist.id: path.playlist for path in paths if path.playlist}.values(),
+            {one.id: one for one in allowed}.values(),
             key=lambda one: (one.priority, one.id),
         )
-        # Taken either way. A withdrawal with nowhere to send things is a
-        # box somebody has not finished wiring, and holding the items back
-        # for it would quietly fill the repository for ever.
+
+        # Taken either way. A withdrawal is a withdrawal: an item every path
+        # turned away has been dealt with, and leaving it in would mean a
+        # repository that fills up with things nothing will ever accept.
         session.delete(row)
         if not feeds:
+            held_back += 1
             continue
 
         _place_locally(session, video, channel, result, {}, {}, feeds)
@@ -1805,11 +1813,12 @@ def withdraw(
     session.flush()
     result.withdrawn += sent
     if say is not None:
-        say.write(
-            f"took {sent} from the {name} repository"
-            + (f", leaving {waiting_in(session, name, owner)}" if most > 0 else ""),
-            about=node.title,
-        )
+        said = f"took {sent} from the {name} repository"
+        if held_back:
+            said += f"; {held_back} filtered out on the way"
+        if most > 0:
+            said += f", leaving {waiting_in(session, name, owner)}"
+        say.write(said, about=node.title)
     return sent
 
 
@@ -1937,7 +1946,7 @@ def withdraw_now(
     session.flush()
 
     if result.withdrawn == 0:
-        return "Nothing was waiting."
+        return "Nothing came through."
     return f"Took {result.withdrawn} out and sent {'it' if result.withdrawn == 1 else 'them'} on."
 
 

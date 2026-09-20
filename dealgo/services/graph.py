@@ -1259,6 +1259,7 @@ def try_it(
     owner: OwnerId = None,
     limit: int = 30,
     channels: Collection[int] | None = None,
+    pulls: Collection[int] | None = None,
 ) -> Trial:
     """Push recent items through the graph and say where they would land.
 
@@ -1269,6 +1270,12 @@ def try_it(
     ``channels`` narrows it to what one trigger sets off, which is how it is
     asked: a trigger is the thing that starts a run, so it is the thing worth
     asking what a run would do.
+
+    ``pulls`` is the other half of that: the Withdraw boxes it is wired to.
+    A withdrawal is a path like any other and its filters have as much to
+    say, so what is waiting in its repository is pushed through it here —
+    without which a trigger wired to one could be tested and report nothing
+    at all.
 
     What is already in a feed is not excluded. The question being asked is
     what this configuration does with this content, not what is left to do —
@@ -1323,7 +1330,68 @@ def try_it(
             _note(trial.through, [order.id] if order is not None else [], judged)
             _note(trial.through, [end.id], judged)
 
+    for box in nodes(session, owner):
+        if box.kind != "withdraw":
+            continue
+        if pulls is not None and box.id not in pulls:
+            continue
+        _try_withdrawal(session, settings, box, trial, feed_node, owner, limit)
+
     return trial
+
+
+def _try_withdrawal(
+    session: Session,
+    settings: Settings,
+    box: GraphNode,
+    trial: Trial,
+    feed_node: dict[int | None, GraphNode],
+    owner: OwnerId,
+    limit: int,
+) -> None:
+    """What one Withdraw box would send on, from what is waiting in it.
+
+    The same walk as a source's, with the pile standing in for a feed's worth
+    of new items — and bounded by what the box says it takes, so the answer
+    is what the next pull would do rather than what every pull eventually
+    would.
+    """
+    from ..models import RepositoryItem
+
+    name = store_name(box.repository)
+    if not name:
+        return
+
+    most = box.takes or 0
+    query = (
+        owned(select(RepositoryItem), RepositoryItem, owner)
+        .where(RepositoryItem.name == name)
+        .order_by(RepositoryItem.deposited_at, RepositoryItem.id)
+        .limit(min(most, limit) if most > 0 else limit)
+    )
+    waiting = [row.video for row in session.scalars(query) if row.video is not None]
+    if not waiting:
+        return
+
+    for video in waiting:
+        channel = video.channel
+        if channel is None:
+            continue
+        for path in paths_from(session, box, channel, owner):
+            if path.playlist is None or not path.playlist.enabled:
+                continue
+            end = feed_node.get(path.playlist.id)
+            if end is None:
+                continue
+            judged, stopped_at = _judge(video, path, settings, box)
+            if judged.passed:
+                _note(trial.through, [node.id for node in path.filters] + [box.id], judged)
+                order = path.order
+                _note(trial.through, [order.id] if order is not None else [], judged)
+                _note(trial.through, [end.id], judged)
+            else:
+                _note(trial.held, [stopped_at], judged)
+                _note(trial.through, _before(stopped_at, path, box), judged)
 
 
 def _judge(

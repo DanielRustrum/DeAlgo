@@ -2664,13 +2664,18 @@ def graph_try(request: Request, node_pk: int) -> JSONResponse:
             return JSONResponse({"error": "That node is not a trigger."}, status_code=400)
 
         reaches = graph_service.wired_channels(session, node, owner)
-        if not reaches:
+        # The other half of what a trigger can set off. A trigger wired only
+        # to a Withdraw box has plenty to say about what a run would do, and
+        # asking only about channels answered that it had nothing.
+        pulls = [one.id for one in graph_service.wired_withdrawals(session, node, owner)]
+        if not reaches and not pulls:
             return JSONResponse(
                 {"error": "Nothing is wired to that trigger yet."}, status_code=400
             )
 
         trial = graph_service.try_it(
-            session, get_settings(session, owner), owner, channels=reaches
+            session, get_settings(session, owner), owner,
+            channels=reaches, pulls=pulls,
         )
         boxes = {entry.id: entry for entry in graph_service.nodes(session, owner)}
 
@@ -2708,7 +2713,15 @@ def graph_try(request: Request, node_pk: int) -> JSONResponse:
                 for item in holding
             ],
         }
-        marks.setdefault(str(node.id), _mark(len(reaches), 0))
+        # The trigger answers for the whole of it: what arrived at a feed,
+        # and what was stopped anywhere along the way. Counting the channels
+        # it reaches said nothing at all about a trigger wired to a Withdraw
+        # box, which reaches none.
+        mine = items[str(node.id)]
+        landed, stopped = len(mine["through"]), len(mine["held"])
+        marks.setdefault(
+            str(node.id), _mark(landed or len(reaches), stopped)
+        )
 
         _log_the_trial(session, node, trial, boxes, owner)
 

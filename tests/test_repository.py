@@ -14,7 +14,25 @@ from dealgo.models import Channel, Placement, Playlist, RepositoryItem, Video, u
 from dealgo.plugins.publisher import VideoDetails
 from dealgo.services import graph
 from dealgo.services import sync as sync_service
+import pytest
+
 from fakes import entry, unwire
+
+
+@pytest.fixture
+def canvas(world, db, monkeypatch):
+    """The app over the database `world` set up, for pressing the buttons."""
+    from fastapi.testclient import TestClient
+
+    from dealgo import scheduler
+    from dealgo.web import app as web_app
+
+    monkeypatch.setattr(scheduler, "start", lambda: None)
+    monkeypatch.setattr(scheduler, "shutdown", lambda: None)
+    monkeypatch.setattr(scheduler, "next_run_time", lambda: None)
+    monkeypatch.setattr(web_app, "init_db", lambda: None)
+    with TestClient(web_app.app) as client:
+        yield client
 
 
 def build(world, db, *, name="News", takes=None, pull=True, wired=True):
@@ -42,6 +60,7 @@ def build(world, db, *, name="News", takes=None, pull=True, wired=True):
         graph.connect(session, source, deposit)
 
         withdraw = None
+        pulse = None
         if pull:
             withdraw = graph.add_store(
                 session, kind="withdraw", repository=name, takes=takes
@@ -55,7 +74,7 @@ def build(world, db, *, name="News", takes=None, pull=True, wired=True):
             pulse.last_fired_at = utcnow()
             withdraw.last_fired_at = utcnow()
             graph.connect(session, pulse, withdraw)
-        return deposit.id, (withdraw.id if withdraw else None)
+        return deposit.id, (withdraw.id if withdraw else None), (pulse.id if pull else None)
 
 
 def uploads(world, how_many=3):
@@ -232,7 +251,7 @@ def test_what_is_taken_is_taken(world, db):
         pk = box.id
         sync_service.withdraw_now(session, [pk])
     with db.session_scope() as session:
-        assert sync_service.withdraw_now(session, [pk]) == "Nothing was waiting."
+        assert sync_service.withdraw_now(session, [pk]) == "Nothing came through."
 
 
 def test_a_withdraw_wired_to_nothing_still_empties_it(world, db):
@@ -310,3 +329,114 @@ def test_two_deposits_with_one_name_are_one_pile(world, db):
     # doors into the same room.
     assert result.deposited == 2
     assert holding(db) == 2
+
+
+# -- the boxes between a Withdraw and a feed ------------------------------
+
+
+def wired_through_a_filter(world, db, *, exclude="skip", takes=None):
+    """A repository whose way out goes through a filter, as on a real canvas."""
+    from dealgo.models import GraphNode
+
+    _, _, pulling = build(world, db, takes=takes)
+    with db.session_scope() as session:
+        box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
+        feed = session.scalar(select(GraphNode).where(GraphNode.kind == "feed"))
+        narrow = graph.add_filter(session, label="Filter")
+        narrow.title_exclude = exclude
+        # Straight to the feed would let everything past the filter.
+        for edge in graph.edges(session):
+            if edge.source_pk == box.id and edge.target_pk == feed.id:
+                graph.disconnect(session, edge.id)
+        graph.connect(session, box, narrow)
+        graph.connect(session, narrow, feed)
+        return box.id, pulling
+
+
+def mixed(world, how_many=4):
+    """Half of them named so a title filter will turn them away.
+
+    The details carry the same titles: what a lookup says a video is called
+    wins over what the feed said, so a fixture that disagreed with itself
+    would quietly rename them all.
+    """
+    named = {n: ("skip me" if n % 2 else f"Keep {n}") for n in range(how_many)}
+    world["entries"] = [
+        entry(f"v{n}", minutes_ago=n, title=named[n]) for n in range(how_many)
+    ]
+    world["client"].details = {
+        f"v{n}": VideoDetails(f"v{n}", named[n], 600, "none", "public")
+        for n in range(how_many)
+    }
+
+
+def test_a_filter_after_a_withdraw_is_asked(world, db):
+    """It draws a wire, so it had better do something. What comes out of a
+    repository goes through whatever is between it and a feed, exactly as
+    what comes out of a source does."""
+    box, _ = wired_through_a_filter(world, db)
+    mixed(world, 4)
+    sync_service.run_sync("manual", force=True)
+    assert holding(db) == 4
+
+    with db.session_scope() as session:
+        sync_service.withdraw_now(session, [box])
+
+    # Two were named "skip me"; the filter turned those away.
+    assert in_feeds(db) == 2
+    # And all four left the repository: an item every path refused has been
+    # dealt with, or the pile fills with things nothing will ever take.
+    assert holding(db) == 0
+
+
+def test_a_test_from_the_trigger_follows_the_withdrawal(world, db, canvas):
+    """A trigger wired to a Withdraw box used to report nothing at all —
+    every box on its path said the last test did not come through it."""
+    from dealgo.models import GraphNode
+
+    _, pulling = wired_through_a_filter(world, db)
+    mixed(world, 4)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        boxes = {
+            node.kind: node.id
+            for node in session.scalars(select(GraphNode))
+            if node.kind in ("withdraw", "filter", "feed")
+        }
+
+    answer = canvas.get(f"/graph/nodes/{pulling}/test")
+
+    assert answer.status_code == 200
+    marks = answer.json()["nodes"]
+    assert marks[str(boxes["withdraw"])]["count"] == 4
+    assert marks[str(boxes["filter"])]["count"] == 2
+    assert marks[str(boxes["filter"])]["stopped"] == 2
+    assert marks[str(boxes["feed"])]["count"] == 2
+
+
+def test_a_test_says_what_the_next_pull_would_do_and_no_more(world, db, canvas):
+    """Bounded by what the box takes. "What would happen" means the next
+    pull, not every pull there will ever be."""
+    from dealgo.models import GraphNode
+
+    _, box_pk, pulling = build(world, db, takes=2)
+    uploads(world, 5)
+    sync_service.run_sync("manual", force=True)
+
+    marks = canvas.get(f"/graph/nodes/{pulling}/test").json()["nodes"]
+
+    assert marks[str(box_pk)]["count"] == 2
+
+
+def test_a_trigger_wired_to_nothing_at_all_still_says_so(world, db, canvas):
+    from dealgo.models import GraphNode
+
+    with db.session_scope() as session:
+        lonely = graph.add_trigger(session, trigger_kind="pulse")
+        pk = lonely.id
+
+    answer = canvas.get(f"/graph/nodes/{pk}/test")
+
+    assert answer.status_code == 400
+    assert "Nothing is wired" in answer.json()["error"]
