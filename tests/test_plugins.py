@@ -191,7 +191,9 @@ def test_every_shipped_plugin_loads():
     found = registry.read(SHIPPED)
 
     assert [p.trouble for p in found.plugins] == [None] * len(found.plugins)
-    assert {p.id for p in found.plugins} == {"youtube", "reddit", "bluesky", "substack"}
+    assert {p.id for p in found.plugins} == {
+        "youtube", "reddit", "bluesky", "substack", "shape",
+    }
 
 
 def test_only_youtube_may_fill_a_youtube_playlist():

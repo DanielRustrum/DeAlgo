@@ -1380,7 +1380,10 @@ def test_the_palette_folds_away_what_is_optional(canvas):
 
     assert "<summary>Operations</summary>" in body
     assert "<summary>Triggers</summary>" in body
-    assert body.count('<details class="palette-group">') == 3  # operations, triggers, layout
+    # Operations, Triggers, Plugins, Layout. The plugins one is there because
+    # a shipped plugin offers boxes; a plugin offering none adds nothing.
+    assert body.count('<details class="palette-group">') == 4
+    assert "<summary>Plugins</summary>" in body
     assert "palette-group\" open" not in body
 
     # Channel and Feed are above the folds, not inside one.

@@ -22,7 +22,8 @@ function asGraphNodeKind(value) {
         value === "filter" ||
         value === "sort" ||
         value === "feed" ||
-        value === "group") {
+        value === "group" ||
+        value === "plugin") {
         return value;
     }
     return null;
@@ -65,6 +66,7 @@ function asGraphNode(value) {
         size: asGraphSize(raw["size"]),
         channel: asGraphChannel(raw["channel"]),
         tag: asGraphTag(raw["tag"]),
+        plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
         overrides: asGraphOverrides(raw["overrides"]),
     };
@@ -126,6 +128,31 @@ function asGraphSize(value) {
     return {
         width: typeof raw["width"] === "number" ? raw["width"] : 520,
         height: typeof raw["height"] === "number" ? raw["height"] : 300,
+    };
+}
+function asGraphPlugin(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const missing = raw["missing"];
+    const fields = [];
+    for (const entry of Array.isArray(raw["fields"]) ? raw["fields"] : []) {
+        const one = asGraphRecord(entry);
+        if (one === null)
+            continue;
+        fields.push({
+            name: typeof one["name"] === "string" ? one["name"] : "",
+            label: typeof one["label"] === "string" ? one["label"] : "",
+            type: one["type"] === "number" ? "number" : "text",
+            value: typeof one["value"] === "string" ? one["value"] : "",
+            placeholder: typeof one["placeholder"] === "string" ? one["placeholder"] : "",
+        });
+    }
+    return {
+        ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
+        missing: typeof missing === "string" ? missing : null,
+        blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
+        fields: fields.filter((one) => one.name !== ""),
     };
 }
 function asGraphSort(value) {
@@ -308,6 +335,8 @@ function graphKindLabel(kind) {
         return "Sort";
     if (kind === "group")
         return "Group";
+    if (kind === "plugin")
+        return "Plugin";
     return kind === "trigger" ? "Trigger" : "Filter";
 }
 function graphPort(where, carries, says) {
@@ -342,7 +371,7 @@ function graphPortWords(kind, where) {
             ? "Takes a signal: a trigger wired here says when this channel is polled."
             : "Gives out what it collects — videos and posts — to whatever is wired on.";
     }
-    if (kind === "filter") {
+    if (kind === "filter" || kind === "plugin") {
         return where === "in"
             ? "Takes what arrives, and judges it."
             : "Gives out only what got through.";
@@ -806,6 +835,8 @@ function graphNodeForm(state, node) {
         graphSortFields(form, node.sort);
     else if (node.trigger !== null)
         graphTriggerFields(form, node);
+    else if (node.kind === "plugin")
+        graphPluginFields(form, node);
     else
         graphFilterFields(form, node);
     const buttons = graphElement("div", "graph-form-buttons");
@@ -1052,6 +1083,36 @@ function graphTakes(channel) {
     }
     group.appendChild(switches);
     return group;
+}
+/** A plugin box's own fields, exactly as its plugin declared them.
+ *
+ *  The host knows none of these names. They are sent back under the names
+ *  the plugin chose and stored as they came, because a column per field is
+ *  not a thing a plugin can ask for. */
+function graphPluginFields(form, node) {
+    const box = node.plugin;
+    if (box === null)
+        return;
+    if (box.missing !== null) {
+        form.appendChild(graphElement("p", "hint", `This box belongs to “${box.missing}”, which is not loaded. It narrows nothing while that is true. Switch the plugin on under Admin → Plugins, or take the box off the canvas.`));
+        return;
+    }
+    if (box.blurb !== "")
+        form.appendChild(graphElement("p", "hint", box.blurb));
+    for (const one of box.fields) {
+        const field = document.createElement("input");
+        field.type = one.type === "number" ? "number" : "text";
+        // Prefixed, so a plugin cannot name a field "active" or "label" and
+        // quietly take over one of the form's own.
+        field.name = `plugin_${one.name}`;
+        field.value = one.value;
+        if (one.placeholder !== "")
+            field.placeholder = one.placeholder;
+        form.appendChild(graphLabelled(one.label, field));
+    }
+    if (box.fields.length === 0) {
+        form.appendChild(graphElement("p", "hint", "Nothing to set: it judges on its own."));
+    }
 }
 /** Somewhere else to read the same feed, for a host that rations us.
  *
@@ -2330,14 +2391,16 @@ function toggleGraphPalette(state, open) {
         .closest(".graph-panel")) === null || _a === void 0 ? void 0 : _a.querySelector("[data-graph-palette]")) === null || _b === void 0 ? void 0 : _b.setAttribute("aria-expanded", open ? "true" : "false");
 }
 /** Start dragging a kind of box out of the palette. */
-function beginGraphDrop(state, event, kind) {
+function beginGraphDrop(state, event, kind, which = "", named = "") {
     const ghost = graphElement("div", `graph-node kind-${graphPaletteKind(kind)} is-ghost`);
-    ghost.appendChild(graphElement("span", "graph-node-kind", graphPaletteName(kind)));
+    // A plugin box is named by its plugin, so the ghost carries that rather
+    // than the word "plugin", which would tell the reader nothing.
+    ghost.appendChild(graphElement("span", "graph-node-kind", named || graphPaletteName(kind)));
     ghost.style.position = "fixed";
     ghost.style.pointerEvents = "none";
     moveGraphGhost(ghost, event);
     document.body.appendChild(ghost);
-    state.dropping = { kind, pointerId: event.pointerId, ghost };
+    state.dropping = { kind, which, pointerId: event.pointerId, ghost };
 }
 function moveGraphGhost(ghost, event) {
     ghost.style.left = `${event.clientX - 40}px`;
@@ -2352,6 +2415,8 @@ function graphPaletteKind(kind) {
 function graphPaletteName(kind) {
     if (kind === "source")
         return "Channel";
+    if (kind === "plugin")
+        return "Plugin";
     if (kind === "tagged")
         return "Tag";
     if (kind === "feed")
@@ -2376,13 +2441,16 @@ function finishGraphDrop(state, event) {
     if (!inside)
         return;
     const at = pointInGraph(state, event);
-    void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30));
+    void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which);
 }
 /** Make a box of this kind, at this spot in the drawing. */
-async function dropGraphNode(state, kind, x, y) {
+async function dropGraphNode(state, kind, x, y, which = "") {
     toggleGraphPalette(state, false);
     const before = state.nodes;
-    const made = await applyGraph(state, "/graph/nodes", new URLSearchParams({ kind, x: String(x), y: String(y) }));
+    const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
+    if (which !== "")
+        asking.set("plugin_node", which);
+    const made = await applyGraph(state, "/graph/nodes", asking);
     if (!made)
         return;
     // Whatever appeared is what an undo takes away. A node just added is empty,
@@ -2589,12 +2657,18 @@ function listenToPalette(state, panel) {
     (_b = panel
         .querySelector("[data-graph-palette-close]")) === null || _b === void 0 ? void 0 : _b.addEventListener("click", () => toggleGraphPalette(state, false));
     panel.querySelectorAll("[data-palette]").forEach((item) => {
+        var _a;
+        var _b, _c;
         const kind = item.dataset["palette"];
         if (kind === undefined)
             return;
+        // A plugin's row says which of its boxes it is; every other kind is the
+        // whole answer by itself.
+        const which = (_b = item.dataset["pluginNode"]) !== null && _b !== void 0 ? _b : "";
+        const named = (_c = (_a = item.querySelector(".palette-text strong")) === null || _a === void 0 ? void 0 : _a.textContent) !== null && _c !== void 0 ? _c : "";
         item.addEventListener("pointerdown", (event) => {
             event.preventDefault();
-            beginGraphDrop(state, event, kind);
+            beginGraphDrop(state, event, kind, which, named);
         });
         // Pressed rather than dragged: it goes in the middle of the view, which
         // is the only spot the reader is certainly looking at.
@@ -2603,7 +2677,7 @@ function listenToPalette(state, panel) {
                 return;
             event.preventDefault();
             const centre = graphViewCentre(state);
-            void dropGraphNode(state, kind, Math.round(centre.x - 100), Math.round(centre.y - 30));
+            void dropGraphNode(state, kind, Math.round(centre.x - 100), Math.round(centre.y - 30), which);
         });
     });
 }

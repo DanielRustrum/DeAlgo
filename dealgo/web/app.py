@@ -817,8 +817,24 @@ def channels_page(
         context = {
             **_channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner),
             **_playlist_context(session, creating=new == "1", owner=owner),
+            "plugin_nodes": _palette_plugins(),
         }
     return render(request, "channels.html", context)
+
+
+def _palette_plugins() -> list[Context]:
+    """What the plugins put in the palette, grouped by the plugin that
+    offers them.
+
+    In the order the registry read them, so the palette is the same on every
+    visit. A plugin offering nothing is left out entirely rather than shown
+    as an empty heading, which would be a question about nothing.
+    """
+    found = registry.current()
+    grouped: dict[str, list[registry.NodeKind]] = {}
+    for node in found.node_kinds():
+        grouped.setdefault(node.plugin, []).append(node)
+    return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
 def _channel_list_response(
     request: Request,
     *,
@@ -1980,6 +1996,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     }
                 ),
                 "polled": _how_polled(node, plan) if node.kind == "source" else None,
+                "plugin": _plugin_facts(node) if node.kind == "plugin" else None,
                 "channel": facts.get(node.channel_pk or 0) if node.kind == "source" else None,
                 "tag": (
                     None
@@ -2209,6 +2226,37 @@ def _join_clauses(parts: list[str]) -> str:
 
 
 
+def _plugin_facts(node: GraphNode) -> Context | None:
+    """What a plugin box is, and what its fields are set to.
+
+    None when the plugin is switched off or gone: the box stays drawn and
+    stops narrowing anything, and the canvas says which plugin it is waiting
+    for rather than showing an empty form.
+    """
+    ref = node.plugin_ref or ""
+    box = registry.current().node(ref)
+    was = sync_service._plugin_settings(node)
+    if box is None:
+        plugin_id = ref.split(":", 1)[0] if ":" in ref else ref
+        return {"ref": ref, "missing": plugin_id or "a plugin", "fields": [], "blurb": ""}
+    return {
+        "ref": ref,
+        "missing": None,
+        "blurb": box.blurb,
+        "plugin": box.plugin,
+        "fields": [
+            {
+                "name": one.name,
+                "label": one.label,
+                "type": one.type,
+                "value": was.get(one.name, one.default),
+                "placeholder": one.placeholder,
+            }
+            for one in box.fields
+        ],
+    }
+
+
 def _node_note(
     node: GraphNode,
     opening: set[int] | None = None,
@@ -2217,6 +2265,11 @@ def _node_note(
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
         return "drag it to move everything in it"
+    if node.kind == "plugin":
+        box = registry.current().node(node.plugin_ref or "")
+        if box is None:
+            return "its plugin is switched off — it narrows nothing"
+        return box.blurb or f"from {box.plugin}"
     if node.kind == "sort":
         return _sort_words(node)
     if node.kind == "trigger":
@@ -2328,6 +2381,7 @@ def graph_add_node(
     request: Request,
     kind: str = Form(...),
     title: str = Form(""),
+    plugin_node: str = Form(""),
     x: int = Form(0),
     y: int = Form(0),
 ) -> JSONResponse:
@@ -2360,6 +2414,21 @@ def graph_add_node(
             graph_service.add_filter(session, owner, label=title.strip() or "Filter", x=x, y=y)
         elif kind == "sort":
             graph_service.add_sort(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "plugin":
+            box = registry.current().node(plugin_node.strip())
+            if box is None:
+                return JSONResponse(
+                    {"error": "That box's plugin is not loaded."}, status_code=400
+                )
+            graph_service.add_plugin_node(
+                session,
+                owner,
+                ref=box.ref,
+                label=title.strip() or box.label,
+                settings={f.name: f.default for f in box.fields if f.default},
+                x=x,
+                y=y,
+            )
         elif kind == "group":
             graph_service.add_group(session, owner, label=title.strip(), x=x, y=y)
         elif kind in graph_service.TRIGGER_KINDS:
@@ -2836,7 +2905,7 @@ def graph_remove(request: Request, node_pk: int) -> JSONResponse:
 
 
 @app.post("/graph/nodes/{node_pk}")
-def graph_save_node(
+async def graph_save_node(
     request: Request,
     node_pk: int,
     label: str = Form(""),
@@ -2925,6 +2994,8 @@ def graph_save_node(
             except graph_service.GraphError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
             node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind == "plugin":
+            await _save_plugin_box(request, node)
         elif node.kind == "trigger":
             answer = _save_trigger(node, every_minutes, every_unit, cron, duration_minutes)
             if answer is not None:
@@ -3093,6 +3164,28 @@ def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Chan
     return session.scalar(
         owned(select(Channel), Channel, owner).where(Channel.channel_id == key)
     )
+
+
+async def _save_plugin_box(request: Request, node: GraphNode) -> None:
+    """Keep whatever a plugin box's own fields were set to.
+
+    Read straight off the form rather than through named parameters, because
+    the host does not know the names: they are the plugin's to declare, and a
+    parameter per field is not something a plugin can ask for.
+
+    Only fields the plugin still declares are kept. A box whose plugin has
+    dropped a field should not carry it for ever in a column nobody reads.
+    """
+    box = registry.current().node(node.plugin_ref or "")
+    if box is None:
+        return  # its plugin is off; there is nothing to save it against
+
+    sent = await request.form()
+    kept: dict[str, str] = {}
+    for one in box.fields:
+        value = sent.get(f"plugin_{one.name}")
+        kept[one.name] = str(value).strip() if isinstance(value, str) else one.default
+    node.plugin_settings = json.dumps(kept) if kept else None
 
 
 def _save_trigger(

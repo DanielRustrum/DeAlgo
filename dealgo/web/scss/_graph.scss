@@ -239,6 +239,9 @@
 .graph-node.kind-source { border-left-color: var(--ok); }
 .graph-node.kind-filter { border-left-color: var(--warn); }
 .graph-node.kind-sort { border-left-color: #7aa2f7; }
+// A plugin's box. Its own colour, because "which of these came from a
+// plugin" is a thing worth being able to see at a glance on a busy canvas.
+.graph-node.kind-plugin { border-left-color: #bb9af7; }
 .graph-node.kind-feed { border-left-color: var(--accent); }
 
 .graph-node-kind {
@@ -756,6 +759,12 @@
 .palette-swatch.kind-filter { background: var(--warn); }
 .palette-swatch.kind-sort { background: #7aa2f7; }
 .palette-swatch.kind-group { background: var(--line); }
+.palette-swatch.kind-plugin { background: #bb9af7; }
+
+// A plugin with more than one box gets a fold of its own inside the Plugins
+// one. Indented, so two levels of fold read as two levels.
+.palette-nested { margin-left: 10px; }
+.palette-nested > summary { font-size: 11.5px; }
 .palette-swatch.kind-feed { background: var(--accent); }
 .palette-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .palette-text strong { font-size: 13px; }

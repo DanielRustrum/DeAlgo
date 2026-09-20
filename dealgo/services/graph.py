@@ -43,7 +43,7 @@ from .scope import OwnerId, owned
 
 log = logging.getLogger(__name__)
 
-KINDS = ("trigger", "source", "filter", "sort", "feed", "group")
+KINDS = ("trigger", "source", "filter", "sort", "feed", "group", "plugin")
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -73,7 +73,7 @@ DEFAULT_SORT_BY = "published"
 
 # Which wires make sense. Triggers feed channels, sources start paths, feeds
 # end them, filters and sorts sit in between — and nothing runs backwards.
-MIDDLE = ("filter", "sort")
+MIDDLE = ("filter", "sort", "plugin")
 ALLOWED: dict[str, tuple[str, ...]] = {
     # A group is not on any path: it surrounds, it does not carry.
     "group": (),
@@ -82,6 +82,9 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "trigger": ("source", "feed"),
     "source": MIDDLE + ("feed",),
     "filter": MIDDLE + ("feed",),
+    # A plugin box is a filter whose rule is somebody's Lua, so it sits
+    # exactly where a filter sits and wires to the same things.
+    "plugin": MIDDLE + ("feed",),
     "sort": MIDDLE + ("feed",),
     "feed": (),
 }
@@ -168,6 +171,10 @@ class Route:
     filters: list[GraphNode] = field(default_factory=list)
     #: Sort boxes on this path, in the order they are passed through.
     sorts: list[GraphNode] = field(default_factory=list)
+    #: Plugin boxes on this path. Kept apart from `filters` because a filter
+    #: lays settings over the channel's and these ask a question per item —
+    #: the two cannot be merged into one dictionary.
+    checks: list[GraphNode] = field(default_factory=list)
     #: The node this path started at. Carried rather than looked up: a tag
     #: node stands for several channels and a channel may be drawn twice, so
     #: there is no answering "which node is this channel" after the fact.
@@ -293,7 +300,7 @@ def _once_each(found: list[Route]) -> list[Route]:
     wires would otherwise be counted once per node and the same video weighed
     twice for one feed.
     """
-    seen: set[tuple[int, int, tuple[int, ...], tuple[int, ...]]] = set()
+    seen: set[tuple[int, int, tuple[int, ...], tuple[int, ...], tuple[int, ...]]] = set()
     kept: list[Route] = []
     for path in found:
         signature = (
@@ -301,6 +308,9 @@ def _once_each(found: list[Route]) -> list[Route]:
             path.playlist.id,
             tuple(node.id for node in path.filters),
             tuple(node.id for node in path.sorts),
+            # Two paths that differ only by which plugin boxes they pass are
+            # two different paths: each asks a different question.
+            tuple(node.id for node in path.checks),
         )
         if signature in seen:
             continue
@@ -319,6 +329,7 @@ def _walk(
     found: list[Route],
     ordered: list[GraphNode] | None = None,
     source: GraphNode | None = None,
+    asked: list[GraphNode] | None = None,
 ) -> None:
     """Depth-first from a source, collecting what it passes until a feed.
 
@@ -329,6 +340,7 @@ def _walk(
         return
     seen = seen | {node.id}
     ordered = ordered or []
+    asked = asked or []
 
     for target_id in out.get(node.id, []):
         target = by_id.get(target_id)
@@ -342,6 +354,7 @@ def _walk(
                         playlist=target.playlist,
                         filters=list(carried),
                         sorts=list(ordered),
+                        checks=list(asked),
                         source=source,
                     )
                 )
@@ -358,6 +371,7 @@ def _walk(
                 found,
                 ordered + [target] if target.kind == "sort" else ordered,
                 source,
+                asked + [target] if target.kind == "plugin" else asked,
             )
 
 
@@ -1454,6 +1468,37 @@ def _reaches(session: Session, start: GraphNode, goal: GraphNode, owner: OwnerId
 def add_filter(session: Session, owner: OwnerId = None, *, label: str = "Filter",
                x: int = COLUMN_X["filter"], y: int = 40) -> GraphNode:
     node = GraphNode(owner_pk=owner, kind="filter", label=label or "Filter", x=x, y=y)
+    session.add(node)
+    session.flush()
+    return node
+
+
+def add_plugin_node(
+    session: Session,
+    owner: OwnerId = None,
+    *,
+    ref: str,
+    label: str = "",
+    settings: dict[str, str] | None = None,
+    x: int = COLUMN_X["filter"],
+    y: int = 40,
+) -> GraphNode:
+    """A box a plugin put in the palette.
+
+    Which box it is lives in `plugin_ref`, because the host has no column per
+    plugin and never will: the fields are the plugin's to declare.
+    """
+    import json
+
+    node = GraphNode(
+        owner_pk=owner,
+        kind="plugin",
+        label=label or "",
+        plugin_ref=ref,
+        plugin_settings=json.dumps(settings) if settings else None,
+        x=x,
+        y=y,
+    )
     session.add(node)
     session.flush()
     return node

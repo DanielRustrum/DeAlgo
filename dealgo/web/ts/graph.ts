@@ -10,7 +10,11 @@
 //
 // Top-level `function` declarations only: see the note in dialog.ts.
 
-type GraphNodeKind = "trigger" | "source" | "filter" | "sort" | "feed" | "group";
+type GraphNodeKind =
+  | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
+  // A box a plugin put in the palette. It behaves like a filter and is drawn
+  // like one; what it judges by is somebody's Lua rather than these rules.
+  | "plugin";
 type GraphWireKind = "link" | "edge";
 
 /** A filter's answer for one rule. Absent means "leave it to the channel". */
@@ -33,6 +37,8 @@ interface GraphNodeView {
   trigger: GraphTrigger | null;
   /** Sort boxes only. */
   sort: GraphSort | null;
+  /** What a plugin box is, when this is one. Null for every other kind. */
+  plugin: GraphPlugin | null;
   /** Group nodes only: how big the rectangle is. */
   size: { width: number; height: number } | null;
   /** Channel boxes that stand for a channel: what it does. */
@@ -79,6 +85,22 @@ interface GraphChannel {
   checked: string | null;
   placed: number;
   pending: number;
+}
+
+interface GraphPluginField {
+  name: string;
+  label: string;
+  type: string;
+  value: string;
+  placeholder: string;
+}
+
+interface GraphPlugin {
+  ref: string;
+  /** The plugin this box needs, when it is not loaded. Null while it is. */
+  missing: string | null;
+  blurb: string;
+  fields: GraphPluginField[];
 }
 
 interface GraphSort {
@@ -234,6 +256,9 @@ interface GraphTrial {
 /** A palette row on its way to the canvas. */
 interface GraphDropping {
   kind: string;
+  /** Which of a plugin's boxes this is, as "<plugin>:<node>". Empty for
+   *  every kind the host knows by name. */
+  which: string;
   pointerId: number;
   ghost: HTMLElement;
 }
@@ -253,7 +278,8 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "filter" ||
     value === "sort" ||
     value === "feed" ||
-    value === "group"
+    value === "group" ||
+    value === "plugin"
   ) {
     return value;
   }
@@ -296,6 +322,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     size: asGraphSize(raw["size"]),
     channel: asGraphChannel(raw["channel"]),
     tag: asGraphTag(raw["tag"]),
+    plugin: asGraphPlugin(raw["plugin"]),
     feed: asGraphFeed(raw["feed"]),
     overrides: asGraphOverrides(raw["overrides"]),
   };
@@ -358,6 +385,30 @@ function asGraphSize(value: unknown): { width: number; height: number } | null {
   return {
     width: typeof raw["width"] === "number" ? raw["width"] : 520,
     height: typeof raw["height"] === "number" ? raw["height"] : 300,
+  };
+}
+
+function asGraphPlugin(value: unknown): GraphPlugin | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const missing = raw["missing"];
+  const fields: GraphPluginField[] = [];
+  for (const entry of Array.isArray(raw["fields"]) ? raw["fields"] : []) {
+    const one = asGraphRecord(entry);
+    if (one === null) continue;
+    fields.push({
+      name: typeof one["name"] === "string" ? one["name"] : "",
+      label: typeof one["label"] === "string" ? one["label"] : "",
+      type: one["type"] === "number" ? "number" : "text",
+      value: typeof one["value"] === "string" ? one["value"] : "",
+      placeholder: typeof one["placeholder"] === "string" ? one["placeholder"] : "",
+    });
+  }
+  return {
+    ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
+    missing: typeof missing === "string" ? missing : null,
+    blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
+    fields: fields.filter((one): boolean => one.name !== ""),
   };
 }
 
@@ -536,6 +587,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "feed") return "Feed";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
+  if (kind === "plugin") return "Plugin";
   return kind === "trigger" ? "Trigger" : "Filter";
 }
 
@@ -579,7 +631,7 @@ function graphPortWords(kind: GraphNodeKind, where: "in" | "out"): string {
       ? "Takes a signal: a trigger wired here says when this channel is polled."
       : "Gives out what it collects — videos and posts — to whatever is wired on.";
   }
-  if (kind === "filter") {
+  if (kind === "filter" || kind === "plugin") {
     return where === "in"
       ? "Takes what arrives, and judges it."
       : "Gives out only what got through.";
@@ -1097,6 +1149,7 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.kind === "feed") graphFeedFields(form, node);
   else if (node.sort !== null) graphSortFields(form, node.sort);
   else if (node.trigger !== null) graphTriggerFields(form, node);
+  else if (node.kind === "plugin") graphPluginFields(form, node);
   else graphFilterFields(form, node);
 
   const buttons = graphElement("div", "graph-form-buttons");
@@ -1397,6 +1450,44 @@ function graphTakes(channel: GraphChannel): HTMLElement {
   }
   group.appendChild(switches);
   return group;
+}
+
+/** A plugin box's own fields, exactly as its plugin declared them.
+ *
+ *  The host knows none of these names. They are sent back under the names
+ *  the plugin chose and stored as they came, because a column per field is
+ *  not a thing a plugin can ask for. */
+function graphPluginFields(form: HTMLElement, node: GraphNodeView): void {
+  const box = node.plugin;
+  if (box === null) return;
+
+  if (box.missing !== null) {
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        `This box belongs to “${box.missing}”, which is not loaded. It narrows nothing while that is true. Switch the plugin on under Admin → Plugins, or take the box off the canvas.`,
+      ),
+    );
+    return;
+  }
+
+  if (box.blurb !== "") form.appendChild(graphElement("p", "hint", box.blurb));
+
+  for (const one of box.fields) {
+    const field = document.createElement("input");
+    field.type = one.type === "number" ? "number" : "text";
+    // Prefixed, so a plugin cannot name a field "active" or "label" and
+    // quietly take over one of the form's own.
+    field.name = `plugin_${one.name}`;
+    field.value = one.value;
+    if (one.placeholder !== "") field.placeholder = one.placeholder;
+    form.appendChild(graphLabelled(one.label, field));
+  }
+
+  if (box.fields.length === 0) {
+    form.appendChild(graphElement("p", "hint", "Nothing to set: it judges on its own."));
+  }
 }
 
 /** Somewhere else to read the same feed, for a host that rations us.
@@ -2831,15 +2922,25 @@ function toggleGraphPalette(state: GraphState, open: boolean): void {
 }
 
 /** Start dragging a kind of box out of the palette. */
-function beginGraphDrop(state: GraphState, event: PointerEvent, kind: string): void {
+function beginGraphDrop(
+  state: GraphState,
+  event: PointerEvent,
+  kind: string,
+  which = "",
+  named = "",
+): void {
   const ghost = graphElement("div", `graph-node kind-${graphPaletteKind(kind)} is-ghost`);
-  ghost.appendChild(graphElement("span", "graph-node-kind", graphPaletteName(kind)));
+  // A plugin box is named by its plugin, so the ghost carries that rather
+  // than the word "plugin", which would tell the reader nothing.
+  ghost.appendChild(
+    graphElement("span", "graph-node-kind", named || graphPaletteName(kind)),
+  );
   ghost.style.position = "fixed";
   ghost.style.pointerEvents = "none";
   moveGraphGhost(ghost, event);
   document.body.appendChild(ghost);
 
-  state.dropping = { kind, pointerId: event.pointerId, ghost };
+  state.dropping = { kind, which, pointerId: event.pointerId, ghost };
 }
 
 function moveGraphGhost(ghost: HTMLElement, event: PointerEvent): void {
@@ -2855,6 +2956,7 @@ function graphPaletteKind(kind: string): string {
 
 function graphPaletteName(kind: string): string {
   if (kind === "source") return "Channel";
+  if (kind === "plugin") return "Plugin";
   if (kind === "tagged") return "Tag";
   if (kind === "feed") return "Feed";
   if (kind === "filter") return "Filter";
@@ -2876,7 +2978,9 @@ function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   if (!inside) return;
 
   const at = pointInGraph(state, event);
-  void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30));
+  void dropGraphNode(
+    state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which,
+  );
 }
 
 /** Make a box of this kind, at this spot in the drawing. */
@@ -2885,14 +2989,13 @@ async function dropGraphNode(
   kind: string,
   x: number,
   y: number,
+  which = "",
 ): Promise<void> {
   toggleGraphPalette(state, false);
   const before = state.nodes;
-  const made = await applyGraph(
-    state,
-    "/graph/nodes",
-    new URLSearchParams({ kind, x: String(x), y: String(y) }),
-  );
+  const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
+  if (which !== "") asking.set("plugin_node", which);
+  const made = await applyGraph(state, "/graph/nodes", asking);
   if (!made) return;
 
   // Whatever appeared is what an undo takes away. A node just added is empty,
@@ -3118,10 +3221,14 @@ function listenToPalette(state: GraphState, panel: HTMLElement): void {
   panel.querySelectorAll<HTMLElement>("[data-palette]").forEach((item): void => {
     const kind = item.dataset["palette"];
     if (kind === undefined) return;
+    // A plugin's row says which of its boxes it is; every other kind is the
+    // whole answer by itself.
+    const which = item.dataset["pluginNode"] ?? "";
+    const named = item.querySelector(".palette-text strong")?.textContent ?? "";
 
     item.addEventListener("pointerdown", (event: PointerEvent): void => {
       event.preventDefault();
-      beginGraphDrop(state, event, kind);
+      beginGraphDrop(state, event, kind, which, named);
     });
     // Pressed rather than dragged: it goes in the middle of the view, which
     // is the only spot the reader is certainly looking at.
@@ -3129,7 +3236,9 @@ function listenToPalette(state: GraphState, panel: HTMLElement): void {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       const centre = graphViewCentre(state);
-      void dropGraphNode(state, kind, Math.round(centre.x - 100), Math.round(centre.y - 30));
+      void dropGraphNode(
+        state, kind, Math.round(centre.x - 100), Math.round(centre.y - 30), which,
+      );
     });
   });
 }

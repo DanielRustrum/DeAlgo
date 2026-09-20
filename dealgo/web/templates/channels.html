@@ -133,6 +133,48 @@
           </ul>
         </details>
 
+        {# What the plugins add. One dropdown for all of them, and inside it:
+           a plugin with one box shows that box directly, and a plugin with
+           several gets a dropdown of its own. A plugin with none is not
+           mentioned — an empty heading is a question about nothing. #}
+        {% if plugin_nodes %}
+        <details class="palette-group">
+          <summary>Plugins</summary>
+          {% for offered in plugin_nodes %}
+            {% if offered.nodes | length == 1 %}
+              {% set node = offered.nodes[0] %}
+              <ul class="palette-list">
+                <li class="palette-item" data-palette="plugin" data-plugin-node="{{ node.ref }}"
+                    tabindex="0" role="button">
+                  <span class="palette-swatch kind-plugin"></span>
+                  <span class="palette-text">
+                    <strong>{{ node.label }}</strong>
+                    <span class="palette-blurb">
+                      {{ node.blurb or 'From ' ~ offered.plugin ~ '.' }}</span>
+                  </span>
+                </li>
+              </ul>
+            {% else %}
+              <details class="palette-group palette-nested">
+                <summary>{{ offered.plugin }}</summary>
+                <ul class="palette-list">
+                  {% for node in offered.nodes %}
+                  <li class="palette-item" data-palette="plugin" data-plugin-node="{{ node.ref }}"
+                      tabindex="0" role="button">
+                    <span class="palette-swatch kind-plugin"></span>
+                    <span class="palette-text">
+                      <strong>{{ node.label }}</strong>
+                      <span class="palette-blurb">{{ node.blurb }}</span>
+                    </span>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          {% endfor %}
+        </details>
+        {% endif %}
+
         <details class="palette-group">
           <summary>Layout</summary>
           <ul class="palette-list">

@@ -613,6 +613,13 @@ class GraphNode(Base):
     # for every channel carrying this tag. The second kind picks up channels
     # added later without being rewired, which is the point of it.
     tag: Mapped[Optional[str]] = mapped_column(String(40))
+    # Plugin boxes only. Which box this is, written "<plugin>:<node>", and
+    # whatever its fields were set to as JSON. Stored as the plugin's own
+    # names rather than columns of our own, because the fields are the
+    # plugin's to declare and a column per field is not a thing a plugin can
+    # ask for.
+    plugin_ref: Mapped[Optional[str]] = mapped_column(String(80))
+    plugin_settings: Mapped[Optional[str]] = mapped_column(Text)
 
     # Sort nodes only: what to order the batch by, and which way round.
     sort_by: Mapped[Optional[str]] = mapped_column(String(16))
@@ -660,6 +667,13 @@ class GraphNode(Base):
             return "Sort"
         if self.kind == "group":
             return "Group"
+        if self.kind == "plugin":
+            # From the box's own name rather than from the registry: a model
+            # that had to ask which plugins are loaded in order to say what a
+            # box is called would be a model that cannot be read on its own.
+            # "shape:not-shouting" reads back as "Not shouting".
+            named = (self.plugin_ref or "").split(":")[-1].replace("-", " ").replace("_", " ")
+            return named[:1].upper() + named[1:] if named else "Plugin"
         # An empty box, waiting to be told what it stands for.
         if self.kind == "source":
             return "New channel"

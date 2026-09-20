@@ -67,6 +67,41 @@ class SourceKind:
     _mirror: Any = None
 
 
+@dataclass(frozen=True)
+class Field:
+    """One setting on a plugin's box, as its popover will draw it."""
+
+    name: str
+    label: str
+    #: "text" or "number". Anything else is drawn as text, because a field
+    #: nobody can fill in is worse than one drawn plainly.
+    type: str = "text"
+    default: str = ""
+    placeholder: str = ""
+
+
+@dataclass(frozen=True)
+class NodeKind:
+    """A box a plugin puts in the palette.
+
+    It is a filter: given an item and whatever its fields were set to, it
+    answers whether that item may carry on down the path. A pure question
+    with a yes-or-no answer, which is the one shape that fits inside the
+    sandbox — no network, no database, nothing to be trusted with.
+    """
+
+    #: Unique across every plugin, because a node has to be found again from
+    #: what is stored against it. Written "<plugin>:<node>".
+    ref: str
+    kind: str
+    label: str
+    blurb: str
+    fields: tuple[Field, ...]
+    plugin: str
+    plugin_id: str
+    _keep: Any = None
+
+
 @dataclass
 class Plugin:
     """One file in the plugins folder, loaded or not."""
@@ -79,6 +114,7 @@ class Plugin:
     #: else on this object is to be trusted.
     trouble: str | None = None
     sources: list[SourceKind] = field(default_factory=list)
+    nodes: list[NodeKind] = field(default_factory=list)
     box: Sandbox | None = None
     #: What the file said it was, for showing on the Admin page even when the
     #: rest of it was refused.
@@ -130,6 +166,35 @@ class Registry:
 
     def source_kinds(self) -> list[SourceKind]:
         return [kind for plugin in self.working for kind in plugin.sources]
+
+    def node_kinds(self) -> list[NodeKind]:
+        return [kind for plugin in self.working for kind in plugin.nodes]
+
+    def node(self, ref: str) -> NodeKind | None:
+        return next((k for k in self.node_kinds() if k.ref == ref), None)
+
+    def keeps(self, ref: str, item: dict[str, object], settings: dict[str, str]) -> bool:
+        """Whether a plugin's box lets this item carry on.
+
+        A box that throws, or answers with something that is not a yes or a
+        no, lets the item by. A filter nobody can read the mind of should not
+        silently swallow a feed: the failure belongs in the log, and the item
+        belongs wherever it was going.
+        """
+        found = self.node(ref)
+        if found is None or found._keep is None:
+            return True
+        plugin = next((p for p in self.working if p.id == found.plugin_id), None)
+        if plugin is None or plugin.box is None:
+            return True
+        try:
+            said = plugin.box.call(
+                found._keep, plugin.box.table(**item), plugin.box.table(**settings)
+            )
+        except PluginError as exc:
+            log.warning("%s could not judge an item: %s", found.plugin, exc)
+            return True
+        return said is not False
 
     def kind(self, name: str) -> SourceKind | None:
         return next((k for k in self.source_kinds() if k.kind == name), None)
@@ -410,10 +475,68 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
 
     try:
         plugin.sources = _sources(plugin, made.get("sources"))
+        plugin.nodes = _nodes(plugin, made.get("nodes"))
     except PluginError as exc:
         plugin.trouble = str(exc)
         return plugin
     return plugin
+
+
+def _nodes(plugin: Plugin, given: object) -> list[NodeKind]:
+    """The boxes a plugin puts in the palette, checked before they are drawn."""
+    if given is None:
+        return []
+    if not isinstance(given, list):
+        raise PluginError("`nodes` has to be a list of tables")
+
+    made: list[NodeKind] = []
+    for entry in given:
+        if not isinstance(entry, dict):
+            raise PluginError("every entry in `nodes` has to be a table")
+        name = str(entry.get("kind") or "").strip()
+        if not name:
+            raise PluginError("a node needs a `kind`")
+        if not set(name) <= PLAIN:
+            raise PluginError(f"“{name}” is not a usable node kind")
+        if not callable(entry.get("keep")):
+            raise PluginError(f"node “{name}” needs a `keep` function")
+        made.append(
+            NodeKind(
+                ref=f"{plugin.id}:{name}",
+                kind=name,
+                label=str(entry.get("label") or name.title()),
+                blurb=str(entry.get("blurb") or ""),
+                fields=_fields(name, entry.get("fields")),
+                plugin=plugin.title,
+                plugin_id=plugin.id,
+                _keep=entry.get("keep"),
+            )
+        )
+    return made
+
+
+def _fields(node: str, given: object) -> tuple[Field, ...]:
+    if given is None:
+        return ()
+    if not isinstance(given, list):
+        raise PluginError(f"node “{node}”: `fields` has to be a list of tables")
+    made: list[Field] = []
+    for entry in given:
+        if not isinstance(entry, dict):
+            raise PluginError(f"node “{node}”: every field has to be a table")
+        name = str(entry.get("name") or "").strip()
+        if not name or not set(name) <= PLAIN:
+            raise PluginError(f"node “{node}”: a field needs a plain `name`")
+        made.append(
+            Field(
+                name=name,
+                label=str(entry.get("label") or name.replace("_", " ").title()),
+                type="number" if entry.get("type") == "number" else "text",
+                default=str(entry.get("default") or ""),
+                placeholder=str(entry.get("placeholder") or ""),
+            )
+        )
+    return tuple(made)
 
 
 def _sources(plugin: Plugin, given: object) -> list[SourceKind]:

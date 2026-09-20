@@ -28,6 +28,7 @@ from ..models import (
     GENERIC_ITEM_PREFIX,
     OFFLINE_ITEM_PREFIX,
     Channel,
+    GraphNode,
     Placement,
     Playlist,
     Settings,
@@ -996,6 +997,55 @@ def _fill_missing_details(
 # -- phase 2: filter and insert -------------------------------------------
 
 
+def _plugin_refusal(video: Video, path: "graph.Route") -> filters.Decision | None:
+    """Ask each plugin box on this path, and stop at the first no.
+
+    The item is handed over as plain values, not as a database row: a plugin
+    is given what it needs to judge and nothing it could write through.
+    """
+    if not path.checks:
+        return None
+
+    from ..plugins import registry
+
+    found = registry.current()
+    item = {
+        "title": video.title or "",
+        "kind": video.kind,
+        "words": video.body or "",
+        "link": video.link or "",
+        "duration": video.duration_sec or 0,
+        "views": video.view_count or 0,
+        "likes": video.like_count or 0,
+        "is_short": video.is_short,
+        "source": video.channel.source_kind if video.channel else "",
+    }
+    for node in path.checks:
+        ref = node.plugin_ref or ""
+        box = found.node(ref)
+        if box is None:
+            # Its plugin is switched off or gone. The box stays on the canvas
+            # and stops narrowing anything, which is the same thing a filter
+            # with no rules does.
+            continue
+        if not found.keeps(ref, item, _plugin_settings(node)):
+            return filters.Decision(False, f"held by {node.title}")
+    return None
+
+
+def _plugin_settings(node: GraphNode) -> dict[str, str]:
+    """What a plugin box's fields were set to, as plain strings."""
+    if not node.plugin_settings:
+        return {}
+    try:
+        loaded = json.loads(node.plugin_settings)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(key): str(value) for key, value in loaded.items()}
+
+
 def _reconsider_routing(session: Session, result: SyncResult, owner: OwnerId = None) -> int:
     """Bring back items that only had nowhere to go.
 
@@ -1449,6 +1499,13 @@ def _decide(
     # at the insert with whatever YouTube makes of it.
     if not video.is_youtube and not path.playlist.is_generic:
         return filters.Decision(False, WRONG_KIND_OF_FEED)
+
+    # Plugin boxes, before the rules that cost anything to work out. Each is
+    # somebody's Lua answering one question about one item, and a box that
+    # says no ends the path there.
+    refused = _plugin_refusal(video, path)
+    if refused is not None:
+        return refused
 
     if video.kind == "link":
         # Nothing to measure but its words: a feed entry has no duration and

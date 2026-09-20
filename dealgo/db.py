@@ -136,6 +136,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("video", "link", "TEXT"),
     # Where else the same feed can be read, when the first place refuses us.
     ("channel", "mirror_url", "TEXT"),
+    # Boxes a plugin put in the palette: which one, and what its fields say.
+    ("graph_node", "plugin_ref", "VARCHAR(80)"),
+    ("graph_node", "plugin_settings", "TEXT"),
 )
 
 # run_event is a new table rather than new columns, so it needs no entry here:
