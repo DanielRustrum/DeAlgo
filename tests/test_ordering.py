@@ -83,17 +83,18 @@ def test_the_highest_priority_channel_is_inserted_first(world, db):
         db.get_settings(session).daily_quota = 60  # one insert, plus reads
 
     # Both channels have an upload; the newer one belongs to the top channel.
-    feeds_by_channel = {
-        "UCzzzzzzzzzzzzzzzzzzzzzz": [entry("slow", 1)],
-        "UCbbbbbbbbbbbbbbbbbbbbbb": [entry("fast", 99)],  # older, but higher priority
+    # Keyed by the feed address now, because that is what a source is read
+    # from — the channel id is only how YouTube's happens to be built.
+    from dealgo.sources import syndication
+
+    base = "https://www.youtube.com/feeds/videos.xml?channel_id="
+    by_address = {
+        f"{base}UCzzzzzzzzzzzzzzzzzzzzzz": [entry("slow", 1)],
+        f"{base}UCbbbbbbbbbbbbbbbbbbbbbb": [entry("fast", 99)],  # older, higher priority
     }
 
-    from dealgo.youtube import feeds as feed_module
-
-    def per_channel(channel_id, _http):
-        return feed_module.FeedResult(
-            channel_id=channel_id, channel_title="c", entries=feeds_by_channel[channel_id]
-        )
+    def per_source(url, _http):
+        return syndication.Feed(title="c", items=by_address[url])
 
     world["client"].details = {
         "slow": VideoDetails("slow", "Slow", 600, "none", "public"),
@@ -103,7 +104,7 @@ def test_the_highest_priority_channel_is_inserted_first(world, db):
     import pytest
 
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr(feed_module, "fetch_feed", per_channel)
+    monkeypatch.setattr(syndication, "fetch", per_source)
     try:
         result = sync_service.run_sync()
     finally:
@@ -160,5 +161,5 @@ def test_a_new_channel_joins_the_end_of_the_order(world, db):
     from dealgo.services import channels as channel_service
 
     with db.session_scope() as session, httpx.Client() as http:
-        channel = channel_service.add_channel(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
+        channel = channel_service.add_source(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
         assert channel.priority == 1  # after the existing one, not ahead of it

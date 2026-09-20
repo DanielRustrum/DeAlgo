@@ -170,7 +170,7 @@ def test_a_new_channel_starts_paused_with_no_feed(world, add_playlist):
     add_playlist(SECOND, "Another", feeds_channel=False)
 
     with world["db"].session_scope() as session, httpx.Client() as http:
-        channel = channel_service.add_channel(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
+        channel = channel_service.add_source(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
         assert channel.playlists == []
         assert channel.enabled is False
         assert channel.awaiting_feed is True
@@ -183,7 +183,7 @@ def test_linking_the_first_feed_takes_it_off_pause(world, add_playlist, db):
     from dealgo.services import playlists as playlist_service
 
     with db.session_scope() as session, httpx.Client() as http:
-        channel = channel_service.add_channel(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
+        channel = channel_service.add_source(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
         assert channel.enabled is False
 
         playlist = session.scalar(select(Playlist))

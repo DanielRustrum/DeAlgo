@@ -48,18 +48,27 @@ def world(db, monkeypatch):
     from dealgo.models import Channel, Playlist
     from dealgo.services import sync as sync_service
     from dealgo.services import watched as watched_service
-    from dealgo.youtube import community, feeds
+    from dealgo.sources import syndication
+    from dealgo.youtube import community
 
     from fakes import CHANNEL_ID, MAIN_PLAYLIST, FakeYouTube
 
     state = {"entries": [], "posts": [], "client": FakeYouTube()}
 
-    def fake_fetch_feed(channel_id, _http):
-        return feeds.FeedResult(
-            channel_id=channel_id, channel_title="Fake Channel", entries=list(state["entries"])
-        )
+    def serve_feed(_url, _http):
+        """Whatever the test set, read the way a real feed is read.
 
-    monkeypatch.setattr(feeds, "fetch_feed", fake_fetch_feed)
+        The host parses and the source's plugin refines, so a fixture that
+        handed over finished items would skip the two halves that decide what
+        an item actually is.
+        """
+        return syndication.Feed(title="Fake Channel", items=list(state["entries"]))
+
+    # Kept, so a test about *which address* is asked for can put the real one
+    # back without undoing everything else this fixture arranged — including
+    # the database it is all running against.
+    state["real_fetch"] = syndication.fetch
+    monkeypatch.setattr(syndication, "fetch", serve_feed)
     # Posts are scraped from a real page, so the tests must never reach for
     # one. Nothing is posted unless a test says so.
     monkeypatch.setattr(

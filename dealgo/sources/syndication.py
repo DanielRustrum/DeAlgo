@@ -205,7 +205,10 @@ def _declared(node: ElementTree.Element) -> list[str]:
     """Pictures the feed names as pictures, rather than ones in its prose."""
     found: list[str] = []
     for name in ("media:thumbnail", "media:content"):
-        for element in node.findall(name, _NS):
+        # Anywhere inside the entry, not only directly under it. YouTube
+        # wraps its thumbnail in a <media:group>, and a reader that only
+        # looked one level down found nothing at all there.
+        for element in node.findall(f".//{name}", _NS):
             url = element.get("url")
             if url and (element.get("type") or "image/").startswith("image/"):
                 found.append(url)

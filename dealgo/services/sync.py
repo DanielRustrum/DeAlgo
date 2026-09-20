@@ -37,8 +37,8 @@ from ..models import (
     to_naive_utc,
     utcnow,
 )
-from ..sources import patience, syndication
-from ..youtube import community, feeds
+from ..sources import items, patience, syndication
+from ..youtube import community
 from ..youtube.api import (
     QUOTA_COST_DELETE,
     QUOTA_COST_INSERT,
@@ -463,34 +463,57 @@ def _run(
 # -- phase 1: discovery ---------------------------------------------------
 
 
-def _poll(channel: Channel, http: httpx.Client) -> feeds.FeedResult:
+def _poll(channel: Channel, http: httpx.Client) -> items.Batch:
     """Read whatever kind of feed this source publishes.
 
     YouTube's own reader knows two things the general one cannot: which
     entries are Shorts, and the channel id the feed belongs to. Everything
     else is a feed like any other, and is read as one.
     """
-    if channel.is_youtube:
-        return feeds.fetch_feed(channel.channel_id, http)
+    from ..plugins import registry
 
     found = _read_feed(channel, http)
-    return feeds.FeedResult(
-        channel_id=channel.channel_id,
-        channel_title=found.title,
+    known = registry.current()
+    return items.Batch(
+        key=channel.channel_id,
+        title=found.title,
         entries=[
-            feeds.FeedEntry(
-                video_id=_item_id(channel, item),
-                title=item.title,
-                published_at=item.published_at,
-                thumbnail_url=item.thumbnail_url,
-                is_short=False,
-                kind="link",
-                link=item.link,
-                summary=item.summary,
-                images=tuple(item.images),
-            )
+            _as_entry(channel, item, known.refine(channel.source_kind, _shown(item)))
             for item in found.items
         ],
+    )
+
+
+def _shown(item: syndication.Item) -> dict[str, object]:
+    """One entry as a plugin sees it: what the feed said, and nothing else."""
+    return {
+        "guid": item.guid,
+        "title": item.title,
+        "link": item.link or "",
+        "summary": item.summary or "",
+    }
+
+
+def _as_entry(
+    channel: Channel, item: syndication.Item, said: dict[str, object]
+) -> items.Entry:
+    """What the feed gave, with what its plugin knows laid over the top.
+
+    Only the fields a plugin actually named: a kind with no opinion about
+    Shorts leaves `is_short` false rather than having to say so, and one with
+    no opinion about ids gets the hash every other source gets.
+    """
+    given = str(said.get("id") or "").strip()
+    return items.Entry(
+        id=given or _item_id(channel, item),
+        title=item.title,
+        published_at=item.published_at,
+        thumbnail_url=item.thumbnail_url,
+        is_short=said.get("is_short") is True,
+        kind=str(said.get("kind") or "link"),
+        link=item.link,
+        summary=item.summary,
+        images=tuple(item.images),
     )
 
 
@@ -646,7 +669,7 @@ def _discover(
             video.video_id: video
             for video in session.scalars(
                 owned(select(Video), Video, owner).where(
-                    Video.video_id.in_([e.video_id for e in feed.entries] or [""])
+                    Video.video_id.in_([e.id for e in feed.entries] or [""])
                 )
             )
         }
@@ -665,7 +688,7 @@ def _discover(
         found = 0
         filled = 0
         for index, entry in enumerate(feed.entries):
-            seen = already.get(entry.video_id)
+            seen = already.get(entry.id)
             if seen is not None:
                 filled += _freshen(seen, entry)
                 continue
@@ -677,7 +700,7 @@ def _discover(
             session.add(
                 Video(
                     owner_pk=owner,
-                    video_id=entry.video_id,
+                    video_id=entry.id,
                     channel_pk=channel.id,
                     title=entry.title,
                     published_at=to_naive_utc(entry.published_at),
@@ -707,8 +730,8 @@ def _discover(
             say.write(
                 f"filled in a picture for {filled} already here", about=channel.title
             )
-        if not channel.title and feed.channel_title:
-            channel.title = feed.channel_title
+        if not channel.title and feed.title:
+            channel.title = feed.title
         say.write(
             f"read {len(feed.entries)} from the feed; {found} of them new"
             if found
@@ -744,7 +767,7 @@ def _why_unreachable(exc: httpx.HTTPError) -> str:
     return "feed unreachable"
 
 
-def _freshen(video: Video, entry: feeds.FeedEntry) -> int:
+def _freshen(video: Video, entry: items.Entry) -> int:
     """Fill in what we did not know how to read the first time.
 
     A feed is re-read every poll and keeps saying the same things about the

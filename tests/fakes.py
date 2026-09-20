@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from collections import defaultdict
 
-from dealgo.youtube import feeds
+from dealgo.sources import syndication
 from dealgo.youtube.api import ChannelInfo, PlaylistItem, cost_of
 
 CHANNEL_ID = "UCzzzzzzzzzzzzzzzzzzzzzz"
@@ -104,10 +104,19 @@ class FakeYouTube:
         )
 
 
-def entry(video_id: str, minutes_ago: int, title: str | None = None) -> feeds.FeedEntry:
-    return feeds.FeedEntry(
-        video_id=video_id,
+def entry(
+    video_id: str, minutes_ago: int, title: str | None = None, *, short: bool = False
+) -> syndication.Item:
+    """One upload, as YouTube's own feed writes it.
+
+    A feed entry rather than a finished item: the host parses the feed and
+    the YouTube plugin says what is YouTube's about it, so a fixture that
+    handed over a finished item would be testing neither.
+    """
+    where = "shorts/" if short else "watch?v="
+    return syndication.Item(
+        guid=f"yt:video:{video_id}",
         title=title or f"Video {video_id}",
+        link=f"https://www.youtube.com/{where}{video_id}",
         published_at=dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=minutes_ago),
-        thumbnail_url=None,
     )

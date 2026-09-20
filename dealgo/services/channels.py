@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session, selectinload
 from ..models import Channel, Video
 from .. import sources
 from ..sources import syndication
-from ..youtube import feeds
 from ..youtube.api import ChannelInfo, YouTubeAPIError, parse_channel_reference
 from . import filters
 from . import ordering
@@ -42,29 +41,16 @@ def list_channels(session: Session, owner: OwnerId = None) -> list[Channel]:
 
 
 def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo:
-    """Resolve user input to a channel, using the free feed where possible."""
-    try:
-        kind, value = parse_channel_reference(reference)
-    except ValueError as exc:
-        raise ChannelError(str(exc)) from exc
+    """Turn a reference into a channel, for the references that need asking.
 
-    if kind == "id":
-        # A bare channel id needs no credentials: the Atom feed carries the title.
-        try:
-            result = feeds.fetch_feed(value, http)
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 404:
-                raise ChannelError(f"YouTube has no channel with id {value}") from exc
-            raise ChannelError(f"could not read the channel feed: HTTP {exc.response.status_code}") from exc
-        except httpx.HTTPError as exc:
-            raise ChannelError(f"could not reach YouTube: {exc}") from exc
-        return ChannelInfo(
-            channel_id=value,
-            title=result.channel_title or value,
-            handle=None,
-            thumbnail_url=None,
-        )
+    Only those. Anything a plugin can work out on its own — a UC… id, a
+    /channel/ URL, an r/ community — never reaches here: `add_source` has its
+    feed address already and finds the title by reading it, which costs
+    nothing and needs nobody's permission.
 
+    What is left is the handle, and a handle needs the account's Google
+    connection to become a channel id.
+    """
     client = build_client(session, http)
     if not client.can_read:
         raise ChannelError(

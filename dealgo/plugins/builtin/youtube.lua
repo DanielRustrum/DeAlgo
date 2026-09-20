@@ -73,6 +73,25 @@ return {
       item_url = function(_, link)
         return link
       end,
+
+      -- What is YouTube's about a YouTube feed.
+      --
+      -- The feed is Atom and De-Algo reads Atom already, so there is no
+      -- second parser here — rewriting a namespace-aware XML reader as Lua
+      -- string matching would be a worse parser, not a plugin. What is left
+      -- is the part only YouTube knows: that an entry's id carries the video
+      -- id, and that a Short is told apart by the address it links to and by
+      -- nothing else without spending API quota.
+      refine = function(item)
+        local video = string.match(item.guid or "", "^yt:video:([%w_%-]+)$")
+        local link = item.link or ""
+        return {
+          -- A video is filed under its own id, not under the feed's guid.
+          id = video,
+          kind = "video",
+          is_short = string.find(link, "/shorts/", 1, true) ~= nil,
+        }
+      end,
     },
   },
 

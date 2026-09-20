@@ -67,6 +67,7 @@ class SourceKind:
     _recognise: Any = None
     _item_url: Any = None
     _mirror: Any = None
+    _refine: Any = None
 
 
 @dataclass(frozen=True)
@@ -288,6 +289,21 @@ class Registry:
                 guess = guess or answer
         return guess
 
+    def refine(self, kind: str, item: dict[str, object]) -> dict[str, object]:
+        """What this kind's plugin says is particular about one of its items.
+
+        The host reads the feed — it has a real XML parser and a plugin does
+        not — and this is where the kind adds what only it knows: which id a
+        video is filed under, whether it is a Short, what sort of thing it is
+        at all.
+
+        Whatever comes back is merged over what was read, so a plugin with no
+        `refine` changes nothing and a plugin that answers with rubbish
+        changes only what it named.
+        """
+        said = self._ask(kind, "_refine", item)
+        return said if isinstance(said, dict) else {}
+
     def mirror(self, kind: str, key: str) -> str | None:
         """A second address for the same feed, where the plugin offers one."""
         said = self._ask(kind, "_mirror", key)
@@ -310,7 +326,15 @@ class Registry:
         if plugin is None or plugin.box is None:
             return None
         try:
-            return plugin.box.call(fn, *args)
+            # Dictionaries become Lua tables on the way in. A Python object
+            # handed across is one a plugin cannot read a single field of,
+            # now that only declared names are reachable on one — and that is
+            # a mistake worth making impossible rather than remembering.
+            handing = [
+                plugin.box.table(**value) if isinstance(value, dict) else value
+                for value in args
+            ]
+            return plugin.box.call(fn, *handing)
         except PluginError as exc:
             log.warning("%s could not answer %s: %s", found.plugin, hook.strip("_"), exc)
             return None
@@ -752,6 +776,7 @@ def _sources(plugin: Plugin, given: object) -> list[SourceKind]:
                 _recognise=entry.get("recognise"),
                 _item_url=entry.get("item_url"),
                 _mirror=entry.get("mirror"),
+                _refine=entry.get("refine"),
             )
         )
     return kinds

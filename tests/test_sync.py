@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from dealgo.models import Channel, Video
 from dealgo.services import sync as sync_service
-from dealgo.youtube import feeds
+from dealgo.sources import items
 from dealgo.youtube.api import VideoDetails
 from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry
 
@@ -161,12 +161,12 @@ def test_unavailable_videos_are_skipped_with_a_reason(world):
 def test_a_feed_failure_is_recorded_on_the_channel(world, monkeypatch):
     import httpx
 
-    from dealgo.youtube import feeds
+    from dealgo.sources import syndication
 
-    def boom(_channel_id, _http):
+    def boom(_url, _http):
         raise httpx.ConnectError("dns is having a day")
 
-    monkeypatch.setattr(feeds, "fetch_feed", boom)
+    monkeypatch.setattr(syndication, "fetch", boom)
     sync_service.run_sync()
 
     with world["db"].session_scope() as session:
@@ -500,7 +500,8 @@ def test_three_quick_presses_make_one_request_not_three(world, db, monkeypatch):
 
     # The real reader, over a client that serves from memory: the point of
     # this test is what the reader does with the headers, so it must not be
-    # the stub that other tests put in its place.
+    # the stub the world fixture puts in its place.
+    monkeypatch.setattr(syndication, "fetch", world["real_fetch"])
     with db.session_scope() as session:
         source = ChannelModel(
             channel_id="r/python", title="r/python", source_kind="reddit",
@@ -804,7 +805,7 @@ def test_a_feed_turned_generic_brings_back_what_it_could_not_hold(world, db, mon
     from dealgo.models import Video as VideoModel
 
     stranded_reddit(db)
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: feeds.FeedResult("r/python", "r/python", []))
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
 
     result = sync_service.run_sync("manual", force=True)
 
@@ -820,7 +821,7 @@ def test_items_stay_put_while_the_only_feed_is_still_a_youtube_one(world, db, mo
     from dealgo.models import Video as VideoModel
 
     stranded_reddit(db, playlist_id="PLarealyoutubeplaylist")
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: feeds.FeedResult("r/python", "r/python", []))
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
 
     result = sync_service.run_sync("manual", force=True)
 
@@ -842,7 +843,7 @@ def test_a_filters_verdict_is_not_reconsidered(world, db, monkeypatch):
             video_id="item-filtered", channel_pk=source_pk, kind="link",
             title="Held by a rule", status="skipped", reason="title did not match",
         ))
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: feeds.FeedResult("r/python", "r/python", []))
+    monkeypatch.setattr(sync_service, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
 
     sync_service.run_sync("manual", force=True)
 
@@ -869,10 +870,19 @@ def with_mirror(db, *, mirror="https://openrss.org/reddit.com/r/python"):
         return source.id
 
 
-def serving(answers):
-    """A client that answers each URL however the map says."""
+def serving(world, monkeypatch, answers):
+    """A client that answers each URL however the map says.
+
+    These tests are about *which address* is asked for, so the real reader
+    has to run — the world fixture stubs it out, and that stub would answer
+    without asking anybody anything. Only that one patch is lifted: undoing
+    them all would take the test database with it.
+    """
     import httpx
 
+    from dealgo.sources import syndication
+
+    monkeypatch.setattr(syndication, "fetch", world["real_fetch"])
     asked = []
 
     def serve(url, headers=None, params=None):
@@ -891,7 +901,7 @@ def test_a_mirror_is_read_when_the_source_refuses(world, db, monkeypatch):
 
     patience.forget()
     only = {with_mirror(db)}
-    asked, client = serving({
+    asked, client = serving(world, monkeypatch, {
         "https://www.reddit.com/r/python/.rss": (403, ""),
         "https://openrss.org/reddit.com/r/python": (200, REDDIT),
     })
@@ -918,7 +928,7 @@ def test_the_source_is_always_tried_first(world, db, monkeypatch):
 
     patience.forget()
     only = {with_mirror(db)}
-    asked, client = serving({
+    asked, client = serving(world, monkeypatch, {
         "https://www.reddit.com/r/python/.rss": (200, REDDIT),
         "https://openrss.org/reddit.com/r/python": (200, REDDIT),
     })
@@ -941,7 +951,7 @@ def test_a_feed_that_is_gone_does_not_fall_through_to_the_mirror(world, db, monk
 
     patience.forget()
     only = {with_mirror(db)}
-    asked, client = serving({
+    asked, client = serving(world, monkeypatch, {
         "https://www.reddit.com/r/python/.rss": (404, ""),
         "https://openrss.org/reddit.com/r/python": (200, REDDIT),
     })
@@ -966,7 +976,7 @@ def test_a_mirror_that_also_fails_reports_the_original_refusal(world, db, monkey
 
     patience.forget()
     only = {with_mirror(db)}
-    asked, client = serving({
+    asked, client = serving(world, monkeypatch, {
         "https://www.reddit.com/r/python/.rss": (429, ""),
         "https://openrss.org/reddit.com/r/python": (503, ""),  # as it happens, today
     })
@@ -989,7 +999,7 @@ def test_a_source_with_no_mirror_just_reports_the_refusal(world, db, monkeypatch
 
     patience.forget()
     only = {with_mirror(db, mirror=None)}
-    asked, client = serving({"https://www.reddit.com/r/python/.rss": (403, "")})
+    asked, client = serving(world, monkeypatch, {"https://www.reddit.com/r/python/.rss": (403, "")})
     monkeypatch.setattr(sync_service, "http_client", lambda: client)
 
     try:

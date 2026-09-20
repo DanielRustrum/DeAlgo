@@ -7,21 +7,19 @@ from sqlalchemy import select
 from dealgo.models import Channel, Video
 from dealgo.services import channels as channel_service
 from dealgo.services import sync as sync_service
-from dealgo.youtube import feeds
+from dealgo.sources import syndication
 from dealgo.youtube.api import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 
-def short_entry(video_id: str, minutes_ago: int) -> feeds.FeedEntry:
-    """A Shorts upload, as the channel feed reports one."""
-    base = entry(video_id, minutes_ago, title=f"Short {video_id}")
-    return feeds.FeedEntry(
-        video_id=base.video_id,
-        title=base.title,
-        published_at=base.published_at,
-        thumbnail_url=None,
-        is_short=True,
-    )
+def short_entry(video_id: str, minutes_ago: int) -> syndication.Item:
+    """A Shorts upload, as the channel feed reports one.
+
+    Which is to say: an ordinary entry whose link goes to /shorts/. Nothing
+    in the feed says "this is a Short" — the address is the only thing that
+    does, and spotting it is the YouTube plugin's job.
+    """
+    return entry(video_id, minutes_ago, title=f"Short {video_id}", short=True)
 
 
 def load(world, *, shorts=2, longs=1):
