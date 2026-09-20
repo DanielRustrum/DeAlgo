@@ -75,4 +75,61 @@ return {
       end,
     },
   },
+
+  -- Boxes for the canvas. Each judges YouTube's own items and lets everything
+  -- else by untouched: a box asking about view counts must not swallow a
+  -- subreddit that has none, and "no likes recorded" is not "nobody liked it".
+  nodes = {
+    {
+      kind = "no-shorts",
+      label = "No Shorts",
+      blurb = "Holds Shorts on this path only.",
+      keep = function(item)
+        if item.source ~= "youtube" then return true end
+        return not item.is_short
+      end,
+    },
+
+    {
+      kind = "only-shorts",
+      label = "Only Shorts",
+      blurb = "Keeps Shorts and holds everything else from YouTube.",
+      keep = function(item)
+        if item.source ~= "youtube" then return true end
+        return item.is_short == true
+      end,
+    },
+
+    {
+      kind = "watched-enough",
+      label = "Watched enough",
+      blurb = "Holds videos below a view count.",
+      fields = {
+        { name = "views", label = "At least this many views",
+          type = "number", default = "1000" },
+      },
+      keep = function(item, settings)
+        if item.source ~= "youtube" then return true end
+        -- No count recorded is not a count of nothing: the details are
+        -- fetched after discovery and a channel may hide them entirely.
+        if item.views == nil or item.views == 0 then return true end
+        return item.views >= (tonumber(settings.views) or 1000)
+      end,
+    },
+
+    {
+      kind = "well-liked",
+      label = "Well liked",
+      blurb = "Holds videos below a like count.",
+      fields = {
+        { name = "likes", label = "At least this many likes",
+          type = "number", default = "100" },
+      },
+      keep = function(item, settings)
+        if item.source ~= "youtube" then return true end
+        if item.likes == nil or item.likes == 0 then return true end
+        return item.likes >= (tonumber(settings.likes) or 100)
+      end,
+    },
+  },
 }

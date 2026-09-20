@@ -325,3 +325,134 @@ def test_a_box_that_throws_lets_the_item_by(canvas, db, here):
     with db.session_scope() as session:
         kept = session.scalar(select(Video).where(Video.video_id == "v0"))
     assert kept.status != "skipped"
+
+
+# -- the boxes the shipped plugins offer ------------------------------------
+
+
+def an_item(**over):
+    """One item as `_plugin_refusal` hands it over: plain values only."""
+    base = {
+        "title": "", "kind": "video", "words": "", "link": "", "duration": 0,
+        "views": 0, "likes": 0, "is_short": False, "source": "youtube",
+    }
+    base.update(over)
+    return base
+
+
+def shipped():
+    return registry.read(SHIPPED)
+
+
+def test_every_source_plugin_offers_boxes_of_its_own():
+    """Each grouping case is exercised by something real rather than only by
+    a fixture: one box, several boxes, and none."""
+    found = shipped()
+    counted = {p.title: len(p.nodes) for p in found.plugins}
+
+    assert counted["YouTube"] > 1 and counted["Reddit"] > 1   # folds of their own
+    assert counted["Bluesky"] == 1 and counted["Substack"] == 1   # shown directly
+    assert counted["Shape"] > 1
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "youtube:no-shorts",
+        "youtube:only-shorts",
+        "youtube:watched-enough",
+        "youtube:well-liked",
+        "bluesky:said-something",
+        "substack:long-read",
+        "reddit:self-posts",
+        "reddit:asks-a-question",
+    ],
+)
+def test_a_source_plugins_box_lets_other_sources_by(ref):
+    """The rule that keeps these safe to place anywhere. A box asking about
+    view counts must not swallow a subreddit that has none, and "no likes
+    recorded" is not "nobody liked it"."""
+    found = shipped()
+    plugin = ref.split(":")[0]
+    elsewhere = "reddit" if plugin != "reddit" else "youtube"
+
+    item = an_item(source=elsewhere, title="Anything at all", words="")
+
+    assert found.keeps(ref, item, {}) is True
+
+
+def test_shorts_can_be_held_or_demanded_on_one_path():
+    """The channel's own switch does this everywhere; a box does it down one
+    wire, which is the whole reason a path-specific one is worth having."""
+    found = shipped()
+    short, full = an_item(is_short=True), an_item(is_short=False)
+
+    assert found.keeps("youtube:no-shorts", short, {}) is False
+    assert found.keeps("youtube:no-shorts", full, {}) is True
+    assert found.keeps("youtube:only-shorts", short, {}) is True
+    assert found.keeps("youtube:only-shorts", full, {}) is False
+
+
+def test_a_count_nobody_recorded_is_not_a_count_of_nothing():
+    """Details are fetched after discovery and a channel may hide them, so a
+    missing view count must not read as an unpopular video."""
+    found = shipped()
+
+    assert found.keeps("youtube:watched-enough", an_item(views=0), {"views": "1000"}) is True
+    assert found.keeps("youtube:watched-enough", an_item(views=50), {"views": "1000"}) is False
+    assert found.keeps("youtube:well-liked", an_item(likes=0), {"likes": "100"}) is True
+
+
+def test_reddit_tells_a_written_post_from_a_link_share():
+    found = shipped()
+    wrote = an_item(source="reddit", words="x" * 200)
+    shared = an_item(source="reddit", words="x")
+
+    assert found.keeps("reddit:self-posts", wrote, {"least": "80"}) is True
+    assert found.keeps("reddit:self-posts", shared, {"least": "80"}) is False
+
+
+@pytest.mark.parametrize(
+    "title, asking",
+    [
+        ("How do I bias this transistor", True),
+        ("Is this resistor dead?", True),
+        ("Anyone recognise this chip", True),
+        ("help with my adder", True),
+        ("Look at this scope I found", False),
+        ("Finished my 4-bit CPU", False),
+    ],
+)
+def test_reddit_spots_a_question_with_or_without_the_mark(title, asking):
+    """Plenty of questions are asked without one, and the openers are the
+    giveaway."""
+    found = shipped()
+
+    assert found.keeps("reddit:asks-a-question", an_item(source="reddit", title=title), {}) is asking
+
+
+def test_bluesky_measures_what_was_said_not_what_was_linked():
+    """A link share is long without saying anything."""
+    found = shipped()
+    bare = an_item(source="bluesky", title="https://example.com/a-very-long-address-indeed")
+    said = an_item(source="bluesky", title="A real thought about a thing")
+
+    assert found.keeps("bluesky:said-something", bare, {"least": "24"}) is False
+    assert found.keeps("bluesky:said-something", said, {"least": "24"}) is True
+
+
+def test_substack_holds_the_short_ones():
+    found = shipped()
+
+    assert found.keeps("substack:long-read", an_item(source="substack", words="x" * 2000), {}) is True
+    assert found.keeps("substack:long-read", an_item(source="substack", words="a note"), {}) is False
+
+
+def test_every_shipped_box_survives_an_item_with_nothing_in_it():
+    """A box is placed before anything has been polled, and the first thing
+    through may be missing everything it asks about."""
+    found = shipped()
+    empty = {"source": "youtube"}
+
+    for node in found.node_kinds():
+        assert found.keeps(node.ref, empty, {}) in (True, False), node.ref
