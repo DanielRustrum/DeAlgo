@@ -80,11 +80,22 @@ class Site:
     walk with `ipairs` is not an answer.
     """
 
-    def __init__(self, plugin: str, lua: Any, *, reading: bool, managing: bool):
+    def __init__(
+        self,
+        plugin: str,
+        lua: Any,
+        *,
+        reading: bool,
+        managing: bool,
+        wants: tuple[tuple[str, str], ...] = (),
+        granted: frozenset[str] = frozenset(),
+    ):
         self._plugin = plugin
         self._lua = lua
         self._reading = reading
         self._managing = managing
+        self._wants = wants
+        self._granted = granted
 
     # -- what it is --------------------------------------------------------
 
@@ -99,6 +110,33 @@ class Site:
         from .. import __version__
 
         return str(__version__)
+
+    def permissions(self) -> Any:
+        """Everything this plugin asked for, and how it went.
+
+        Its own manifest read back, so it needs no permission of its own —
+        there is nothing here a plugin did not already write down.
+
+        The point is the `granted` field. A plugin that asked for the network
+        and did not get it can say so, or quietly do the lesser thing, rather
+        than failing at the moment it reaches for something that is not
+        there. Testing `if net then` answers whether it has one; this answers
+        what it asked for and why, which is what it needs to explain itself.
+        """
+        rows = [
+            {
+                "name": name,
+                "label": permissions_for(name).label,
+                "why": why,
+                "granted": name in self._granted,
+                # False for one this version of De-Algo has no name for. It
+                # was asked for and can never be granted, and a plugin should
+                # be able to tell that apart from a plain refusal.
+                "known": name in _known_names(),
+            }
+            for name, why in self._wants
+        ]
+        return self._rows(rows)
 
     # -- reading -----------------------------------------------------------
 
@@ -197,6 +235,18 @@ class Site:
 
     def _empty(self) -> Any:
         return self._lua.table()
+
+
+def permissions_for(name: str) -> Any:
+    from . import permissions
+
+    return permissions.describe(name)
+
+
+def _known_names() -> frozenset[str]:
+    from . import permissions
+
+    return frozenset(permissions.BY_NAME)
 
 
 # -- what each question actually asks --------------------------------------

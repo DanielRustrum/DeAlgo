@@ -548,10 +548,20 @@ def _one(path: Path, given: dict[str, object]) -> Plugin:
 
 
 def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
-    """Run a plugin's file and decide what it turned out to be."""
+    """Run a plugin's file and decide what it turned out to be.
+
+    With a `dealgo` that has been granted nothing. It is in scope so that a
+    plugin can be written against it unconditionally, and it answers nothing
+    about anybody — the capabilities that actually do something arrive on the
+    second pass, once there is a manifest to weigh them against.
+    """
     path = plugin.path
+
+    def nothing_yet(lua: Any) -> dict[str, object]:
+        return {**given, **permissions.capabilities(plugin.id, frozenset(), None, lua)}
+
     try:
-        box, made = load(path.name, source, given=given)
+        box, made = load(path.name, source, given=nothing_yet)
     except PluginError as exc:
         plugin.trouble = str(exc).split(": ", 1)[-1]
         return plugin
@@ -595,9 +605,16 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     plugin.granted = frozenset(allowed & wanted)
     if plugin.trouble is not None:
         return
+    # Nothing to hand over and nothing to read back: a plugin that asked for
+    # nothing already has the `dealgo` it will ever have, and loading it a
+    # second time to give it the same thing would only cost a start-up.
+    if not plugin.wants:
+        return
+
+    asked = tuple((want.name, want.why) for want in plugin.wants)
 
     def able(lua: Any) -> dict[str, object]:
-        return permissions.capabilities(plugin.title, plugin.granted, http, lua)
+        return permissions.capabilities(plugin.title, plugin.granted, http, lua, asked)
 
     try:
         source = plugin.path.read_text(encoding="utf-8")

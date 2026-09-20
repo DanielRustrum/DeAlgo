@@ -82,6 +82,18 @@ def test_a_plugin_that_eats_memory_is_stopped():
     assert "memory" in str(stopped.value)
 
 
+def test_one_plugins_values_cannot_be_used_inside_another():
+    """One runtime each, and Lua enforces it: a table made in one cannot be
+    handed to a function from the other. Worth pinning, because it is the
+    thing that makes "one runtime per plugin" more than a comment."""
+    first, made = runtime.load("first.lua", "return { go = function(t) return t.x end }")
+    second, _ = runtime.load("second.lua", "return {}")
+
+    with pytest.raises(runtime.PluginError) as crossed:
+        first.call(made["go"], second.table(x=1))
+    assert "different Lua runtimes" in str(crossed.value)
+
+
 def test_two_plugins_cannot_see_each_others_globals():
     """One runtime each, so a plugin that fills its memory or leaves a mess
     behind takes nobody else with it."""

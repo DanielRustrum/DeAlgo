@@ -121,6 +121,7 @@ def capabilities(
     granted: frozenset[str],
     http: Callable[[], httpx.Client] | None = None,
     lua: Any = None,
+    wants: tuple[tuple[str, str], ...] = (),
 ) -> dict[str, object]:
     """What to put in a plugin's world, given what it has been granted.
 
@@ -145,7 +146,14 @@ def capabilities(
         given["net"] = _Net(plugin, http)
     if lua is not None:
         given["dealgo"] = Site(
-            plugin, lua, reading="read" in granted, managing="manage" in granted
+            plugin,
+            lua,
+            reading="read" in granted,
+            managing="manage" in granted,
+            # Its own manifest, so it can read back what it asked for and
+            # what it was given without asking permission to.
+            wants=wants,
+            granted=granted,
         )
     return given
 

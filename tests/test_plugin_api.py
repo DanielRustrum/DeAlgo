@@ -93,6 +93,99 @@ def test_the_version_needs_no_permission():
     assert ask(plugin, found, "")["v"] == "0.1.0"
 
 
+# -- reading back what it asked for ----------------------------------------
+
+
+def test_a_plugin_can_read_back_what_it_asked_for():
+    """Its own manifest, so it needs no permission of its own — there is
+    nothing here it did not already write down."""
+    found, plugin = a_plugin(
+        probing("""
+          local out = {}
+          for _, p in ipairs(dealgo.permissions()) do out[#out+1] = p.name end
+          table.sort(out)
+          return { asked = table.concat(out, ",") }
+        """),
+        frozenset(),
+    )
+
+    assert ask(plugin, found, "")["asked"] == "manage,read"
+
+
+def test_it_says_which_of_them_it_was_given():
+    """The point of the whole call. A plugin that asked for the network and
+    did not get it can say so, rather than failing at the moment it reaches
+    for something that is not there."""
+    body = """
+      local got = {}
+      for _, p in ipairs(dealgo.permissions()) do
+        if p.granted then got[#got+1] = p.name end
+      end
+      return { got = table.concat(got, ",") }
+    """
+    shut_found, shut = a_plugin(probing(body), frozenset())
+    open_found, opened = a_plugin(probing(body), frozenset({"read"}))
+
+    assert ask(shut, shut_found, "")["got"] == ""
+    assert ask(opened, open_found, "")["got"] == "read"
+
+
+def test_it_carries_the_reason_it_gave():
+    found, plugin = a_plugin(
+        probing('return { why = dealgo.permissions()[1].why }'), frozenset()
+    )
+
+    assert ask(plugin, found, "")["why"] == "To test with."
+
+
+def test_it_says_when_the_host_has_no_name_for_one():
+    """Asked for and never grantable, which a plugin should be able to tell
+    apart from a plain refusal — it means the plugin, not the answer, is the
+    thing that needs changing."""
+    source = """
+    return {
+      api = 1, name = "Odd",
+      permissions = { { name = "telepathy", why = "To read your mind." } },
+      nodes = { { kind = "probe", label = "Probe", keep = function()
+        local p = dealgo.permissions()[1]
+        return { known = p.known, granted = p.granted, label = p.label }
+      end } },
+    }
+    """
+    found, plugin = a_plugin(source, frozenset({"telepathy"}))
+
+    said = ask(plugin, found, "")
+    assert said["known"] is False
+    assert said["granted"] is False
+    assert said["label"] == "telepathy"
+
+
+def test_a_plugin_that_asked_for_nothing_reads_back_nothing():
+    source = """
+    return {
+      api = 1, name = "Quiet",
+      nodes = { { kind = "probe", label = "Probe", keep = function()
+        return { n = #dealgo.permissions(), asked = true }
+      end } },
+    }
+    """
+    found, plugin = a_plugin(source, frozenset())
+
+    assert ask(plugin, found, "") == {"n": 0, "asked": True}
+
+
+def test_reading_it_back_needs_no_account_in_hand():
+    """Grants are about the install, not an account, so this answers the same
+    whoever is in hand and outside anybody's work at all."""
+    found, plugin = a_plugin(
+        probing("return { n = #dealgo.permissions() }"), frozenset({"read"})
+    )
+
+    assert ask(plugin, found, "")["n"] == 2
+    with site.acting_for(1):
+        assert ask(plugin, found, "")["n"] == 2
+
+
 # -- reading ---------------------------------------------------------------
 
 

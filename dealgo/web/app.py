@@ -3345,7 +3345,8 @@ return {
       blurb = "Holds anything from a source you are watching twice.",
       keep = function(item)
         -- `dealgo` is always there. Without the read permission it simply
-        -- answers with nothing, so this does no harm either way.
+        -- answers with nothing, so this does no harm either way — and
+        -- `dealgo.permissions()` is how a plugin finds out which it is.
         for _, source in ipairs(dealgo.sources()) do
           if source.title == item.title then return false end
         end

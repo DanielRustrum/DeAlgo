@@ -244,12 +244,20 @@
   </p>
   <p class="hint">
     <code>dealgo</code> is always there, and answers nothing it was not
-    granted: <code>dealgo.version</code> always;
+    granted: <code>dealgo.version</code> and
+    <code>dealgo.permissions()</code> always;
     <code>dealgo.sources()</code> and <code>dealgo.feeds()</code> with
     <em>see what you are watching</em>; <code>dealgo.watch()</code>,
     <code>dealgo.tag()</code> and <code>dealgo.pause()</code> with
     <em>change what you are watching</em>. All of it is about the one account
     whose work is in hand — never another's, and nothing at all outside a run.
+  </p>
+  <p class="hint">
+    <code>dealgo.permissions()</code> is a plugin's own manifest read back:
+    each thing it asked for, the reason it gave, and whether it was granted.
+    A plugin that asked for the network and did not get it can say so, or
+    quietly do the lesser thing, rather than failing at the moment it reaches
+    for something that is not there.
   </p>
 </section>
 {% endblock %}
