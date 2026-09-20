@@ -78,6 +78,7 @@ function asGraphAsks(value) {
     return {
         kind: typeof raw["kind"] === "string" ? raw["kind"] : "",
         label: typeof raw["label"] === "string" ? raw["label"] : "",
+        source: typeof raw["source"] === "string" ? raw["source"] : "",
         example: typeof raw["example"] === "string" ? raw["example"] : "",
         known: raw["known"] === true,
     };
@@ -151,6 +152,7 @@ function asGraphPlugin(value) {
     return {
         ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
         missing: typeof missing === "string" ? missing : null,
+        plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
         blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
         fields: fields.filter((one) => one.name !== ""),
     };
@@ -329,7 +331,7 @@ function graphElement(tag, className, text) {
 }
 function graphKindLabel(kind) {
     if (kind === "source")
-        return "Channel";
+        return "Source";
     if (kind === "feed")
         return "Feed";
     if (kind === "sort")
@@ -411,7 +413,7 @@ function drawGraphNode(state, node) {
     box.style.top = `${node.y}px`;
     box.tabIndex = 0;
     box.setAttribute("role", "button");
-    box.setAttribute("aria-label", `${graphKindLabel(node.kind)}: ${node.title}`);
+    box.setAttribute("aria-label", `${graphTriggerLabel(node)}: ${node.title}`);
     if (state.picked.has(node.id))
         box.classList.add("is-picked");
     if (!node.enabled)
@@ -441,9 +443,29 @@ function drawGraphNode(state, node) {
 }
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node) {
-    if (node.trigger === null)
-        return graphKindLabel(node.kind);
-    return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+    if (node.trigger !== null)
+        return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+    // A source box says where it watches rather than that it is a source box.
+    // Which of the two it is, is the thing somebody chose when they dragged it
+    // out; "Channel" said the same for a subreddit and a YouTube channel and
+    // so said nothing at all.
+    if (node.kind === "source")
+        return graphSourceLabel(node);
+    // A plugin box is its plugin's, and saying so is more use than the word
+    // "plugin" over a name that is already the box's own.
+    if (node.plugin !== null && node.plugin.plugin !== "")
+        return node.plugin.plugin;
+    return graphKindLabel(node.kind);
+}
+/** Where a source box watches: "Reddit", "YouTube". Filled boxes read it off
+ *  the channel behind them, empty ones off the kind they were dragged out as,
+ *  and a box whose plugin has gone falls back to the plain word. */
+function graphSourceLabel(node) {
+    if (node.channel !== null && node.channel.source !== "")
+        return node.channel.source;
+    if (node.asks !== null && node.asks.source !== "")
+        return node.asks.source;
+    return "Source";
 }
 function graphFireButton(node) {
     const buttons = graphElement("div", "graph-fire");

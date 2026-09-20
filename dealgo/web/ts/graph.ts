@@ -95,6 +95,8 @@ interface GraphPlugin {
   ref: string;
   /** The plugin this box needs, when it is not loaded. Null while it is. */
   missing: string | null;
+  /** Which plugin it came from — "YouTube" — for the word above the title. */
+  plugin: string;
   blurb: string;
   fields: GraphPluginField[];
 }
@@ -330,6 +332,7 @@ function asGraphAsks(value: unknown): GraphAsks | null {
   return {
     kind: typeof raw["kind"] === "string" ? raw["kind"] : "",
     label: typeof raw["label"] === "string" ? raw["label"] : "",
+    source: typeof raw["source"] === "string" ? raw["source"] : "",
     example: typeof raw["example"] === "string" ? raw["example"] : "",
     known: raw["known"] === true,
   };
@@ -402,6 +405,7 @@ function asGraphPlugin(value: unknown): GraphPlugin | null {
   return {
     ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
     missing: typeof missing === "string" ? missing : null,
+    plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
     blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
     fields: fields.filter((one): boolean => one.name !== ""),
   };
@@ -579,7 +583,7 @@ function graphElement(tag: string, className: string, text?: string): HTMLElemen
 }
 
 function graphKindLabel(kind: GraphNodeKind): string {
-  if (kind === "source") return "Channel";
+  if (kind === "source") return "Source";
   if (kind === "feed") return "Feed";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
@@ -593,6 +597,8 @@ interface GraphAsks {
   kind: string;
   /** What that kind's box is called: "Subreddit". */
   label: string;
+  /** The short name of the kind — "Reddit" — for the word above the title. */
+  source: string;
   /** What to type, said the way somebody would say it. */
   example: string;
   /** Whether anything still provides this kind. False when its plugin is
@@ -680,7 +686,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   box.style.top = `${node.y}px`;
   box.tabIndex = 0;
   box.setAttribute("role", "button");
-  box.setAttribute("aria-label", `${graphKindLabel(node.kind)}: ${node.title}`);
+  box.setAttribute("aria-label", `${graphTriggerLabel(node)}: ${node.title}`);
   if (state.picked.has(node.id)) box.classList.add("is-picked");
   if (!node.enabled) box.classList.add("is-off");
 
@@ -713,8 +719,25 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
 
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node: GraphNodeView): string {
-  if (node.trigger === null) return graphKindLabel(node.kind);
-  return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+  if (node.trigger !== null) return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+  // A source box says where it watches rather than that it is a source box.
+  // Which of the two it is, is the thing somebody chose when they dragged it
+  // out; "Channel" said the same for a subreddit and a YouTube channel and
+  // so said nothing at all.
+  if (node.kind === "source") return graphSourceLabel(node);
+  // A plugin box is its plugin's, and saying so is more use than the word
+  // "plugin" over a name that is already the box's own.
+  if (node.plugin !== null && node.plugin.plugin !== "") return node.plugin.plugin;
+  return graphKindLabel(node.kind);
+}
+
+/** Where a source box watches: "Reddit", "YouTube". Filled boxes read it off
+ *  the channel behind them, empty ones off the kind they were dragged out as,
+ *  and a box whose plugin has gone falls back to the plain word. */
+function graphSourceLabel(node: GraphNodeView): string {
+  if (node.channel !== null && node.channel.source !== "") return node.channel.source;
+  if (node.asks !== null && node.asks.source !== "") return node.asks.source;
+  return "Source";
 }
 
 function graphFireButton(node: GraphNodeView): HTMLElement {

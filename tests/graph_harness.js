@@ -465,6 +465,26 @@ async function main() {
   report.wiresLitByTheTrigger = [...lit];
   report.wireSelectors = asked;
 
+  // The word above a box's title. A source box says where it watches, which
+  // is the thing somebody chose when they dragged it out — "Channel" said the
+  // same for a subreddit and a YouTube channel, and so said nothing.
+  const heads = (node) => context.graphTriggerLabel(node);
+  report.boxHeadings = {
+    reddit: heads({ kind: "source", trigger: null, plugin: null, asks: null,
+                    channel: { source: "Reddit" } }),
+    youtube: heads({ kind: "source", trigger: null, plugin: null, asks: null,
+                     channel: { source: "YouTube" } }),
+    emptyReddit: heads({ kind: "source", trigger: null, plugin: null, channel: null,
+                         asks: { kind: "reddit", source: "Reddit", label: "Subreddit" } }),
+    sourceWithNothingKnown: heads({ kind: "source", trigger: null, plugin: null,
+                                    channel: null, asks: null }),
+    pluginBox: heads({ kind: "plugin", trigger: null, channel: null, asks: null,
+                       plugin: { plugin: "YouTube" } }),
+    feed: heads({ kind: "feed", trigger: null, plugin: null, channel: null, asks: null }),
+    pulse: heads({ kind: "trigger", plugin: null, channel: null, asks: null,
+                   trigger: { kind: "pulse" } }),
+  };
+
   report.removing = await removingWithDialogsBlocked();
   process.stdout.write(JSON.stringify(report));
 }

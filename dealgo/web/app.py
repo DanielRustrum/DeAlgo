@@ -2045,11 +2045,14 @@ def _asks_for(node: GraphNode) -> Context | None:
         return None
     wanted = (node.source_kind or "").strip()
     if not wanted:
-        return {"kind": "", "label": "", "example": "", "known": False}
+        return {"kind": "", "label": "", "source": "", "example": "", "known": False}
     known = sources.describe(wanted)
     return {
         "kind": wanted,
         "label": known.noun or known.label,
+        # The short one, for the word above the title on the box. A filled
+        # box reads the same thing off its channel.
+        "source": known.label,
         "example": known.example,
         # False when the plugin that offered this kind has been switched off
         # or removed, which is worth saying rather than drawing an empty box

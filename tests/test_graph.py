@@ -775,6 +775,8 @@ def test_a_channel_box_arrives_empty_and_is_told_what_it_is(canvas, db):
     assert empty[0]["asks"] == {
         "kind": "youtube",
         "label": "YouTube channel",
+        # The short one, for the word above the title on the box.
+        "source": "YouTube",
         "example": "@handle, a channel URL, or a UC… id",
         "known": True,
     }
@@ -2443,7 +2445,9 @@ def test_a_wire_runs_from_one_box_to_the_other(canvas_report):
 
 @needs_node
 def test_each_box_says_which_of_the_four_it_is(canvas_report):
-    assert canvas_report["labels"] == ["Trigger", "Channel", "Filter", "Feed"]
+    """"Source" is the fallback these days: a source box that knows which
+    kind it is says that instead, which is what `boxHeadings` covers."""
+    assert canvas_report["labels"] == ["Trigger", "Source", "Filter", "Feed"]
 
 
 @needs_node
@@ -3231,6 +3235,36 @@ def test_a_node_that_stands_for_nothing_yet_can_be_taken_away(canvas):
 
     assert gone.status_code == 200
     assert empty["id"] not in [node["id"] for node in gone.json()["nodes"]]
+
+
+@needs_node
+def test_a_source_box_says_where_it_watches(canvas_report):
+    """Not that it is a source box. Which of the kinds it is, is the thing
+    somebody chose when they dragged it out — "Channel" said the same for a
+    subreddit and a YouTube channel, and so said nothing at all."""
+    heads = canvas_report["boxHeadings"]
+
+    assert heads["reddit"] == "Reddit"
+    assert heads["youtube"] == "YouTube"
+    # Before it has been told which one, it still says which kind it is for.
+    assert heads["emptyReddit"] == "Reddit"
+    # And a box whose plugin has gone falls back to the plain word rather
+    # than to nothing.
+    assert heads["sourceWithNothingKnown"] == "Source"
+
+
+@needs_node
+def test_a_plugin_box_says_which_plugin_it_came_from(canvas_report):
+    """More use than the word "plugin" over a name that is already its own."""
+    assert canvas_report["boxHeadings"]["pluginBox"] == "YouTube"
+
+
+@needs_node
+def test_the_other_kinds_still_say_what_they_are(canvas_report):
+    heads = canvas_report["boxHeadings"]
+
+    assert heads["feed"] == "Feed"
+    assert heads["pulse"] == "Pulse"
 
 
 @needs_node
