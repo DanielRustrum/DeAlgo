@@ -37,13 +37,22 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models import Channel, GraphEdge, GraphNode, Playlist, Settings, Video
+from ..models import (
+    Channel, GraphEdge, GraphNode, Playlist, Settings, Video, to_naive_utc, utcnow,
+)
 from . import ordering
 from .scope import OwnerId, owned
 
 log = logging.getLogger(__name__)
 
-KINDS = ("trigger", "source", "filter", "sort", "feed", "group", "plugin")
+KINDS = (
+    "trigger", "source", "filter", "sort", "feed", "group", "plugin",
+    # A repository, from its two ends. A Deposit ends a path the way a feed
+    # does; a Withdraw starts one the way a source does. Together they let
+    # every source funnel into one place and be pulled from when a pipeline
+    # is ready, instead of each source pushing on its own schedule.
+    "deposit", "withdraw",
+)
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -74,25 +83,42 @@ DEFAULT_SORT_BY = "published"
 # Which wires make sense. Triggers feed channels, sources start paths, feeds
 # end them, filters and sorts sit in between — and nothing runs backwards.
 MIDDLE = ("filter", "sort", "plugin")
+#: Where a path may end: a feed, or a repository to be pulled from later.
+ENDS = ("feed", "deposit")
+
 ALLOWED: dict[str, tuple[str, ...]] = {
     # A group is not on any path: it surrounds, it does not carry.
     "group": (),
     # Into a channel it says when to poll; into a feed it says when that feed
-    # may be read. A trigger carries no content either way.
-    "trigger": ("source", "feed"),
-    "source": MIDDLE + ("feed",),
-    "filter": MIDDLE + ("feed",),
+    # may be read; into a withdraw it says when to pull. A trigger carries no
+    # content any of those ways.
+    "trigger": ("source", "feed", "withdraw"),
+    "source": MIDDLE + ENDS,
+    "filter": MIDDLE + ENDS,
     # A plugin box is a filter whose rule is somebody's Lua, so it sits
     # exactly where a filter sits and wires to the same things.
-    "plugin": MIDDLE + ("feed",),
-    "sort": MIDDLE + ("feed",),
+    "plugin": MIDDLE + ENDS,
+    "sort": MIDDLE + ENDS,
+    # A withdraw stands where a source stands: it starts a path, and what
+    # comes out of it has already been through whatever filtered it on the
+    # way in.
+    "withdraw": MIDDLE + ENDS,
     "feed": (),
+    # The end of the line. What is in it comes out through a Withdraw box,
+    # which is a path of its own rather than a continuation of this one.
+    "deposit": (),
 }
 
 # Where a newly laid-out graph puts things: sources on the left, feeds on the
 # right, filters between them. Triggers are placed beside the channel they are
 # added next to rather than in a column, so they fit a canvas already laid out.
-COLUMN_X = {"trigger": 60, "source": 60, "filter": 420, "sort": 420, "feed": 780, "group": 40}
+COLUMN_X = {
+    "trigger": 60, "source": 60, "filter": 420, "sort": 420, "feed": 780,
+    "group": 40,
+    # A deposit sits where a feed sits, since it ends a path; a withdraw sits
+    # where a source sits, since it starts one.
+    "deposit": 780, "withdraw": 60,
+}
 ROW_HEIGHT = 130
 
 # What a trigger means if it is wired up without anything being chosen.
@@ -167,7 +193,12 @@ class Route:
     """One path from a channel to a feed, and what narrows it."""
 
     channel: Channel
-    playlist: Playlist
+    #: Where it ends, when it ends at a feed. None when it ends at a
+    #: repository instead — a path has one end or the other, never both.
+    playlist: Playlist | None = None
+    #: The repository it ends in, when it ends in one. "" when it does not.
+    #: Lowercased, because that is how the rows are filed.
+    store: str = ""
     filters: list[GraphNode] = field(default_factory=list)
     #: Sort boxes on this path, in the order they are passed through.
     sorts: list[GraphNode] = field(default_factory=list)
@@ -175,10 +206,17 @@ class Route:
     #: lays settings over the channel's and these ask a question per item —
     #: the two cannot be merged into one dictionary.
     checks: list[GraphNode] = field(default_factory=list)
-    #: The node this path started at. Carried rather than looked up: a tag
-    #: node stands for several channels and a channel may be drawn twice, so
-    #: there is no answering "which node is this channel" after the fact.
+    #: The node this path started at. Carried rather than looked up: a
+    #: channel may be drawn twice, so there is no answering "which box is
+    #: this channel" after the fact.
     source: GraphNode | None = None
+    #: The box it ends at, feed or deposit. For marking the run on the canvas.
+    finish: GraphNode | None = None
+
+    @property
+    def deposits(self) -> bool:
+        """Whether this path ends in a repository rather than a feed."""
+        return self.playlist is None and self.store != ""
 
     @property
     def order(self) -> GraphNode | None:
@@ -274,6 +312,17 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
     return _once_each(found)
 
 
+def store_name(raw: str | None) -> str:
+    """A repository name as it is filed: trimmed, squeezed, lowercased.
+
+    So "News", "news" and " news " are one pile rather than three that look
+    alike on the canvas. Said in one place because both ends have to agree on
+    it — a Deposit and a Withdraw that disagreed would be two boxes that look
+    joined and are not.
+    """
+    return " ".join((raw or "").split()).lower()[:60]
+
+
 def _once_each(found: list[Route]) -> list[Route]:
     """Drop paths that are the same path twice.
 
@@ -282,12 +331,15 @@ def _once_each(found: list[Route]) -> list[Route]:
     Two boxes wired the same way are the same path said twice, and the same
     video must not be weighed twice for one feed.
     """
-    seen: set[tuple[int, int, tuple[int, ...], tuple[int, ...], tuple[int, ...]]] = set()
+    seen: set[
+        tuple[int, int, str, tuple[int, ...], tuple[int, ...], tuple[int, ...]]
+    ] = set()
     kept: list[Route] = []
     for path in found:
         signature = (
             path.channel.id,
-            path.playlist.id,
+            path.playlist.id if path.playlist is not None else 0,
+            path.store,
             tuple(node.id for node in path.filters),
             tuple(node.id for node in path.sorts),
             # Two paths that differ only by which plugin boxes they pass are
@@ -313,7 +365,11 @@ def _walk(
     source: GraphNode | None = None,
     asked: list[GraphNode] | None = None,
 ) -> None:
-    """Depth-first from a source, collecting what it passes until a feed.
+    """Depth-first from a start, collecting what it passes until an end.
+
+    An end is a feed or a Deposit box: one sends what arrives onward, the
+    other holds it until somebody pulls. Everything in between narrows or
+    orders what passes and is collected on the way.
 
     `seen` is per path, not global: two paths may legitimately pass through the
     same box, and only a loop is a problem.
@@ -338,6 +394,24 @@ def _walk(
                         sorts=list(ordered),
                         checks=list(asked),
                         source=source,
+                        finish=target,
+                    )
+                )
+        elif target.kind == "deposit":
+            # A box with no name on it holds nothing: two Deposit boxes only
+            # mean the same repository when they carry the same name, and an
+            # unnamed one names none.
+            named = store_name(target.repository)
+            if named and target.enabled:
+                found.append(
+                    Route(
+                        channel=channel,
+                        store=named,
+                        filters=list(carried),
+                        sorts=list(ordered),
+                        checks=list(asked),
+                        source=source,
+                        finish=target,
                     )
                 )
         elif target.kind in MIDDLE and target.enabled:
@@ -539,6 +613,100 @@ def pulse_targets(session: Session, node_pk: int, owner: OwnerId = None) -> list
     if not node.enabled:
         raise GraphError("That trigger is switched off.")
     return wired_channels(session, node, owner)
+
+
+def due_withdrawals(
+    session: Session, owner: OwnerId = None, now: dt.datetime | None = None
+) -> list[GraphNode]:
+    """The Withdraw boxes whose turn it is to pull.
+
+    Each remembers when it last pulled, and its wired triggers say how often.
+    A box with no trigger never pulls on its own, which is the same rule a
+    source with no trigger lives by: a pull that happens for reasons the
+    canvas cannot explain is not something anybody drew.
+    """
+    # Naive UTC, the way everything stored is: `last_fired_at` comes out of
+    # the database that way, and comparing it with an aware instant raises
+    # rather than answering.
+    when = to_naive_utc(now) if now is not None else utcnow()
+    if when is None:  # pragma: no cover - only for a `now` of None, handled above
+        when = utcnow()
+    due: list[GraphNode] = []
+    by_id = {node.id: node for node in nodes(session, owner)}
+    for box_pk, wired in triggers_for_withdrawals(session, owner).items():
+        box = by_id.get(box_pk)
+        if box is None or not box.enabled:
+            continue
+        asked = [
+            When(kind=one.trigger_kind or "pulse", every_minutes=one.every_minutes, cron=one.cron)
+            for one in wired
+            if one.enabled
+        ]
+        # Any of them saying so is enough. Two triggers are two reasons to
+        # pull, not a negotiation.
+        if any(one.due(box.last_fired_at, when) for one in asked):
+            due.append(box)
+    return due
+
+
+def wired_withdrawals(
+    session: Session, node: GraphNode, owner: OwnerId = None
+) -> list[GraphNode]:
+    """The Withdraw boxes a trigger box reaches.
+
+    The same question as `wired_channels`, asked of the other kind of start.
+    A trigger wired to one says when to pull from its repository, exactly as
+    one wired to a source says when to poll it.
+    """
+    all_nodes, all_edges = load(session, owner)
+    by_id = {entry.id: entry for entry in all_nodes}
+    reached: list[GraphNode] = []
+    for edge in all_edges:
+        if edge.source_pk != node.id:
+            continue
+        target = by_id.get(edge.target_pk)
+        if target is None or target.kind != "withdraw":
+            continue
+        if target.id not in {one.id for one in reached}:
+            reached.append(target)
+    return reached
+
+
+def triggers_for_withdrawals(
+    session: Session, owner: OwnerId = None
+) -> dict[int, list[GraphNode]]:
+    """Which triggers are wired to each Withdraw box, by box primary key."""
+    all_nodes, all_edges = load(session, owner)
+    by_id = {node.id: node for node in all_nodes}
+    wired: dict[int, list[GraphNode]] = {}
+    for edge in all_edges:
+        start, end = by_id.get(edge.source_pk), by_id.get(edge.target_pk)
+        if start is None or end is None:
+            continue
+        if start.kind != "trigger" or end.kind != "withdraw":
+            continue
+        wired.setdefault(end.id, []).append(start)
+    return wired
+
+
+def paths_from(
+    session: Session, node: GraphNode, channel: Channel, owner: OwnerId = None
+) -> list[Route]:
+    """Every path out of one box, for an item that came from `channel`.
+
+    Used for a Withdraw box, which starts a path the way a source does — but
+    what comes out of it has a channel of its own already, so the channel is
+    given rather than read off the box.
+    """
+    all_nodes, all_edges = load(session, owner)
+    by_id = {one.id: one for one in all_nodes}
+    out: dict[int, list[int]] = {}
+    for edge in all_edges:
+        out.setdefault(edge.source_pk, []).append(edge.target_pk)
+
+    found: list[Route] = []
+    _walk(node, by_id, out, channel, [], set(), found, source=node)
+    return _once_each(found)
 
 
 def wired_channels(
@@ -1114,7 +1282,10 @@ def try_it(
     recent: dict[int, list[Video]] = {}
 
     for path in routes(session, owner):
-        if not path.playlist.enabled:
+        # A trial follows items to a feed. A path into a repository has no
+        # feed to show them arriving at, and what happens to them there is
+        # the Withdraw box's business.
+        if path.playlist is None or not path.playlist.enabled:
             continue
         if channels is not None and path.channel.id not in channels:
             continue  # asked of one trigger: only what that trigger sets off
@@ -1618,6 +1789,37 @@ def resize(
     group.height = max(GROUP_LEAST[1], int(height))
     session.flush()
     return True
+
+
+def add_store(
+    session: Session,
+    owner: OwnerId = None,
+    *,
+    kind: str,
+    repository: str = "",
+    takes: int | None = None,
+    x: int | None = None,
+    y: int = 40,
+) -> GraphNode:
+    """A Deposit or a Withdraw box, both about one named repository.
+
+    The name is what joins them: a Deposit and a Withdraw carrying the same
+    name are two ends of one pile. It is filed lowercased, so a name typed
+    two ways is still one repository.
+    """
+    if kind not in ("deposit", "withdraw"):
+        raise GraphError(f"There is no {kind} box.")
+    node = GraphNode(
+        owner_pk=owner,
+        kind=kind,
+        repository=store_name(repository) or None,
+        takes=takes if kind == "withdraw" else None,
+        x=COLUMN_X[kind] if x is None else x,
+        y=y,
+    )
+    session.add(node)
+    session.flush()
+    return node
 
 
 def add_sort(

@@ -1935,6 +1935,14 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
     asking = {
         node.id: _asks_for(node) for node in nodes if node.kind == "source"
     }
+    # The same, for the two ends of a repository: the count is wanted on the
+    # box and in its panel, and counting it twice per box would be two
+    # queries each for one answer.
+    stores = {
+        node.id: _store_facts(session, node, owner)
+        for node in nodes
+        if node.kind in ("deposit", "withdraw")
+    }
     return {
         "nodes": [
             {
@@ -1952,7 +1960,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     else f"/feeds/{node.playlist_pk}" if node.kind == "feed" and node.playlist_pk
                     else None
                 ),
-                "note": _node_note(node, opening),
+                "note": _node_note(node, opening, stores.get(node.id)),
                 "enabled": _is_on(node),
                 "size": (
                     None
@@ -1970,6 +1978,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 # browser, because the palette is the only other place that
                 # knows and a second copy would be a second thing to keep up.
                 "asks": asking.get(node.id) if node.kind == "source" else None,
+                "store": stores.get(node.id),
                 "feed": (
                     _feed_facts(node, windows.get(node.playlist_pk or 0, []))
                     if node.kind == "feed"
@@ -2031,6 +2040,22 @@ def _box_title(node: GraphNode, asks: Context | None) -> str:
     if asks is None or not asks.get("label"):
         return node.title
     return f"New {asks['label']}"
+
+
+def _store_facts(session: Session, node: GraphNode, owner: OwnerId) -> Context:
+    """What a Deposit or Withdraw box is about, and how full it is.
+
+    The count is the useful fact on both: on a Deposit it says how much has
+    piled up, and on a Withdraw it says how much the next pull would find.
+    """
+    name = graph_service.store_name(node.repository)
+    return {
+        "name": name,
+        "waiting": sync_service.waiting_in(session, name, owner) if name else 0,
+        # Withdraw boxes only. 0 means everything waiting.
+        "takes": node.takes or 0,
+        "pulls": node.kind == "withdraw",
+    }
 
 
 def _asks_for(node: GraphNode) -> Context | None:
@@ -2254,7 +2279,11 @@ def _plugin_facts(node: GraphNode) -> Context | None:
     }
 
 
-def _node_note(node: GraphNode, opening: set[int] | None = None) -> str:
+def _node_note(
+    node: GraphNode,
+    opening: set[int] | None = None,
+    store: Context | None = None,
+) -> str:
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
         return "drag it to move everything in it"
@@ -2263,6 +2292,15 @@ def _node_note(node: GraphNode, opening: set[int] | None = None) -> str:
         if box is None:
             return "its plugin is switched off — it narrows nothing"
         return box.blurb or f"from {box.plugin}"
+    if node.kind in ("deposit", "withdraw"):
+        name = str((store or {}).get("name") or "")
+        if not name:
+            return "open it and give it a name"
+        held = int((store or {}).get("waiting") or 0)
+        if node.kind == "deposit":
+            return f"{held} waiting in {name}"
+        how = "all of it" if not node.takes else f"{node.takes} at a time"
+        return f"pulls {how} from {name}"
     if node.kind == "sort":
         return _sort_words(node)
     if node.kind == "trigger":
@@ -2413,6 +2451,10 @@ def graph_add_node(
                 x=x,
                 y=y,
             )
+        elif kind in ("deposit", "withdraw"):
+            graph_service.add_store(
+                session, owner, kind=kind, repository=title.strip(), x=x, y=y
+            )
         elif kind == "group":
             graph_service.add_group(session, owner, label=title.strip(), x=x, y=y)
         elif kind in graph_service.TRIGGER_KINDS:
@@ -2505,18 +2547,27 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
             targets = graph_service.pulse_targets(session, node_pk, owner)
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        if not targets:
-            return JSONResponse(
-                {"error": "Nothing is wired to that trigger yet."}, status_code=400
-            )
 
         node = session.scalar(
             owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
         )
+        # A trigger may be wired to sources, to Withdraw boxes, or to both.
+        # Pulling needs no network and no quota, so it happens here rather
+        # than in the thread — and a trigger wired only to a Withdraw box has
+        # something to do without a sync running at all.
+        pulling = (
+            graph_service.wired_withdrawals(session, node, owner) if node is not None else []
+        )
+        if not targets and not pulling:
+            return JSONResponse(
+                {"error": "Nothing is wired to that trigger yet."}, status_code=400
+            )
+
         if node is not None:
             node.last_fired_at = utcnow()
         session.flush()
         payload = _graph_payload(session, owner)
+        pulled = [one.id for one in pulling]
 
     if sync_service.is_running():
         return JSONResponse({**payload, "said": "A sync is already running."})
@@ -2526,6 +2577,14 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
     # going. Without the claim it would be told about the previous run, which
     # reads as this one having finished instantly.
     trigger = "pulse" if reach_back is None else "backfill"
+    if not targets:
+        # Nothing to poll, so nothing to run in a thread: pull now and answer
+        # with what came out.
+        with session_scope() as session:
+            said = sync_service.withdraw_now(session, pulled, owner)
+            payload = _graph_payload(session, owner)
+        return JSONResponse({**payload, "said": said})
+
     token = sync_service.claim(owner, trigger, node_pk)
     threading.Thread(
         target=sync_service.run_sync,
@@ -2536,6 +2595,7 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
             "only": frozenset(targets),
             "fired_by": node_pk,
             "reach_back": reach_back,
+            "withdrawals": pulled,
             "token": token,
         },
         daemon=True,
@@ -2925,6 +2985,8 @@ async def graph_save_node(
     min_duration_sec: str = Form(""),
     max_duration_sec: str = Form(""),
     max_per_run: str = Form(""),
+    repository: str = Form(""),
+    takes_how_many: str = Form(""),
 ) -> JSONResponse:
     """Save what a box says about itself.
 
@@ -2974,6 +3036,16 @@ async def graph_save_node(
             except graph_service.GraphError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
             node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind in ("deposit", "withdraw"):
+            # The name is what joins the two ends. Filed the way the walk
+            # files it, so a name typed two ways is still one repository.
+            node.repository = graph_service.store_name(repository) or None
+            if node.kind == "withdraw":
+                wanted = takes_how_many.strip()
+                # Empty, or nothing that reads as a number, means everything
+                # waiting — which is what the field says it means and the
+                # least surprising answer to an unreadable one.
+                node.takes = int(wanted) if wanted.isdigit() and int(wanted) > 0 else None
         elif node.kind == "plugin":
             await _save_plugin_box(request, node)
         elif node.kind == "trigger":

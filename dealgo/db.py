@@ -143,6 +143,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # that came before this was the one generic kind, and an empty one of
     # those can still be pointed at something already watched.
     ("graph_node", "source_kind", "VARCHAR(24)"),
+    # Deposit and Withdraw boxes: which repository, and how much a withdrawal
+    # takes. Nullable, because every box drawn before them is neither.
+    ("graph_node", "repository", "VARCHAR(60)"),
+    ("graph_node", "takes", "INTEGER"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

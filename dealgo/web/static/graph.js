@@ -23,7 +23,9 @@ function asGraphNodeKind(value) {
         value === "sort" ||
         value === "feed" ||
         value === "group" ||
-        value === "plugin") {
+        value === "plugin" ||
+        value === "deposit" ||
+        value === "withdraw") {
         return value;
     }
     return null;
@@ -66,6 +68,7 @@ function asGraphNode(value) {
         size: asGraphSize(raw["size"]),
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
+        store: asGraphStore(raw["store"]),
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
         overrides: asGraphOverrides(raw["overrides"]),
@@ -81,6 +84,17 @@ function asGraphAsks(value) {
         source: typeof raw["source"] === "string" ? raw["source"] : "",
         example: typeof raw["example"] === "string" ? raw["example"] : "",
         known: raw["known"] === true,
+    };
+}
+function asGraphStore(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    return {
+        name: typeof raw["name"] === "string" ? raw["name"] : "",
+        waiting: typeof raw["waiting"] === "number" ? raw["waiting"] : 0,
+        takes: typeof raw["takes"] === "number" ? raw["takes"] : 0,
+        pulls: raw["pulls"] === true,
     };
 }
 function asGraphFeed(value) {
@@ -332,6 +346,10 @@ function graphElement(tag, className, text) {
 function graphKindLabel(kind) {
     if (kind === "source")
         return "Source";
+    if (kind === "deposit")
+        return "Deposit";
+    if (kind === "withdraw")
+        return "Withdraw";
     if (kind === "feed")
         return "Feed";
     if (kind === "sort")
@@ -379,6 +397,14 @@ function graphPortWords(kind, where) {
             ? "Takes what arrives, and judges it."
             : "Gives out only what got through.";
     }
+    if (kind === "deposit") {
+        return "Takes what is wired in and holds it. Nothing comes out until a Withdraw pulls.";
+    }
+    if (kind === "withdraw") {
+        return where === "in"
+            ? "Takes a signal: a trigger wired here says when to pull from the repository."
+            : "Gives out what it pulled, to whatever is wired on.";
+    }
     return "Takes what is wired in. This is where things end up.";
 }
 function drawGraphGroup(state, node) {
@@ -419,8 +445,9 @@ function drawGraphNode(state, node) {
     if (!node.enabled)
         box.classList.add("is-off");
     if (node.kind !== "trigger") {
-        // A channel is set off by a signal; everything else is fed content.
-        const takes = node.kind === "source" ? "signal" : "content";
+        // A channel and a withdraw are set off by a signal; everything else is
+        // fed content.
+        const takes = node.kind === "source" || node.kind === "withdraw" ? "signal" : "content";
         box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
     }
     if (node.kind === "feed") {
@@ -435,7 +462,8 @@ function drawGraphNode(state, node) {
     box.appendChild(graphElement("span", "graph-node-note", node.note));
     if (node.trigger !== null)
         box.appendChild(graphFireButton(node));
-    if (node.kind !== "feed") {
+    // A feed and a deposit are both ends of a path: nothing leaves either.
+    if (node.kind !== "feed" && node.kind !== "deposit") {
         const gives = node.kind === "trigger" ? "signal" : "content";
         box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
     }
@@ -846,6 +874,8 @@ function graphNodeForm(state, node) {
     form.appendChild(graphLabelled("Name", name));
     if (node.kind === "group")
         graphGroupFields(form, node);
+    else if (node.store !== null)
+        graphStoreFields(form, node.store);
     else if (node.kind === "source")
         graphChannelFields(state, form, node);
     else if (node.kind === "feed")
@@ -1013,6 +1043,36 @@ function graphMatches(name, query) {
     const terms = query.toLowerCase().split(/\s+/).filter((term) => term !== "");
     const against = name.toLowerCase();
     return terms.every((term) => against.includes(term));
+}
+/** A Deposit or a Withdraw box: which repository, and how much to pull.
+ *
+ *  The name is the whole of what joins the two ends, so it is the first
+ *  field on both and says what it is for. */
+function graphStoreFields(form, store) {
+    const named = document.createElement("input");
+    named.type = "text";
+    named.name = "repository";
+    named.value = store.name;
+    named.placeholder = "News";
+    form.appendChild(graphLabelled("Repository", named));
+    if (store.pulls) {
+        const many = document.createElement("input");
+        many.type = "number";
+        many.name = "takes_how_many";
+        many.min = "1";
+        many.value = store.takes > 0 ? String(store.takes) : "";
+        many.placeholder = "everything waiting";
+        form.appendChild(graphLabelled("How many to take", many));
+    }
+    const group = graphElement("div", "graph-group");
+    group.appendChild(graphElement("span", "graph-group-name", "Waiting"));
+    group.appendChild(graphElement("span", "graph-group-note", store.name === ""
+        ? "Give it a name. Two boxes only share a repository when they share its name."
+        : `${store.waiting} item${store.waiting === 1 ? "" : "s"} in ${store.name}.`));
+    form.appendChild(group);
+    form.appendChild(graphElement("p", "hint", store.pulls
+        ? "Wire a trigger to this box to say when to pull. What comes out goes down whatever is wired on, oldest first, and is taken out of the repository."
+        : "Everything wired in ends here and waits. Nothing reaches a feed through this box — a Withdraw box with the same name is what lets it out."));
 }
 function graphChannelFields(state, form, node) {
     if (node.detail === null) {

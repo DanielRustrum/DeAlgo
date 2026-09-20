@@ -23,6 +23,7 @@ from ..models import (
     GraphNode,
     Playlist,
     QuotaUsage,
+    RepositoryItem,
     RunEvent,
     Settings,
     SyncRun,
@@ -33,7 +34,7 @@ from ..models import (
 # deliberate decision about who it belongs to.
 Owned = (
     Channel | Playlist | Video | Settings | SyncRun | QuotaUsage | GraphNode | GraphEdge
-    | RunEvent
+    | RunEvent | RepositoryItem
 )
 
 # A select of anything: one column, several, or a count. The rows it yields

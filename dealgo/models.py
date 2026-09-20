@@ -626,6 +626,14 @@ class GraphNode(Base):
     plugin_ref: Mapped[Optional[str]] = mapped_column(String(80))
     plugin_settings: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Deposit and Withdraw boxes only: which repository this one is about.
+    # A label two boxes agree on rather than a row of its own, so typing the
+    # same name into a second box is how you join them up.
+    repository: Mapped[Optional[str]] = mapped_column(String(60))
+    # Withdraw boxes only: how many to take each time it is triggered. None
+    # or 0 means everything waiting, which is what an empty field says.
+    takes: Mapped[Optional[int]] = mapped_column(Integer)
+
     # Source boxes only: which kind of somewhere this box is for. Set when it
     # is dragged out, because there is no one Channel box any more — you pick
     # the kind by picking the box, and an empty box has to remember which one
@@ -675,6 +683,13 @@ class GraphNode(Base):
             return "Schedule" if self.trigger_kind == "schedule" else "Pulse"
         if self.kind == "sort":
             return "Sort"
+        if self.kind in ("deposit", "withdraw"):
+            # Named after the repository it is about: two Deposit boxes only
+            # mean the same thing when they carry the same name, so the name
+            # is the useful half of what to call them.
+            named = (self.repository or "").strip()
+            doing = "Deposit" if self.kind == "deposit" else "Withdraw"
+            return f"{doing}: {named}" if named else doing
         if self.kind == "group":
             return "Group"
         if self.kind == "plugin":
@@ -725,6 +740,45 @@ class GraphEdge(Base):
 
     source: Mapped[GraphNode] = relationship(foreign_keys=[source_pk])
     target: Mapped[GraphNode] = relationship(foreign_keys=[target_pk])
+
+
+class RepositoryItem(Base):
+    """One item waiting in a named repository.
+
+    A Deposit box on the canvas ends a path the way a feed does, except that
+    nothing comes out again on its own. What lands here sits until a Withdraw
+    box for the same name is triggered, and then goes on down whatever that
+    box is wired to.
+
+    The point of it is to let every source funnel into one place and be pulled
+    from when a pipeline is ready, rather than each source pushing into feeds
+    on its own schedule.
+
+    The name is plain text rather than a row of its own: a repository is a
+    label two boxes agree on, not a thing anybody manages separately. Typing
+    the same name into a second Deposit box is how you add to the same pile.
+    """
+
+    __tablename__ = "repository_item"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_pk", "name", "video_pk", name="uq_repository_owner_name_video"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    #: Lowercased and trimmed on the way in, so "News" and "news " are one
+    #: repository rather than two that look the same on the canvas.
+    name: Mapped[str] = mapped_column(String(60), index=True)
+    video_pk: Mapped[int] = mapped_column(ForeignKey("video.id", ondelete="CASCADE"), index=True)
+    #: Which box put it here, for the log. Kept as a plain number rather than
+    #: a foreign key: the box may be taken off the canvas while what it
+    #: deposited is still waiting, and that is not a reason to lose the item.
+    deposited_by: Mapped[Optional[int]] = mapped_column(Integer)
+    deposited_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+    video: Mapped[Video] = relationship()
 
 
 class Placement(Base):

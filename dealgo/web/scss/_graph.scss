@@ -243,6 +243,11 @@
 // plugin" is a thing worth being able to see at a glance on a busy canvas.
 .graph-node.kind-plugin { border-left-color: #bb9af7; }
 .graph-node.kind-feed { border-left-color: var(--accent); }
+// The two ends of a repository. One colour between them, because they are
+// one thing seen from either side — and it is neither a feed's nor a
+// source's, since what they hold has reached neither.
+.graph-node.kind-deposit,
+.graph-node.kind-withdraw { border-left-color: #e0af68; }
 
 .graph-node-kind {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
@@ -760,6 +765,8 @@
 .palette-swatch.kind-sort { background: #7aa2f7; }
 .palette-swatch.kind-group { background: var(--line); }
 .palette-swatch.kind-plugin { background: #bb9af7; }
+.palette-swatch.kind-deposit,
+.palette-swatch.kind-withdraw { background: #e0af68; }
 
 // A plugin with more than one box gets a fold of its own inside the Plugins
 // one. Indented, so two levels of fold read as two levels.

@@ -31,6 +31,7 @@ from ..models import (
     GraphNode,
     Placement,
     Playlist,
+    RepositoryItem,
     Settings,
     SyncRun,
     Video,
@@ -240,6 +241,11 @@ class SyncResult:
     skipped: int = 0
     failed: int = 0
     pruned: int = 0
+    #: Items put into a repository to wait for a Withdraw box. Counted apart
+    #: from `added`: nothing has reached a feed, which is the whole point.
+    deposited: int = 0
+    #: Items a Withdraw box took back out and sent on.
+    withdrawn: int = 0
     quota_spent: int = 0
     stopped_on_quota: bool = False
     messages: list[str] = field(default_factory=list)
@@ -265,6 +271,7 @@ def run_sync(
     only: Collection[int] | None = None,
     fired_by: int | None = None,
     reach_back: int | None = None,
+    withdrawals: Collection[int] | None = None,
     token: int | None = None,
 ) -> SyncResult:
     """Run one account's sync pass. Returns at once if a pass is in flight.
@@ -276,6 +283,11 @@ def run_sync(
     on the canvas is wired to some channels and not others, and this is how it
     says so. The publishing half still runs over everything, because what a
     new video is allowed into is a question about the whole graph.
+
+    ``withdrawals`` narrows the pulling half the way ``only`` narrows the
+    polling half: the Withdraw boxes one trigger is wired to, pulled whether
+    or not their own gap has elapsed. Without it, whichever boxes their
+    triggers say are due.
 
     ``fired_by`` is the trigger box somebody pressed, carried through so the
     canvas can light it while its run is going.
@@ -301,6 +313,7 @@ def run_sync(
                 return _run(
                     session, http, trigger, force=force, owner=owner, only=only,
                     fired_by=fired_by, reach_back=reach_back,
+                    withdrawals=withdrawals,
                 )
     except Busy:
         return SyncResult(ok=True, started=False, messages=["A sync is already running."])
@@ -349,6 +362,7 @@ def _run(
     only: Collection[int] | None = None,
     fired_by: int | None = None,
     reach_back: int | None = None,
+    withdrawals: Collection[int] | None = None,
 ) -> SyncResult:
     settings = get_settings(session, owner)
     run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force, owner_pk=owner)
@@ -418,6 +432,15 @@ def _run(
         _publish(session, client, settings, result, owner, pen=pen)
         session.commit()
         _prune(session, client, playlists, result, owner)
+
+    # Last, so a pull takes what this run brought as well as what was already
+    # waiting. A run's job is to bring everything up to date, and holding
+    # back what arrived a moment ago would be a rule with no reason behind it.
+    _withdraw_what_is_due(
+        session, result, owner, pen=pen,
+        only=frozenset(withdrawals) if withdrawals is not None else None,
+    )
+    session.commit()
 
     _note(stage="done", finished=True, channel_pk=None)
     pen.at("done")
@@ -1138,7 +1161,11 @@ def _reconsider_routing(session: Session, result: SyncResult, owner: OwnerId = N
     # Which channels can now reach a feed that could hold such an item.
     welcomed: set[int] = set()
     for path in graph.routes(session, owner):
-        if path.playlist.enabled and path.playlist.is_generic:
+        # A repository holds anything, the way a feed inside De-Algo does:
+        # nothing is being written to somebody else's service.
+        if path.deposits:
+            welcomed.add(path.channel.id)
+        elif path.playlist is not None and path.playlist.enabled and path.playlist.is_generic:
             welcomed.add(path.channel.id)
 
     brought = 0
@@ -1295,7 +1322,9 @@ def _publish(
     # times over.
     routes_for: dict[int, list[graph.Route]] = {}
     for path in graph.routes(session, owner):
-        if path.playlist.enabled:
+        # A path into a repository has no feed to be switched off; whether it
+        # is live is the Deposit box's own switch, which the walk checked.
+        if path.deposits or (path.playlist is not None and path.playlist.enabled):
             routes_for.setdefault(path.channel.id, []).append(path)
 
 
@@ -1372,28 +1401,46 @@ def _publish(
         # has a say. That is what "left the channel" means, and it is the
         # difference between a quiet channel and one turning its own uploads
         # away.
-        own_rules = graph.Route(channel=channel, playlist=paths[0].playlist, filters=[])
+        own_rules = graph.Route(
+            channel=channel,
+            playlist=paths[0].playlist,
+            store=paths[0].store,
+            filters=[],
+        )
         if _decide(video, own_rules, detail, settings).accept:
             _note_left(channel.id)
 
         allowed: list[Playlist] = []
+        stored: list[graph.Route] = []
         refusals: list[str] = []
         for path in paths:
             decision = _decide(video, path, detail, settings)
             _attribute(video, path, detail, settings)
-            if decision.accept:
+            if not decision.accept:
+                if decision.reason:
+                    refusals.append(decision.reason)
+            elif path.deposits:
+                stored.append(path)
+            elif path.playlist is not None:
                 allowed.append(path.playlist)
-            elif decision.reason:
-                refusals.append(decision.reason)
 
-        if not allowed:
+        if not allowed and not stored:
             # Every path said no; the first reason is the one worth showing.
             why = refusals[0] if refusals else "filtered out"
             _reject(video, result, why)
             say.write(f"held back — {why}", about=video.title or video.video_id)
             continue
+
+        # Into the repositories first: nothing is sent anywhere for these, so
+        # a quota stop partway through the feeds cannot lose them.
+        held = _deposit(session, video, stored, owner)
+        if held:
+            result.deposited += held
+
+        going = sorted(p.title for p in allowed)
+        waiting = sorted({path.store for path in stored})
         say.write(
-            "goes to " + ", ".join(sorted(p.title for p in allowed)),
+            "goes to " + ", ".join(going + [f"the {name} repository" for name in waiting]),
             about=video.title or video.video_id,
         )
 
@@ -1525,7 +1572,7 @@ def _publish(
             result.added += 1
 
         session.flush()
-        if landed:
+        if landed or (held and not allowed):
             video.status = "added"
             video.reason = None
             video.processed_at = utcnow()
@@ -1560,7 +1607,7 @@ def _decide(
     # videos and nothing else, so an item from anywhere else can only go into
     # a feed that lives inside De-Algo — said here, once, rather than failing
     # at the insert with whatever YouTube makes of it.
-    if not video.is_youtube and not path.playlist.is_generic:
+    if not video.is_youtube and path.playlist is not None and not path.playlist.is_generic:
         return filters.Decision(False, WRONG_KIND_OF_FEED)
 
     # Plugin boxes, before the rules that cost anything to work out. Each is
@@ -1691,6 +1738,81 @@ def _attribute(
             return  # it got no further, so the boxes after this one never saw it
 
 
+def withdraw(
+    session: Session,
+    node: GraphNode,
+    result: SyncResult,
+    owner: OwnerId = None,
+    say: runlog.Pen | None = None,
+) -> int:
+    """Pull from one Withdraw box's repository and send what comes out onward.
+
+    A Withdraw box stands where a source stands: it starts a path. What comes
+    out of it has already been through whatever filtered it on the way in, so
+    only the boxes between here and a feed get another say.
+
+    Oldest first, so a repository behaves like the pile it looks like. What
+    is taken is taken — the rows go, which is what makes it a withdrawal
+    rather than a look.
+    """
+    name = graph.store_name(node.repository)
+    if not name:
+        return 0
+    if not node.enabled:
+        return 0
+
+    most = node.takes or 0
+    query = (
+        owned(select(RepositoryItem), RepositoryItem, owner)
+        .options(selectinload(RepositoryItem.video).selectinload(Video.channel))
+        .where(RepositoryItem.name == name)
+        .order_by(RepositoryItem.deposited_at, RepositoryItem.id)
+    )
+    if most > 0:
+        query = query.limit(most)
+    holding = list(session.scalars(query))
+    if not holding:
+        if say is not None:
+            say.write(f"the {name} repository is empty", about=node.title)
+        return 0
+
+    sent = 0
+    for row in holding:
+        video, channel = row.video, row.video.channel if row.video else None
+        if video is None or channel is None:
+            session.delete(row)   # the item is gone; the row is a leftover
+            continue
+
+        paths = [
+            path
+            for path in graph.paths_from(session, node, channel, owner)
+            if path.playlist is not None and path.playlist.enabled
+        ]
+        feeds = sorted(
+            {path.playlist.id: path.playlist for path in paths if path.playlist}.values(),
+            key=lambda one: (one.priority, one.id),
+        )
+        # Taken either way. A withdrawal with nowhere to send things is a
+        # box somebody has not finished wiring, and holding the items back
+        # for it would quietly fill the repository for ever.
+        session.delete(row)
+        if not feeds:
+            continue
+
+        _place_locally(session, video, channel, result, {}, {}, feeds)
+        sent += 1
+
+    session.flush()
+    result.withdrawn += sent
+    if say is not None:
+        say.write(
+            f"took {sent} from the {name} repository"
+            + (f", leaving {waiting_in(session, name, owner)}" if most > 0 else ""),
+            about=node.title,
+        )
+    return sent
+
+
 def _place_locally(
     session: Session,
     video: Video,
@@ -1793,6 +1915,124 @@ def _prune_generic(session: Session, playlist: Playlist, limit: int, result: Syn
 
 def _still_queued(session: Session) -> int:
     return session.scalar(select(func.count(Video.id)).where(Video.status == "pending")) or 0
+
+
+def withdraw_now(
+    session: Session, boxes: Collection[int], owner: OwnerId = None
+) -> str:
+    """Pull from these Withdraw boxes at once, and say what came out.
+
+    For a trigger somebody pressed that is wired to nothing but repositories.
+    Pulling touches no network and spends no quota, so there is nothing worth
+    starting a thread for — the answer is ready by the time the button lets
+    go.
+    """
+    result = SyncResult()
+    wanted = set(boxes)
+    for node in nodes_of_kind(session, "withdraw", owner):
+        if node.id not in wanted:
+            continue
+        withdraw(session, node, result, owner)
+        node.last_fired_at = utcnow()
+    session.flush()
+
+    if result.withdrawn == 0:
+        return "Nothing was waiting."
+    return f"Took {result.withdrawn} out and sent {'it' if result.withdrawn == 1 else 'them'} on."
+
+
+def nodes_of_kind(
+    session: Session, kind: str, owner: OwnerId = None
+) -> list[GraphNode]:
+    """Every box of one kind on this account's canvas."""
+    return [node for node in graph.nodes(session, owner) if node.kind == kind]
+
+
+def _withdraw_what_is_due(
+    session: Session,
+    result: SyncResult,
+    owner: OwnerId = None,
+    *,
+    pen: runlog.Pen | None = None,
+    only: frozenset[int] | None = None,
+) -> None:
+    """Pull from every repository whose turn it has come round.
+
+    `only` is the boxes one trigger was set off by hand for; without it,
+    whichever boxes their own triggers say are due.
+    """
+    due = graph.due_withdrawals(session, owner)
+    if only is not None:
+        due = [node for node in due if node.id in only] if due else []
+        # Pressed by hand, so its turn is now whatever its trigger would say.
+        wanted = {node.id for node in due}
+        for node in graph.nodes(session, owner):
+            if node.id in only and node.kind == "withdraw" and node.id not in wanted:
+                due.append(node)
+    if not due:
+        return
+
+    for node in due:
+        withdraw(session, node, result, owner, say=pen)
+        node.last_fired_at = utcnow()
+    session.flush()
+
+
+def _deposit(
+    session: Session,
+    video: Video,
+    paths: list[graph.Route],
+    owner: OwnerId = None,
+) -> int:
+    """Put one item into every repository its paths end in.
+
+    Once each. Two Deposit boxes carrying the same name are two ways into one
+    pile, not two piles — and an item already waiting there is already
+    waiting, so a second run does not double it up.
+    """
+    if not paths:
+        return 0
+
+    already = set(
+        session.scalars(
+            owned(select(RepositoryItem.name), RepositoryItem, owner).where(
+                RepositoryItem.video_pk == video.id
+            )
+        )
+    )
+    put = 0
+    for path in paths:
+        if path.store in already:
+            continue
+        session.add(
+            RepositoryItem(
+                owner_pk=owner,
+                name=path.store,
+                video_pk=video.id,
+                deposited_by=path.finish.id if path.finish is not None else None,
+            )
+        )
+        already.add(path.store)
+        put += 1
+    if put:
+        session.flush()
+    return put
+
+
+def waiting_in(session: Session, name: str, owner: OwnerId = None) -> int:
+    """How many items a repository is holding."""
+    wanted = graph.store_name(name)
+    if not wanted:
+        return 0
+    return len(
+        list(
+            session.scalars(
+                owned(select(RepositoryItem.id), RepositoryItem, owner).where(
+                    RepositoryItem.name == wanted
+                )
+            )
+        )
+    )
 
 
 def _reject(video: Video, result: SyncResult, reason: str) -> None:
