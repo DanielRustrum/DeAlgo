@@ -383,7 +383,8 @@
 
 // A feed's second input, below the first: what goes in it, and when it may be
 // read, are different questions and are asked at different places.
-.port-when { top: auto; bottom: 10px; left: -8px; }
+// A feed used to have a second input, for a trigger saying when it could be
+// read. That is a Timer and a Reset slotted under it now.
 
 @include touch {
   .port-in { left: -11px; }

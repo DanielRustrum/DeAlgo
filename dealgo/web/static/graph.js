@@ -480,13 +480,6 @@ function drawGraphNode(state, node) {
         const takes = node.kind === "source" || node.kind === "withdraw" ? "signal" : "content";
         box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
     }
-    if (node.kind === "feed") {
-        // The second input: a trigger wired here says when this feed may be read,
-        // which is a different question from what goes into it.
-        const when = graphPort("in", "signal", "Takes a signal: a trigger wired here says when this feed may be read.");
-        when.classList.add("port-when");
-        box.appendChild(when);
-    }
     box.appendChild(graphElement("span", "graph-node-kind", graphTriggerLabel(node)));
     box.appendChild(graphElement("strong", "graph-node-title", node.title));
     box.appendChild(graphElement("span", "graph-node-note", node.note));
@@ -591,60 +584,51 @@ function placeGraphPieces(state) {
         else
             kept.push(node);
     }
-    const place = (hostId, depth) => {
+    if (under.size === 0)
+        return;
+    // From the model's own coordinates, which is what every other box is drawn
+    // from. `offsetTop` is measured against whichever ancestor happens to be
+    // positioned, so a piece placed from it lands wherever that ancestor is
+    // rather than under its host.
+    const place = (hostId, left, top, depth) => {
         var _a;
-        const hostBox = state.boxes.get(hostId);
-        if (hostBox === undefined)
-            return;
-        let top = hostBox.offsetTop + hostBox.offsetHeight;
+        if (depth > 12)
+            return; // a ring built before they were refused
         for (const piece of (_a = under.get(hostId)) !== null && _a !== void 0 ? _a : []) {
             const box = state.boxes.get(piece.id);
             if (box === undefined)
                 continue;
-            box.style.left = `${hostBox.offsetLeft}px`;
+            box.style.left = `${left}px`;
             box.style.top = `${top}px`;
-            top += box.offsetHeight;
-            // Rings cannot be made any more, but one built before they were
-            // refused must not send this round for ever.
-            if (depth < 12)
-                place(piece.id, depth + 1);
+            // Kept on the node as well, so anything that reads a position — a
+            // group working out what it surrounds, a drag starting from here —
+            // sees where the piece actually is.
+            piece.x = left;
+            piece.y = top;
+            const next = top + box.offsetHeight;
+            place(piece.id, left, next, depth + 1);
+            top = next;
         }
     };
     for (const node of state.nodes) {
-        if (node.piece === null && !under.has(node.id))
+        if (node.piece !== null)
+            continue; // a chain belongs to the box at its top
+        const box = state.boxes.get(node.id);
+        if (box === undefined || !under.has(node.id))
             continue;
-        if (node.piece === null)
-            place(node.id, 0);
+        place(node.id, node.x, node.y + box.offsetHeight, 0);
     }
 }
 /** Where a wire leaves a box, and where it arrives — measured, not guessed. */
-function graphPortPoint(state, nodeId, where, which = "content") {
+function graphPortPoint(state, nodeId, where) {
     const box = state.boxes.get(nodeId);
     const node = state.nodes.find((entry) => entry.id === nodeId);
     if (box === undefined || node === undefined)
         return null;
-    // A feed has two inputs. Measured from the port itself rather than worked
-    // out from the box, so the wire meets the dot it belongs to however the
-    // port is placed — including the larger ones a touch screen gets.
-    if (which === "when") {
-        const port = box.querySelector(".port-when");
-        if (port !== null) {
-            return { x: node.x, y: node.y + port.offsetTop + port.offsetHeight / 2 };
-        }
-    }
     return {
         x: where === "out" ? node.x + box.offsetWidth : node.x,
         y: node.y + box.offsetHeight / 2,
     };
-}
-/** Which of a node's inputs a wire arrives at.
- *
- *  A trigger carries no content, so a wire from one into a feed is about when
- *  that feed may be read — the second input — and nothing else ever is. */
-function graphWireEnters(state, wire) {
-    const from = state.nodes.find((entry) => entry.id === wire.from);
-    const to = state.nodes.find((entry) => entry.id === wire.to);
-    return (from === null || from === void 0 ? void 0 : from.kind) === "trigger" && (to === null || to === void 0 ? void 0 : to.kind) === "feed" ? "when" : "content";
 }
 function graphCurve(x1, y1, x2, y2) {
     const reach = Math.max(40, Math.abs(x2 - x1) * 0.5);
@@ -663,7 +647,7 @@ function drawGraphWires(state) {
     state.parts.layer.querySelectorAll(".graph-cut").forEach((button) => button.remove());
     for (const wire of state.wires) {
         const from = graphPortPoint(state, wire.from, "out");
-        const to = graphPortPoint(state, wire.to, "in", graphWireEnters(state, wire));
+        const to = graphPortPoint(state, wire.to, "in");
         if (from === null || to === null)
             continue;
         const d = graphCurve(from.x, from.y, to.x, to.y);
@@ -1705,9 +1689,19 @@ function onGraphPointerDown(state, event) {
         event.preventDefault();
         return;
     }
-    const node = state.nodes.find((entry) => entry.id === nodeId);
+    let node = state.nodes.find((entry) => entry.id === nodeId);
     if (node === undefined)
         return;
+    // A slotted piece travels with whatever it is slotted into: dragging one
+    // drags the assembly, the way picking up a jigsaw by a piece picks up the
+    // part it belongs to. Its own position is worked out from its host's.
+    while (node !== undefined && node.piece !== null && node.piece.under !== null) {
+        const above = node.piece.under;
+        node = state.nodes.find((entry) => entry.id === above);
+    }
+    if (node === undefined)
+        return;
+    const grabbed = node.id;
     // Shift on a node adds it to what is picked rather than replacing it — but
     // a group is a background, and shift over one means the same as shift over
     // the canvas: draw a box round what is inside it.
@@ -1718,7 +1712,7 @@ function onGraphPointerDown(state, event) {
             event.preventDefault();
             return;
         }
-        alsoPickGraphNode(state, nodeId);
+        alsoPickGraphNode(state, grabbed);
         event.preventDefault();
         return;
     }
@@ -1727,7 +1721,7 @@ function onGraphPointerDown(state, event) {
     if (onGrip)
         beginGraphResize(state, event, node);
     else if (onPort && onPort.dataset["port"] === "out")
-        beginGraphWire(state, event, nodeId);
+        beginGraphWire(state, event, grabbed);
     else
         beginGraphMove(state, event, node);
     state.parts.canvas.setPointerCapture(event.pointerId);

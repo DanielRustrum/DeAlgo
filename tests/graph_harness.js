@@ -183,22 +183,6 @@ async function main() {
   };
   report.panelFollows = { itsNode: panelFollows(5), anotherNode: panelFollows(9) };
 
-  // A wire from a trigger into a feed is about when that feed may be read, so
-  // it arrives at the second input rather than the first.
-  const entering = (fromKind, toKind) => {
-    const nodes = [
-      { id: 1, kind: fromKind },
-      { id: 2, kind: toKind },
-    ];
-    return context.graphWireEnters({ nodes }, { id: "edge:1", from: 1, to: 2 });
-  };
-  report.wireEnters = {
-    triggerToFeed: entering("trigger", "feed"),
-    triggerToChannel: entering("trigger", "source"),
-    filterToFeed: entering("filter", "feed"),
-    channelToFeed: entering("source", "feed"),
-  };
-
   // The two drawers share an edge, so only one of them is ever out.
   const drawers = () => {
     const palette = { hidden: true };
@@ -485,6 +469,12 @@ async function main() {
                    trigger: { kind: "pulse" } }),
   };
 
+  // A jigsaw piece is drawn under the box it is slotted into, stacked from
+  // the box's own coordinates. `offsetTop` is measured against whichever
+  // ancestor happens to be positioned, so a piece placed from it lands
+  // wherever that ancestor is rather than under its host.
+  report.slotting = slottedUnderTheirHost();
+
   report.removing = await removingWithDialogsBlocked();
   process.stdout.write(JSON.stringify(report));
 }
@@ -556,6 +546,80 @@ async function removingWithDialogsBlocked() {
   if (yes.onclick) yes.onclick();
   await done;
   return { asked: what.textContent, requests: sent };
+}
+
+/** Draw a feed with two pieces chained under it, and say where they land. */
+function slottedUnderTheirHost() {
+  const nothing = { forEach() {} };
+  const make = (tag) => ({
+    tag, className: "", textContent: "", style: {}, dataset: {}, children: [],
+    offsetTop: 0, offsetLeft: 0, offsetHeight: 60, offsetWidth: 200, tabIndex: 0,
+    classList: {
+      names: new Set(),
+      add(name) { this.names.add(name); },
+      remove(name) { this.names.delete(name); },
+      toggle(name, on) { if (on) this.names.add(name); else this.names.delete(name); },
+    },
+    setAttribute() {}, removeAttribute() {}, addEventListener() {},
+    appendChild(child) { this.children.push(child); return child; },
+    querySelector() { return null; }, querySelectorAll() { return nothing; },
+  });
+  class Element {
+    constructor(fields) { Object.assign(this, fields); }
+  }
+  const context = vm.createContext({
+    document: {
+      addEventListener() {},
+      body: { addEventListener() {}, classList: { toggle() {} } },
+      querySelectorAll() { return nothing; },
+      createElement: make,
+      createElementNS: (ns, tag) => make(tag),
+      createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
+    },
+    window: {}, console, Element, URLSearchParams,
+  });
+  loadGraph(context);
+
+  const plain = {
+    title: "", note: "", enabled: true, piece: null, trigger: null, sort: null,
+    plugin: null, channel: null, asks: null, store: null, feed: null, size: null,
+    overrides: {}, detail: null, polled: null,
+  };
+  const feed = { ...plain, id: 7, kind: "feed", x: 400, y: 100 };
+  const timer = {
+    ...plain, id: 8, kind: "timer", x: 0, y: 0,
+    piece: { under: 7, minutes: 30, cron: "" },
+  };
+  const reset = {
+    ...plain, id: 9, kind: "reset", x: 0, y: 0,
+    piece: { under: 8, minutes: 30, cron: "0 9 * * *" },
+  };
+
+  const state = {
+    nodes: [feed, timer, reset], wires: [], sources: [], picked: new Set(),
+    busy: false, selectedNode: null, selectedWire: null, tab: "settings",
+    parts: {
+      canvas: make("div"), layer: make("div"), groups: make("div"), empty: null,
+    },
+    boxes: new Map(), marks: new Map(), run: new Map(),
+  };
+  context.drawGraphNodes(state);
+
+  const where = (id) => {
+    const box = state.boxes.get(id);
+    return { left: box.style.left, top: box.style.top, piece: box.classList.names.has("is-piece") };
+  };
+  // And the feed has one input now, not two: when it may be read is slotted
+  // under it rather than arriving along a wire.
+  const ports = state.boxes.get(7).children.filter(
+    (child) => typeof child.className === "string" && child.className.includes("graph-port"),
+  );
+  return {
+    feed: where(7),
+    timer: where(8),
+    reset: where(9),
+    feedPorts: ports.map((one) => one.className),
+  };
 }
 
 main();

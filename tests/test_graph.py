@@ -3308,15 +3308,26 @@ def test_only_one_drawer_is_ever_out(canvas_report):
 
 
 @needs_node
-def test_a_wire_arrives_at_the_input_it_belongs_to(canvas_report):
-    """A feed has two inputs. A trigger carries no content, so a wire from one
-    into a feed is about when that feed may be read — and nothing else ever
-    is. Drawn to the middle regardless, it pointed at the wrong dot."""
-    enters = canvas_report["wireEnters"]
-    assert enters["triggerToFeed"] == "when"
-    assert enters["triggerToChannel"] == "content"
-    assert enters["filterToFeed"] == "content"
-    assert enters["channelToFeed"] == "content"
+def test_a_piece_is_drawn_tucked_under_the_box_it_is_slotted_into(canvas_report):
+    """Stacked from the box's own coordinates. `offsetTop` is measured against
+    whichever ancestor happens to be positioned, so a piece placed from it
+    lands wherever that ancestor is rather than under its host."""
+    where = canvas_report["slotting"]
+
+    assert where["feed"] == {"left": "400px", "top": "100px", "piece": False}
+    # Directly under it, and the second piece directly under the first.
+    assert where["timer"] == {"left": "400px", "top": "160px", "piece": True}
+    assert where["reset"] == {"left": "400px", "top": "220px", "piece": True}
+
+
+@needs_node
+def test_a_feed_has_one_input_and_not_two(canvas_report):
+    """The second one took a trigger saying when the feed could be read. That
+    is a Timer and a Reset slotted under it now, so the dot it arrived at has
+    no reason to be there."""
+    assert canvas_report["slotting"]["feedPorts"] == [
+        "graph-port port-in carries-content"
+    ]
 
 
 @needs_node
