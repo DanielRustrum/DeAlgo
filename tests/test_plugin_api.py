@@ -66,7 +66,7 @@ def two_accounts(db):
     with db.session_scope() as session:
         session.add_all([
             Channel(owner_pk=1, channel_id="r/mine", title="Mine", source_kind="reddit",
-                    source_url="https://x/1", tags="keep"),
+                    source_url="https://x/1"),
             Channel(owner_pk=2, channel_id="r/theirs", title="Theirs", source_kind="reddit",
                     source_url="https://x/2"),
             Playlist(owner_pk=1, playlist_id="generic:mine", title="My Feed"),
@@ -247,7 +247,7 @@ def test_what_it_sees_is_the_shape_and_not_the_history(db, two_accounts):
 
     with site.acting_for(1):
         said = ask(plugin, found, "")
-    assert said["names"] == "enabled,key,kind,tags,title"
+    assert said["names"] == "enabled,key,kind,title"
 
 
 def test_it_can_see_the_feeds_too(db, two_accounts):
@@ -282,33 +282,20 @@ def test_what_it_gets_back_is_a_table_it_can_walk(db, two_accounts):
 
 def test_without_the_manage_permission_nothing_changes(db, two_accounts):
     found, plugin = a_plugin(
-        probing('return { did = dealgo.tag("r/mine", "loud") }'), frozenset({"read"})
+        probing('return { did = dealgo.pause("r/mine", false) }'), frozenset({"read"})
     )
 
     with site.acting_for(1):
         assert ask(plugin, found, "")["did"] is False
     with db.session_scope() as session:
         kept = session.scalar(select(Channel).where(Channel.channel_id == "r/mine"))
-    assert kept.tags == "keep"
-
-
-def test_with_it_granted_it_can_tag_a_source(db, two_accounts):
-    found, plugin = a_plugin(
-        probing('return { did = dealgo.tag("r/mine", "loud, useful") }'),
-        frozenset({"manage"}),
-    )
-
-    with site.acting_for(1):
-        assert ask(plugin, found, "")["did"] is True
-    with db.session_scope() as session:
-        changed = session.scalar(select(Channel).where(Channel.channel_id == "r/mine"))
-    assert changed.tag_list == ["loud", "useful"]
+    assert kept.enabled is True
 
 
 def test_it_cannot_change_another_accounts_source(db, two_accounts):
     """The same guard as reading, and the one that matters more."""
     found, plugin = a_plugin(
-        probing('return { did = dealgo.tag("r/theirs", "meddled") }'),
+        probing('return { did = dealgo.pause("r/theirs", false) }'),
         frozenset({"manage"}),
     )
 
@@ -316,7 +303,7 @@ def test_it_cannot_change_another_accounts_source(db, two_accounts):
         assert ask(plugin, found, "")["did"] is False
     with db.session_scope() as session:
         theirs = session.scalar(select(Channel).where(Channel.channel_id == "r/theirs"))
-    assert theirs.tags is None
+    assert theirs.enabled is True
 
 
 def test_it_can_switch_a_source_off(db, two_accounts):
@@ -333,7 +320,7 @@ def test_it_can_switch_a_source_off(db, two_accounts):
 
 def test_something_that_is_not_there_is_a_no_rather_than_a_crash(db, two_accounts):
     found, plugin = a_plugin(
-        probing('return { did = dealgo.tag("r/nowhere", "x") }'), frozenset({"manage"})
+        probing('return { did = dealgo.pause("r/nowhere", false) }'), frozenset({"manage"})
     )
 
     with site.acting_for(1):

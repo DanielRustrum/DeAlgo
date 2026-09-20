@@ -66,7 +66,6 @@ function asGraphNode(value) {
         size: asGraphSize(raw["size"]),
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
-        tag: asGraphTag(raw["tag"]),
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
         overrides: asGraphOverrides(raw["overrides"]),
@@ -96,17 +95,6 @@ function asGraphFeed(value) {
         maxItems: typeof raw["max_items"] === "number" ? raw["max_items"] : 0,
         maxPerRun: typeof raw["max_per_run"] === "number" ? raw["max_per_run"] : 0,
         generic: raw["generic"] === true,
-    };
-}
-function asGraphTag(value) {
-    const raw = asGraphRecord(value);
-    if (raw === null)
-        return null;
-    const strings = (from) => Array.isArray(from) ? from.filter((entry) => typeof entry === "string") : [];
-    return {
-        name: typeof raw["name"] === "string" ? raw["name"] : "",
-        channels: strings(raw["channels"]),
-        known: strings(raw["known"]),
     };
 }
 function asGraphChannel(value) {
@@ -453,8 +441,6 @@ function drawGraphNode(state, node) {
 }
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node) {
-    if (node.tag !== null)
-        return "Tag";
     if (node.trigger === null)
         return graphKindLabel(node.kind);
     return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
@@ -838,8 +824,6 @@ function graphNodeForm(state, node) {
     form.appendChild(graphLabelled("Name", name));
     if (node.kind === "group")
         graphGroupFields(form, node);
-    else if (node.tag !== null)
-        graphTagFields(form, node.tag);
     else if (node.kind === "source")
         graphChannelFields(state, form, node);
     else if (node.kind === "feed")
@@ -939,48 +923,16 @@ function graphActive(node) {
 }
 /** What taking this box away costs, said before it is taken away. */
 function graphRemovalWarning(node) {
-    // Only where something is actually at stake. An empty channel node names no
-    // channel, and a tag node stands for channels it does not own — taking
-    // either away costs nothing, and asking "its history goes too" of a node
-    // with no history is a frightening question about nothing.
-    if (node.kind === "source" && node.tag === null && node.detail !== null) {
+    // Only where something is actually at stake. An empty source box names no
+    // source, so taking it away costs nothing — and asking "its history goes
+    // too" of a box with no history is a frightening question about nothing.
+    if (node.kind === "source" && node.detail !== null) {
         return `Stop watching ${node.title}? Its history goes too; anything already in a feed stays put.`;
     }
     if (node.kind === "feed") {
         return `Remove the feed ${node.title}? What it collected inside De-Algo goes with it.`;
     }
     return "";
-}
-/** A source node that stands for a tag rather than for one channel. */
-function graphTagFields(form, tag) {
-    const named = document.createElement("input");
-    named.type = "text";
-    named.name = "tag";
-    named.value = tag.name;
-    named.setAttribute("list", "graph-known-tags");
-    form.appendChild(graphLabelled("Sources tagged", named));
-    const group = graphElement("div", "graph-group");
-    group.appendChild(graphElement("span", "graph-group-name", `Standing for (${tag.channels.length})`));
-    if (tag.channels.length === 0) {
-        group.appendChild(graphElement("span", "graph-group-note", "Nothing carries this tag yet."));
-    }
-    for (const name of tag.channels) {
-        group.appendChild(graphElement("span", "graph-group-note", name));
-    }
-    form.appendChild(group);
-    form.appendChild(graphElement("p", "hint", "Tagged on the Sources page. A source tagged later joins this flow without anything being rewired."));
-    graphKnownTags(form, tag.known);
-}
-/** The tags already in use, offered to whatever is being typed. */
-function graphKnownTags(form, known) {
-    const list = document.createElement("datalist");
-    list.id = "graph-known-tags";
-    for (const name of known) {
-        const option = document.createElement("option");
-        option.value = name;
-        list.appendChild(option);
-    }
-    form.appendChild(list);
 }
 /** Pick one of the sources already watched, out of however many there are.
  *
@@ -2441,15 +2393,13 @@ function moveGraphGhost(ghost, event) {
 function graphPaletteKind(kind) {
     if (kind === "pulse" || kind === "schedule")
         return "trigger";
-    return kind === "tagged" ? "source" : kind;
+    return kind;
 }
 function graphPaletteName(kind) {
     if (kind === "source")
         return "Source";
     if (kind === "plugin")
         return "Plugin";
-    if (kind === "tagged")
-        return "Tag";
     if (kind === "feed")
         return "Feed";
     if (kind === "filter")

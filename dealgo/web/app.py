@@ -750,61 +750,6 @@ def api_status(request: Request) -> JSONResponse:
 # what is done with it.
 
 
-@app.get("/sources", response_class=HTMLResponse)
-def sources_page(request: Request) -> HTMLResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        context = {
-            "channels": channel_service.list_channels(session, owner),
-            "tags": channel_service.all_tags(session, owner),
-            "kinds": sources.all_kinds(),
-        }
-    return render(request, "sources.html", context)
-
-
-@app.post("/sources")
-def add_source(request: Request, reference: str = Form(""), tags: str = Form("")) -> Response:
-    """Start watching somewhere, and label it while it is being added."""
-    owner = owner_of(request)
-    wanted = reference.strip()
-    if not wanted:
-        return redirect(
-            "/sources",
-            err="Give it somewhere to watch — a YouTube handle, an r/ community, "
-            "a Bluesky handle, or the address of a feed.",
-        )
-
-    with session_scope() as session, _http_client() as http:
-        try:
-            channel = channel_service.add_source(session, wanted, http, owner=owner)
-        except channel_service.ChannelError as exc:
-            return redirect("/sources", err=str(exc))
-        if tags.strip():
-            channel_service.set_tags(session, channel, tags)
-        title = channel.title
-
-    return redirect(
-        "/sources",
-        ok=f"Watching {title}. Wire it up on the Configuration canvas to give it somewhere to go.",
-    )
-
-
-@app.post("/sources/{channel_pk}/tags")
-def tag_source(request: Request, channel_pk: int, tags: str = Form("")) -> Response:
-    owner = owner_of(request)
-    with session_scope() as session:
-        channel = session.scalar(
-            owned(select(Channel), Channel, owner).where(Channel.id == channel_pk)
-        )
-        if channel is None:
-            return redirect("/sources", err="That source is no longer here.")
-        kept = channel_service.set_tags(session, channel, tags)
-        title = channel.title
-
-    said = ", ".join(kept) if kept else "nothing"
-    return redirect("/sources", ok=f"{title} is tagged {said}.")
-
-
 # -- channels -------------------------------------------------------------
 
 
@@ -1985,14 +1930,6 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
     facts = _channel_facts(session, owner)
     windows = graph_service.consumption(session, owner)
     opening = {node.id for wired in windows.values() for node in wired}
-    known_tags = channel_service.all_tags(session, owner)
-    # Worked out once for the whole payload rather than per node: a tag node
-    # asks the same question of the same list every time.
-    holding = {
-        node.id: channel_service.tagged(session, node.tag, owner)
-        for node in nodes
-        if node.kind == "source" and node.tag
-    }
     # What each empty source box is waiting to be told, worked out once per
     # node because the title and the form both want it.
     asking = {
@@ -2015,7 +1952,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     else f"/feeds/{node.playlist_pk}" if node.kind == "feed" and node.playlist_pk
                     else None
                 ),
-                "note": _node_note(node, opening, holding.get(node.id, [])),
+                "note": _node_note(node, opening),
                 "enabled": _is_on(node),
                 "size": (
                     None
@@ -2033,18 +1970,6 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 # browser, because the palette is the only other place that
                 # knows and a second copy would be a second thing to keep up.
                 "asks": asking.get(node.id) if node.kind == "source" else None,
-                "tag": (
-                    None
-                    if not (node.kind == "source" and node.tag)
-                    else {
-                        "name": node.tag,
-                        "channels": [
-                            channel.title or channel.channel_id
-                            for channel in holding.get(node.id, [])
-                        ],
-                        "known": known_tags,
-                    }
-                ),
                 "feed": (
                     _feed_facts(node, windows.get(node.playlist_pk or 0, []))
                     if node.kind == "feed"
@@ -2116,7 +2041,7 @@ def _asks_for(node: GraphNode) -> Context | None:
     report, and the canvas offers it the one thing that still makes sense —
     something already being watched.
     """
-    if node.tag or node.channel_pk:
+    if node.channel_pk:
         return None
     wanted = (node.source_kind or "").strip()
     if not wanted:
@@ -2178,9 +2103,7 @@ def _is_on(node: GraphNode) -> bool:
     that is where the rest of the app reads it from. A filter or trigger box
     stands for nothing else, so it answers for itself.
     """
-    # A tag node stands for no one channel, so there is nothing else for it to
-    # answer for: it keeps its own switch, as a filter or a trigger does.
-    if node.kind == "source" and not node.tag:
+    if node.kind == "source":
         return node.channel.enabled if node.channel is not None else False
     if node.kind == "feed":
         return node.playlist.enabled if node.playlist is not None else False
@@ -2328,11 +2251,7 @@ def _plugin_facts(node: GraphNode) -> Context | None:
     }
 
 
-def _node_note(
-    node: GraphNode,
-    opening: set[int] | None = None,
-    holding: list[Channel] | None = None,
-) -> str:
+def _node_note(node: GraphNode, opening: set[int] | None = None) -> str:
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
         return "drag it to move everything in it"
@@ -2352,9 +2271,6 @@ def _node_note(
             return node.cron or graph_service.DEFAULT_CRON
         every = node.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
         return f"every {graph_service.every_words(every)}"
-    if node.kind == "source" and node.tag:
-        held = len(holding or [])
-        return f"{held} source{'s' if held != 1 else ''} with this tag"
     if node.kind == "source":
         channel = node.channel
         if channel is None:
@@ -2474,12 +2390,6 @@ def graph_add_node(
                     status_code=400,
                 )
             graph_service.add_source(session, owner, source_kind=wanted, x=x, y=y)
-        elif kind == "tagged":
-            # Named now rather than filled in later: an untagged tag node
-            # stands for nothing, and would draw as a node with no meaning.
-            graph_service.add_source(
-                session, owner, tag=title.strip() or "untagged", x=x, y=y
-            )
         elif kind == "feed":
             try:
                 playlist = playlist_service.create_generic(
@@ -2989,7 +2899,6 @@ async def graph_save_node(
     label: str = Form(""),
     handle: str = Form(""),
     source_pk: str = Form(""),
-    tag: str = Form(""),
     backfill: str = Form(""),
     # An unticked checkbox is not submitted at all, so "off" and "this form
     # never showed the switch" arrive looking identical. This marker is what
@@ -3034,10 +2943,7 @@ async def graph_save_node(
         if node is None:
             return JSONResponse({"error": "That node is not here."}, status_code=404)
 
-        if node.kind == "source" and node.tag and tag.strip():
-            node.tag = " ".join(tag.split()).lower()
-            session.flush()
-        elif node.kind == "source" and source_pk.strip().isdigit():
+        if node.kind == "source" and source_pk.strip().isdigit():
             # Pointed at something already watched, rather than told again.
             answer = _attach_watched(session, node, int(source_pk), owner)
             if answer is not None:
@@ -3132,7 +3038,7 @@ def _attach_channel(
 
 def _switch(node: GraphNode, *, on: bool) -> None:
     """Turn a box on or off, wherever that box keeps the answer."""
-    if node.kind == "source" and node.channel is not None and not node.tag:
+    if node.kind == "source" and node.channel is not None:
         node.channel.enabled = on
     elif node.kind == "feed" and node.playlist is not None:
         node.playlist.enabled = on

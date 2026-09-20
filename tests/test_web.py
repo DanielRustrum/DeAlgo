@@ -1410,33 +1410,3 @@ def test_hiding_the_notice_does_not_hide_the_state(client, db):
 # done with it.
 
 
-def test_the_sources_page_lists_what_is_watched(client):
-    body = client.get("/sources").text
-    assert "Fake Channel" in body
-    assert 'name="reference"' in body  # and offers to add another
-
-
-def test_a_source_can_be_tagged_from_its_row(client, db):
-    from dealgo.models import Channel
-
-    response = client.post("/sources/1/tags", data={"tags": "News, Long Form"},
-                           follow_redirects=False)
-    assert response.status_code == 303
-
-    with db.session_scope() as session:
-        assert session.get(Channel, 1).tag_list == ["news", "long form"]
-
-
-def test_tagging_something_that_is_gone_says_so(client):
-    response = client.post("/sources/99/tags", data={"tags": "news"}, follow_redirects=False)
-    assert "err=" in response.headers["location"]
-
-
-def test_adding_a_source_with_no_channel_is_refused(client):
-    response = client.post("/sources", data={"reference": "  "}, follow_redirects=False)
-    assert "err=" in response.headers["location"]
-
-
-def test_the_sources_tab_is_in_the_nav(client):
-    body = client.get("/").text
-    assert 'href="/sources"' in body

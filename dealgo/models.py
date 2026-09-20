@@ -275,10 +275,6 @@ class Channel(Base):
     # Everything that is neither a Short nor a broadcast — the ordinary uploads.
     skip_videos: Mapped[bool] = mapped_column(Boolean, default=False)
     skip_posts: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Labels, the same shape as a playlist's: plain text rather than a table,
-    # because they are something to search and group by, not an entity
-    # anything else refers to by id.
-    tags: Mapped[Optional[str]] = mapped_column(Text)
     # Where this comes from: "youtube", "reddit", "bluesky", "substack",
     # "rss". Everything that existed before this column is YouTube, which is
     # why that is the default rather than something neutral.
@@ -330,10 +326,6 @@ class Channel(Base):
         if not self.is_youtube:
             return False
         return self.skip_shorts and self.skip_live and self.skip_videos and self.skip_posts
-
-    @property
-    def tag_list(self) -> list[str]:
-        return [tag.strip() for tag in (self.tags or "").split(",") if tag.strip()]
 
     @property
     def is_youtube(self) -> bool:
@@ -626,10 +618,6 @@ class GraphNode(Base):
     max_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     max_per_run: Mapped[Optional[int]] = mapped_column(Integer)
 
-    # A source node stands for one channel, or — when this is set instead —
-    # for every channel carrying this tag. The second kind picks up channels
-    # added later without being rewired, which is the point of it.
-    tag: Mapped[Optional[str]] = mapped_column(String(40))
     # Plugin boxes only. Which box this is, written "<plugin>:<node>", and
     # whatever its fields were set to as JSON. Stored as the plugin's own
     # names rather than columns of our own, because the fields are the
@@ -679,8 +667,6 @@ class GraphNode(Base):
         """
         if self.label:
             return self.label
-        if self.kind == "source" and self.tag:
-            return f"#{self.tag}"
         if self.kind == "source" and self.channel is not None:
             return self.channel.title or self.channel.channel_id
         if self.kind == "feed" and self.playlist is not None:

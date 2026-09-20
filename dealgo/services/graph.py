@@ -215,20 +215,13 @@ class Route:
 
 
 def channels_of(session: Session, node: GraphNode, owner: OwnerId = None) -> list[Channel]:
-    """Which channels a source node stands for.
+    """Which channel a source node stands for, if it stands for one yet.
 
-    One, when it names a channel. Every channel carrying a tag, when it names
-    a tag instead — which is the whole point of the second kind: a channel
-    tagged later joins the flow without anything being rewired.
+    A list rather than one, because every caller walks it and an empty box
+    standing for nothing is the ordinary case rather than an error.
     """
-    from . import channels as channel_service
-
     if node.kind != "source":
         return []
-    if node.tag:
-        # Switched off it stands for nothing, which is what stops the flow at
-        # it — the same as a filter or a sort that is switched off.
-        return channel_service.tagged(session, node.tag, owner) if node.enabled else []
     return [node.channel] if node.channel is not None else []
 
 
@@ -278,14 +271,10 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
             continue
         for channel in channels_of(session, node, owner):
             # The direct wires: the channel-to-feed links, unfiltered by
-            # anything but the channel itself. A tag node has none of these —
-            # a link belongs to a channel, and a tag is not one.
-            if not node.tag:
-                for playlist in channel.playlists:
-                    if playlist.id in feed_node_for:
-                        found.append(
-                            Route(channel=channel, playlist=playlist, source=node)
-                        )
+            # anything but the channel itself.
+            for playlist in channel.playlists:
+                if playlist.id in feed_node_for:
+                    found.append(Route(channel=channel, playlist=playlist, source=node))
             # And the paths that go through filter nodes.
             _walk(node, by_id, out, channel, [], set(), found, source=node)
     return _once_each(found)
@@ -1330,15 +1319,13 @@ def connect(
     if target.kind not in ALLOWED.get(source.kind, ()):
         raise GraphError(f"A {source.kind} cannot feed a {target.kind}.")
 
-    # A source that names a channel wires to a feed by writing the link that
-    # channel already has. A tag node names no single channel, so there is no
-    # such link to write and the wire is an edge like any other.
-    if source.kind == "source" and target.kind == "feed" and not source.tag:
+    # A source wires to a feed by writing the link its channel already has,
+    # which is where the rest of the app reads that pairing from.
+    if source.kind == "source" and target.kind == "feed":
         if source.channel is None or target.playlist is None:
             raise GraphError("That node no longer has anything behind it.")
         # A wire that could never carry anything, refused where it is drawn
-        # rather than discovered sixty skipped items later. A tag node is let
-        # through: it can stand for YouTube sources too, and those do fill it.
+        # rather than discovered sixty skipped items later.
         if not source.channel.publishable and not target.playlist.is_generic:
             raise GraphError(
                 f"{target.playlist.title} is a YouTube playlist, and a YouTube playlist "
@@ -1625,7 +1612,6 @@ def add_source(
     owner: OwnerId = None,
     *,
     channel: Channel | None = None,
-    tag: str | None = None,
     source_kind: str = "",
     x: int = 0,
     y: int = 0,
@@ -1645,7 +1631,6 @@ def add_source(
         owner_pk=owner,
         kind="source",
         channel_pk=channel.id if channel is not None else None,
-        tag=" ".join((tag or "").split()).lower() or None,
         source_kind=(source_kind or "").strip() or None,
         x=x,
         y=y,

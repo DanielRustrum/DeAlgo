@@ -71,7 +71,6 @@
   <nav id="site-nav">
     <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
     <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
-    <a href="/sources" class="{{ 'active' if request.url.path.startswith('/sources') }}">Sources</a>
     <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
     <a href="/videos" class="{{ 'active' if request.url.path.startswith('/videos') }}">Raw</a>
     <a href="/settings" class="{{ 'active' if request.url.path == '/settings' }}">Settings</a>

@@ -83,7 +83,7 @@ class Site:
     #: What a plugin may reach on this. Anything not named here is
     #: unreachable, which is what keeps `__class__` — and the whole
     #: machine behind it — out of a plugin's hands.
-    LUA_OFFERS = frozenset({"version", "permissions", "sources", "feeds", "tag", "pause", "watch"})
+    LUA_OFFERS = frozenset({"version", "permissions", "sources", "feeds", "pause", "watch"})
 
     def __init__(
         self,
@@ -148,9 +148,9 @@ class Site:
     def sources(self) -> Any:
         """The sources this account watches.
 
-        Their shape, not their history: a key, a name, a kind, whether they
-        are on, and their tags. Enough to decide something about a setup;
-        nothing about what anybody has read.
+        Their shape, not their history: a key, a name, a kind, and whether
+        it is on. Enough to decide something about a setup; nothing about
+        what anybody has read.
         """
         if not self._may("read", self._reading):
             return self._empty()
@@ -165,12 +165,6 @@ class Site:
         return self._rows(rows)
 
     # -- changing ----------------------------------------------------------
-
-    def tag(self, key: object, tags: object) -> bool:
-        """Set a source's tags. Answers whether anything was found to set."""
-        if not self._may("manage", self._managing):
-            return False
-        return bool(self._change(lambda s, o: _tag(s, o, str(key or ""), str(tags or ""))))
 
     def pause(self, key: object, on: object) -> bool:
         """Switch a source on or off."""
@@ -266,7 +260,6 @@ def _sources(session: Any, owner: OwnerId) -> list[dict[str, object]]:
             "title": channel.title or channel.channel_id,
             "kind": channel.source_kind,
             "enabled": channel.enabled,
-            "tags": ", ".join(channel.tag_list),
         }
         for channel in channel_service.list_channels(session, owner)
     ]
@@ -297,16 +290,6 @@ def _find(session: Any, owner: OwnerId, key: str) -> Any:
     return session.scalar(
         owned(select(Channel), Channel, owner).where(Channel.channel_id == key)
     )
-
-
-def _tag(session: Any, owner: OwnerId, key: str, tags: str) -> bool:
-    from ..services import channels as channel_service
-
-    channel = _find(session, owner, key)
-    if channel is None:
-        return False
-    channel_service.set_tags(session, channel, tags)
-    return True
 
 
 def _pause(session: Any, owner: OwnerId, key: str, on: bool) -> bool:

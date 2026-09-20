@@ -129,7 +129,9 @@ def test_a_standing_notice_says_which_one_it_is(client, db):
 
 
 def test_a_passing_message_is_marked_as_passing(client):
-    answer = client.post("/sources", data={"reference": ""}, follow_redirects=True)
+    # Any route that redirects carrying a complaint; this one is reliably
+    # not found, whatever else is on the canvas.
+    answer = client.get("/channels/99999", follow_redirects=True)
 
     assert "data-toast-passing" in answer.text
     assert "toast-bad" in answer.text

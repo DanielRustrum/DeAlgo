@@ -563,29 +563,6 @@ def test_a_loaded_group_belongs_to_whoever_loaded_it(two_accounts, db):
         assert gifted is not None and gifted.owner_pk == sam_pk
 
 
-def test_sources_and_their_tags_are_each_accounts_own(two_accounts, db):
-    """A tag is a label on somebody's channels, and a tag node pulls from
-    whatever carries it — so a leak here would put another account's channels
-    into this one's feeds."""
-    client, _, _ = two_accounts
-    as_account(client, *ADMIN)
-    client.post("/sources/1/tags", data={"tags": "news"})
-
-    as_account(client, "sam", "member-password")
-    body = client.get("/sources").text
-    assert "AdminChannel" not in body
-
-    # And their tag node stands for nothing of the admin's.
-    added = client.post("/graph/nodes", data={"kind": "tagged", "title": "news"}).json()
-    tagged = [node for node in added["nodes"] if node["tag"] is not None][0]
-    assert tagged["tag"]["channels"] == []
-    assert tagged["tag"]["known"] == []
-
-    # Nor can they tag one of the admin's.
-    assert client.post("/sources/1/tags", data={"tags": "mine"},
-                       follow_redirects=False).headers["location"].count("err=") == 1
-
-
 def test_the_source_picker_only_offers_your_own(two_accounts):
     """It is a list of channels to point a node at, so another account's in it
     would be another account's channel in this one's feeds."""

@@ -166,7 +166,49 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
     ("settings", "max_playlist_items"),
     ("settings", "playlist_id"),
     ("settings", "playlist_title"),
+    # The tag node, and the Sources page that set what it matched on. A
+    # source box names one source now, and the way to follow a kind of thing
+    # is the plugin that understands it. Feed tags are a different feature
+    # and are untouched.
+    ("channel", "tags"),
+    ("graph_node", "tag"),
 )
+
+
+def _retire_tag_nodes() -> None:
+    """Take away the boxes that stood for a tag.
+
+    A source box names one source now. A box that named a tag would survive
+    the column being dropped as a box standing for nothing at all — an empty
+    box nobody put there and nobody can fill in — so it goes with the feature
+    it belonged to. Its wires go with it: an edge to a node that is not there
+    is worse than no edge.
+
+    Runs before the column is dropped, because afterwards there is no way
+    left to tell which boxes those were.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    if "graph_node" not in set(inspector.get_table_names()):
+        return
+    if "tag" not in {c["name"] for c in inspector.get_columns("graph_node")}:
+        return
+
+    with engine.begin() as connection:
+        retiring = [
+            row[0]
+            for row in connection.execute(
+                text("SELECT id FROM graph_node WHERE kind = 'source' AND tag IS NOT NULL")
+            )
+        ]
+        if not retiring:
+            return
+        marks = ", ".join(str(int(one)) for one in retiring)
+        connection.execute(
+            text(f"DELETE FROM graph_edge WHERE source_pk IN ({marks}) OR target_pk IN ({marks})")
+        )
+        connection.execute(text(f"DELETE FROM graph_node WHERE id IN ({marks})"))
+    log.info("removed %d tag node(s); source boxes name one source now", len(retiring))
 
 
 def _drop_removed_columns() -> None:
@@ -393,8 +435,9 @@ def init_db() -> None:
     _scope_uniqueness_to_owners()
     _rename_local_feed_prefix()
     _migrate_single_playlist()
-    # After the migration above, not before: it reads two of the columns this
-    # drops, and it is the last thing that needs them.
+    _retire_tag_nodes()
+    # After the migrations above, not before: they read columns this drops,
+    # and they are the last things that need them.
     _drop_removed_columns()
 
     # The admin account is the environment's, so it is reconciled on every
