@@ -331,3 +331,45 @@ def test_uploading_rubbish_says_so(client):
         follow_redirects=False,
     )
     assert "not a De-Algo backup" in unquote_plus(response.headers["location"])
+
+
+def test_a_restored_backup_comes_back_wired(db, tmp_path):
+    """A backup carries which feeds each source fills, not the canvas. The
+    canvas is drawn from that the first time it is opened — and since a
+    source's wire is what routes now, a restore that produced no wires would
+    restore a setup that collects nothing."""
+    import json
+
+    from dealgo.models import Channel, GraphEdge, GraphNode, Playlist
+    from dealgo.services import backup as backup_service
+    from dealgo.services import graph as graph_service
+
+    with db.session_scope() as session:
+        channel = Channel(channel_id="UCaaaaaaaaaaaaaaaaaaaaaa", title="One", source_kind="youtube")
+        feed = Playlist(playlist_id="generic:reading", title="Reading")
+        session.add_all([channel, feed])
+        session.flush()
+        channel.playlists.append(feed)
+        saved = json.loads(json.dumps(backup_service.build_export(session)))
+
+    # A fresh database, restored from that file and then opened.
+    with db.session_scope() as session:
+        for row in session.scalars(select(GraphEdge)):
+            session.delete(row)
+        for row in session.scalars(select(GraphNode)):
+            session.delete(row)
+        for row in session.scalars(select(Channel)):
+            session.delete(row)
+        for row in session.scalars(select(Playlist)):
+            session.delete(row)
+
+    with db.session_scope() as session:
+        backup_service.restore(session, saved)
+
+    with db.session_scope() as session:
+        graph_service.load(session)
+        drawn = [(w["from"], w["to"]) for w in graph_service.wires(session)]
+        source = session.scalar(select(GraphNode).where(GraphNode.kind == "source"))
+        target = session.scalar(select(GraphNode).where(GraphNode.kind == "feed"))
+
+        assert (source.id, target.id) in drawn

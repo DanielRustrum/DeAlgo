@@ -15,14 +15,14 @@ Two rules make it comprehensible:
 Existing setups are turned into a graph the first time one is asked for, so
 nobody has to build theirs again.
 
-Wires have one home each, which is what keeps the canvas and the rest of the
-app from disagreeing:
+Every wire is a ``GraphEdge``, and an edge belongs to the box it was drawn
+from. A source's used to be stored against its *channel* instead, which meant
+two boxes for one channel could not be told apart: wiring either drew a wire
+from both, and unwiring either unwired both. A second box is a second box.
 
-* **Source to feed** is the link that already existed — a row in
-  ``channel_playlist``. Drawing one on the canvas writes that, so a channel's
-  own page shows it too.
-* **Anything touching a filter node** is a ``GraphEdge``, because there was
-  nowhere else for it to live.
+``channel.playlists`` — what the feed page, the backup and the sync engine
+read — is a view of those wires, worked out again whenever they change. One
+writer, so the two cannot disagree.
 """
 
 from __future__ import annotations
@@ -263,19 +263,13 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
     for edge in all_edges:
         out.setdefault(edge.source_pk, []).append(edge.target_pk)
 
-    feed_node_for = {node.playlist_pk: node for node in all_nodes if node.kind == "feed"}
-
     found: list[Route] = []
     for node in all_nodes:
         if node.kind != "source":
             continue
         for channel in channels_of(session, node, owner):
-            # The direct wires: the channel-to-feed links, unfiltered by
-            # anything but the channel itself.
-            for playlist in channel.playlists:
-                if playlist.id in feed_node_for:
-                    found.append(Route(channel=channel, playlist=playlist, source=node))
-            # And the paths that go through filter nodes.
+            # Every path out of this box, whether it reaches a feed straight
+            # away or goes through filters on the way.
             _walk(node, by_id, out, channel, [], set(), found, source=node)
     return _once_each(found)
 
@@ -283,11 +277,10 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
 def _once_each(found: list[Route]) -> list[Route]:
     """Drop paths that are the same path twice.
 
-    A channel may have two nodes on the canvas — the same channel wired down
-    two routes that filter differently, which is the point of being allowed a
-    second one. Both nodes carry the same channel-to-feed links, so the direct
-    wires would otherwise be counted once per node and the same video weighed
-    twice for one feed.
+    A channel may have two boxes on the canvas, wired down two routes that
+    filter differently — which is the point of being allowed a second one.
+    Two boxes wired the same way are the same path said twice, and the same
+    video must not be weighed twice for one feed.
     """
     seen: set[tuple[int, int, tuple[int, ...], tuple[int, ...], tuple[int, ...]]] = set()
     kept: list[Route] = []
@@ -1250,9 +1243,24 @@ def _lay_out_existing(session: Session, owner: OwnerId) -> list[GraphNode]:
         made[("feed", playlist.id)] = _place(session, owner, "feed", row, playlist_pk=playlist.id)
     session.flush()
 
-    # No edges to write: a direct wire is the channel-to-feed link, which is
-    # already there. Laying out the boxes is the whole job.
-    log.info("laid out a graph from %d channel(s) and %d feed(s)", len(channels), len(playlists))
+    # Every link a channel already had becomes a wire out of its box. The
+    # wire is the truth now, so a setup that was never drawn has to be drawn
+    # here or it would come out unwired.
+    drawn = 0
+    for channel in channels:
+        start = made[("source", channel.id)]
+        for playlist in channel.playlists:
+            end = made.get(("feed", playlist.id))
+            if end is None:
+                continue
+            session.add(GraphEdge(owner_pk=owner, source_pk=start.id, target_pk=end.id))
+            drawn += 1
+    session.flush()
+
+    log.info(
+        "laid out a graph from %d channel(s), %d feed(s) and %d link(s)",
+        len(channels), len(playlists), drawn,
+    )
     return nodes(session, owner)
 
 
@@ -1310,18 +1318,19 @@ def connect(
 ) -> GraphEdge | None:
     """Wire one box to another, refusing what would not make sense.
 
-    Returns the edge it made, or None for a source-to-feed wire — that one is
-    a channel-to-feed link rather than an edge, so that the channel's own page
-    and the canvas are looking at the same thing.
+    Every wire is an edge, including a source's. It used to be stored as a
+    link between the *channel* and the feed, which meant two boxes for one
+    channel could not be told apart: wiring either drew a wire from both, and
+    unwiring either unwired both. A wire belongs to the box it was drawn
+    from, so that a second box is a second box.
     """
     if source.id == target.id:
         raise GraphError("A node cannot feed itself.")
     if target.kind not in ALLOWED.get(source.kind, ()):
         raise GraphError(f"A {source.kind} cannot feed a {target.kind}.")
 
-    # A source wires to a feed by writing the link its channel already has,
-    # which is where the rest of the app reads that pairing from.
-    if source.kind == "source" and target.kind == "feed":
+    fresh = source.kind == "source" and target.kind == "feed"
+    if fresh:
         if source.channel is None or target.playlist is None:
             raise GraphError("That node no longer has anything behind it.")
         # A wire that could never carry anything, refused where it is drawn
@@ -1332,11 +1341,6 @@ def connect(
                 "holds YouTube videos only. Wire this one to a feed that lives here — "
                 "make a new feed and keep it generic."
             )
-        if target.playlist not in source.channel.playlists:
-            source.channel.playlists.append(target.playlist)
-            session.flush()
-            _bring_back_what_it_can_now_hold(session, source.channel, target.playlist, owner)
-        return None
 
     if _reaches(session, target, source, owner):
         raise GraphError("That would make a loop, and nothing would ever come out of it.")
@@ -1352,6 +1356,9 @@ def connect(
     edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id)
     session.add(edge)
     session.flush()
+    if fresh and source.channel is not None and target.playlist is not None:
+        refresh_membership(session, source.channel, owner)
+        _bring_back_what_it_can_now_hold(session, source.channel, target.playlist, owner)
     return edge
 
 
@@ -1388,42 +1395,79 @@ def _bring_back_what_it_can_now_hold(
     return len(stranded)
 
 
-def unlink(session: Session, source: GraphNode, target: GraphNode) -> bool:
-    """Take out a source-to-feed wire, which is a link rather than an edge."""
-    if source.channel is None or target.playlist is None:
-        return False
-    if target.playlist in source.channel.playlists:
-        source.channel.playlists.remove(target.playlist)
+def refresh_membership(
+    session: Session, channel: Channel, owner: OwnerId = None
+) -> None:
+    """Work out again which feeds this channel fills, from the wires drawn.
+
+    ``channel.playlists`` is what the rest of the app reads — the feed page,
+    the backup, the sync engine — and it is now a view of the canvas rather
+    than a thing anybody edits. One writer, so the two cannot disagree.
+
+    Only the wires straight from a box to a feed count, which is what the
+    pairing has always meant: a path that goes through a filter is a path,
+    and `routes` is what asks about those.
+    """
+    by_playlist = {
+        node.playlist_pk: node
+        for node in nodes(session, owner)
+        if node.kind == "feed" and node.playlist_pk
+    }
+    mine = [
+        node.id
+        for node in nodes(session, owner)
+        if node.kind == "source" and node.channel_pk == channel.id
+    ]
+    if not mine:
+        channel.playlists = []
         session.flush()
-        return True
-    return False
+        return
+
+    wired = {
+        edge.target_pk
+        for edge in edges(session, owner)
+        if edge.source_pk in mine
+    }
+    feeds = [
+        node.playlist
+        for playlist_pk, node in by_playlist.items()
+        if node.id in wired and node.playlist is not None
+    ]
+    channel.playlists = feeds
+    session.flush()
 
 
 def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
-    """Every wire, of both kinds, in the one shape the canvas draws from."""
-    all_nodes, all_edges = load(session, owner)
-    feed_node_for = {node.playlist_pk: node for node in all_nodes if node.kind == "feed"}
+    """Every wire, in the one shape the canvas draws from.
 
-    drawn: list[dict[str, Any]] = []
-    for node in all_nodes:
-        if node.kind == "source" and node.channel is not None:
-            for playlist in node.channel.playlists:
-                target = feed_node_for.get(playlist.id)
-                if target is not None:
-                    drawn.append({"id": f"link:{node.id}:{target.id}", "from": node.id,
-                                  "to": target.id, "kind": "link"})
-    for edge in all_edges:
-        drawn.append({"id": f"edge:{edge.id}", "from": edge.source_pk,
-                      "to": edge.target_pk, "kind": "edge"})
-    return drawn
+    One kind now. A source's wire used to be synthesised from its channel's
+    feeds, which is why two boxes for one channel showed the same wires.
+    """
+    _, all_edges = load(session, owner)
+
+    return [
+        {
+            "id": f"edge:{edge.id}",
+            "from": edge.source_pk,
+            "to": edge.target_pk,
+            "kind": "edge",
+        }
+        for edge in all_edges
+    ]
 
 
 def disconnect(session: Session, edge_pk: int, owner: OwnerId = None) -> bool:
     edge = session.scalar(owned(select(GraphEdge), GraphEdge, owner).where(GraphEdge.id == edge_pk))
     if edge is None:
         return False
+    # Held before the row goes: afterwards there is nothing to ask which
+    # channel's feeds have just changed.
+    start = session.get(GraphNode, edge.source_pk)
+    channel = start.channel if start is not None and start.kind == "source" else None
     session.delete(edge)
     session.flush()
+    if channel is not None:
+        refresh_membership(session, channel, owner)
     return True
 
 
@@ -1786,6 +1830,10 @@ def remove(session: Session, node_pk: int, owner: OwnerId = None) -> bool:
     channel, playlist = node.channel, node.playlist
     session.delete(node)
     session.flush()
+
+    # The wires went with it, so which feeds that channel fills has changed.
+    if node.kind == "source" and channel is not None:
+        refresh_membership(session, channel, owner)
 
     # Only if nothing else is still drawn around it. A channel may have two
     # nodes, and taking one off the canvas is rearranging the drawing rather

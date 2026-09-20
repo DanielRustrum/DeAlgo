@@ -229,7 +229,7 @@ function asGraphWire(value) {
     const to = raw["to"];
     if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number")
         return null;
-    return { id, from, to, kind: raw["kind"] === "link" ? "link" : "edge" };
+    return { id, from, to, kind: "edge" };
 }
 /** The graph, or null if this is not one — an error body, say. */
 function asGraph(value) {

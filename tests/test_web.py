@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from dealgo.db import get_settings
 from dealgo.models import Channel, Placement, Playlist, SyncRun, Video
+from fakes import unwire, wire
 
 HX = {"HX-Request": "true"}
 

@@ -115,14 +115,18 @@ def world(db, monkeypatch):
         # with no trigger is a channel nobody has finished setting up, and a
         # fixture that leaves one that way is testing an install nobody has.
         box = GraphNode(kind="source", channel_pk=channel.id, enabled=True, x=0, y=0)
+        feed = GraphNode(kind="feed", playlist_pk=playlist.id, enabled=True, x=400, y=0)
         # Every run there is, which is what this channel did before a trigger
         # was needed to say so. Tests about *when* a trigger fires replace it.
         pulse = GraphNode(
             kind="trigger", trigger_kind="pulse", every_minutes=0, enabled=True, x=0, y=0
         )
-        session.add_all([box, pulse])
+        session.add_all([box, feed, pulse])
         session.flush()
         session.add(GraphEdge(source_pk=pulse.id, target_pk=box.id))
+        # The wire itself. A source's wire belongs to the box it is drawn
+        # from, so a setup with none is a setup that routes nothing.
+        session.add(GraphEdge(source_pk=box.id, target_pk=feed.id))
 
     state["db"] = db
     return state
@@ -135,12 +139,26 @@ def add_playlist(db):
     def _add(playlist_id: str, title: str | None = None, *, feeds_channel: bool = True, **kwargs):
         from dealgo.models import Channel, Playlist
 
+        from dealgo.models import GraphEdge, GraphNode
+
         with db.session_scope() as session:
             playlist = Playlist(playlist_id=playlist_id, title=title or playlist_id, **kwargs)
             session.add(playlist)
+            session.flush()
+            feed = GraphNode(kind="feed", playlist_pk=playlist.id, enabled=True, x=400, y=200)
+            session.add(feed)
+            session.flush()
             if feeds_channel:
                 for channel in session.scalars(select(Channel)):
                     channel.playlists.append(playlist)
+                    # And the wire that carries it, which is what routes now
+                    # read rather than the pairing above.
+                    for box in session.scalars(
+                        select(GraphNode).where(
+                            GraphNode.kind == "source", GraphNode.channel_pk == channel.id
+                        )
+                    ):
+                        session.add(GraphEdge(source_pk=box.id, target_pk=feed.id))
             session.flush()
             return playlist.id
 

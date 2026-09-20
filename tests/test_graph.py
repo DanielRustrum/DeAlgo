@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy import select
 
 from dealgo.models import Channel, GraphEdge, GraphNode, Playlist
+from fakes import unwire, wire
 from dealgo.services import graph
 
 
@@ -102,8 +103,67 @@ def test_where_a_box_was_put_is_remembered(db):
 # -- what may be wired to what --------------------------------------------
 
 
-def test_a_source_to_feed_wire_is_the_link_itself(db):
-    """Drawn on the canvas, it shows up on the channel's own page too."""
+def test_a_source_to_feed_wire_belongs_to_the_box_it_came_from(db):
+    """It used to be stored against the channel, which meant two boxes for one
+    channel could not be told apart. It is an edge like every other wire now,
+    and the channel's own pairing is worked out from it."""
+    build(db)
+    with db.session_scope() as session:
+        graph.load(session)
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+
+        edge = graph.connect(session, source, feed)
+
+        assert edge is not None
+        assert (edge.source_pk, edge.target_pk) == (source.id, feed.id)
+        # And the pairing the rest of the app reads follows from it.
+        assert source.channel.playlists == [feed.playlist]
+
+
+def test_a_second_box_for_one_source_is_wired_on_its_own(db):
+    """The whole point of being allowed a second one. Wiring either used to
+    draw a wire from both, and unwiring either unwired both."""
+    build(db)
+    with db.session_scope() as session:
+        graph.load(session)
+        first = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        second = graph.add_source(session, channel=first.channel, source_kind="youtube")
+
+        graph.connect(session, first, feed)
+
+        drawn = [(w["from"], w["to"]) for w in graph.wires(session)]
+        assert (first.id, feed.id) in drawn
+        assert (second.id, feed.id) not in drawn
+
+        # And the second can be wired to the same feed without disturbing it.
+        graph.connect(session, second, feed)
+        drawn = [(w["from"], w["to"]) for w in graph.wires(session)]
+        assert (first.id, feed.id) in drawn
+        assert (second.id, feed.id) in drawn
+
+
+def test_unwiring_one_box_leaves_the_other_wired(db):
+    build(db)
+    with db.session_scope() as session:
+        graph.load(session)
+        first = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        second = graph.add_source(session, channel=first.channel, source_kind="youtube")
+        graph.connect(session, first, feed)
+        going = graph.connect(session, second, feed)
+
+        assert going is not None
+        graph.disconnect(session, going.id)
+
+        drawn = [(w["from"], w["to"]) for w in graph.wires(session)]
+        assert drawn == [(first.id, feed.id)]
+        # Still feeding it, because one box still says so.
+        assert first.channel.playlists == [feed.playlist]
+
+
+def test_unwiring_the_last_box_stops_the_channel_feeding_it(db):
     build(db)
     with db.session_scope() as session:
         graph.load(session)
@@ -111,8 +171,10 @@ def test_a_source_to_feed_wire_is_the_link_itself(db):
         feed = node_for(session, "feed", "PLone")
         edge = graph.connect(session, source, feed)
 
-        assert edge is None                       # a link, not an edge
-        assert source.channel.playlists == [feed.playlist]
+        assert edge is not None
+        graph.disconnect(session, edge.id)
+
+        assert source.channel.playlists == []
 
 
 def test_filters_sit_between_and_are_edges(db):
@@ -596,7 +658,7 @@ def test_wiring_a_channel_to_a_feed_answers_with_the_whole_graph(canvas):
     )
     assert answer.status_code == 200
     wires = answer.json()["wires"]
-    assert [wire["kind"] for wire in wires] == ["link"]
+    assert [wire["kind"] for wire in wires] == ["edge"]
 
 
 def test_a_wire_that_makes_no_sense_is_refused_with_a_reason(canvas):
@@ -666,19 +728,21 @@ def test_where_a_box_was_dragged_to_is_remembered(canvas):
     assert (moved["x"], moved["y"]) == (33, 77)
 
 
-def test_both_kinds_of_wire_come_out_the_same_way(canvas):
+def test_every_wire_comes_out_the_same_way(canvas):
+    """There used to be two kinds and the route had to tell them apart. One
+    kind now, so taking any of them out is the same act."""
     graph_now = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
     source, feed, middle = only(graph_now, "source"), only(graph_now, "feed"), only(graph_now, "filter")
 
     canvas.post("/graph/connect", data={"source": source["id"], "target": feed["id"]})
     canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
-    wires = {wire["kind"]: wire["id"] for wire in canvas.get("/api/graph").json()["wires"]}
+    wires = canvas.get("/api/graph").json()["wires"]
 
-    left = canvas.post("/graph/disconnect", data={"wire": wires["link"]}).json()["wires"]
-    assert [wire["kind"] for wire in left] == ["edge"]
-
-    nothing = canvas.post("/graph/disconnect", data={"wire": wires["edge"]}).json()["wires"]
-    assert nothing == []
+    assert {wire["kind"] for wire in wires} == {"edge"}
+    left = wires
+    for wire in wires:
+        left = canvas.post("/graph/disconnect", data={"wire": wire["id"]}).json()["wires"]
+    assert left == []
 
 
 def test_the_canvas_is_the_whole_configuration_page(canvas):
@@ -2161,8 +2225,10 @@ def test_a_filter_that_lets_nothing_through_is_where_the_flow_stops(world, db):
         middle.min_duration_sec = 3600  # nothing will be this long
         graph.connect(session, source, middle)
         graph.connect(session, middle, feed)
-        # The direct wire would let everything past the filter.
-        graph.unlink(session, source, feed)
+        # The straight wire would let everything past the filter.
+        for edge in graph.edges(session):
+            if edge.source_pk == source.id and edge.target_pk == feed.id:
+                graph.disconnect(session, edge.id)
         node_pk = middle.id
 
     world["entries"] = [entry("v0", minutes_ago=5)]

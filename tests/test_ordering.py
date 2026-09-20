@@ -32,6 +32,16 @@ def add_channel(db, channel_id: str, title: str, *, playlists=None):
         pulse = session.scalar(select(GraphNode).where(GraphNode.kind == "trigger"))
         if pulse is not None:
             session.add(GraphEdge(source_pk=pulse.id, target_pk=box.id))
+        # And wired to every feed it was given, because a source's wire lives
+        # on the box now rather than on the channel.
+        for playlist in channel.playlists:
+            feed = session.scalar(
+                select(GraphNode).where(
+                    GraphNode.kind == "feed", GraphNode.playlist_pk == playlist.id
+                )
+            )
+            if feed is not None:
+                session.add(GraphEdge(source_pk=box.id, target_pk=feed.id))
         return channel.id
 
 

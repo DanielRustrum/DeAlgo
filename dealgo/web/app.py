@@ -2347,19 +2347,12 @@ def graph_connect(
 
 @app.post("/graph/disconnect")
 def graph_disconnect(request: Request, wire: str = Form(...)) -> JSONResponse:
-    """Wires come in two kinds and are named for it, so one route serves both."""
+    """Take out one wire. There is only one kind of wire now."""
     owner = owner_of(request)
     with session_scope() as session:
         kind, _, rest = wire.partition(":")
         if kind == "edge" and rest.isdigit():
             graph_service.disconnect(session, int(rest), owner)
-        elif kind == "link":
-            first, _, second = rest.partition(":")
-            nodes = {node.id: node for node in graph_service.nodes(session, owner)}
-            if first.isdigit() and second.isdigit():
-                source, target = nodes.get(int(first)), nodes.get(int(second))
-                if source is not None and target is not None:
-                    graph_service.unlink(session, source, target)
         return JSONResponse(_graph_payload(session, owner))
 
 

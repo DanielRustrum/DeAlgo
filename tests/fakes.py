@@ -122,3 +122,79 @@ def entry(
         link=f"https://www.youtube.com/{where}{video_id}",
         published_at=dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=minutes_ago),
     )
+
+
+def wire(session, channel, playlist):
+    """Draw the wire that a source-to-feed link used to be.
+
+    A source's wire belongs to the box it comes from, so pairing the channel
+    with the feed is no longer enough to route anything. This does both: the
+    pairing the rest of the app reads, and the wire the canvas routes from.
+    """
+    from dealgo.models import GraphEdge, GraphNode
+    from sqlalchemy import select
+
+    feed = session.scalar(
+        select(GraphNode).where(
+            GraphNode.kind == "feed", GraphNode.playlist_pk == playlist.id
+        )
+    )
+    if feed is None:
+        feed = GraphNode(
+            owner_pk=playlist.owner_pk, kind="feed", playlist_pk=playlist.id,
+            enabled=True, x=400, y=0,
+        )
+        session.add(feed)
+        session.flush()
+
+    boxes = list(
+        session.scalars(
+            select(GraphNode).where(
+                GraphNode.kind == "source", GraphNode.channel_pk == channel.id
+            )
+        )
+    )
+    if not boxes:
+        box = GraphNode(
+            owner_pk=channel.owner_pk, kind="source", channel_pk=channel.id,
+            enabled=True, x=0, y=0,
+        )
+        session.add(box)
+        session.flush()
+        boxes = [box]
+
+    for box in boxes:
+        already = session.scalar(
+            select(GraphEdge).where(
+                GraphEdge.source_pk == box.id, GraphEdge.target_pk == feed.id
+            )
+        )
+        if already is None:
+            session.add(GraphEdge(owner_pk=channel.owner_pk, source_pk=box.id, target_pk=feed.id))
+    if playlist not in channel.playlists:
+        channel.playlists.append(playlist)
+    session.flush()
+
+
+def unwire(session, channel):
+    """Take out every wire from this channel's boxes to any feed."""
+    from dealgo.models import GraphEdge, GraphNode
+    from sqlalchemy import select
+
+    boxes = [
+        node.id
+        for node in session.scalars(
+            select(GraphNode).where(
+                GraphNode.kind == "source", GraphNode.channel_pk == channel.id
+            )
+        )
+    ]
+    feeds = {
+        node.id
+        for node in session.scalars(select(GraphNode).where(GraphNode.kind == "feed"))
+    }
+    for edge in list(session.scalars(select(GraphEdge))):
+        if edge.source_pk in boxes and edge.target_pk in feeds:
+            session.delete(edge)
+    channel.playlists = []
+    session.flush()

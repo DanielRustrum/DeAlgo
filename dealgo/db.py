@@ -175,6 +175,49 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _wires_belong_to_boxes() -> None:
+    """Turn every channel-to-feed link into a wire drawn from a box.
+
+    A source's wire used to be stored against its channel, so two boxes for
+    one channel could not be told apart: wiring either drew a wire from both.
+    Now a wire belongs to the box it came from.
+
+    Every box for that channel gets one, because that is exactly what was on
+    screen before — the canvas looks the same afterwards, and the boxes can
+    now be unwired separately, which is the whole point.
+
+    Runs once in effect: afterwards the edges exist, and the insert skips
+    anything already there.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if not {"channel_playlist", "graph_node", "graph_edge"} <= tables:
+        return
+
+    with engine.begin() as connection:
+        drawn = connection.execute(text("""
+            SELECT DISTINCT s.id, f.id, s.owner_pk
+            FROM channel_playlist cp
+            JOIN graph_node s ON s.kind = 'source' AND s.channel_pk = cp.channel_pk
+            JOIN graph_node f ON f.kind = 'feed'   AND f.playlist_pk = cp.playlist_pk
+            WHERE NOT EXISTS (
+                SELECT 1 FROM graph_edge e
+                WHERE e.source_pk = s.id AND e.target_pk = f.id
+            )
+        """)).fetchall()
+        for source_pk, target_pk, owner_pk in drawn:
+            connection.execute(
+                text(
+                    "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) "
+                    "VALUES (:owner, :source, :target)"
+                ),
+                {"owner": owner_pk, "source": source_pk, "target": target_pk},
+            )
+    if drawn:
+        log.info("drew %d source wire(s) from the boxes they belong to", len(drawn))
+
+
 def _retire_tag_nodes() -> None:
     """Take away the boxes that stood for a tag.
 
@@ -436,6 +479,7 @@ def init_db() -> None:
     _rename_local_feed_prefix()
     _migrate_single_playlist()
     _retire_tag_nodes()
+    _wires_belong_to_boxes()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     _drop_removed_columns()

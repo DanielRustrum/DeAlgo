@@ -11,7 +11,7 @@ from dealgo.services import quota
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
 from dealgo.plugins.publisher import VideoDetails
-from fakes import MAIN_PLAYLIST, entry
+from fakes import MAIN_PLAYLIST, entry, unwire, wire
 
 
 def uploads(world, count=2):
@@ -28,7 +28,7 @@ def make_generic(db, title="Kept here", *, feeds_channel=True) -> int:
         playlist = playlist_service.create_generic(session, title)
         if feeds_channel:
             for channel in session.scalars(select(Channel)):
-                channel.playlists.append(playlist)
+                wire(session, channel, playlist)
         session.flush()
         return playlist.id
 
@@ -43,7 +43,7 @@ def test_a_generic_feed_needs_no_playlist_id(db):
 
 def test_it_is_filled_without_touching_youtube(world, db):
     with db.session_scope() as session:
-        session.scalar(select(Channel)).playlists = []  # only the generic feed
+        unwire(session, session.scalar(select(Channel)))  # only the generic feed
     generic = make_generic(db)
     uploads(world)
 
@@ -78,7 +78,7 @@ def test_it_works_with_no_google_account_at_all(world, db, monkeypatch):
         sync_service, "build_client", lambda session, http, owner=None: signed_out.bind_meter(quota.meter(session))
     )
     with db.session_scope() as session:
-        session.scalar(select(Channel)).playlists = []
+        unwire(session, session.scalar(select(Channel)))
     make_generic(db)
     uploads(world)
 
@@ -158,7 +158,7 @@ def test_a_signed_out_run_says_what_it_did_with_the_youtube_feeds(world, db, mon
 
 def test_a_generic_feed_prunes_itself(world, db):
     with db.session_scope() as session:
-        session.scalar(select(Channel)).playlists = []
+        unwire(session, session.scalar(select(Channel)))
     generic = make_generic(db)
     with db.session_scope() as session:
         session.get(Playlist, generic).max_items = 1
@@ -181,7 +181,7 @@ def test_a_generic_feed_prunes_itself(world, db):
 
 def test_watching_clears_it_locally(world, db):
     with db.session_scope() as session:
-        session.scalar(select(Channel)).playlists = []
+        unwire(session, session.scalar(select(Channel)))
     make_generic(db)
     uploads(world, count=1)
     sync_service.run_sync()
@@ -200,7 +200,7 @@ def test_watching_clears_it_locally(world, db):
 
 def test_it_shows_up_on_the_feed_page_like_any_other(world, db):
     with db.session_scope() as session:
-        session.scalar(select(Channel)).playlists = []
+        unwire(session, session.scalar(select(Channel)))
     make_generic(db, "Kept here")
     uploads(world, count=1)
     sync_service.run_sync()

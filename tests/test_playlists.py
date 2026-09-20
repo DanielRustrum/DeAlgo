@@ -11,7 +11,7 @@ from dealgo.services import playlists as playlist_service
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
 from dealgo.plugins.publisher import PublishError, VideoDetails
-from fakes import MAIN_PLAYLIST, FakeYouTube, entry
+from fakes import MAIN_PLAYLIST, FakeYouTube, entry, unwire, wire
 
 SECOND = "PL_second"
 
@@ -60,7 +60,7 @@ def test_a_paused_playlist_is_left_alone(world, add_playlist):
 
 def test_a_channel_feeding_nothing_keeps_its_videos_pending(world):
     with world["db"].session_scope() as session:
-        session.scalar(select(Channel)).playlists = []
+        unwire(session, session.scalar(select(Channel)))
     upload(world)
 
     result = sync_service.run_sync()
@@ -73,14 +73,14 @@ def test_a_channel_feeding_nothing_keeps_its_videos_pending(world):
 
 def test_assigning_a_playlist_later_picks_up_queued_videos(world, add_playlist):
     with world["db"].session_scope() as session:
-        session.scalar(select(Channel)).playlists = []
+        unwire(session, session.scalar(select(Channel)))
     upload(world)
     sync_service.run_sync()
 
     # Point the channel at a playlist; the queued video goes in on the next run.
     with world["db"].session_scope() as session:
         channel = session.scalar(select(Channel))
-        channel.playlists = [session.scalar(select(Playlist))]
+        wire(session, channel, session.scalar(select(Playlist)))
     sync_service.run_sync()
 
     assert world["client"].contents(MAIN_PLAYLIST) == ["v0"]

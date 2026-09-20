@@ -9,7 +9,7 @@ from dealgo.models import Channel, Video
 from dealgo.services import sync as sync_service
 from dealgo.sources import items
 from dealgo.plugins.publisher import VideoDetails
-from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry
+from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry, unwire, wire
 
 def statuses(db) -> dict[str, str]:
     with db.session_scope() as session:
@@ -405,7 +405,10 @@ def wire_sort(db, *, sort_by: str, newest_first: bool = True):
         order = graph.add_sort(session, sort_by=sort_by, newest_first=newest_first)
         graph.connect(session, source, order)
         graph.connect(session, order, feed)
-        graph.unlink(session, source, feed)  # the direct wire would skip the sort
+        # The straight wire would skip the sort, so it comes out.
+        for edge in graph.edges(session):
+            if edge.source_pk == source.id and edge.target_pk == feed.id:
+                graph.disconnect(session, edge.id)
 
 
 def three_videos(world):
@@ -788,7 +791,7 @@ def stranded_reddit(db, *, playlist_id="generic:reading"):
         feed = PlaylistModel(playlist_id=playlist_id, title="Reading", enabled=True)
         session.add_all([source, feed])
         session.flush()
-        source.playlists.append(feed)
+        wire(session, source, feed)
         for index in range(3):
             session.add(VideoModel(
                 video_id=f"item-{index}", channel_pk=source.id, kind="link",
@@ -1187,7 +1190,7 @@ def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, mon
 
         channel = session.get(ChannelModel, channel_pk)
         # The fixture's feed is a real YouTube playlist.
-        channel.playlists.append(session.scalars(select(PlaylistModel)).one())
+        wire(session, channel, session.scalars(select(PlaylistModel)).one())
 
     sync_service.run_sync("manual", force=True)
 
@@ -1209,7 +1212,7 @@ def test_an_item_from_elsewhere_fills_a_generic_feed(world, db, monkeypatch):
 
         local = playlist_service.create_generic(session, "Reading")
         channel = session.get(ChannelModel, channel_pk)
-        channel.playlists.append(local)
+        wire(session, channel, local)
 
     sync_service.run_sync("manual", force=True)
 
@@ -1228,7 +1231,7 @@ def test_a_feed_items_words_are_what_a_filter_reads(world, db, monkeypatch):
     with db.session_scope() as session:
         channel = session.get(ChannelModel, channel_pk)
         channel.title_exclude = "worth reading"
-        channel.playlists.append(playlist_service.create_generic(session, "Reading"))
+        wire(session, channel, playlist_service.create_generic(session, "Reading"))
 
     sync_service.run_sync("manual", force=True)
 

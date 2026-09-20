@@ -15,7 +15,10 @@ type GraphNodeKind =
   // A box a plugin put in the palette. It behaves like a filter and is drawn
   // like one; what it judges by is somebody's Lua rather than these rules.
   | "plugin";
-type GraphWireKind = "link" | "edge";
+/** There used to be two: a source's wire was stored against its channel and
+ *  drawn from that, which is why two boxes for one channel showed the same
+ *  wires. Every wire is an edge now. */
+type GraphWireKind = "edge";
 
 /** A filter's answer for one rule. Absent means "leave it to the channel". */
 type GraphOverride = string | number | boolean;
@@ -476,7 +479,7 @@ function asGraphWire(value: unknown): GraphWireView | null {
   const from = raw["from"];
   const to = raw["to"];
   if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number") return null;
-  return { id, from, to, kind: raw["kind"] === "link" ? "link" : "edge" };
+  return { id, from, to, kind: "edge" };
 }
 
 /** The graph, or null if this is not one — an error body, say. */
