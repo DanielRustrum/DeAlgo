@@ -46,6 +46,10 @@ dealgo = [
     "web/static/icons/*",
     "web/scss/*.scss",
     "web/ts/*.ts",
+    # Without this the image ships with no plugins at all, and every kind of
+    # source stops being recognised — the app would start and understand
+    # nothing you typed.
+    "plugins/builtin/*.lua",
 ]
 
 [tool.pytest.ini_options]

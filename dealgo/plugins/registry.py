@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 API = 1
 
 #: A plugin id has to survive being a filename, a form field and a CSS class.
-_PLAIN = set("abcdefghijklmnopqrstuvwxyz0123456789-_")
+PLAIN = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 
 
 @dataclass(frozen=True)
@@ -277,6 +277,17 @@ def read(*folders: Path, given: dict[str, object] | None = None) -> Registry:
     return found
 
 
+def judge(stem: str, source: str) -> Plugin:
+    """Load a plugin from text, without keeping it.
+
+    What an upload is checked with: a file that will not load is one nobody
+    wants in the folder, and saying so before it lands beats a broken row on
+    the page afterwards.
+    """
+    plugin = Plugin(id=stem, path=Path(f"{stem}.lua"))
+    return _judge(plugin, source, {})
+
+
 def _one(path: Path, given: dict[str, object]) -> Plugin:
     """Read one file, and turn anything that goes wrong into a sentence."""
     plugin = Plugin(id=path.stem, path=path)
@@ -289,6 +300,12 @@ def _one(path: Path, given: dict[str, object]) -> Plugin:
         plugin.trouble = "is not text"
         return plugin
 
+    return _judge(plugin, source, given)
+
+
+def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
+    """Run a plugin's file and decide what it turned out to be."""
+    path = plugin.path
     try:
         box, made = load(path.name, source, given=given)
     except PluginError as exc:
@@ -309,7 +326,7 @@ def _one(path: Path, given: dict[str, object]) -> Plugin:
             f"is written for plugin API {plugin.api or 'none'}, and this is {API}"
         )
         return plugin
-    if not set(plugin.id) <= _PLAIN:
+    if not set(plugin.id) <= PLAIN:
         plugin.trouble = "has a name outside a-z, 0-9, dash and underscore"
         return plugin
 
@@ -335,7 +352,7 @@ def _sources(plugin: Plugin, given: object) -> list[SourceKind]:
         name = str(entry.get("kind") or "").strip()
         if not name:
             raise PluginError("a source needs a `kind`")
-        if not set(name) <= _PLAIN:
+        if not set(name) <= PLAIN:
             raise PluginError(f"“{name}” is not a usable kind name")
         if not callable(entry.get("recognise")):
             raise PluginError(f"“{name}” needs a `recognise` function")

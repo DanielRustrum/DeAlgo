@@ -106,6 +106,19 @@
 </section>
 
 <section class="panel">
+  <div class="panel-head">
+    <h2>Plugins</h2>
+    <span class="count">{{ plugin_count }}</span>
+    {% if plugin_trouble %}<span class="pill pill-failed">{{ plugin_trouble }} not loaded</span>{% endif %}
+  </div>
+  <p>
+    Every kind of source De-Algo can watch — YouTube, Reddit, Bluesky,
+    Substack — is a plugin, and you can add your own.
+  </p>
+  <a class="btn btn-quiet" href="/admin/plugins">Manage plugins →</a>
+</section>
+
+<section class="panel">
   <h2>Move this instance</h2>
   <p class="hint">
     Every account and every setup at once: who the accounts are, what each of them watches,

@@ -248,3 +248,15 @@ def test_the_reddit_plugin_offers_a_mirror():
 
     assert found.mirror("reddit", "r/python") == "https://openrss.org/reddit.com/r/python"
     assert found.mirror("youtube", "UCzzz") is None
+
+
+def test_the_shipped_plugins_are_packaged_with_the_app():
+    """`package-data` globs are not recursive, and a missing one here is not
+    a missing icon: the image would start and understand nothing you typed."""
+    import tomllib
+
+    root = Path(__file__).resolve().parent.parent
+    config = tomllib.loads((root / "pyproject.toml").read_text())
+    globs = config["tool"]["setuptools"]["package-data"]["dealgo"]
+
+    assert "plugins/builtin/*.lua" in globs

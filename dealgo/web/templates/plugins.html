@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}De-Algo — Plugins{% endblock %}
+{% block content %}
+
+<p class="crumbs"><a href="/admin">← Admin</a> · Plugins</p>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Plugins</h2>
+    <span class="count">{{ plugins | length }}</span>
+    <form method="post" action="/admin/plugins/reload" class="panel-action">
+      <button class="btn btn-quiet" type="submit">Read the folder again</button>
+    </form>
+  </div>
+
+  <p class="hint">
+    A plugin is one <code>.lua</code> file. It says what a reference like
+    <code>r/python</code> or <code>@handle</code> is and where that source's
+    feed lives; De-Algo does the fetching, so a plugin never touches the
+    network, your credentials, or anyone else's data.
+  </p>
+
+  {% if plugins %}
+  <ul class="plugin-list">
+    {% for plugin in plugins %}
+    <li class="plugin {{ 'is-bad' if not plugin.ok }}">
+      <div class="plugin-head">
+        <strong>{{ plugin.title }}</strong>
+        {% if plugin.version %}<span class="plugin-version">{{ plugin.version }}</span>{% endif %}
+        {% if plugin.mine %}
+        <span class="pill" title="From your plugins folder">yours</span>
+        {% else %}
+        <span class="pill pill-shipped" title="Came with De-Algo">shipped</span>
+        {% endif %}
+        {% if plugin.replaces %}
+        <span class="pill pill-paused" title="{{ plugin.replaces }}">replaces the shipped one</span>
+        {% endif %}
+        {% if not plugin.ok %}<span class="pill pill-failed">not loaded</span>{% endif %}
+      </div>
+
+      {% if plugin.trouble %}
+      <p class="error-note">{{ plugin.trouble }}</p>
+      {% else %}
+      <div class="plugin-gives">
+        {% for kind in plugin.sources %}
+        <span class="pill pill-kind kind-{{ kind.kind }}">{{ kind.label }}</span>
+        {% endfor %}
+        {% if not plugin.sources %}<span class="meta">offers nothing yet</span>{% endif %}
+      </div>
+      {% for kind in plugin.sources %}
+      <div class="meta">
+        <code>{{ kind.kind }}</code> — {{ kind.example or 'no example given' }}
+        {%- if kind.playlistable %} · may fill a real YouTube playlist{% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      <div class="meta plugin-where">{{ plugin.path }}</div>
+
+      {% if plugin.mine %}
+      <form method="post" action="/admin/plugins/{{ plugin.id }}/remove"
+            onsubmit="return confirm('Remove {{ plugin.title }}? Sources using it stop being recognised.')">
+        <button class="btn btn-quiet" type="submit">Remove</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No plugins. Even the shipped ones are missing, which is a broken install.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Add one</h2>
+  <form class="stack-form" method="post" action="/admin/plugins" enctype="multipart/form-data">
+    <label>
+      A .lua file
+      <input type="file" name="file" accept=".lua,text/plain" required>
+    </label>
+    <button class="btn btn-primary" type="submit">Add it</button>
+    <p class="hint">
+      It lands in <code>{{ folder }}</code> and is read straight away. A file
+      named after one that ships with De-Algo replaces it, which is how you
+      change a shipped plugin without editing the image.
+    </p>
+    <p class="error-note">
+      <strong>A plugin is code, and it runs here.</strong>
+      It is walled off — no files, no network, no credentials, and it is
+      stopped if it loops or eats memory — but it still reads every reference
+      you add. Add ones you would be willing to read.
+    </p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Writing one</h2>
+  <pre class="plugin-example"><code>{{ example }}</code></pre>
+  <p class="hint">
+    <code>recognise</code> is the whole of it: given what somebody typed,
+    answer with the key to file it under and the address of its feed, or
+    nothing at all if it is not yours. Return <code>guess = true</code> when
+    you are offering rather than asserting — a certain answer from another
+    plugin then wins, which is what stops a Bluesky handle from swallowing
+    every domain name.
+  </p>
+</section>
+{% endblock %}

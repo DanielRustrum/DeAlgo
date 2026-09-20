@@ -48,6 +48,7 @@ from ..models import (
     utcnow,
 )
 from .. import sources
+from ..plugins import registry
 from ..services import accounts
 from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
@@ -3155,7 +3156,15 @@ def _admin_context(session: Session) -> Context:
         "session_days": CONFIG.session_days,
         "min_password": accounts.MIN_PASSWORD_LENGTH,
         "min_passphrase": migration.MIN_PASSPHRASE,
+        **_plugin_tally(),
     }
+
+
+def _plugin_tally() -> Context:
+    """Enough about the plugins for the Admin page to point at them, and to
+    say when one is not loading rather than leaving it to be noticed."""
+    found = registry.current()
+    return {"plugin_count": len(found.working), "plugin_trouble": len(found.broken)}
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -3172,6 +3181,7 @@ def admin_page(request: Request) -> HTMLResponse:
                 "session_days": CONFIG.session_days,
                 "min_password": accounts.MIN_PASSWORD_LENGTH,
                 "min_passphrase": migration.MIN_PASSPHRASE,
+                **_plugin_tally(),
             },
         )
     with session_scope() as session:
@@ -3189,6 +3199,149 @@ def add_account(
         except accounts.AccountError as exc:
             return redirect("/admin", err=str(exc))
     return redirect("/admin", ok=f"Account {username.strip().lower()} created.")
+
+
+# -- plugins ---------------------------------------------------------------
+#
+# Under Admin because adding one is adding code to this install, which is not
+# a per-account thing however many accounts there are.
+
+#: What a plugin file may weigh. A source plugin is a page or two of Lua; a
+#: megabyte of it is somebody uploading the wrong thing.
+MOST_PLUGIN_BYTES = 256 * 1024
+
+#: Shown on the page, so the shape is learnable without leaving it.
+PLUGIN_EXAMPLE = """return {
+  id = "example",  name = "Example",  version = "1.0.0",  api = 1,
+
+  sources = {
+    {
+      kind = "example",
+      label = "Example",
+      example = "what somebody would type",
+      playlistable = false,
+
+      recognise = function(reference)
+        local name = string.match(reference, "^example/(%w+)$")
+        if not name then return nil end
+        return {
+          key   = "example/" .. name,
+          feed  = "https://example.com/" .. name .. "/feed",
+          title = name,
+        }
+      end,
+    },
+  },
+}"""
+
+
+@app.get("/admin/plugins", response_class=HTMLResponse)
+def plugins_page(request: Request) -> HTMLResponse:
+    found = registry.current()
+    mine = registry.folder()
+    return render(
+        request,
+        "plugins.html",
+        {
+            "plugins": [
+                {
+                    "id": plugin.id,
+                    "title": plugin.title,
+                    "version": plugin.version,
+                    "ok": plugin.ok,
+                    "trouble": plugin.trouble,
+                    "sources": plugin.sources,
+                    "path": plugin.path,
+                    "replaces": plugin.replaces,
+                    # Only a plugin of one's own can be removed from here.
+                    # A shipped one comes back with the next start anyway,
+                    # so a Remove button on it would be a lie.
+                    "mine": plugin.path.parent == mine,
+                }
+                for plugin in found.plugins
+            ],
+            "folder": mine,
+            "example": PLUGIN_EXAMPLE,
+        },
+    )
+
+
+@app.post("/admin/plugins")
+async def add_plugin(request: Request, file: UploadFile = File(...)) -> Response:
+    """Take a .lua file into the plugins folder.
+
+    Adding a plugin is adding code that runs in this process. It is walled
+    off — no files, no network, no credentials — but it reads every reference
+    anybody adds, so this is deliberately an admin-only door and says so on
+    the page rather than pretending it is an ordinary upload.
+    """
+    given = (file.filename or "").strip()
+    # Refused rather than quietly reduced to its last part. Stripping a
+    # "../" would be safe and would also mean somebody's file landing under a
+    # name they did not choose, which is a worse thing to be surprised by
+    # than an error.
+    if not given or given != Path(given).name:
+        return redirect("/admin/plugins", err="Give it a plain filename, with no path in it.")
+    name = given
+    if not name.endswith(".lua"):
+        return redirect("/admin/plugins", err="A plugin is a .lua file.")
+    stem = name[: -len(".lua")]
+    if not stem or not set(stem) <= registry.PLAIN:
+        return redirect(
+            "/admin/plugins",
+            err="Name it with letters, numbers, dashes or underscores — it becomes its id.",
+        )
+
+    body = await file.read(MOST_PLUGIN_BYTES + 1)
+    if len(body) > MOST_PLUGIN_BYTES:
+        return redirect("/admin/plugins", err="That file is far too big to be a plugin.")
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        return redirect("/admin/plugins", err="That file is not text.")
+
+    # Read it before keeping it. A plugin that will not load is a plugin
+    # nobody wants in the folder, and saying so now beats a broken row later.
+    try:
+        checked = registry.judge(stem, text)
+    except OSError as exc:  # pragma: no cover - a full or unwritable volume
+        return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
+    if checked.trouble:
+        return redirect("/admin/plugins", err=f"{name}: {checked.trouble}")
+
+    folder = registry.folder()
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / name).write_text(text, encoding="utf-8")
+    registry.reload()
+    return redirect("/admin/plugins", ok=f"{checked.title} added.")
+
+
+@app.post("/admin/plugins/reload")
+def reload_plugins(request: Request) -> Response:
+    """Read the folder again, for a file put there by hand."""
+    found = registry.reload()
+    broken = len(found.broken)
+    said = f"{len(found.working)} plugin{'s' if len(found.working) != 1 else ''} loaded"
+    if broken:
+        said += f", {broken} not"
+    return redirect("/admin/plugins", ok=said + ".")
+
+
+@app.post("/admin/plugins/{plugin_id}/remove")
+def remove_plugin(request: Request, plugin_id: str) -> Response:
+    """Take one of your own out of the folder.
+
+    Only your own: a shipped plugin lives in the image and would come back on
+    the next start, so a button offering to remove one would be a lie.
+    """
+    if not set(plugin_id) <= registry.PLAIN:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+    path = registry.folder() / f"{plugin_id}.lua"
+    if not path.is_file():
+        return redirect("/admin/plugins", err="That is not a plugin you added.")
+    path.unlink()
+    registry.reload()
+    return redirect("/admin/plugins", ok=f"{plugin_id} removed.")
 
 
 @app.post("/admin/accounts/{user_pk}/password")
