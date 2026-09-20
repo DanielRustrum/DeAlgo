@@ -196,6 +196,12 @@
   margin-top: 4px;
 }
 .plugin.is-bad { border-left: 3px solid var(--bad); padding-left: 12px; }
+// Switched off, which is not broken: greyed the way a paused channel is,
+// rather than marked as a fault.
+.plugin.is-off { opacity: 0.55; }
+.plugin.is-off:hover, .plugin.is-off:focus-within { opacity: 1; }
+.plugin-doing { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.plugin-doing form { display: inline; }
 .pill-shipped { color: var(--muted); }
 
 // The worked example. Wide and preformatted, so it scrolls rather than

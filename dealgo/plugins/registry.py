@@ -87,9 +87,20 @@ class Plugin:
     #: own copy in the data folder. Worth saying out loud: a stale override is
     #: otherwise indistinguishable from a bug in De-Algo.
     replaces: Path | None = None
+    #: Switched off by hand. It still loaded, and everything about it is
+    #: still readable — it simply offers nothing while it is off, which is
+    #: the only way to turn off a plugin that ships in the image.
+    paused: bool = False
 
     @property
     def ok(self) -> bool:
+        """Loaded, and switched on. The two are different questions and the
+        page asks them separately: a paused plugin is not a broken one."""
+        return self.trouble is None and not self.paused
+
+    @property
+    def loaded(self) -> bool:
+        """It made sense, whether or not it is switched on."""
         return self.trouble is None
 
     @property
@@ -109,7 +120,13 @@ class Registry:
 
     @property
     def broken(self) -> list[Plugin]:
-        return [plugin for plugin in self.plugins if not plugin.ok]
+        """Ones that did not load. A paused plugin is not among them: it is
+        working fine and has been asked to stand down."""
+        return [plugin for plugin in self.plugins if plugin.trouble is not None]
+
+    @property
+    def paused(self) -> list[Plugin]:
+        return [plugin for plugin in self.plugins if plugin.paused]
 
     def source_kinds(self) -> list[SourceKind]:
         return [kind for plugin in self.working for kind in plugin.sources]
@@ -225,20 +242,54 @@ def current() -> Registry:
     global _loaded
     with _lock:
         if _loaded is None:
-            _loaded = read(shipped(), folder())
+            _loaded = _everything()
         return _loaded
 
 
 def reload() -> Registry:
-    """Read the folders again. What the Admin page's button does, and what an
-    upload does once the file has landed."""
+    """Read the folders again. What the Admin page's button does, what an
+    upload does once the file has landed, and what switching one on or off
+    does — the switch changes what the registry offers, so the registry has
+    to be built again to offer it."""
     global _loaded
     with _lock:
-        _loaded = read(shipped(), folder())
+        _loaded = _everything()
         return _loaded
 
 
-def read(*folders: Path, given: dict[str, object] | None = None) -> Registry:
+def _everything() -> Registry:
+    """Both folders, with the switches applied."""
+    return read(shipped(), folder(), paused=paused_ids())
+
+
+def paused_ids() -> frozenset[str]:
+    """Which plugins have been switched off.
+
+    Read here rather than passed in, because every caller of ``current`` would
+    otherwise have to know that a registry has a database behind it. A
+    database that cannot be reached is read as "nothing is paused": a plugin
+    that silently stops working because a query failed would be the worst of
+    both.
+    """
+    from ..db import session_scope
+    from ..models import PluginState
+
+    try:
+        with session_scope() as session:
+            return frozenset(
+                row.plugin_id
+                for row in session.query(PluginState).filter(PluginState.enabled.is_(False))
+            )
+    except Exception:  # pragma: no cover - a database that is not there yet
+        log.warning("could not read which plugins are paused; treating all as on")
+        return frozenset()
+
+
+def read(
+    *folders: Path,
+    given: dict[str, object] | None = None,
+    paused: frozenset[str] = frozenset(),
+) -> Registry:
     """Load every ``.lua`` in each folder, in name order.
 
     Name order so the list is the same on every start: which plugin owns a
@@ -263,8 +314,16 @@ def read(*folders: Path, given: dict[str, object] | None = None) -> Registry:
             by_id[plugin.id] = plugin
             found.plugins.append(plugin)
 
+    for plugin in found.plugins:
+        plugin.paused = plugin.id in paused
+
     claimed: dict[str, str] = {}
     for plugin in found.plugins:
+        if plugin.paused:
+            # It offers nothing while it is off, so it claims nothing either
+            # — which is what makes a paused plugin the way to hand a source
+            # kind over to a replacement.
+            continue
         # Two plugins cannot both own a source kind: the second to ask is
         # refused, and told which one has it.
         for kind in list(plugin.sources):
@@ -275,6 +334,25 @@ def read(*folders: Path, given: dict[str, object] | None = None) -> Registry:
             else:
                 claimed[kind.kind] = plugin.title
     return found
+
+
+def set_paused(plugin_id: str, *, paused: bool) -> None:
+    """Switch a plugin off, or back on, and rebuild what is offered."""
+    from ..db import session_scope
+    from ..models import PluginState, utcnow
+
+    with session_scope() as session:
+        row = (
+            session.query(PluginState)
+            .filter(PluginState.plugin_id == plugin_id)
+            .one_or_none()
+        )
+        if row is None:
+            row = PluginState(plugin_id=plugin_id)
+            session.add(row)
+        row.enabled = not paused
+        row.changed_at = utcnow()
+    reload()
 
 
 def judge(stem: str, source: str) -> Plugin:

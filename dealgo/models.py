@@ -820,6 +820,29 @@ class SyncRun(Base):
         return self.trigger == "test"
 
 
+class PluginState(Base):
+    """Whether a plugin is switched on. One row per plugin that has ever
+    been switched off.
+
+    No owner: a plugin is code in this process, and it is either loaded or it
+    is not. Pausing one per account would mean the same file both running and
+    not running, which is not a thing a process can do — and it is why this
+    lives under Admin rather than in Settings.
+
+    Only the switch is stored. Everything else about a plugin — what it is
+    called, what it offers, whether it loads — is read from the file, because
+    the file is the truth and a second copy could only disagree with it.
+    """
+
+    __tablename__ = "plugin_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: The file's name without .lua, which is what the registry calls it.
+    plugin_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    changed_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class RunEvent(Base):
     """One line in the log of a run.
 

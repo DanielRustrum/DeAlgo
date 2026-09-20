@@ -3239,6 +3239,7 @@ PLUGIN_EXAMPLE = """return {
 def plugins_page(request: Request) -> HTMLResponse:
     found = registry.current()
     mine = registry.folder()
+    leaning = _sources_per_kind()
     return render(
         request,
         "plugins.html",
@@ -3249,20 +3250,87 @@ def plugins_page(request: Request) -> HTMLResponse:
                     "title": plugin.title,
                     "version": plugin.version,
                     "ok": plugin.ok,
+                    "loaded": plugin.loaded,
+                    "paused": plugin.paused,
                     "trouble": plugin.trouble,
                     "sources": plugin.sources,
                     "path": plugin.path,
                     "replaces": plugin.replaces,
                     # Only a plugin of one's own can be removed from here.
                     # A shipped one comes back with the next start anyway,
-                    # so a Remove button on it would be a lie.
+                    # so a Remove button on it would be a lie — pausing is
+                    # how you turn one of those off.
                     "mine": plugin.path.parent == mine,
+                    # How much is leaning on it, so switching one off is a
+                    # decision rather than a discovery.
+                    "leaning": sum(leaning.get(k.kind, 0) for k in plugin.sources),
                 }
                 for plugin in found.plugins
             ],
             "folder": mine,
             "example": PLUGIN_EXAMPLE,
         },
+    )
+
+
+def _sources_per_kind() -> dict[str, int]:
+    """How many watched sources each kind accounts for, across every account.
+
+    Install-wide, because a plugin is: switching one off reaches everybody,
+    and the admin deciding that should be able to see the whole cost.
+    """
+    with session_scope() as session:
+        rows = session.execute(
+            select(Channel.source_kind, func.count(Channel.id)).group_by(Channel.source_kind)
+        )
+        return {kind: count for kind, count in rows}
+
+
+@app.post("/admin/plugins/{plugin_id}/pause")
+def pause_plugin(request: Request, plugin_id: str, on: str = Form("")) -> Response:
+    """Switch a plugin off, or back on.
+
+    The only way to turn off one that ships in the image, and gentler than
+    removing one of your own: nothing is deleted, and what it offered comes
+    back the moment it is switched on again.
+    """
+    if not set(plugin_id) <= registry.PLAIN:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+    found = next((p for p in registry.current().plugins if p.id == plugin_id), None)
+    if found is None:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+
+    wanted = on == "1"
+    registry.set_paused(plugin_id, paused=not wanted)
+    if wanted:
+        return redirect("/admin/plugins", ok=f"{found.title} switched on.")
+    return redirect(
+        "/admin/plugins",
+        ok=f"{found.title} switched off. What it recognised is no longer recognised; "
+        "sources already being watched keep their own feed address and carry on.",
+    )
+
+
+@app.get("/admin/plugins/{plugin_id}/source", response_class=HTMLResponse)
+def plugin_source(request: Request, plugin_id: str) -> Response:
+    """Read a plugin's Lua.
+
+    A plugin is code that runs here, so being able to read it without leaving
+    the page is the least this owes anybody.
+    """
+    if not set(plugin_id) <= registry.PLAIN:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+    found = next((p for p in registry.current().plugins if p.id == plugin_id), None)
+    if found is None:
+        return redirect("/admin/plugins", err="That is not a plugin here.")
+    try:
+        text = found.path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return redirect("/admin/plugins", err=f"Could not be read: {exc}")
+    return render(
+        request,
+        "plugin_source.html",
+        {"plugin": found, "source": text},
     )
 
 

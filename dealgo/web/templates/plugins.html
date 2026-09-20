@@ -19,11 +19,17 @@
     feed lives; De-Algo does the fetching, so a plugin never touches the
     network, your credentials, or anyone else's data.
   </p>
+  <p class="hint">
+    <strong>Switching one off</strong> leaves the file where it is and stops
+    it being asked anything. Sources already being watched keep their own
+    feed address and carry on — what stops is recognising new ones. It is
+    the only way to turn off a plugin that ships with De-Algo.
+  </p>
 
   {% if plugins %}
   <ul class="plugin-list">
     {% for plugin in plugins %}
-    <li class="plugin {{ 'is-bad' if not plugin.ok }}">
+    <li class="plugin {{ 'is-bad' if not plugin.loaded }} {{ 'is-off' if plugin.paused }}">
       <div class="plugin-head">
         <strong>{{ plugin.title }}</strong>
         {% if plugin.version %}<span class="plugin-version">{{ plugin.version }}</span>{% endif %}
@@ -35,7 +41,8 @@
         {% if plugin.replaces %}
         <span class="pill pill-paused" title="{{ plugin.replaces }}">replaces the shipped one</span>
         {% endif %}
-        {% if not plugin.ok %}<span class="pill pill-failed">not loaded</span>{% endif %}
+        {% if not plugin.loaded %}<span class="pill pill-failed">not loaded</span>
+        {% elif plugin.paused %}<span class="pill pill-paused">switched off</span>{% endif %}
       </div>
 
       {% if plugin.trouble %}
@@ -57,12 +64,36 @@
 
       <div class="meta plugin-where">{{ plugin.path }}</div>
 
-      {% if plugin.mine %}
-      <form method="post" action="/admin/plugins/{{ plugin.id }}/remove"
-            onsubmit="return confirm('Remove {{ plugin.title }}? Sources using it stop being recognised.')">
-        <button class="btn btn-quiet" type="submit">Remove</button>
-      </form>
+      {% if plugin.leaning %}
+      <div class="meta">
+        {{ plugin.leaning }} watched source{{ 's' if plugin.leaning != 1 }}
+        {{ 'are' if plugin.leaning != 1 else 'is' }} of a kind it provides.
+        {%- if plugin.paused %} They keep their own feed address and carry on;
+        what stops is recognising new ones.{% endif %}
+      </div>
       {% endif %}
+
+      <div class="plugin-doing">
+        {% if plugin.loaded %}
+        <form method="post" action="/admin/plugins/{{ plugin.id }}/pause"
+              {% if not plugin.paused and plugin.leaning %}
+              onsubmit="return confirm('Switch off {{ plugin.title }}? {{ plugin.leaning }} watched source(s) are of a kind it provides. Nothing is deleted and they keep polling, but adding another stops working.')"
+              {% endif %}>
+          <input type="hidden" name="on" value="{{ '1' if plugin.paused else '0' }}">
+          <button class="btn btn-quiet" type="submit">
+            {{ 'Switch on' if plugin.paused else 'Switch off' }}</button>
+        </form>
+        {% endif %}
+
+        <a class="btn btn-quiet" href="/admin/plugins/{{ plugin.id }}/source">Read it</a>
+
+        {% if plugin.mine %}
+        <form method="post" action="/admin/plugins/{{ plugin.id }}/remove"
+              onsubmit="return confirm('Remove {{ plugin.title }} for good? Switching it off keeps the file.')">
+          <button class="btn btn-quiet" type="submit">Remove</button>
+        </form>
+        {% endif %}
+      </div>
     </li>
     {% endfor %}
   </ul>

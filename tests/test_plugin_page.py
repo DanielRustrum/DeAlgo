@@ -238,3 +238,134 @@ def test_a_file_put_there_by_hand_is_picked_up(admin, here):
 
     assert "By Hand" in answer.text
     assert registry.current().recognise("byhand/thing") is not None
+
+
+# -- switching one off -----------------------------------------------------
+
+
+def test_a_shipped_plugin_can_be_switched_off(admin):
+    """Removing one is impossible — it lives in the image — so this is the
+    only way to turn YouTube off."""
+    answer = admin.post("/admin/plugins/youtube/pause", data={"on": "0"}, follow_redirects=True)
+
+    assert "switched off" in answer.text
+    assert registry.current().recognise("@mkbhd") is None
+    # And the rest carry on.
+    assert registry.current().recognise("r/python").kind == "reddit"
+
+
+def test_switching_one_off_does_not_make_it_broken(admin):
+    """A paused plugin is working fine and has been asked to stand down."""
+    admin.post("/admin/plugins/youtube/pause", data={"on": "0"})
+    found = registry.current()
+
+    assert found.broken == []
+    youtube = next(p for p in found.plugins if p.id == "youtube")
+    assert youtube.loaded is True and youtube.paused is True
+    # Still readable, so you can see what you switched off.
+    assert admin.get("/admin/plugins/youtube/source").status_code == 200
+
+
+def test_switching_it_back_on_restores_what_it_offered(admin):
+    admin.post("/admin/plugins/youtube/pause", data={"on": "0"})
+    assert registry.current().recognise("@mkbhd") is None
+
+    answer = admin.post("/admin/plugins/youtube/pause", data={"on": "1"}, follow_redirects=True)
+
+    assert "switched on" in answer.text
+    assert registry.current().recognise("@mkbhd").kind == "youtube"
+
+
+def test_the_switch_outlives_a_restart(admin, db):
+    """It is a decision about the install, so it is stored rather than held
+    in the process that happened to make it."""
+    admin.post("/admin/plugins/youtube/pause", data={"on": "0"})
+
+    registry.reload()   # as a fresh start would
+
+    assert "youtube" in registry.paused_ids()
+    assert registry.current().recognise("@mkbhd") is None
+
+
+def test_sources_already_watched_keep_working_while_it_is_off(admin, db):
+    """Nothing is deleted and nothing stops polling: a channel holds its own
+    feed address, and the plugin's job was only to work it out once."""
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        session.add(Channel(
+            channel_id="r/python", title="r/python", source_kind="reddit",
+            source_url="https://www.reddit.com/r/python/.rss", enabled=True,
+        ))
+
+    admin.post("/admin/plugins/reddit/pause", data={"on": "0"})
+
+    with db.session_scope() as session:
+        kept = session.query(Channel).filter(Channel.channel_id == "r/python").one()
+        assert kept.enabled is True
+        assert kept.feed_url == "https://www.reddit.com/r/python/.rss"
+
+
+def test_the_page_says_how_much_is_leaning_on_one(admin, db):
+    """Switching one off should be a decision rather than a discovery."""
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        for name in ("r/a", "r/b"):
+            session.add(Channel(channel_id=name, title=name, source_kind="reddit",
+                                source_url=f"https://www.reddit.com/{name}/.rss"))
+
+    body = admin.get("/admin/plugins").text
+
+    assert "2 watched sources" in body
+
+
+def test_a_paused_plugin_hands_its_kind_to_a_replacement(admin, here):
+    """Which is what makes pausing useful: a shipped plugin steps aside so
+    one of your own can own the kind."""
+    admin.post("/admin/plugins/reddit/pause", data={"on": "0"})
+    (here / "myreddit.lua").write_text("""
+        return { api = 1, name = "My Reddit", sources = { { kind = "reddit",
+          recognise = function(r)
+            if string.match(r, "^r/") then return { key = r, feed = "https://mine/" .. r } end
+          end } } }
+    """, encoding="utf-8")
+    registry.reload()
+
+    found = registry.current().recognise("r/python")
+
+    assert found.plugin == "My Reddit"
+    assert [p.trouble for p in registry.current().plugins if p.trouble] == []
+
+
+def test_switching_something_that_is_not_here_is_refused(admin):
+    answer = admin.post("/admin/plugins/nope/pause", data={"on": "0"}, follow_redirects=True)
+
+    assert "not a plugin here" in answer.text
+
+
+# -- reading one -----------------------------------------------------------
+
+
+def test_a_plugin_can_be_read_without_leaving_the_page(admin):
+    """It is code that runs here. Being able to read it is the least this
+    owes anybody."""
+    body = admin.get("/admin/plugins/reddit/source").text
+
+    assert "recognise" in body
+    assert "openrss.org" in body, "the whole file, not a summary"
+
+
+def test_reading_something_that_is_not_here_is_refused(admin):
+    answer = admin.get("/admin/plugins/nope/source", follow_redirects=True)
+
+    assert "not a plugin here" in answer.text
+
+
+def test_a_member_cannot_read_a_plugin(admin):
+    admin.post("/logout")
+    admin.post("/login", data={"username": "sam", "password": "member-password"})
+
+    refused = admin.get("/admin/plugins/reddit/source", follow_redirects=False)
+
+    assert refused.status_code in (302, 303, 403)
