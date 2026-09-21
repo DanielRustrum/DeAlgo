@@ -249,6 +249,13 @@
 .graph-node.kind-deposit,
 .graph-node.kind-withdraw { border-left-color: #e0af68; }
 
+// The boxes that mark what passes rather than narrowing it. One colour
+// between them, because what they have in common — they turn nothing away —
+// is the thing worth reading at a glance beside a filter that does.
+.graph-node.kind-tag,
+.graph-node.kind-decay,
+.graph-node.kind-expire { border-left-color: #2ac3de; }
+
 // A jigsaw piece. Drawn under the box it is slotted into and interlocking
 // with it: a tab on the top that sits into the piece above, and a notch cut
 // out of the bottom for the next one down. Painted in the canvas colour
@@ -258,7 +265,8 @@ $tab: 18px;
 
 .graph-node.kind-timer,
 .graph-node.kind-reset,
-.graph-node.kind-alive {
+.graph-node.kind-alive,
+.graph-node.kind-lock {
   border-left-color: $piece;
   padding: 8px 12px;
 }
@@ -861,7 +869,11 @@ $tab: 18px;
 .palette-swatch.kind-withdraw { background: #e0af68; }
 .palette-swatch.kind-timer,
 .palette-swatch.kind-reset,
-.palette-swatch.kind-alive { background: #9ece6a; }
+.palette-swatch.kind-alive,
+.palette-swatch.kind-lock { background: #9ece6a; }
+.palette-swatch.kind-tag,
+.palette-swatch.kind-decay,
+.palette-swatch.kind-expire { background: #2ac3de; }
 
 // A plugin with more than one box gets a fold of its own inside the Plugins
 // one. Indented, so two levels of fold read as two levels.

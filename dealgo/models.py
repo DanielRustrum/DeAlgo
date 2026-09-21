@@ -729,6 +729,8 @@ class GraphNode(Base):
             return "Reset"
         if self.kind == "alive":
             return "Alive"
+        if self.kind == "lock":
+            return "Lock"
         if self.kind in ("deposit", "withdraw"):
             # Named after the repository it is about: two Deposit boxes only
             # mean the same thing when they carry the same name, so the name
@@ -736,6 +738,16 @@ class GraphNode(Base):
             named = (self.repository or "").strip()
             doing = "Deposit" if self.kind == "deposit" else "Withdraw"
             return f"{doing}: {named}" if named else doing
+        if self.kind == "tag":
+            # Named after the tag it puts on, for the same reason a Deposit
+            # box is named after its repository: on a canvas with three of
+            # them, which one this is, is the useful half.
+            named = (self.marks or "").strip()
+            return f"Tag: {named}" if named else "Tag"
+        if self.kind == "decay":
+            return "Decay"
+        if self.kind == "expire":
+            return "Expire"
         if self.kind == "group":
             return "Group"
         if self.kind == "plugin":

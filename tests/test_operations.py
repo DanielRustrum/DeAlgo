@@ -297,3 +297,35 @@ def test_the_boxes_stack_on_one_path(world, db):
     assert (video.view_seconds, video.view_locked) == (120, True)
     with db.session_scope() as session:
         assert session.scalar(select(Placement)).expires_at is not None
+
+
+# -- what they call themselves ---------------------------------------------
+
+
+def test_each_box_is_named_after_what_it_is(db):
+    """They all read "Filter" before this: the fallback at the end of the
+    list caught every kind nobody had written a branch for."""
+    from dealgo.models import GraphNode
+
+    named = {
+        kind: GraphNode(kind=kind).title
+        for kind in ("tag", "decay", "expire", "timer", "reset", "alive", "lock")
+    }
+
+    assert named == {
+        "tag": "Tag",
+        "decay": "Decay",
+        "expire": "Expire",
+        "timer": "Timer",
+        "reset": "Reset",
+        "alive": "Alive",
+        "lock": "Lock",
+    }
+
+
+def test_a_tag_box_is_named_after_the_tag_it_puts_on(db):
+    """On a canvas with three of them, which one this is, is the useful
+    half — the same reason a Deposit box carries its repository."""
+    from dealgo.models import GraphNode
+
+    assert GraphNode(kind="tag", marks="long reads").title == "Tag: long reads"
