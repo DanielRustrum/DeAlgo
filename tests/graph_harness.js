@@ -480,6 +480,11 @@ async function main() {
   // drag, so the distance is never a guess.
   report.snapping = await droppingAPieceNearABox();
 
+  // Anything slotted under a box travels with it. A piece has no position of
+  // its own worth keeping — it is drawn from its host's — so a box that
+  // moved and left its pieces behind was a box drawn without them.
+  report.following = piecesFollowTheirHost();
+
   report.removing = await removingWithDialogsBlocked();
   process.stdout.write(JSON.stringify(report));
 }
@@ -647,6 +652,88 @@ async function droppingAPieceNearABox() {
     went[what] = (asked[0] ?? "").includes("attach_to=7");
   }
   return went;
+}
+
+/** Drag a feed with two pieces slotted under it, and say where they end up. */
+function piecesFollowTheirHost() {
+  const nothing = { forEach() {} };
+  const make = (tag) => ({
+    tag, className: "", textContent: "", style: {}, dataset: {}, children: [],
+    hidden: false, offsetTop: 0, offsetLeft: 0, offsetHeight: 60, offsetWidth: 212,
+    tabIndex: 0,
+    classList: {
+      names: new Set(),
+      add(name) { this.names.add(name); },
+      remove(name) { this.names.delete(name); },
+      toggle(name, on) { if (on) this.names.add(name); else this.names.delete(name); },
+      contains(name) { return this.names.has(name); },
+    },
+    setAttribute() {}, removeAttribute() {}, addEventListener() {},
+    appendChild(child) { this.children.push(child); return child; },
+    remove() {},
+    querySelector() { return null; }, querySelectorAll() { return nothing; },
+  });
+  class Element {
+    constructor(fields) { Object.assign(this, fields); }
+  }
+  const context = vm.createContext({
+    document: {
+      addEventListener() {},
+      body: { addEventListener() {}, classList: { toggle() {} } },
+      querySelectorAll() { return nothing; },
+      createElement: make,
+      createElementNS: (ns, tag) => make(tag),
+      createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
+    },
+    window: {}, console, Element, URLSearchParams,
+    fetch: async () => ({ ok: true, json: async () => ({}) }),
+  });
+  loadGraph(context);
+
+  const plain = {
+    title: "", note: "", enabled: true, piece: null, trigger: null, sort: null,
+    plugin: null, channel: null, asks: null, store: null, feed: null, size: null,
+    overrides: {}, detail: null, polled: null,
+  };
+  const feed = { ...plain, id: 7, kind: "feed", x: 130, y: 88 };
+  const timer = {
+    ...plain, id: 8, kind: "timer", x: 0, y: 0,
+    piece: { under: 7, minutes: 30, cron: "" },
+  };
+  const reset = {
+    ...plain, id: 9, kind: "reset", x: 0, y: 0,
+    piece: { under: 8, minutes: 30, cron: "0 9 * * *" },
+  };
+  const canvas = Object.assign(make("div"), {
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 900 }),
+    hasPointerCapture: () => false,
+    releasePointerCapture() {}, setPointerCapture() {},
+  });
+  const state = {
+    nodes: [feed, timer, reset], wires: [], sources: [], picked: new Set(),
+    busy: false, selectedNode: null, selectedWire: null, tab: "settings",
+    parts: {
+      canvas, drawer: make("div"), layer: make("div"), groups: make("div"),
+      empty: null, wires: make("div"), error: make("p"), verdict: make("p"),
+    },
+    boxes: new Map(), marks: new Map(), run: new Map(),
+    panX: 0, panY: 0, zoom: 1, drag: null, dropping: null, ghost: null,
+  };
+  context.drawGraphNodes(state);
+  const at = (id) => {
+    const box = state.boxes.get(id);
+    return { left: box.style.left, top: box.style.top };
+  };
+  const before = { feed: at(7), timer: at(8), reset: at(9) };
+
+  // A move drag of the feed, three hundred right and two hundred down.
+  state.drag = {
+    kind: "move", pointerId: 1, nodeId: 7, grabX: 70, grabY: 32,
+    startX: 130, startY: 88, fromX: 200, fromY: 120, moved: true, carried: [],
+  };
+  context.onGraphPointerMove(state, { pointerId: 1, clientX: 500, clientY: 320 });
+
+  return { before, after: { feed: at(7), timer: at(8), reset: at(9) } };
 }
 
 /** Draw a feed with two pieces chained under it, and say where they land. */

@@ -1792,6 +1792,11 @@ function onGraphPointerMove(state, event) {
                 moved.style.top = `${held.node.y}px`;
             }
         }
+        // Anything slotted under what moved travels with it. A piece has no
+        // position of its own worth keeping — it is drawn from its host's — so
+        // this works them all out again rather than shifting each by the delta,
+        // and a chain three deep follows as readily as one piece.
+        placeGraphPieces(state);
         // Whichever node is open, wherever it has just been moved to — by being
         // dragged itself, or by the group or selection that carried it.
         keepGraphPopoverWithItsNode(state);

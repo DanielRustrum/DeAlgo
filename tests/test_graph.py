@@ -3357,6 +3357,22 @@ def test_only_one_drawer_is_ever_out(canvas_report):
 
 
 @needs_node
+def test_pieces_travel_with_the_box_they_are_slotted_into(canvas_report):
+    """A piece has no position of its own worth keeping — it is drawn from
+    its host's — so a box that moved and left its pieces behind was a box
+    drawn without them."""
+    went = canvas_report["following"]
+
+    assert went["before"]["feed"] == {"left": "130px", "top": "88px"}
+    assert went["before"]["timer"] == {"left": "130px", "top": "148px"}
+
+    # Three hundred right and two hundred down, and the chain goes with it.
+    assert went["after"]["feed"] == {"left": "430px", "top": "288px"}
+    assert went["after"]["timer"] == {"left": "430px", "top": "348px"}
+    assert went["after"]["reset"] == {"left": "430px", "top": "408px"}
+
+
+@needs_node
 def test_a_piece_goes_in_when_dropped_near_a_box_not_only_on_it(canvas_report):
     """Nobody aims at a one-pixel seam. Requiring the pointer to be over the
     box meant a piece dropped just below one — which is where it looks like
