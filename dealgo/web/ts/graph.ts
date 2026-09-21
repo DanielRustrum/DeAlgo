@@ -22,11 +22,12 @@ type GraphNodeKind =
   // Jigsaw pieces. Not on any path and not wired to anything: each is
   // slotted under a box and changes what that box does.
   | "timer"
-  | "reset";
+  | "reset"
+  | "alive";
 
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind: GraphNodeKind): boolean {
-  return kind === "timer" || kind === "reset";
+  return kind === "timer" || kind === "reset" || kind === "alive";
 }
 /** There used to be two: a source's wire was stored against its channel and
  *  drawn from that, which is why two boxes for one channel showed the same
@@ -302,7 +303,8 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "deposit" ||
     value === "withdraw" ||
     value === "timer" ||
-    value === "reset"
+    value === "reset" ||
+    value === "alive"
   ) {
     return value;
   }
@@ -373,6 +375,8 @@ function asGraphPiece(value: unknown): GraphPiece | null {
     under: typeof under === "number" ? under : null,
     minutes: typeof raw["minutes"] === "number" ? raw["minutes"] : 30,
     cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
+    from: typeof raw["from"] === "string" ? raw["from"] : "",
+    to: typeof raw["to"] === "string" ? raw["to"] : "",
   };
 }
 
@@ -637,6 +641,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "withdraw") return "Withdraw";
   if (kind === "timer") return "Timer";
   if (kind === "reset") return "Reset";
+  if (kind === "alive") return "Alive";
   if (kind === "feed") return "Feed";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
@@ -668,6 +673,9 @@ interface GraphPiece {
   minutes: number;
   /** Reset: the cron that gives you another. */
   cron: string;
+  /** Alive: the two ends of the stretch of day it allows, as "HH:MM". */
+  from: string;
+  to: string;
 }
 
 /** What a Deposit or Withdraw box is about. */
@@ -1496,7 +1504,20 @@ function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
   const piece = node.piece;
   if (piece === null) return;
 
-  if (node.kind === "timer") {
+  if (node.kind === "alive") {
+    const pair = graphElement("div", "graph-times");
+    for (const [name, value, label] of [
+      ["alive_from", piece.from, "From"],
+      ["alive_to", piece.to, "To"],
+    ] as const) {
+      const when = document.createElement("input");
+      when.type = "time";
+      when.name = name;
+      when.value = value;
+      pair.appendChild(graphLabelled(label, when));
+    }
+    form.appendChild(pair);
+  } else if (node.kind === "timer") {
     const many = document.createElement("input");
     many.type = "number";
     many.name = "duration_minutes";
@@ -1518,9 +1539,11 @@ function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
       "hint",
       piece.under === null
         ? "Loose on the canvas. Drop it on a box to slot it in — it changes what that box does."
-        : node.kind === "timer"
-          ? "The clock starts when you open the feed, not at some hour of the day. Without a Reset under the same box you get one sitting and no more."
-          : "Each time this comes round the Timer starts again. Several Resets are several chances to read.",
+        : node.kind === "alive"
+          ? "Read on the clock, in UTC, and it narrows whatever else is slotted in: a sitting with time left on it is still no good outside these hours. An end before its start runs through midnight. Both the same means any time of day."
+          : node.kind === "timer"
+            ? "The clock starts when you open the feed, not at some hour of the day. Without a Reset under the same box you get one sitting and no more."
+            : "Each time this comes round the Timer starts again. Several Resets are several chances to read.",
     ),
   );
 }

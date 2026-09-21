@@ -1987,6 +1987,8 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                         "under": node.attached_to,
                         "minutes": node.duration_minutes or graph_service.DEFAULT_DURATION_MINUTES,
                         "cron": node.cron or graph_service.DEFAULT_CRON,
+                        "from": graph_service.clock_time(node.alive_from),
+                        "to": graph_service.clock_time(node.alive_to),
                     }
                     if node.kind in graph_service.JIGSAW
                     else None
@@ -2187,6 +2189,12 @@ def _window_words(pieces: list[GraphNode]) -> list[str]:
     )
     said = [graph_service.piece_words(one) for one in timers[:1]]
     said += [graph_service.piece_words(one, window) for one in resets]
+    # Last, because it is a condition on the rest rather than another way in.
+    said += [
+        graph_service.piece_words(one)
+        for one in pieces
+        if one.kind == "alive" and graph_service.piece_words(one) != "any time of day"
+    ]
     return said
 
 
@@ -3088,6 +3096,8 @@ async def graph_save_node(
     max_per_run: str = Form(""),
     repository: str = Form(""),
     takes_how_many: str = Form(""),
+    alive_from: str = Form(""),
+    alive_to: str = Form(""),
 ) -> JSONResponse:
     """Save what a box says about itself.
 
@@ -3138,7 +3148,16 @@ async def graph_save_node(
                 return JSONResponse({"error": str(exc)}, status_code=400)
             node.sort_dir = "asc" if sort_dir == "asc" else "desc"
         elif node.kind in graph_service.JIGSAW:
-            if node.kind == "timer":
+            if node.kind == "alive":
+                begins = graph_service.clock_time(alive_from)
+                ends = graph_service.clock_time(alive_to)
+                if (alive_from.strip() and not begins) or (alive_to.strip() and not ends):
+                    return JSONResponse(
+                        {"error": "Write the times as HH:MM, on a 24-hour clock."},
+                        status_code=400,
+                    )
+                node.alive_from, node.alive_to = begins or None, ends or None
+            elif node.kind == "timer":
                 wanted = duration_minutes.strip()
                 node.duration_minutes = (
                     int(wanted) if wanted.isdigit() and int(wanted) > 0 else None

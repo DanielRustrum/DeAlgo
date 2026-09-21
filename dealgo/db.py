@@ -152,6 +152,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # creates from scratch, and a column added to an existing one goes in
     # plain. Nothing reads it but the walk up a chain, which checks anyway.
     ("graph_node", "attached_to", "INTEGER"),
+    # The two ends of an Alive piece's stretch of the day.
+    ("graph_node", "alive_from", "VARCHAR(5)"),
+    ("graph_node", "alive_to", "VARCHAR(5)"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

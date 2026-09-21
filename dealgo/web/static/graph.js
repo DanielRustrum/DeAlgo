@@ -12,7 +12,7 @@
 // Top-level `function` declarations only: see the note in dialog.ts.
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
-    return kind === "timer" || kind === "reset";
+    return kind === "timer" || kind === "reset" || kind === "alive";
 }
 // -- reading what the server said -----------------------------------------
 function asGraphRecord(value) {
@@ -31,7 +31,8 @@ function asGraphNodeKind(value) {
         value === "deposit" ||
         value === "withdraw" ||
         value === "timer" ||
-        value === "reset") {
+        value === "reset" ||
+        value === "alive") {
         return value;
     }
     return null;
@@ -102,6 +103,8 @@ function asGraphPiece(value) {
         under: typeof under === "number" ? under : null,
         minutes: typeof raw["minutes"] === "number" ? raw["minutes"] : 30,
         cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
+        from: typeof raw["from"] === "string" ? raw["from"] : "",
+        to: typeof raw["to"] === "string" ? raw["to"] : "",
     };
 }
 function asGraphStore(value) {
@@ -372,6 +375,8 @@ function graphKindLabel(kind) {
         return "Timer";
     if (kind === "reset")
         return "Reset";
+    if (kind === "alive")
+        return "Alive";
     if (kind === "feed")
         return "Feed";
     if (kind === "sort")
@@ -1123,7 +1128,21 @@ function graphPieceFields(form, node) {
     const piece = node.piece;
     if (piece === null)
         return;
-    if (node.kind === "timer") {
+    if (node.kind === "alive") {
+        const pair = graphElement("div", "graph-times");
+        for (const [name, value, label] of [
+            ["alive_from", piece.from, "From"],
+            ["alive_to", piece.to, "To"],
+        ]) {
+            const when = document.createElement("input");
+            when.type = "time";
+            when.name = name;
+            when.value = value;
+            pair.appendChild(graphLabelled(label, when));
+        }
+        form.appendChild(pair);
+    }
+    else if (node.kind === "timer") {
         const many = document.createElement("input");
         many.type = "number";
         many.name = "duration_minutes";
@@ -1141,9 +1160,11 @@ function graphPieceFields(form, node) {
     }
     form.appendChild(graphElement("p", "hint", piece.under === null
         ? "Loose on the canvas. Drop it on a box to slot it in — it changes what that box does."
-        : node.kind === "timer"
-            ? "The clock starts when you open the feed, not at some hour of the day. Without a Reset under the same box you get one sitting and no more."
-            : "Each time this comes round the Timer starts again. Several Resets are several chances to read."));
+        : node.kind === "alive"
+            ? "Read on the clock, in UTC, and it narrows whatever else is slotted in: a sitting with time left on it is still no good outside these hours. An end before its start runs through midnight. Both the same means any time of day."
+            : node.kind === "timer"
+                ? "The clock starts when you open the feed, not at some hour of the day. Without a Reset under the same box you get one sitting and no more."
+                : "Each time this comes round the Timer starts again. Several Resets are several chances to read."));
 }
 /** A Deposit or a Withdraw box: which repository, and how much to pull.
  *

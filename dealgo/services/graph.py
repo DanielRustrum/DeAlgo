@@ -55,12 +55,12 @@ KINDS = (
     # Jigsaw pieces. These are not on any path and have no wires: each is
     # slotted under a box and changes what that box does. Pieces chain, and
     # a chain belongs to the box at the top of it.
-    "timer", "reset",
+    "timer", "reset", "alive",
 )
 
 #: The pieces, as against the boxes. Kept together so "is this a piece"
 #: is one question asked in one place.
-JIGSAW = ("timer", "reset")
+JIGSAW = ("timer", "reset", "alive")
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -121,7 +121,12 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # A piece is slotted, not wired. Nothing runs into or out of one.
     "timer": (),
     "reset": (),
+    "alive": (),
 }
+
+#: What an Alive piece allows when nobody has said. All day, so a piece just
+#: dropped in changes nothing until it is told to.
+DEFAULT_ALIVE = ("00:00", "00:00")
 
 # Where a newly laid-out graph puts things: sources on the left, feeds on the
 # right, filters between them. Triggers are placed beside the channel they are
@@ -324,6 +329,59 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
             # away or goes through filters on the way.
             _walk(node, by_id, out, channel, [], set(), found, source=node)
     return _once_each(found)
+
+
+def clock_time(raw: str | None) -> str:
+    """A time of day as "HH:MM", or "" if that is not what it is.
+
+    Forgiving about what is typed and strict about what is stored: "9",
+    "9:5", "09.05" and "0905" all become "09:05", because a field asking for
+    a time should take a time however somebody writes one down.
+    """
+    said = "".join((raw or "").split())
+    if not said:
+        return ""
+    for mark in (":", ".", "h"):
+        said = said.replace(mark, ":")
+    hours, _, minutes = said.partition(":")
+    if not minutes and len(hours) == 4 and hours.isdigit():
+        hours, minutes = hours[:2], hours[2:]   # "0905"
+    if not hours.isdigit() or (minutes and not minutes.isdigit()):
+        return ""
+    hour, minute = int(hours), int(minutes or 0)
+    if hour > 23 or minute > 59:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _minutes_of(said: str | None) -> int | None:
+    """A stored "HH:MM" as minutes since midnight."""
+    tidy = clock_time(said)
+    if not tidy:
+        return None
+    hours, _, minutes = tidy.partition(":")
+    return int(hours) * 60 + int(minutes)
+
+
+def alive_now(piece: GraphNode, now: dt.datetime) -> bool:
+    """Whether this Alive piece allows the moment it is asked about.
+
+    Read on the clock rather than from when anybody sat down, so it is the
+    one piece with an opinion about the hour of the day. A stretch that ends
+    before it begins runs through midnight, which is how somebody writes
+    "overnight" without being asked to say it twice.
+
+    Two ends the same is the whole day — the reading that cannot accidentally
+    shut a feed for ever, which the other one can.
+    """
+    begins = _minutes_of(piece.alive_from)
+    ends = _minutes_of(piece.alive_to)
+    if begins is None or ends is None or begins == ends:
+        return True
+    minute = _aware(now).hour * 60 + _aware(now).minute
+    if begins < ends:
+        return begins <= minute < ends
+    return minute >= begins or minute < ends
 
 
 def store_name(raw: str | None) -> str:
@@ -895,6 +953,10 @@ def window_state(pieces: list[GraphNode], now: dt.datetime) -> Window:
     * **Reset says when you get another.** A cron: the sitting is re-armed the
       next time it comes round. Any one of several is enough, so a second
       Reset is a second chance to read rather than a further condition.
+    * **Alive says when the feed is allowed at all.** A stretch of the day,
+      read on the clock. It narrows whatever the other two worked out: a
+      sitting with time left on it is still no good at four in the morning.
+      Several are several stretches — any one of them allowing it is enough.
 
     A Timer with no Reset gives you one sitting and no more, and says so.
     A Reset with no Timer gives the usual half hour each time it comes round.
@@ -906,6 +968,15 @@ def window_state(pieces: list[GraphNode], now: dt.datetime) -> Window:
 
     timers = [node for node in pieces if node.kind == "timer"]
     resets = [node for node in pieces if node.kind == "reset"]
+    living = [node for node in pieces if node.kind == "alive"]
+
+    # Asked first, and on its own terms: it is about the hour rather than
+    # about a sitting, so being outside it is a shut feed whatever else the
+    # pieces say — and a sitting must not be spent against a feed that was
+    # never going to open.
+    if living and not any(alive_now(node, now) for node in living):
+        return Window(open=False, opens_at=_next_alive(living, now))
+
     if not timers and not resets:
         return Window(open=True)
 
@@ -935,6 +1006,28 @@ def window_state(pieces: list[GraphNode], now: dt.datetime) -> Window:
 
     soonest = [when for when in (_next_firing(node, now) for node in resets) if when]
     return Window(open=False, opens_at=min(soonest) if soonest else None)
+
+
+def _next_alive(pieces: list[GraphNode], now: dt.datetime) -> dt.datetime | None:
+    """When the next of these stretches begins, so a shut feed can say.
+
+    The soonest of them, since any one allowing it is enough. Walked forward
+    a minute at a time would be simpler and slower; this works out each
+    beginning directly and takes the nearest.
+    """
+    moment = _aware(now)
+    soonest: dt.datetime | None = None
+    for piece in pieces:
+        begins = _minutes_of(piece.alive_from)
+        if begins is None:
+            continue
+        today = moment.replace(
+            hour=begins // 60, minute=begins % 60, second=0, microsecond=0
+        )
+        when = today if today > moment else today + dt.timedelta(days=1)
+        if soonest is None or when < soonest:
+            soonest = when
+    return soonest
 
 
 def _fired_between(expression: str, since: dt.datetime, now: dt.datetime) -> bool:
@@ -1046,6 +1139,12 @@ def _came_round_within(expression: str, minutes: int, now: dt.datetime) -> bool:
 
 def piece_words(piece: GraphNode, window: int | None = None) -> str:
     """What one jigsaw piece does, in the words that belong to it."""
+    if piece.kind == "alive":
+        begins = clock_time(piece.alive_from)
+        ends = clock_time(piece.alive_to)
+        if not begins or not ends or begins == ends:
+            return "any time of day"
+        return f"only between {begins} and {ends}"
     if piece.kind == "timer":
         minutes = max(1, piece.duration_minutes or DEFAULT_DURATION_MINUTES)
         return f"{every_words(minutes)} once you start reading"
@@ -2011,6 +2110,7 @@ def add_piece(
     host: GraphNode | None = None,
     duration_minutes: int | None = None,
     cron: str | None = None,
+    alive: tuple[str, str] | None = None,
     x: int = 0,
     y: int = 0,
 ) -> GraphNode:
@@ -2022,11 +2122,14 @@ def add_piece(
     """
     if kind not in JIGSAW:
         raise GraphError(f"There is no {kind} piece.")
+    ends = alive or DEFAULT_ALIVE
     piece = GraphNode(
         owner_pk=owner,
         kind=kind,
         duration_minutes=duration_minutes if kind == "timer" else None,
         cron=(cron or DEFAULT_CRON) if kind == "reset" else None,
+        alive_from=clock_time(ends[0]) if kind == "alive" else None,
+        alive_to=clock_time(ends[1]) if kind == "alive" else None,
         x=x,
         y=y,
     )

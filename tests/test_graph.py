@@ -2746,6 +2746,95 @@ def test_asking_whether_a_feed_is_open_starts_nothing(db):
     assert timer.last_fired_at is None
 
 
+# -- the hours a feed is allowed at all ------------------------------------
+
+
+def test_alive_allows_only_the_stretch_of_day_it_names(db):
+    day = piece("alive", alive_from="09:00", alive_to="17:00")
+
+    assert graph.is_open([day], dt.datetime(2026, 5, 1, 12, 0)) is True
+    assert graph.is_open([day], dt.datetime(2026, 5, 1, 8, 59)) is False
+    # The far end is the moment it stops, not the last minute it allows.
+    assert graph.is_open([day], dt.datetime(2026, 5, 1, 17, 0)) is False
+
+
+def test_an_end_before_its_start_runs_through_midnight(db):
+    """Which is how somebody writes "overnight" without being asked to say
+    it as two stretches."""
+    night = piece("alive", alive_from="22:00", alive_to="06:00")
+
+    assert graph.is_open([night], dt.datetime(2026, 5, 1, 23, 0)) is True
+    assert graph.is_open([night], dt.datetime(2026, 5, 1, 3, 0)) is True
+    assert graph.is_open([night], dt.datetime(2026, 5, 1, 12, 0)) is False
+
+
+def test_both_ends_the_same_is_any_time_of_day(db):
+    """The reading that cannot accidentally shut a feed for ever, which the
+    other one can."""
+    always = piece("alive", alive_from="09:00", alive_to="09:00")
+
+    assert graph.is_open([always], dt.datetime(2026, 5, 1, 3, 0)) is True
+
+
+def test_alive_narrows_a_sitting_that_still_has_time_left(db):
+    """It is about the hour rather than about a sitting, so being outside it
+    shuts the feed whatever the other pieces worked out."""
+    timer = piece("timer", duration_minutes=90)
+    timer.last_fired_at = dt.datetime(2026, 5, 1, 3, 30)
+    day = piece("alive", alive_from="09:00", alive_to="17:00")
+
+    # Half an hour into ninety minutes, and it would be open on its own.
+    assert graph.is_open([timer], dt.datetime(2026, 5, 1, 4, 0)) is True
+    assert graph.is_open([timer, day], dt.datetime(2026, 5, 1, 4, 0)) is False
+
+
+def test_a_feed_shut_by_the_hour_says_when_it_wakes(db):
+    day = piece("alive", alive_from="09:00", alive_to="17:00")
+
+    state = graph.window_state([day], dt.datetime(2026, 5, 1, 4, 0))
+
+    assert state.open is False
+    assert state.opens_at is not None and state.opens_at.hour == 9
+
+
+def test_a_sitting_is_not_spent_against_an_hour_that_was_never_going_to_open(db):
+    """Asked before the sitting, so arriving at four in the morning does not
+    burn the day's ninety minutes on a feed that refused to open."""
+    timer = piece("timer", duration_minutes=90)
+    day = piece("alive", alive_from="09:00", alive_to="17:00")
+
+    state = graph.window_state([timer, day], dt.datetime(2026, 5, 1, 4, 0))
+
+    assert state.open is False
+    assert state.starting == []
+
+
+def test_more_alive_pieces_are_more_stretches(db):
+    morning = piece("alive", alive_from="06:00", alive_to="09:00")
+    evening = piece("alive", alive_from="18:00", alive_to="22:00")
+
+    both = [morning, evening]
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 7, 0)) is True
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 19, 0)) is True
+    assert graph.is_open(both, dt.datetime(2026, 5, 1, 12, 0)) is False
+
+
+@pytest.mark.parametrize(
+    ("typed", "stored"),
+    [("9", "09:00"), ("9:5", "09:05"), ("09.05", "09:05"), ("0905", "09:05"),
+     ("17:00", "17:00"), (" 7 ", "07:00")],
+)
+def test_a_time_is_taken_however_it_is_written_down(typed, stored):
+    """A field asking for a time should take a time however somebody writes
+    one, and store the one shape."""
+    assert graph.clock_time(typed) == stored
+
+
+@pytest.mark.parametrize("typed", ["24:00", "09:61", "noon", "", "-1"])
+def test_something_that_is_not_a_time_is_not_one(typed):
+    assert graph.clock_time(typed) == ""
+
+
 # -- slotting pieces in ----------------------------------------------------
 
 
@@ -2891,7 +2980,76 @@ def test_the_palette_offers_the_pieces(canvas):
     body = canvas.get("/channels").text
     assert 'data-palette="timer"' in body
     assert 'data-palette="reset"' in body
+    assert 'data-palette="alive"' in body
     assert "<summary>Jigsaw</summary>" in body
+
+
+def test_an_alive_piece_is_set_from_its_panel(canvas):
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    piece = boxes(
+        canvas.post("/graph/nodes", data={"kind": "alive", "attach_to": feed["id"]}).json(),
+        "alive",
+    )[0]
+    # Nothing said yet, so it allows everything: a piece just dropped in
+    # changes nothing until it is told to.
+    assert piece["note"] == "any time of day"
+
+    answer = canvas.post(
+        f"/graph/nodes/{piece['id']}",
+        data={"box_form": "1", "active": "1", "alive_from": "9", "alive_to": "17:30"},
+    )
+
+    assert answer.status_code == 200
+    assert boxes(answer.json(), "alive")[0]["note"] == "only between 09:00 and 17:30"
+    assert only(answer.json(), "feed")["feed"]["windows"] == [
+        "only between 09:00 and 17:30"
+    ]
+
+
+def test_a_time_that_is_not_one_is_refused_with_a_reason(canvas):
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    piece = boxes(
+        canvas.post("/graph/nodes", data={"kind": "alive", "attach_to": feed["id"]}).json(),
+        "alive",
+    )[0]
+
+    answer = canvas.post(
+        f"/graph/nodes/{piece['id']}",
+        data={"box_form": "1", "active": "1", "alive_from": "lunchtime", "alive_to": "17:00"},
+    )
+
+    assert answer.status_code == 400
+    assert "24-hour clock" in answer.json()["error"]
+
+
+def test_all_three_pieces_read_as_one_sentence_on_the_feed(canvas):
+    """Each says its own half, in the order they are asked: how long, when it
+    comes back, and the hours it is allowed at all."""
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    timer = boxes(
+        canvas.post("/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]}).json(),
+        "timer",
+    )[0]
+    reset = boxes(
+        canvas.post("/graph/nodes", data={"kind": "reset", "attach_to": timer["id"]}).json(),
+        "reset",
+    )[0]
+    alive = boxes(
+        canvas.post("/graph/nodes", data={"kind": "alive", "attach_to": reset["id"]}).json(),
+        "alive",
+    )[0]
+    canvas.post(
+        f"/graph/nodes/{alive['id']}",
+        data={"box_form": "1", "active": "1", "alive_from": "09:00", "alive_to": "17:00"},
+    )
+
+    said = only(canvas.get("/api/graph").json(), "feed")["feed"]["windows"]
+
+    assert said == [
+        "30 minutes once you start reading",
+        "another 30 minutes on “0 9 * * *”",
+        "only between 09:00 and 17:00",
+    ]
 
 
 def test_a_piece_is_slotted_under_a_box_rather_than_wired_to_it(db):

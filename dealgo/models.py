@@ -643,6 +643,13 @@ class GraphNode(Base):
     # or 0 means everything waiting, which is what an empty field says.
     takes: Mapped[Optional[int]] = mapped_column(Integer)
 
+    # Alive pieces only: the two ends of the stretch of the day this one
+    # allows, as "HH:MM" in UTC — the same clock the cron fields are read on.
+    # Text rather than minutes-since-midnight, so what is stored is what was
+    # typed and a row can be read without doing arithmetic first.
+    alive_from: Mapped[Optional[str]] = mapped_column(String(5))
+    alive_to: Mapped[Optional[str]] = mapped_column(String(5))
+
     # Source boxes only: which kind of somewhere this box is for. Set when it
     # is dragged out, because there is no one Channel box any more — you pick
     # the kind by picking the box, and an empty box has to remember which one
@@ -696,6 +703,8 @@ class GraphNode(Base):
             return "Timer"
         if self.kind == "reset":
             return "Reset"
+        if self.kind == "alive":
+            return "Alive"
         if self.kind in ("deposit", "withdraw"):
             # Named after the repository it is about: two Deposit boxes only
             # mean the same thing when they carry the same name, so the name

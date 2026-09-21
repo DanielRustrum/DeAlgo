@@ -257,7 +257,8 @@ $piece: #9ece6a;
 $tab: 18px;
 
 .graph-node.kind-timer,
-.graph-node.kind-reset {
+.graph-node.kind-reset,
+.graph-node.kind-alive {
   border-left-color: $piece;
   padding: 8px 12px;
   // The seam it shares with what it is slotted into.
@@ -308,6 +309,11 @@ $tab: 18px;
   border: 1px solid var(--line);
   clip-path: inset(50% 0 0 0);
 }
+
+// Two ends of a stretch, side by side: they are one setting, and stacked
+// they read as two.
+.graph-times { display: flex; gap: 8px; }
+.graph-times .graph-field { flex: 1; min-width: 0; }
 
 // Where a piece would land, shown while one is dragged near it.
 .graph-slot {
@@ -842,7 +848,8 @@ $tab: 18px;
 .palette-swatch.kind-deposit,
 .palette-swatch.kind-withdraw { background: #e0af68; }
 .palette-swatch.kind-timer,
-.palette-swatch.kind-reset { background: #9ece6a; }
+.palette-swatch.kind-reset,
+.palette-swatch.kind-alive { background: #9ece6a; }
 
 // A plugin with more than one box gets a fold of its own inside the Plugins
 // one. Indented, so two levels of fold read as two levels.
