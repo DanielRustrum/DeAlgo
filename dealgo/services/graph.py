@@ -63,6 +63,13 @@ KINDS = (
     "timer", "reset", "alive", "lock",
 )
 
+#: The box kinds that read what is slotted under them. A feed reads a Timer
+#: as a sitting and a Reset as when it comes back; a Decay reads a Timer as
+#: time with one item and a Lock as "and you cannot pause it"; an Expire
+#: reads a Timer as a lifetime. Every other kind ignores a piece entirely,
+#: which is why only these three are drawn with somewhere for one to go.
+SLOTTED = ("feed", "decay", "expire")
+
 #: The boxes that mark what goes through them. On a path like a filter, but
 #: they turn nothing away — what they do shows up after the item has landed.
 STAMPS = ("decay", "expire", "tag")

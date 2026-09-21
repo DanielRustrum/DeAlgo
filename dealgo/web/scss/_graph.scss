@@ -313,11 +313,13 @@ $tab: 18px;
 // with nothing slotted into it yet. The second is the one that says a piece
 // goes here at all — a plain box gives no sign that anything fits it.
 //
-// Feeds rather than every box, because a feed is the only kind a piece does
-// anything to so far. A notch on a box that ignores what is slotted into it
-// would be an invitation to nothing.
+// Only the kinds that read a piece, which is graph.SLOTTED — a notch on a
+// box that ignores what is slotted into it would be an invitation to
+// nothing. A test holds the two lists together.
 .graph-node.is-piece:not(.has-piece)::after,
-.graph-node.kind-feed:not(.has-piece)::after {
+.graph-node.kind-feed:not(.has-piece)::after,
+.graph-node.kind-decay:not(.has-piece)::after,
+.graph-node.kind-expire:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(#{$tab} / -2);

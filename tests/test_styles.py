@@ -195,3 +195,24 @@ def test_a_group_is_drawn_under_the_wires_it_surrounds():
     # document order — but the three must exist for that order to hold.
     assert all(place > 0 for place in order)
     assert "pointer-events:none" in css.split(".graph-nodes{", 1)[1].split("}", 1)[0]
+
+
+def test_only_the_boxes_that_read_a_piece_show_a_slot():
+    """The notch is an invitation. A box that ignores what is slotted into
+    it would be inviting somebody to do nothing, and a box that reads one
+    without showing a notch gives no sign that anything fits.
+
+    Two lists in two languages, held together here: `graph.SLOTTED` is what
+    the app reads pieces for, and the stylesheet is what says so on screen.
+    """
+    import re
+
+    from dealgo.services import graph
+
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    css = (root / "dealgo" / "web" / "static" / "app.css").read_text(encoding="utf-8")
+    drawn = set(re.findall(r"\.graph-node\.kind-([a-z]+):not\(\.has-piece\)::after", css))
+
+    assert drawn == set(graph.SLOTTED)
