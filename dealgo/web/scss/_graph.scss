@@ -301,8 +301,15 @@ $tab: 18px;
   border-bottom-color: transparent;
 }
 
-// The notch, on the free bottom edge only.
-.graph-node.is-piece:not(.has-piece)::after {
+// The notch, on a free bottom edge: the last piece of a stack, and a feed
+// with nothing slotted into it yet. The second is the one that says a piece
+// goes here at all — a plain box gives no sign that anything fits it.
+//
+// Feeds rather than every box, because a feed is the only kind a piece does
+// anything to so far. A notch on a box that ignores what is slotted into it
+// would be an invitation to nothing.
+.graph-node.is-piece:not(.has-piece)::after,
+.graph-node.kind-feed:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(#{$tab} / -2);
