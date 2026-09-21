@@ -2252,6 +2252,13 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     return;
   }
 
+  if (drag.kind === "move") {
+    const held = state.nodes.find((one): boolean => one.id === drag.nodeId);
+    if (held !== undefined && held.piece !== null && held.piece.under === null) {
+      markGraphSlotFor(state, event, held.id);
+    }
+  }
+
   if (drag.kind === "pick") {
     const marquee = graphMarquee(state);
     if (marquee === null) return;
@@ -2358,6 +2365,22 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
 
   if (drag.kind === "move") {
     state.boxes.get(drag.nodeId)?.classList.remove("is-held");
+    hideGraphSlot(state);
+    // A loose piece dragged onto a slot goes into it. The other way a piece
+    // gets slotted in: one already lying on the canvas could otherwise only
+    // be deleted and dragged out of the palette again.
+    const loose = state.nodes.find((one): boolean => one.id === drag.nodeId);
+    if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
+      const slot = graphSlotFor(state, event);
+      if (slot !== null && slot.under !== loose.id) {
+        void applyGraph(
+          state,
+          `/graph/nodes/${loose.id}/attach`,
+          new URLSearchParams({ under: String(slot.under) }),
+        );
+        return;
+      }
+    }
     if (!drag.moved) {
       pickGraphNode(state, drag.nodeId);
       return;
@@ -3343,14 +3366,23 @@ function graphSlotFor(state: GraphState, event: PointerEvent): GraphSlot | null 
   return nearest;
 }
 
-/** Show where a piece would land, while it is being dragged. */
+/** Show where a piece would land, while one is dragged out of the palette. */
 function markGraphSlot(state: GraphState, event: PointerEvent): void {
   const dropping = state.dropping;
   const wanted =
     dropping !== null && graphIsPiece(dropping.kind as GraphNodeKind)
       ? graphSlotFor(state, event)
       : null;
+  showGraphSlot(state, wanted);
+}
 
+/** The same, for a piece already on the canvas being dragged onto one. */
+function markGraphSlotFor(state: GraphState, event: PointerEvent, moving: number): void {
+  const slot = graphSlotFor(state, event);
+  showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
+}
+
+function showGraphSlot(state: GraphState, wanted: GraphSlot | null): void {
   const marker = graphSlotMarker(state);
   if (marker === null) return;
   if (wanted === null) {

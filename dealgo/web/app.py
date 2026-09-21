@@ -2519,6 +2519,41 @@ def graph_add_node(
         return JSONResponse(_graph_payload(session, owner))
 
 
+@app.post("/graph/nodes/{node_pk}/attach")
+def graph_attach(request: Request, node_pk: int, under: str = Form("")) -> JSONResponse:
+    """Slot a piece that is already on the canvas into a box, or take it out.
+
+    The other way a piece gets slotted in. Dragging one out of the palette
+    onto a slot is the first; this is for the one already lying there, which
+    otherwise could only be deleted and dragged out again.
+    """
+    owner = owner_of(request)
+    with session_scope() as session:
+        piece = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if piece is None:
+            return JSONResponse({"error": "That node is not here."}, status_code=404)
+
+        wanted = under.strip()
+        if not wanted:
+            graph_service.detach(session, piece)
+            return JSONResponse(_graph_payload(session, owner))
+
+        host = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == int(wanted))
+            if wanted.isdigit()
+            else select(GraphNode).where(GraphNode.id == -1)
+        )
+        if host is None:
+            return JSONResponse({"error": "That box is not here."}, status_code=404)
+        try:
+            graph_service.attach(session, piece, host, owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(_graph_payload(session, owner))
+
+
 @app.post("/graph/nodes/{node_pk}/resize")
 def graph_resize(
     request: Request, node_pk: int, width: int = Form(0), height: int = Form(0)

@@ -2763,6 +2763,55 @@ def test_a_piece_dropped_on_a_box_is_slotted_into_it(canvas):
     assert made["note"] == "30 minutes once you start reading"
 
 
+def test_a_piece_already_on_the_canvas_can_be_slotted_in(canvas):
+    """Dragged onto a slot rather than dropped out of the palette onto one.
+    Without this a piece lying beside the box it belongs under could only be
+    deleted and dragged out again."""
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    loose = boxes(canvas.post("/graph/nodes", data={"kind": "timer"}).json(), "timer")[0]
+    assert loose["piece"]["under"] is None
+
+    answer = canvas.post(f"/graph/nodes/{loose['id']}/attach", data={"under": feed["id"]})
+
+    assert answer.status_code == 200
+    assert boxes(answer.json(), "timer")[0]["piece"]["under"] == feed["id"]
+    assert only(answer.json(), "feed")["feed"]["windows"] == [
+        "30 minutes once you start reading"
+    ]
+
+
+def test_a_slotted_piece_can_be_taken_back_out_from_the_canvas(canvas):
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    piece = boxes(
+        canvas.post("/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]}).json(),
+        "timer",
+    )[0]
+
+    answer = canvas.post(f"/graph/nodes/{piece['id']}/attach", data={"under": ""})
+
+    assert boxes(answer.json(), "timer")[0]["piece"]["under"] is None
+    assert only(answer.json(), "feed")["feed"]["windows"] == []
+
+
+def test_a_piece_cannot_be_slotted_into_a_ring(canvas):
+    """Refused at the moment of the drop rather than discovered by a chain
+    that walks round for ever."""
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    first = boxes(
+        canvas.post("/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]}).json(),
+        "timer",
+    )[0]
+    second = boxes(
+        canvas.post("/graph/nodes", data={"kind": "reset", "attach_to": first["id"]}).json(),
+        "reset",
+    )[0]
+
+    answer = canvas.post(f"/graph/nodes/{first['id']}/attach", data={"under": second["id"]})
+
+    assert answer.status_code == 400
+    assert answer.json()["error"]
+
+
 def test_a_piece_dropped_on_nothing_is_loose_and_says_so(canvas):
     """Not refused: a piece on the canvas is a thing you can pick up and put
     somewhere, and refusing the drop would leave nothing to pick up."""
