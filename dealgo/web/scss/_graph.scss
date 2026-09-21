@@ -285,6 +285,14 @@ $tab: 18px;
   clip-path: inset(0 0 50% 0);
 }
 
+// A box with something slotted into it shares that edge with it, so it is
+// not a corner any more — and the seam is drawn by the piece below.
+.graph-node.has-piece {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+
 // The notch: the same circle in the canvas colour, cut into the bottom edge,
 // so the next piece's tab has somewhere to sit.
 .graph-node.is-piece::after,

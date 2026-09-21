@@ -2780,6 +2780,19 @@ def test_a_piece_already_on_the_canvas_can_be_slotted_in(canvas):
     ]
 
 
+def test_a_slotted_piece_offers_a_way_out_of_its_slot(canvas):
+    """Dragging it moves the assembly, so the way out is a button rather than
+    a drag: without one a piece could only be deleted."""
+    feed = only(canvas.get("/api/graph").json(), "feed")
+    canvas.post("/graph/nodes", data={"kind": "timer", "attach_to": feed["id"]})
+
+    body = canvas.get("/channels").text
+
+    # The canvas builds the panel, so the word is in the script it draws with.
+    assert "Take it out" in canvas.get("/static/graph.js").text
+    assert "data-graph" in body
+
+
 def test_a_slotted_piece_can_be_taken_back_out_from_the_canvas(canvas):
     feed = only(canvas.get("/api/graph").json(), "feed")
     piece = boxes(
@@ -3354,6 +3367,14 @@ def test_only_one_drawer_is_ever_out(canvas_report):
     drawers = canvas_report["drawers"]
     assert drawers["afterPalette"] == {"palette": True, "finder": False}
     assert drawers["afterFinder"] == {"palette": False, "finder": True}
+
+
+@needs_node
+def test_pressing_a_slotted_piece_opens_the_piece(canvas_report):
+    """Dragging one moves the assembly it is part of, which is right — but
+    picking the dragged box on a press that went nowhere meant a slotted
+    piece could not be opened at all. The feed opened instead."""
+    assert canvas_report["pressingAPiece"]["opened"] == 8
 
 
 @needs_node

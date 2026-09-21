@@ -175,6 +175,10 @@ interface GraphDrag {
   kind: "move" | "wire" | "pan" | "resize" | "pick";
   /** Which box is being dragged. Zero while panning: a pan holds no box. */
   nodeId: number;
+  /** Which box was actually pressed. Different from `nodeId` when a jigsaw
+   *  piece was pressed: the assembly is dragged by its host, but a press
+   *  that went nowhere is a click on the piece itself. */
+  pressed: number;
   pointerId: number;
   /** Where in the box the pointer took hold, so it does not jump on grab. */
   grabX: number;
@@ -1334,6 +1338,14 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     buttons.appendChild(seen);
   }
 
+  if (node.piece !== null && node.piece.under !== null) {
+    const out = graphElement("button", "btn btn-quiet", "Take it out");
+    out.setAttribute("type", "button");
+    out.title = "Leave it on the canvas, slotted into nothing";
+    out.dataset["unslot"] = String(node.id);
+    buttons.appendChild(out);
+  }
+
   const remove = graphElement("button", "btn btn-danger", "Remove");
   remove.setAttribute("type", "button");
   remove.dataset["remove"] = String(node.id);
@@ -2055,6 +2067,7 @@ function graphGrab(state: GraphState, event: PointerEvent): GraphDrag {
   return {
     kind: "pan",
     nodeId: 0,
+    pressed: 0,
     pointerId: event.pointerId,
     grabX: 0,
     grabY: 0,
@@ -2090,12 +2103,18 @@ function beginGraphWire(state: GraphState, event: PointerEvent, nodeId: number):
   state.parts.wires.appendChild(state.ghost);
 }
 
-function beginGraphMove(state: GraphState, event: PointerEvent, node: GraphNodeView): void {
+function beginGraphMove(
+  state: GraphState,
+  event: PointerEvent,
+  node: GraphNodeView,
+  pressed?: number,
+): void {
   const at = pointInGraph(state, event);
   state.drag = {
     ...graphGrab(state, event),
     kind: "move",
     nodeId: node.id,
+    pressed: pressed ?? node.id,
     grabX: at.x - node.x,
     grabY: at.y - node.y,
     startX: node.x,
@@ -2235,7 +2254,7 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   const onPort = target instanceof Element && target.closest<HTMLElement>(".graph-port");
   if (onGrip) beginGraphResize(state, event, node);
   else if (onPort && onPort.dataset["port"] === "out") beginGraphWire(state, event, grabbed);
-  else beginGraphMove(state, event, node);
+  else beginGraphMove(state, event, node, nodeId);
 
   state.parts.canvas.setPointerCapture(event.pointerId);
   event.preventDefault();
@@ -2388,7 +2407,10 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
       }
     }
     if (!drag.moved) {
-      pickGraphNode(state, drag.nodeId);
+      // The box that was pressed, not the one that was dragged: pressing a
+      // jigsaw piece opens the piece, even though dragging it moves the
+      // assembly it is part of.
+      pickGraphNode(state, drag.pressed);
       return;
     }
     const nodeId = drag.nodeId;
@@ -2607,6 +2629,18 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
   if (filteredId !== undefined) {
     event.preventDefault();
     void showGraphFiltered(state, filteredId);
+    return;
+  }
+
+  const unslot = target.closest<HTMLElement>("[data-unslot]");
+  const unslotId = unslot?.dataset["unslot"];
+  if (unslotId !== undefined) {
+    event.preventDefault();
+    void applyGraph(
+      state,
+      `/graph/nodes/${unslotId}/attach`,
+      new URLSearchParams({ under: "" }),
+    );
     return;
   }
 

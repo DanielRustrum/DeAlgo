@@ -986,6 +986,13 @@ function graphNodeForm(state, node) {
         seen.dataset["filtered"] = String(node.id);
         buttons.appendChild(seen);
     }
+    if (node.piece !== null && node.piece.under !== null) {
+        const out = graphElement("button", "btn btn-quiet", "Take it out");
+        out.setAttribute("type", "button");
+        out.title = "Leave it on the canvas, slotted into nothing";
+        out.dataset["unslot"] = String(node.id);
+        buttons.appendChild(out);
+    }
     const remove = graphElement("button", "btn btn-danger", "Remove");
     remove.setAttribute("type", "button");
     remove.dataset["remove"] = String(node.id);
@@ -1564,6 +1571,7 @@ function graphGrab(state, event) {
     return {
         kind: "pan",
         nodeId: 0,
+        pressed: 0,
         pointerId: event.pointerId,
         grabX: 0,
         grabY: 0,
@@ -1596,10 +1604,10 @@ function beginGraphWire(state, event, nodeId) {
     state.ghost = graphSvgPath("graph-wire wire-ghost", graphCurve(from.x, from.y, from.x, from.y));
     state.parts.wires.appendChild(state.ghost);
 }
-function beginGraphMove(state, event, node) {
+function beginGraphMove(state, event, node, pressed) {
     var _a;
     const at = pointInGraph(state, event);
-    state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "move", nodeId: node.id, grabX: at.x - node.x, grabY: at.y - node.y, startX: node.x, startY: node.y, 
+    state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "move", nodeId: node.id, pressed: pressed !== null && pressed !== void 0 ? pressed : node.id, grabX: at.x - node.x, grabY: at.y - node.y, startX: node.x, startY: node.y, 
         // What travels with it: what a group surrounds, or the rest of what is
         // picked. Their starting positions are noted here so each can be moved by
         // the same amount without asking again half-way through the drag.
@@ -1727,7 +1735,7 @@ function onGraphPointerDown(state, event) {
     else if (onPort && onPort.dataset["port"] === "out")
         beginGraphWire(state, event, grabbed);
     else
-        beginGraphMove(state, event, node);
+        beginGraphMove(state, event, node, nodeId);
     state.parts.canvas.setPointerCapture(event.pointerId);
     event.preventDefault();
 }
@@ -1866,7 +1874,10 @@ function onGraphPointerUp(state, event) {
             }
         }
         if (!drag.moved) {
-            pickGraphNode(state, drag.nodeId);
+            // The box that was pressed, not the one that was dragged: pressing a
+            // jigsaw piece opens the piece, even though dragging it moves the
+            // assembly it is part of.
+            pickGraphNode(state, drag.pressed);
             return;
         }
         const nodeId = drag.nodeId;
@@ -2059,6 +2070,13 @@ function onGraphClick(state, event) {
     if (filteredId !== undefined) {
         event.preventDefault();
         void showGraphFiltered(state, filteredId);
+        return;
+    }
+    const unslot = target.closest("[data-unslot]");
+    const unslotId = unslot === null || unslot === void 0 ? void 0 : unslot.dataset["unslot"];
+    if (unslotId !== undefined) {
+        event.preventDefault();
+        void applyGraph(state, `/graph/nodes/${unslotId}/attach`, new URLSearchParams({ under: "" }));
         return;
     }
     const remove = target.closest("[data-remove]");

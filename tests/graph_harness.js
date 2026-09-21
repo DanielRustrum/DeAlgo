@@ -485,6 +485,30 @@ async function main() {
   // moved and left its pieces behind was a box drawn without them.
   report.following = piecesFollowTheirHost();
 
+  // Pressing a piece opens the piece, even though dragging it moves the
+  // assembly it is part of. Picking the dragged box instead meant a slotted
+  // piece could not be opened at all — the feed opened instead.
+  report.pressingAPiece = (() => {
+    const picked = [];
+    const state = {
+      nodes: [
+        { id: 7, kind: "feed", x: 0, y: 0, piece: null },
+        { id: 8, kind: "timer", x: 0, y: 0, piece: { under: 7, minutes: 30, cron: "" } },
+      ],
+      picked: new Set(), boxes: new Map([[8, { classList: { remove() {} } }]]),
+      drag: { kind: "move", nodeId: 7, pressed: 8, pointerId: 1, moved: false },
+      parts: {
+        canvas: { hasPointerCapture: () => false, releasePointerCapture() {},
+                  classList: { remove() {} } },
+        layer: { querySelector: () => null },
+      },
+      selectedNode: null, tab: "settings",
+    };
+    context.pickGraphNode = (_state, id) => picked.push(id);
+    context.onGraphPointerUp(state, { pointerId: 1 });
+    return { opened: picked[0] ?? null };
+  })();
+
   report.removing = await removingWithDialogsBlocked();
   process.stdout.write(JSON.stringify(report));
 }
