@@ -572,7 +572,7 @@ function drawGraphNodes(state) {
  *  Done after everything is in the document, which is the first moment there
  *  is a height to read. */
 function placeGraphPieces(state) {
-    var _a;
+    var _a, _b;
     const under = new Map();
     for (const node of state.nodes) {
         const host = (_a = node.piece) === null || _a === void 0 ? void 0 : _a.under;
@@ -610,6 +610,10 @@ function placeGraphPieces(state) {
             top = next;
         }
     };
+    // A box with something slotted into it gets the notch the tab sits in.
+    for (const [hostId] of under) {
+        (_b = state.boxes.get(hostId)) === null || _b === void 0 ? void 0 : _b.classList.add("has-piece");
+    }
     for (const node of state.nodes) {
         if (node.piece !== null)
             continue; // a chain belongs to the box at its top
@@ -2657,49 +2661,129 @@ function graphPaletteName(kind) {
  *  Asked of the document rather than worked out from coordinates: the boxes
  *  are where the browser put them, and the ghost is not in the way because it
  *  takes no pointer events. */
-/** Outline the box a piece would slot into, while it is dragged over it. */
+/** How near the underside of a box a piece has to be dropped to go into it.
+ *
+ *  Generous on purpose. Nobody aims at a one-pixel seam, and the slot is
+ *  shown while you drag so the distance is never a guess.
+ *
+ *  A function rather than a constant: htmx re-inserts this script on every
+ *  swap, and only top-level function declarations survive being run twice. */
+function graphSlotReach() {
+    return 150;
+}
+/** Every place a piece could be slotted, with where each one sits. */
+function graphSlots(state) {
+    var _a, _b;
+    const below = new Map();
+    for (const node of state.nodes) {
+        const host = (_a = node.piece) === null || _a === void 0 ? void 0 : _a.under;
+        if (host === undefined || host === null)
+            continue;
+        const kept = below.get(host);
+        if (kept === undefined)
+            below.set(host, [node]);
+        else
+            kept.push(node);
+    }
+    const found = [];
+    for (const node of state.nodes) {
+        // A group is a background, and a piece belongs to the box at the top of
+        // its own chain rather than starting a second one.
+        if (node.kind === "group" || node.piece !== null)
+            continue;
+        // Walk to the end of whatever is already slotted in, so a second piece
+        // lands under the first rather than beside it.
+        let last = node;
+        for (let depth = 0; depth < 12; depth += 1) {
+            const next = (_b = below.get(last.id)) === null || _b === void 0 ? void 0 : _b[0];
+            if (next === undefined)
+                break;
+            last = next;
+        }
+        const box = state.boxes.get(last.id);
+        if (box === undefined)
+            continue;
+        found.push({
+            under: last.id,
+            x: last.x,
+            y: last.y + box.offsetHeight,
+            width: box.offsetWidth,
+        });
+    }
+    return found;
+}
+/** The slot a piece being dragged would drop into, if any. */
+function graphSlotFor(state, event) {
+    const at = pointInGraph(state, event);
+    let nearest = null;
+    let best = graphSlotReach();
+    for (const slot of graphSlots(state)) {
+        // Measured to the slot's middle, so a box is easiest to hit from
+        // directly below it and hardest from off to one side.
+        const dx = at.x - (slot.x + slot.width / 2);
+        const dy = at.y - slot.y;
+        const away = Math.sqrt(dx * dx + dy * dy);
+        if (away < best) {
+            best = away;
+            nearest = slot;
+        }
+    }
+    return nearest;
+}
+/** Show where a piece would land, while it is being dragged. */
 function markGraphSlot(state, event) {
     const dropping = state.dropping;
     const wanted = dropping !== null && graphIsPiece(dropping.kind)
-        ? graphBoxAt(state, event)
+        ? graphSlotFor(state, event)
         : null;
-    for (const [id, box] of state.boxes)
-        box.classList.toggle("is-slot", id === wanted);
+    const marker = graphSlotMarker(state);
+    if (marker === null)
+        return;
+    if (wanted === null) {
+        marker.hidden = true;
+        return;
+    }
+    marker.hidden = false;
+    marker.style.left = `${wanted.x}px`;
+    marker.style.top = `${wanted.y}px`;
+    marker.style.width = `${wanted.width}px`;
 }
-function graphBoxAt(state, event) {
-    const found = document.elementFromPoint(event.clientX, event.clientY);
-    if (!(found instanceof Element))
-        return null;
-    const box = found.closest("[data-node]");
-    const named = box === null || box === void 0 ? void 0 : box.dataset["node"];
-    if (named === undefined)
-        return null;
-    const id = Number(named);
-    // A group is a background, not something to slot into.
-    const node = state.nodes.find((one) => one.id === id);
-    if (node === undefined || node.kind === "group")
-        return null;
-    return id;
+/** The outline drawn where a piece would land. Made once and kept. */
+function graphSlotMarker(state) {
+    const layer = state.parts.layer;
+    let marker = layer.querySelector(".graph-slot");
+    if (marker === null) {
+        marker = graphElement("div", "graph-slot");
+        marker.hidden = true;
+        layer.appendChild(marker);
+    }
+    return marker;
+}
+function hideGraphSlot(state) {
+    const marker = state.parts.layer.querySelector(".graph-slot");
+    if (marker !== null)
+        marker.hidden = true;
 }
 function finishGraphDrop(state, event) {
+    var _a;
+    var _b;
     const dropping = state.dropping;
     if (dropping === null || dropping.pointerId !== event.pointerId)
         return;
     state.dropping = null;
     dropping.ghost.remove();
-    for (const box of state.boxes.values())
-        box.classList.remove("is-slot");
+    hideGraphSlot(state);
     const frame = state.parts.canvas.getBoundingClientRect();
     const inside = event.clientX >= frame.left && event.clientX <= frame.right &&
         event.clientY >= frame.top && event.clientY <= frame.bottom;
     if (!inside)
         return;
     const at = pointInGraph(state, event);
-    // A piece is slotted into whatever it was dropped on, rather than left
-    // where it landed. Dropped on nothing it is simply a piece on the canvas,
+    // A piece goes into the slot it was nearest, rather than lying where it
+    // landed. Dropped nowhere near one it is simply a piece on the canvas,
     // which can be picked up and put somewhere.
     const onto = graphIsPiece(dropping.kind)
-        ? graphBoxAt(state, event)
+        ? ((_b = (_a = graphSlotFor(state, event)) === null || _a === void 0 ? void 0 : _a.under) !== null && _b !== void 0 ? _b : null)
         : null;
     void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which, onto);
 }

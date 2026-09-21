@@ -3308,6 +3308,21 @@ def test_only_one_drawer_is_ever_out(canvas_report):
 
 
 @needs_node
+def test_a_piece_goes_in_when_dropped_near_a_box_not_only_on_it(canvas_report):
+    """Nobody aims at a one-pixel seam. Requiring the pointer to be over the
+    box meant a piece dropped just below one — which is where it looks like
+    it should go — lay on the canvas instead."""
+    went = canvas_report["snapping"]
+
+    assert went["onTheBox"] is True
+    assert went["justUnder"] is True
+    assert went["wellBelowAndAside"] is True
+    # Not everywhere, though: a piece dropped across the canvas is a piece
+    # somebody put down, not one they meant to slot in.
+    assert went["farAway"] is False
+
+
+@needs_node
 def test_a_piece_is_drawn_tucked_under_the_box_it_is_slotted_into(canvas_report):
     """Stacked from the box's own coordinates. `offsetTop` is measured against
     whichever ancestor happens to be positioned, so a piece placed from it

@@ -475,6 +475,11 @@ async function main() {
   // wherever that ancestor is rather than under its host.
   report.slotting = slottedUnderTheirHost();
 
+  // Where a piece has to be dropped to go in. Nobody aims at a one-pixel
+  // seam, so the slot reaches well below the box — and is drawn while you
+  // drag, so the distance is never a guess.
+  report.snapping = await droppingAPieceNearABox();
+
   report.removing = await removingWithDialogsBlocked();
   process.stdout.write(JSON.stringify(report));
 }
@@ -546,6 +551,102 @@ async function removingWithDialogsBlocked() {
   if (yes.onclick) yes.onclick();
   await done;
   return { asked: what.textContent, requests: sent };
+}
+
+/** Drop a Timer at several distances from a feed and say which ones go in. */
+async function droppingAPieceNearABox() {
+  const nothing = { forEach() {} };
+  const make = (tag) => ({
+    tag, className: "", textContent: "", style: {}, dataset: {}, children: [],
+    hidden: false, offsetTop: 0, offsetLeft: 0, offsetHeight: 60, offsetWidth: 212,
+    tabIndex: 0,
+    classList: {
+      names: new Set(),
+      add(name) { this.names.add(name); },
+      remove(name) { this.names.delete(name); },
+      toggle(name, on) { if (on) this.names.add(name); else this.names.delete(name); },
+      contains(name) { return this.names.has(name); },
+    },
+    setAttribute() {}, removeAttribute() {}, addEventListener() {},
+    appendChild(child) { this.children.push(child); return child; },
+    remove() {},
+    querySelector(selector) {
+      const want = selector.replace(".", "");
+      return this.children.find(
+        (child) => typeof child.className === "string" && child.className.includes(want),
+      ) ?? null;
+    },
+    querySelectorAll() { return nothing; },
+  });
+  class Element {
+    constructor(fields) { Object.assign(this, fields); }
+  }
+
+  const asked = [];
+  const context = vm.createContext({
+    document: {
+      addEventListener() {},
+      body: { addEventListener() {}, classList: { toggle() {} } },
+      querySelectorAll() { return nothing; },
+      createElement: make,
+      createElementNS: (ns, tag) => make(tag),
+      createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
+      // Dropped on empty canvas every time: what is being measured is the
+      // reach of the slot, not whether the pointer was over the box.
+      elementFromPoint: () => null,
+    },
+    window: {}, console, Element, URLSearchParams,
+    fetch: async (url, options) => {
+      asked.push(String(options && options.body ? options.body : ""));
+      return { ok: true, json: async () => ({ nodes: [], wires: [], sources: [] }) };
+    },
+  });
+  loadGraph(context);
+
+  const canvas = Object.assign(make("div"), {
+    getBoundingClientRect: () => ({
+      left: 0, top: 0, right: 1200, bottom: 900, width: 1200, height: 900,
+    }),
+    closest: () => null,
+  });
+  const feed = {
+    id: 7, kind: "feed", x: 400, y: 100, title: "New feed", note: "generic",
+    enabled: true, piece: null, trigger: null, sort: null, plugin: null,
+    channel: null, asks: null, store: null, feed: null, size: null,
+    overrides: {}, detail: null, polled: null,
+  };
+  const state = {
+    nodes: [feed], wires: [], sources: [], picked: new Set(), busy: false,
+    selectedNode: null, selectedWire: null, tab: "settings",
+    parts: {
+      canvas, drawer: make("div"), layer: make("div"), groups: make("div"),
+      empty: null, wires: make("div"), error: make("p"), verdict: make("p"),
+    },
+    boxes: new Map(), marks: new Map(), run: new Map(),
+    panX: 0, panY: 0, zoom: 1, dropping: null,
+  };
+
+  // The feed box runs y=100 to y=178.
+  const drops = {
+    onTheBox: [506, 140],
+    justUnder: [506, 190],
+    wellBelowAndAside: [460, 238],
+    farAway: [900, 600],
+  };
+  const went = {};
+  for (const [what, [x, y]] of Object.entries(drops)) {
+    asked.length = 0;
+    state.nodes = [feed];
+    state.boxes = new Map([
+      [7, Object.assign(make("div"), { offsetHeight: 78, offsetWidth: 212 })],
+    ]);
+    state.busy = false;
+    state.dropping = { kind: "timer", which: "", pointerId: 1, ghost: make("div") };
+    context.finishGraphDrop(state, { pointerId: 1, clientX: x, clientY: y });
+    await new Promise((go) => setTimeout(go, 5));
+    went[what] = (asked[0] ?? "").includes("attach_to=7");
+  }
+  return went;
 }
 
 /** Draw a feed with two pieces chained under it, and say where they land. */

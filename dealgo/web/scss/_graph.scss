@@ -249,26 +249,70 @@
 .graph-node.kind-deposit,
 .graph-node.kind-withdraw { border-left-color: #e0af68; }
 
-// A jigsaw piece. Drawn under the box it is slotted into, narrower and
-// tucked up against it, so a chain of them reads as one thing with parts
-// rather than as several boxes that happen to be near each other.
+// A jigsaw piece. Drawn under the box it is slotted into and interlocking
+// with it: a tab on the top that sits into the piece above, and a notch cut
+// out of the bottom for the next one down. Painted in the canvas colour
+// rather than cut out, since the canvas behind it is one flat colour.
+$piece: #9ece6a;
+$tab: 18px;
+
 .graph-node.kind-timer,
 .graph-node.kind-reset {
-  border-left-color: #9ece6a;
-  min-width: 150px;
-  padding: 6px 10px;
+  border-left-color: $piece;
+  padding: 8px 12px;
+  // The seam it shares with what it is slotted into.
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+  border-top-color: transparent;
 }
-.graph-node.is-piece { border-top: 1px dashed var(--line); }
-.graph-node.is-piece .graph-node-title { font-size: 12px; }
-// The tab that makes it look slotted in rather than merely below.
+.graph-node.is-piece .graph-node-title { font-size: 12px; font-weight: 500; }
+.graph-node.is-piece .graph-node-kind { color: $piece; }
+
+// The tab: a round bump straddling the top edge, which reads as the piece
+// being pushed up into the one above it.
 .graph-node.is-piece::before {
-  content: ""; position: absolute; top: -5px; left: 18px;
-  width: 16px; height: 5px; border-radius: 3px 3px 0 0; background: #9ece6a;
+  content: "";
+  position: absolute;
+  top: calc(#{$tab} / -2);
+  left: 26px;
+  width: $tab;
+  height: $tab;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  // The half inside the piece is the piece, so only the half sticking out
+  // is drawn — otherwise the seam shows through the middle of the bump.
+  clip-path: inset(0 0 50% 0);
 }
-// The box a piece would land on, while one is being dragged over it.
-.graph-node.is-slot { outline: 2px dashed #9ece6a; outline-offset: 2px; }
+
+// The notch: the same circle in the canvas colour, cut into the bottom edge,
+// so the next piece's tab has somewhere to sit.
+.graph-node.is-piece::after,
+.graph-node.has-piece::after {
+  content: "";
+  position: absolute;
+  bottom: calc(#{$tab} / -2);
+  left: 26px;
+  width: $tab;
+  height: $tab;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  clip-path: inset(50% 0 0 0);
+}
+
+// Where a piece would land, shown while one is dragged near it.
+.graph-slot {
+  position: absolute;
+  height: 34px;
+  box-sizing: border-box;
+  border: 2px dashed $piece;
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: rgba(158, 206, 106, 0.08);
+  pointer-events: none;
+}
+.graph-slot[hidden] { display: none; }
 
 .graph-node-kind {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
