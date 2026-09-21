@@ -261,7 +261,10 @@ $tab: 18px;
 .graph-node.kind-alive {
   border-left-color: $piece;
   padding: 8px 12px;
-  // The seam it shares with what it is slotted into.
+}
+// The seam it shares with what it is slotted into — only when it is in one.
+// A loose piece has four edges of its own and should look like it does.
+.graph-node.is-piece:not(.is-loose) {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   border-top-color: transparent;
@@ -269,9 +272,13 @@ $tab: 18px;
 .graph-node.is-piece .graph-node-title { font-size: 12px; font-weight: 500; }
 .graph-node.is-piece .graph-node-kind { color: $piece; }
 
-// The tab: a round bump straddling the top edge, which reads as the piece
-// being pushed up into the one above it.
-.graph-node.is-piece::before {
+// The tab and the notch are what a free edge looks like. A joined one shows
+// neither: on a real jigsaw the tab is inside the joint, and drawing it at a
+// seam only puts a bump where two things already meet cleanly.
+//
+// So the tab is on a piece nobody has slotted in yet, and the notch is on
+// whatever is at the bottom of a stack.
+.graph-node.is-piece.is-loose::before {
   content: "";
   position: absolute;
   top: calc(#{$tab} / -2);
@@ -294,10 +301,8 @@ $tab: 18px;
   border-bottom-color: transparent;
 }
 
-// The notch: the same circle in the canvas colour, cut into the bottom edge,
-// so the next piece's tab has somewhere to sit.
-.graph-node.is-piece::after,
-.graph-node.has-piece::after {
+// The notch, on the free bottom edge only.
+.graph-node.is-piece:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(#{$tab} / -2);

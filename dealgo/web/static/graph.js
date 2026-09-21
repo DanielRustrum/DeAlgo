@@ -475,6 +475,10 @@ function drawGraphNode(state, node) {
         // A piece is slotted, not wired: nothing runs into or out of one, so it
         // has no ports at all.
         box.classList.add("is-piece");
+        // A piece nobody has slotted in yet is the only one that shows its tab:
+        // a joined edge has the tab inside the joint, not drawn on top of it.
+        if (node.piece.under === null)
+            box.classList.add("is-loose");
         box.appendChild(graphElement("span", "graph-node-kind", graphKindLabel(node.kind)));
         box.appendChild(graphElement("strong", "graph-node-title", node.note));
         return box;
