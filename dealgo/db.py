@@ -155,6 +155,16 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # The two ends of an Alive piece's stretch of the day.
     ("graph_node", "alive_from", "VARCHAR(5)"),
     ("graph_node", "alive_to", "VARCHAR(5)"),
+    # What the boxes on an item's way marked it with, and when a placement
+    # made under an Expire box stops counting.
+    ("video", "tags", "TEXT"),
+    ("video", "view_seconds", "INTEGER"),
+    ("video", "view_locked", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("placement", "expires_at", "DATETIME"),
+    # A Filter box can narrow on a tag a Tag box put on.
+    ("graph_node", "tagged", "VARCHAR(40)"),
+    # What a Tag box marks whatever comes through it with.
+    ("graph_node", "marks", "VARCHAR(40)"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

@@ -70,7 +70,7 @@ function setFocusStatus(sitting, message) {
 function paintFocusTimer(sitting) {
     const seconds = Math.max(0, Math.ceil(sitting.msLeft / 1000));
     sitting.elements.timerCount.textContent = sitting.held ? "held" : `${seconds}s`;
-    const share = (sitting.msLeft / (sitting.postSeconds * 1000)) * 100;
+    const share = (sitting.msLeft / (sitting.allowed * 1000)) * 100;
     sitting.elements.timerFill.style.width = `${share}%`;
 }
 function stopFocusTimer(sitting) {
@@ -78,11 +78,18 @@ function stopFocusTimer(sitting) {
         window.clearInterval(sitting.timerId);
     sitting.timerId = null;
 }
-function startFocusTimer(sitting) {
+function startFocusTimer(sitting, item) {
+    var _a;
     stopFocusTimer(sitting);
     sitting.held = false;
-    sitting.msLeft = sitting.postSeconds * 1000;
-    sitting.elements.timerWord.textContent = "until the next one";
+    // What a Decay box gave you with this one, if anything did. The account's
+    // own setting is what everything else gets.
+    sitting.allowed = (_a = item === null || item === void 0 ? void 0 : item.seconds) !== null && _a !== void 0 ? _a : sitting.postSeconds;
+    sitting.locked = (item === null || item === void 0 ? void 0 : item.locked) === true;
+    sitting.msLeft = sitting.allowed * 1000;
+    sitting.elements.timerWord.textContent = sitting.locked
+        ? "until the next one — cannot be paused"
+        : "until the next one";
     paintFocusTimer(sitting);
     sitting.timerId = window.setInterval(() => tickFocusTimer(sitting), 100);
 }
@@ -96,8 +103,16 @@ function tickFocusTimer(sitting) {
     stopFocusTimer(sitting);
     advanceFocus(sitting, true);
 }
-/** Hold the timer where it is, for a post still being read. */
+/** Hold the timer where it is, for a post still being read.
+ *
+ *  Unless a Lock piece said otherwise. The point of a locked stretch is one
+ *  that runs whether you are looking or not, so it refuses rather than
+ *  quietly doing nothing. */
 function toggleFocusTimer(sitting) {
+    if (sitting.locked) {
+        setFocusStatus(sitting, "this one cannot be paused");
+        return;
+    }
     sitting.held = !sitting.held;
     sitting.elements.timerWord.textContent = sitting.held
         ? "paused — click to resume"
@@ -143,7 +158,7 @@ function showFocusPost(sitting, item) {
     elements.stage.hidden = true;
     if (sitting.player)
         sitting.player.pauseVideo();
-    startFocusTimer(sitting);
+    startFocusTimer(sitting, item);
 }
 function showFocusVideo(sitting, item) {
     stopFocusTimer(sitting);
@@ -284,7 +299,7 @@ function advanceFocus(sitting, markWatched) {
         sitting.advancing = false;
         setFocusStatus(sitting, "could not advance — check the connection");
         if (focusIsRead(sitting.current))
-            startFocusTimer(sitting);
+            startFocusTimer(sitting, sitting.current);
     });
 }
 // -- the YouTube player ----------------------------------------------------
@@ -383,12 +398,14 @@ function warnIfPlayerNeverWakes(sitting) {
     }, 8000);
 }
 function newFocusSitting(root, opening) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     return {
         elements: collectFocusElements(root),
         order: (_a = root.dataset["order"]) !== null && _a !== void 0 ? _a : "oldest",
         playlist: (_b = root.dataset["playlist"]) !== null && _b !== void 0 ? _b : "",
         postSeconds: parseInt((_c = root.dataset["postSeconds"]) !== null && _c !== void 0 ? _c : "", 10) || 30,
+        allowed: parseInt((_d = root.dataset["postSeconds"]) !== null && _d !== void 0 ? _d : "", 10) || 30,
+        locked: false,
         current: opening,
         passedOver: [],
         player: null,
@@ -411,7 +428,7 @@ function initFocusMode() {
     pointFrameAtFirstVideo(sitting);
     awaitYouTubeApi(sitting);
     if (focusIsRead(sitting.current))
-        startFocusTimer(sitting);
+        startFocusTimer(sitting, sitting.current);
     else
         warnIfPlayerNeverWakes(sitting);
 }

@@ -23,11 +23,18 @@ type GraphNodeKind =
   // slotted under a box and changes what that box does.
   | "timer"
   | "reset"
-  | "alive";
+  | "alive"
+  | "lock"
+  // Boxes that mark what passes through them rather than narrowing it.
+  | "decay"
+  | "expire"
+  | "tag";
 
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind: GraphNodeKind): boolean {
-  return kind === "timer" || kind === "reset" || kind === "alive";
+  return (
+    kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock"
+  );
 }
 /** There used to be two: a source's wire was stored against its channel and
  *  drawn from that, which is why two boxes for one channel showed the same
@@ -65,6 +72,8 @@ interface GraphNodeView {
   asks: GraphAsks | null;
   /** Deposit and Withdraw boxes: which repository, and how full it is. */
   store: GraphStore | null;
+  /** Decay, Expire and Tag boxes: what this one marks what passes with. */
+  stamp: GraphStamp | null;
   /** Jigsaw pieces: what this one is slotted under, and what it says. */
   piece: GraphPiece | null;
   /** Feed boxes: how it fills. */
@@ -304,7 +313,11 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "withdraw" ||
     value === "timer" ||
     value === "reset" ||
-    value === "alive"
+    value === "alive" ||
+    value === "lock" ||
+    value === "decay" ||
+    value === "expire" ||
+    value === "tag"
   ) {
     return value;
   }
@@ -348,6 +361,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     channel: asGraphChannel(raw["channel"]),
     asks: asGraphAsks(raw["asks"]),
     store: asGraphStore(raw["store"]),
+    stamp: asGraphStamp(raw["stamp"]),
     piece: asGraphPiece(raw["piece"]),
     plugin: asGraphPlugin(raw["plugin"]),
     feed: asGraphFeed(raw["feed"]),
@@ -377,7 +391,14 @@ function asGraphPiece(value: unknown): GraphPiece | null {
     cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
     from: typeof raw["from"] === "string" ? raw["from"] : "",
     to: typeof raw["to"] === "string" ? raw["to"] : "",
+    every: asGraphEvery(raw["every"]),
   };
+}
+
+function asGraphStamp(value: unknown): GraphStamp | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
 }
 
 function asGraphStore(value: unknown): GraphStore | null {
@@ -642,6 +663,10 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "timer") return "Timer";
   if (kind === "reset") return "Reset";
   if (kind === "alive") return "Alive";
+  if (kind === "lock") return "Lock";
+  if (kind === "decay") return "Decay";
+  if (kind === "expire") return "Expire";
+  if (kind === "tag") return "Tag";
   if (kind === "feed") return "Feed";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
@@ -676,6 +701,14 @@ interface GraphPiece {
   /** Alive: the two ends of the stretch of day it allows, as "HH:MM". */
   from: string;
   to: string;
+  /** Timer: its amount and unit, and the units it could be said in. */
+  every: GraphEvery;
+}
+
+/** What a marking box carries. */
+interface GraphStamp {
+  /** Tag boxes: what it marks whatever passes with. */
+  marks: string;
 }
 
 /** What a Deposit or Withdraw box is about. */
@@ -1303,6 +1336,7 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   form.appendChild(graphLabelled("Name", name));
 
   if (node.kind === "group") graphGroupFields(form, node);
+  else if (node.stamp !== null) graphStampFields(form, node);
   else if (node.piece !== null) graphPieceFields(form, node);
   else if (node.store !== null) graphStoreFields(form, node.store);
   else if (node.kind === "source") graphChannelFields(state, form, node);
@@ -1501,11 +1535,54 @@ function graphMatches(name: string, query: string): boolean {
   return terms.every((term): boolean => against.includes(term));
 }
 
+/** A box that marks what passes through it rather than narrowing it. */
+function graphStampFields(form: HTMLElement, node: GraphNodeView): void {
+  if (node.kind === "tag") {
+    const named = document.createElement("input");
+    named.type = "text";
+    named.name = "marks";
+    named.value = node.stamp?.marks ?? "";
+    named.placeholder = "long reads";
+    form.appendChild(graphLabelled("Marks it", named));
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        "Everything through this box carries the tag from here on. A Filter box later in the path can ask for it.",
+      ),
+    );
+    return;
+  }
+
+  form.appendChild(
+    graphElement(
+      "p",
+      "hint",
+      node.kind === "decay"
+        ? "Slot a Timer under this to say how long you get with each item in Focus. A Lock under it makes that time one you cannot pause."
+        : "Slot a Timer under this to say how long an item stays in the feed, counted from when it arrives. After that it is taken out — it stays in your history and in any other feed that said nothing about expiry.",
+    ),
+  );
+}
+
 /** A jigsaw piece. One field each: a Timer says how long, a Reset says when
  *  you get another. */
 function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
   const piece = node.piece;
   if (piece === null) return;
+
+  if (node.kind === "lock") {
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        piece.under === null
+          ? "Loose on the canvas. Drop it on a Decay box to make its time one you cannot pause."
+          : "The Timer above this cannot be paused. The point of it is a stretch that runs whether you are looking or not.",
+      ),
+    );
+    return;
+  }
 
   if (node.kind === "alive") {
     const pair = graphElement("div", "graph-times");
@@ -1521,12 +1598,28 @@ function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
     }
     form.appendChild(pair);
   } else if (node.kind === "timer") {
-    const many = document.createElement("input");
-    many.type = "number";
-    many.name = "duration_minutes";
-    many.min = "1";
-    many.value = String(piece.minutes);
-    form.appendChild(graphLabelled("Minutes once you start reading", many));
+    const amount = document.createElement("input");
+    amount.type = "number";
+    amount.name = "duration_minutes";
+    amount.min = "1";
+    amount.value = String(piece.every.amount);
+
+    const unit = document.createElement("select");
+    unit.name = "every_unit";
+    for (const choice of piece.every.units) {
+      const option = document.createElement("option");
+      option.value = choice.name;
+      option.textContent = choice.label;
+      option.selected = choice.name === piece.every.unit;
+      unit.appendChild(option);
+    }
+
+    const pair = graphElement("div", "graph-pair");
+    pair.appendChild(amount);
+    pair.appendChild(unit);
+    // What the amount is an amount of depends on the box it is slotted
+    // into: a sitting, a stretch with one item, or how long that item stays.
+    form.appendChild(graphLabelled("How long", pair));
   } else {
     const when = document.createElement("input");
     when.type = "text";

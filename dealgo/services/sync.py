@@ -433,6 +433,11 @@ def _run(
         session.commit()
         _prune(session, client, playlists, result, owner)
 
+    # Whatever an Expire box said had had its time, taken out of the feed it
+    # was in. After the filling, so something that arrived with no time left
+    # on it goes in the same run it came in.
+    _sweep_expired(session, client, result, owner, say=pen)
+
     # Last, so a pull takes what this run brought as well as what was already
     # waiting. A run's job is to bring everything up to date, and holding
     # back what arrived a moment ago would be a rule with no reason behind it.
@@ -1411,6 +1416,7 @@ def _publish(
             _note_left(channel.id)
 
         allowed: list[Playlist] = []
+        taking: list[graph.Route] = []
         stored: list[graph.Route] = []
         refusals: list[str] = []
         for path in paths:
@@ -1423,6 +1429,13 @@ def _publish(
                 stored.append(path)
             elif path.playlist is not None:
                 allowed.append(path.playlist)
+                taking.append(path)
+
+        # What the boxes on the paths that took it said about it. Done for
+        # the item as a whole rather than per feed: a tag is a property of
+        # the thing, and how long you get with it is a property of reading
+        # it, neither of which is a fact about one feed.
+        _apply_stamps(session, video, taking + stored, owner)
 
         if not allowed and not stored:
             # Every path said no; the first reason is the one worth showing.
@@ -1571,6 +1584,8 @@ def _publish(
             landed = True
             result.added += 1
 
+        _stamp_expiry(session, video, taking)
+
         session.flush()
         if landed or (held and not allowed):
             video.status = "added"
@@ -1602,6 +1617,21 @@ def _decide(
     set of settings to keep in step.
     """
     rules = path.effective()
+
+    # A tag, which is the one rule that can be true of an item because of
+    # where it has been rather than because of what it is.
+    #
+    # What this path would put on it counts as well as what it already
+    # carries, or a Tag box and a Filter box on the same path could never
+    # work together: the marks are left after every path has decided, so on
+    # the run that brought the item in the tag would not be there yet.
+    # Order within a path is already flattened for the filters themselves,
+    # so flattening it here is the same bargain.
+    wanted = graph.tag_name(str(rules.get("tagged") or ""))
+    if wanted:
+        carried = set(video.tag_list) | set(graph.stamped_tags(path.stamps))
+        if wanted not in carried:
+            return filters.Decision(False, f"not tagged “{wanted}”")
 
     # The one thing that does not generalise. A YouTube playlist holds YouTube
     # videos and nothing else, so an item from anywhere else can only go into
@@ -1984,6 +2014,137 @@ def _withdraw_what_is_due(
     for node in due:
         withdraw(session, node, result, owner, say=pen)
         node.last_fired_at = utcnow()
+    session.flush()
+
+
+def _stamp_expiry(
+    session: Session, video: Video, paths: list[graph.Route]
+) -> None:
+    """Say when a placement made under an Expire box stops counting.
+
+    Per placement rather than per item: the same video down a path with an
+    Expire box and a path without is two different answers, and only one of
+    them has an end.
+
+    Counted from now, which is when it reached the feed. Not from when it
+    was published — everything that comes through gets the same stretch
+    whatever its age, which is what a rolling feed means.
+    """
+    known = graph.pieces_of(session, video.owner_pk)
+    # Queried rather than read off the relationship: the placements were
+    # added a moment ago and `video.placements` has not been told.
+    session.flush()
+    placed = {
+        one.playlist_pk: one
+        for one in session.scalars(
+            select(Placement).where(Placement.video_pk == video.id)
+        )
+    }
+    for path in paths:
+        if path.playlist is None:
+            continue
+        minutes = graph.stamped_life(path.stamps, known)
+        placement = placed.get(path.playlist.id)
+        if minutes is None or placement is None or placement.expires_at is not None:
+            continue
+        placement.expires_at = to_naive_utc(
+            dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
+        )
+
+
+def _sweep_expired(
+    session: Session,
+    client: Publisher,
+    result: SyncResult,
+    owner: OwnerId = None,
+    say: runlog.Pen | None = None,
+) -> None:
+    """Take out what an Expire box said had had its time.
+
+    Removed from the feed, not deleted: the item is still in the history and
+    still in any other feed whose path said nothing about expiry.
+    """
+    due = list(
+        session.scalars(
+            # A placement has no owner of its own; it belongs to whoever
+            # the video does, which is how every other query reaches one.
+            select(Placement)
+            .join(Video, Video.id == Placement.video_pk)
+            .where(belongs_to(Video, owner))
+            .join(Playlist, Playlist.id == Placement.playlist_pk)
+            .options(selectinload(Placement.playlist), selectinload(Placement.video))
+            .where(
+                Placement.expires_at.is_not(None),
+                Placement.expires_at <= utcnow(),
+                Placement.removed_at.is_(None),
+                Placement.playlist_item_id.is_not(None),
+            )
+        )
+    )
+    if not due:
+        return
+
+    gone = 0
+    for placement in due:
+        playlist = placement.playlist
+        if not (playlist.is_generic or placement.is_local or not client.has_write_access):
+            # A real playlist holds a real item, which has to be taken out of
+            # it — and that costs quota like any other write.
+            if not quota.can_afford(session, cost_of("remove"), owner=owner):
+                result.messages.append("Quota ran out before the expired items were cleared.")
+                break
+            try:
+                client.delete_playlist_item(placement.playlist_item_id or "")
+            except PublishError as exc:
+                if exc.is_quota_error:
+                    quota.mark_exhausted(session, owner)
+                    result.stopped_on_quota = True
+                    break
+                log.warning("could not clear an expired item: %s", exc)
+                continue
+        placement.playlist_item_id = None
+        placement.removed_at = utcnow()
+        placement.removal_reason = "its time in this feed ran out"
+        gone += 1
+
+    session.flush()
+    result.pruned += gone
+    if gone and say is not None:
+        say.write(f"cleared {gone} whose time in a feed had run out")
+
+
+def _apply_stamps(
+    session: Session,
+    video: Video,
+    paths: list[graph.Route],
+    owner: OwnerId = None,
+) -> None:
+    """Leave on an item what the boxes it passed said about it.
+
+    A Tag box names it, a Decay box says how long you get with it, a Lock
+    piece says that time cannot be held. Read after the path has let the
+    item through, because these turn nothing away — a Decay box is not a
+    reason to refuse something, only a reason to hurry.
+    """
+    marks = [node for path in paths for node in path.stamps]
+    if not marks:
+        return
+
+    known = graph.pieces_of(session, owner)
+    named = graph.stamped_tags(marks)
+    if named:
+        already = video.tag_list
+        video.tags = ", ".join(already + [one for one in named if one not in already])[:400]
+
+    seconds = graph.stamped_seconds(marks, known)
+    if seconds is not None:
+        # The shortest wins where an item came down two paths that disagree,
+        # for the same reason it does within one: a limit is a limit.
+        video.view_seconds = (
+            seconds if video.view_seconds is None else min(video.view_seconds, seconds)
+        )
+    if graph.stamped_locked(marks, known):
+        video.view_locked = True
     session.flush()
 
 

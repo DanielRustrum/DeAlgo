@@ -52,15 +52,24 @@ KINDS = (
     # every source funnel into one place and be pulled from when a pipeline
     # is ready, instead of each source pushing on its own schedule.
     "deposit", "withdraw",
+    # Boxes that mark what passes through them rather than narrowing it.
+    # Each says something about an item that the rest of the app reads
+    # later: how long you get with it, how long it belongs in a feed, what
+    # it is called.
+    "decay", "expire", "tag",
     # Jigsaw pieces. These are not on any path and have no wires: each is
     # slotted under a box and changes what that box does. Pieces chain, and
     # a chain belongs to the box at the top of it.
-    "timer", "reset", "alive",
+    "timer", "reset", "alive", "lock",
 )
+
+#: The boxes that mark what goes through them. On a path like a filter, but
+#: they turn nothing away — what they do shows up after the item has landed.
+STAMPS = ("decay", "expire", "tag")
 
 #: The pieces, as against the boxes. Kept together so "is this a piece"
 #: is one question asked in one place.
-JIGSAW = ("timer", "reset", "alive")
+JIGSAW = ("timer", "reset", "alive", "lock")
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -90,7 +99,7 @@ DEFAULT_SORT_BY = "published"
 
 # Which wires make sense. Triggers feed channels, sources start paths, feeds
 # end them, filters and sorts sit in between — and nothing runs backwards.
-MIDDLE = ("filter", "sort", "plugin")
+MIDDLE = ("filter", "sort", "plugin", "decay", "expire", "tag")
 #: Where a path may end: a feed, or a repository to be pulled from later.
 ENDS = ("feed", "deposit")
 
@@ -122,6 +131,11 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "timer": (),
     "reset": (),
     "alive": (),
+    "lock": (),
+    # They mark what passes and pass it on, so they sit where a filter sits.
+    "decay": MIDDLE + ENDS,
+    "expire": MIDDLE + ENDS,
+    "tag": MIDDLE + ENDS,
 }
 
 #: What an Alive piece allows when nobody has said. All day, so a piece just
@@ -225,6 +239,10 @@ class Route:
     #: lays settings over the channel's and these ask a question per item —
     #: the two cannot be merged into one dictionary.
     checks: list[GraphNode] = field(default_factory=list)
+    #: Boxes that mark what passes rather than narrowing it — Decay, Expire,
+    #: Tag. Kept apart from the filters because they turn nothing away: they
+    #: are read after an item has been let through, not while deciding.
+    stamps: list[GraphNode] = field(default_factory=list)
     #: The node this path started at. Carried rather than looked up: a
     #: channel may be drawn twice, so there is no answering "which box is
     #: this channel" after the fact.
@@ -404,7 +422,10 @@ def _once_each(found: list[Route]) -> list[Route]:
     video must not be weighed twice for one feed.
     """
     seen: set[
-        tuple[int, int, str, tuple[int, ...], tuple[int, ...], tuple[int, ...]]
+        tuple[
+            int, int, str,
+            tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...],
+        ]
     ] = set()
     kept: list[Route] = []
     for path in found:
@@ -417,6 +438,9 @@ def _once_each(found: list[Route]) -> list[Route]:
             # Two paths that differ only by which plugin boxes they pass are
             # two different paths: each asks a different question.
             tuple(node.id for node in path.checks),
+            # Two paths that mark an item differently are two paths: what
+            # they leave on it is as much a difference as what they refuse.
+            tuple(node.id for node in path.stamps),
         )
         if signature in seen:
             continue
@@ -436,6 +460,7 @@ def _walk(
     ordered: list[GraphNode] | None = None,
     source: GraphNode | None = None,
     asked: list[GraphNode] | None = None,
+    marked: list[GraphNode] | None = None,
 ) -> None:
     """Depth-first from a start, collecting what it passes until an end.
 
@@ -451,6 +476,7 @@ def _walk(
     seen = seen | {node.id}
     ordered = ordered or []
     asked = asked or []
+    marked = marked or []
 
     for target_id in out.get(node.id, []):
         target = by_id.get(target_id)
@@ -465,6 +491,7 @@ def _walk(
                         filters=list(carried),
                         sorts=list(ordered),
                         checks=list(asked),
+                        stamps=list(marked),
                         source=source,
                         finish=target,
                     )
@@ -482,6 +509,7 @@ def _walk(
                         filters=list(carried),
                         sorts=list(ordered),
                         checks=list(asked),
+                        stamps=list(marked),
                         source=source,
                         finish=target,
                     )
@@ -500,6 +528,7 @@ def _walk(
                 ordered + [target] if target.kind == "sort" else ordered,
                 source,
                 asked + [target] if target.kind == "plugin" else asked,
+                marked + [target] if target.kind in STAMPS else marked,
             )
 
 
@@ -1137,8 +1166,54 @@ def _came_round_within(expression: str, minutes: int, now: dt.datetime) -> bool:
     return began is not None and began <= moment
 
 
+def piece_note(piece: GraphNode, host: GraphNode | None) -> str:
+    """What a piece does, said in the terms of what it is slotted into.
+
+    A Timer says an amount and nothing about what it is an amount of: under
+    a feed it is a sitting, under a Decay box it is how long you get with
+    one item, under an Expire box it is how long that item stays. The piece
+    carries the number; the box it is in is what the number means.
+    """
+    said = piece_words(piece)
+    if piece.kind != "timer":
+        return said
+    if host is None:
+        return said
+    if host.kind == "decay":
+        return f"{said} with each one"
+    if host.kind == "expire":
+        return f"gone {said} after it arrives"
+    return f"{said} once you start reading"
+
+
+def stamp_words(node: GraphNode, pieces: list[GraphNode]) -> str:
+    """What a marking box does, in the words that belong to it.
+
+    A Timer slotted under one says an amount and nothing about what it is an
+    amount of; the box it is slotted into is what turns it into a sentence.
+    """
+    if node.kind == "tag":
+        named = tag_name(node.marks)
+        return f"marks it “{named}”" if named else "open it and give it a tag"
+
+    minutes = _timer_minutes(pieces)
+    if minutes is None:
+        return "slot a Timer under it to say how long"
+    if node.kind == "decay":
+        locked = any(one.kind == "lock" and one.enabled for one in pieces)
+        return every_words(minutes) + " with each one" + (", no pausing" if locked else "")
+    return "gone " + every_words(minutes) + " after it arrives"
+
+
 def piece_words(piece: GraphNode, window: int | None = None) -> str:
-    """What one jigsaw piece does, in the words that belong to it."""
+    """What one jigsaw piece does, in the words that belong to it.
+
+    A Timer reads differently depending on what it is slotted into — how
+    long a sitting lasts, how long you get with one item, how long an item
+    stays — so the host is asked for the sentence and this says the amount.
+    """
+    if piece.kind == "lock":
+        return "cannot be paused"
     if piece.kind == "alive":
         begins = clock_time(piece.alive_from)
         ends = clock_time(piece.alive_to)
@@ -1147,7 +1222,7 @@ def piece_words(piece: GraphNode, window: int | None = None) -> str:
         return f"only between {begins} and {ends}"
     if piece.kind == "timer":
         minutes = max(1, piece.duration_minutes or DEFAULT_DURATION_MINUTES)
-        return f"{every_words(minutes)} once you start reading"
+        return every_words(minutes)
     held = window if window is not None else DEFAULT_DURATION_MINUTES
     return f"another {every_words(max(1, held))} on “{piece.cron or DEFAULT_CRON}”"
 
@@ -2100,6 +2175,124 @@ def resize(
     group.height = max(GROUP_LEAST[1], int(height))
     session.flush()
     return True
+
+
+def add_stamp(
+    session: Session,
+    owner: OwnerId = None,
+    *,
+    kind: str,
+    marks: str = "",
+    x: int | None = None,
+    y: int = 40,
+) -> GraphNode:
+    """A box that marks what passes through it rather than narrowing it."""
+    if kind not in STAMPS:
+        raise GraphError(f"There is no {kind} box.")
+    node = GraphNode(
+        owner_pk=owner,
+        kind=kind,
+        marks=tag_name(marks) or None if kind == "tag" else None,
+        x=COLUMN_X["filter"] if x is None else x,
+        y=y,
+    )
+    session.add(node)
+    session.flush()
+    return node
+
+
+def tag_name(raw: str | None) -> str:
+    """A tag as it is filed: trimmed, squeezed, lowercased.
+
+    The same treatment a repository name gets, and for the same reason — a
+    Tag box and a Filter box that disagreed about capitals would be two
+    boxes that look joined up and are not.
+    """
+    return " ".join((raw or "").split()).lower()[:40]
+
+
+def pieces_of(session: Session, owner: OwnerId = None) -> Any:
+    """A way to ask what is slotted under a box, read once for a whole run.
+
+    Handed to the `stamped_*` readers rather than each of them walking the
+    canvas again: a fill pass asks about the same boxes once per item.
+    """
+    all_nodes = nodes(session, owner)
+    return lambda node: pieces_under(all_nodes, node.id)
+
+
+def stamped_seconds(stamps: list[GraphNode], pieces_for: Any) -> int | None:
+    """How long a Decay box on this path gives you with an item, in seconds.
+
+    The shortest of them where several disagree: a Decay box is a limit, and
+    two limits mean the tighter one. None when no Decay box said anything,
+    which leaves the account's own setting alone.
+    """
+    shortest: int | None = None
+    for node in stamps:
+        if node.kind != "decay" or not node.enabled:
+            continue
+        minutes = _timer_minutes(pieces_for(node))
+        if minutes is None:
+            continue
+        seconds = max(1, minutes * 60)
+        shortest = seconds if shortest is None else min(shortest, seconds)
+    return shortest
+
+
+def stamped_locked(stamps: list[GraphNode], pieces_for: Any) -> bool:
+    """Whether any Decay box on this path was told its time cannot be held.
+
+    A Lock piece under it. Any one of them saying so is enough: a stretch
+    that can be paused somewhere else is not a stretch you cannot pause.
+    """
+    for node in stamps:
+        if node.kind != "decay" or not node.enabled:
+            continue
+        if any(one.kind == "lock" and one.enabled for one in pieces_for(node)):
+            return True
+    return False
+
+
+def stamped_life(stamps: list[GraphNode], pieces_for: Any) -> int | None:
+    """How long an Expire box on this path lets an item stay, in minutes.
+
+    The shortest again, and for the same reason.
+    """
+    shortest: int | None = None
+    for node in stamps:
+        if node.kind != "expire" or not node.enabled:
+            continue
+        minutes = _timer_minutes(pieces_for(node))
+        if minutes is None:
+            continue
+        shortest = minutes if shortest is None else min(shortest, minutes)
+    return shortest
+
+
+def stamped_tags(stamps: list[GraphNode]) -> list[str]:
+    """Every tag the boxes on this path put on what passes."""
+    found: list[str] = []
+    for node in stamps:
+        if node.kind != "tag" or not node.enabled:
+            continue
+        named = tag_name(node.marks)
+        if named and named not in found:
+            found.append(named)
+    return found
+
+
+def _timer_minutes(pieces: list[GraphNode]) -> int | None:
+    """What the Timer slotted under a box says, in minutes.
+
+    The nearest one, the same rule a Timer under a feed lives by. None when
+    there is no Timer: a Decay or Expire box with nothing slotted into it
+    has been put on the canvas and not yet told anything.
+    """
+    for piece in pieces:
+        if piece.kind == "timer" and piece.enabled:
+            return max(1, piece.duration_minutes or DEFAULT_DURATION_MINUTES)
+    return None
 
 
 def add_piece(

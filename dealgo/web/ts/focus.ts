@@ -31,6 +31,11 @@ interface FocusItem {
   body: string;
   images: string[];
   url: string;
+  /** What a Decay box gave you with this one, in seconds. Null for the
+   *  account's own setting, which is what most things use. */
+  seconds: number | null;
+  /** Whether a Lock under that box said the time cannot be held. */
+  locked: boolean;
 }
 
 /** What POST /focus/<id>/finished answers with. */
@@ -72,6 +77,11 @@ interface FocusSitting {
   readonly order: string;
   readonly playlist: string;
   readonly postSeconds: number;
+  /** What this item gets, which is the account's setting unless a Decay box
+   *  on its way here said otherwise. */
+  allowed: number;
+  /** Whether that time may be held. */
+  locked: boolean;
   /** What is open right now. */
   current: FocusItem;
   /** Skipped this sitting: still unwatched, but not offered again until the
@@ -147,7 +157,7 @@ function setFocusStatus(sitting: FocusSitting, message: string): void {
 function paintFocusTimer(sitting: FocusSitting): void {
   const seconds = Math.max(0, Math.ceil(sitting.msLeft / 1000));
   sitting.elements.timerCount.textContent = sitting.held ? "held" : `${seconds}s`;
-  const share = (sitting.msLeft / (sitting.postSeconds * 1000)) * 100;
+  const share = (sitting.msLeft / (sitting.allowed * 1000)) * 100;
   sitting.elements.timerFill.style.width = `${share}%`;
 }
 
@@ -156,11 +166,17 @@ function stopFocusTimer(sitting: FocusSitting): void {
   sitting.timerId = null;
 }
 
-function startFocusTimer(sitting: FocusSitting): void {
+function startFocusTimer(sitting: FocusSitting, item?: FocusItem): void {
   stopFocusTimer(sitting);
   sitting.held = false;
-  sitting.msLeft = sitting.postSeconds * 1000;
-  sitting.elements.timerWord.textContent = "until the next one";
+  // What a Decay box gave you with this one, if anything did. The account's
+  // own setting is what everything else gets.
+  sitting.allowed = item?.seconds ?? sitting.postSeconds;
+  sitting.locked = item?.locked === true;
+  sitting.msLeft = sitting.allowed * 1000;
+  sitting.elements.timerWord.textContent = sitting.locked
+    ? "until the next one — cannot be paused"
+    : "until the next one";
   paintFocusTimer(sitting);
   sitting.timerId = window.setInterval((): void => tickFocusTimer(sitting), 100);
 }
@@ -174,8 +190,16 @@ function tickFocusTimer(sitting: FocusSitting): void {
   advanceFocus(sitting, true);
 }
 
-/** Hold the timer where it is, for a post still being read. */
+/** Hold the timer where it is, for a post still being read.
+ *
+ *  Unless a Lock piece said otherwise. The point of a locked stretch is one
+ *  that runs whether you are looking or not, so it refuses rather than
+ *  quietly doing nothing. */
 function toggleFocusTimer(sitting: FocusSitting): void {
+  if (sitting.locked) {
+    setFocusStatus(sitting, "this one cannot be paused");
+    return;
+  }
   sitting.held = !sitting.held;
   sitting.elements.timerWord.textContent = sitting.held
     ? "paused — click to resume"
@@ -226,7 +250,7 @@ function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   elements.timer.hidden = false;
   elements.stage.hidden = true;
   if (sitting.player) sitting.player.pauseVideo();
-  startFocusTimer(sitting);
+  startFocusTimer(sitting, item);
 }
 
 function showFocusVideo(sitting: FocusSitting, item: FocusItem): void {
@@ -378,7 +402,7 @@ function advanceFocus(sitting: FocusSitting, markWatched: boolean): void {
     .catch((): void => {
       sitting.advancing = false;
       setFocusStatus(sitting, "could not advance — check the connection");
-      if (focusIsRead(sitting.current)) startFocusTimer(sitting);
+      if (focusIsRead(sitting.current)) startFocusTimer(sitting, sitting.current);
     });
 }
 
@@ -488,6 +512,8 @@ function newFocusSitting(root: HTMLElement, opening: FocusItem): FocusSitting {
     order: root.dataset["order"] ?? "oldest",
     playlist: root.dataset["playlist"] ?? "",
     postSeconds: parseInt(root.dataset["postSeconds"] ?? "", 10) || 30,
+    allowed: parseInt(root.dataset["postSeconds"] ?? "", 10) || 30,
+    locked: false,
     current: opening,
     passedOver: [],
     player: null,
@@ -511,7 +537,7 @@ function initFocusMode(): void {
   pointFrameAtFirstVideo(sitting);
   awaitYouTubeApi(sitting);
 
-  if (focusIsRead(sitting.current)) startFocusTimer(sitting);
+  if (focusIsRead(sitting.current)) startFocusTimer(sitting, sitting.current);
   else warnIfPlayerNeverWakes(sitting);
 }
 

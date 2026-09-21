@@ -1037,6 +1037,11 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
         # others still has a picture to show.
         "images": video.pictures,
         "url": video.url,
+        # What a Decay box on its way here said. Null means the account's own
+        # setting, which is what everything that never met one uses.
+        "seconds": video.view_seconds,
+        # And whether a Lock under that box said the time cannot be held.
+        "locked": video.view_locked,
     }
 
 
@@ -1943,6 +1948,20 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
         for node in nodes
         if node.kind in ("deposit", "withdraw")
     }
+    # What is slotted under each marking box, since what those boxes do is
+    # whatever their pieces say.
+    slotted = {
+        node.id: graph_service.pieces_under(nodes, node.id)
+        for node in nodes
+        if node.kind in graph_service.STAMPS
+    }
+    # And what each piece is slotted into, since a Timer says an amount and
+    # the box it is in is what the amount means.
+    hosts = {
+        node.id: graph_service.host_of(nodes, node)
+        for node in nodes
+        if node.kind in graph_service.JIGSAW
+    }
     return {
         "nodes": [
             {
@@ -1960,7 +1979,10 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     else f"/feeds/{node.playlist_pk}" if node.kind == "feed" and node.playlist_pk
                     else None
                 ),
-                "note": _node_note(node, opening, stores.get(node.id)),
+                "note": _node_note(
+                    node, opening, stores.get(node.id), slotted.get(node.id),
+                    hosts.get(node.id),
+                ),
                 "enabled": _is_on(node),
                 "size": (
                     None
@@ -1979,6 +2001,11 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 # knows and a second copy would be a second thing to keep up.
                 "asks": asking.get(node.id) if node.kind == "source" else None,
                 "store": stores.get(node.id),
+                "stamp": (
+                    {"marks": graph_service.tag_name(node.marks)}
+                    if node.kind in graph_service.STAMPS
+                    else None
+                ),
                 # A jigsaw piece: what it is slotted under, and what it says.
                 # Drawn under its host rather than at its own position, so the
                 # canvas needs to know which box that is.
@@ -1989,6 +2016,9 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                         "cron": node.cron or graph_service.DEFAULT_CRON,
                         "from": graph_service.clock_time(node.alive_from),
                         "to": graph_service.clock_time(node.alive_to),
+                        # An amount and a unit, so a Timer can say days as
+                        # readily as minutes without anybody counting.
+                        "every": _every_words_for(node),
                     }
                     if node.kind in graph_service.JIGSAW
                     else None
@@ -2100,6 +2130,21 @@ def _asks_for(node: GraphNode) -> Context | None:
     }
 
 
+def _every_words_for(node: GraphNode) -> Context:
+    """A Timer's amount and unit, and the units it could be said in."""
+    amount, unit = graph_service.split_every(
+        node.duration_minutes or graph_service.DEFAULT_DURATION_MINUTES
+    )
+    return {
+        "amount": amount,
+        "unit": unit,
+        "units": [
+            {"name": name, "label": label}
+            for name, _, label in graph_service.EVERY_UNITS
+        ],
+    }
+
+
 def _every_parts(node: GraphNode) -> Context:
     """A pulse's gap as an amount, a unit, and the units it could be said in."""
     amount, unit = graph_service.split_every(
@@ -2187,7 +2232,9 @@ def _window_words(pieces: list[GraphNode]) -> list[str]:
         if timers
         else graph_service.DEFAULT_DURATION_MINUTES
     )
-    said = [graph_service.piece_words(one) for one in timers[:1]]
+    said = [
+        f"{graph_service.piece_words(one)} once you start reading" for one in timers[:1]
+    ]
     said += [graph_service.piece_words(one, window) for one in resets]
     # Last, because it is a condition on the rest rather than another way in.
     said += [
@@ -2322,6 +2369,8 @@ def _node_note(
     node: GraphNode,
     opening: set[int] | None = None,
     store: Context | None = None,
+    pieces: list[GraphNode] | None = None,
+    host: GraphNode | None = None,
 ) -> str:
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
@@ -2334,7 +2383,9 @@ def _node_note(
     if node.kind in graph_service.JIGSAW:
         if node.attached_to is None:
             return "drop it on a box to slot it in"
-        return graph_service.piece_words(node)
+        return graph_service.piece_note(node, host)
+    if node.kind in graph_service.STAMPS:
+        return graph_service.stamp_words(node, pieces or [])
     if node.kind in ("deposit", "withdraw"):
         name = str((store or {}).get("name") or "")
         if not name:
@@ -2494,6 +2545,10 @@ def graph_add_node(
                 settings={f.name: f.default for f in box.fields if f.default},
                 x=x,
                 y=y,
+            )
+        elif kind in graph_service.STAMPS:
+            graph_service.add_stamp(
+                session, owner, kind=kind, marks=title.strip(), x=x, y=y
             )
         elif kind in graph_service.JIGSAW:
             # Slotted under whatever it was dropped on. Without a host it is
@@ -3098,6 +3153,7 @@ async def graph_save_node(
     takes_how_many: str = Form(""),
     alive_from: str = Form(""),
     alive_to: str = Form(""),
+    marks: str = Form(""),
 ) -> JSONResponse:
     """Save what a box says about itself.
 
@@ -3147,6 +3203,8 @@ async def graph_save_node(
             except graph_service.GraphError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
             node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind == "tag":
+            node.marks = graph_service.tag_name(marks) or None
         elif node.kind in graph_service.JIGSAW:
             if node.kind == "alive":
                 begins = graph_service.clock_time(alive_from)
@@ -3160,7 +3218,9 @@ async def graph_save_node(
             elif node.kind == "timer":
                 wanted = duration_minutes.strip()
                 node.duration_minutes = (
-                    int(wanted) if wanted.isdigit() and int(wanted) > 0 else None
+                    graph_service.every_minutes_from(int(wanted), every_unit or "minutes")
+                    if wanted.isdigit() and int(wanted) > 0
+                    else None
                 )
             else:
                 try:

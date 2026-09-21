@@ -145,6 +145,9 @@
           <ul class="palette-list">
             {{ node_row('filter', 'Filter', 'Narrows one path without touching the others.') }}
             {{ node_row('sort', 'Sort', 'Puts the batch in order — newest, longest, most watched.') }}
+            {{ node_row('tag', 'Tag', 'Marks whatever passes with a tag, for a Filter later on to read.') }}
+            {{ node_row('decay', 'Decay', 'How long you get with each item. Takes a Timer, and a Lock to stop it being paused.') }}
+            {{ node_row('expire', 'Expire', 'How long an item stays in the feed once it arrives. Takes a Timer.') }}
             {{ node_row('deposit', 'Deposit', 'Ends a path in a named repository. Nothing comes out until a Withdraw pulls it.') }}
             {{ node_row('withdraw', 'Withdraw', 'Starts a path from a named repository, when a trigger says to pull.') }}
           </ul>
@@ -158,6 +161,7 @@
             {{ node_row('timer', 'Timer', 'How long a feed stays open once you start reading. Drop it on a box.') }}
             {{ node_row('reset', 'Reset', 'When that time comes back — a cron. Drop it on a box.') }}
             {{ node_row('alive', 'Alive', 'Only between two times of day. Narrows whatever else is slotted in.') }}
+            {{ node_row('lock', 'Lock', 'Makes the Timer above it one you cannot pause.') }}
           </ul>
         </details>
 

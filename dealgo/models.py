@@ -409,6 +409,20 @@ class Video(Base):
     link: Mapped[Optional[str]] = mapped_column(Text)
     images: Mapped[Optional[str]] = mapped_column(Text)
 
+    # What the boxes on its way here marked it with.
+    #
+    # Tags a Tag box put on it, comma separated the way a feed's are. A
+    # property of the item rather than of one path: an item that came down
+    # two paths carries what both of them said.
+    tags: Mapped[Optional[str]] = mapped_column(Text)
+    # How long you get with it in Focus, in seconds, when a Decay box said
+    # so. None means the account's own setting, which is what everything
+    # that never met one uses.
+    view_seconds: Mapped[Optional[int]] = mapped_column(Integer)
+    # Whether that time may be paused. A Lock piece under the Decay box says
+    # not: the point of it is a stretch you cannot hold open.
+    view_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     reason: Mapped[Optional[str]] = mapped_column(Text)
     # Marked by the user; YouTube offers no way to read real watch history.
@@ -422,6 +436,11 @@ class Video(Base):
     placements: Mapped[list["Placement"]] = relationship(
         back_populates="video", cascade="all, delete-orphan"
     )
+
+    @property
+    def tag_list(self) -> list[str]:
+        """What the boxes on its way here marked it with, once each."""
+        return [tag.strip() for tag in (self.tags or "").split(",") if tag.strip()]
 
     @property
     def is_post(self) -> bool:
@@ -614,6 +633,11 @@ class GraphNode(Base):
     skip_posts: Mapped[Optional[bool]] = mapped_column(Boolean)
     title_include: Mapped[Optional[str]] = mapped_column(Text)
     title_exclude: Mapped[Optional[str]] = mapped_column(Text)
+    # Filter boxes: only items carrying this tag get past. A Tag box
+    # earlier on the path is what puts one on.
+    tagged: Mapped[Optional[str]] = mapped_column(String(40))
+    # Tag boxes: what this one marks whatever comes through it with.
+    marks: Mapped[Optional[str]] = mapped_column(String(40))
     min_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     max_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     max_per_run: Mapped[Optional[int]] = mapped_column(Integer)
@@ -734,7 +758,7 @@ class GraphNode(Base):
         """Only what this node actually decides, so "inherit" stays visible."""
         named = (
             "skip_videos", "skip_shorts", "skip_live", "skip_posts",
-            "title_include", "title_exclude",
+            "title_include", "title_exclude", "tagged",
             "min_duration_sec", "max_duration_sec", "max_per_run",
         )
         return {name: getattr(self, name) for name in named if getattr(self, name) is not None}
@@ -825,6 +849,10 @@ class Placement(Base):
     added_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     removed_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     removal_reason: Mapped[Optional[str]] = mapped_column(Text)
+    # When an Expire box on this path says it stops belonging in this feed.
+    # Per placement rather than per item: a path with an Expire box on it
+    # and one without are two different answers about the same video.
+    expires_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
 
     video: Mapped[Video] = relationship(back_populates="placements")
     playlist: Mapped[Playlist] = relationship(back_populates="placements")

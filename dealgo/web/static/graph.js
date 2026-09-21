@@ -12,7 +12,7 @@
 // Top-level `function` declarations only: see the note in dialog.ts.
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
-    return kind === "timer" || kind === "reset" || kind === "alive";
+    return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock");
 }
 // -- reading what the server said -----------------------------------------
 function asGraphRecord(value) {
@@ -32,7 +32,11 @@ function asGraphNodeKind(value) {
         value === "withdraw" ||
         value === "timer" ||
         value === "reset" ||
-        value === "alive") {
+        value === "alive" ||
+        value === "lock" ||
+        value === "decay" ||
+        value === "expire" ||
+        value === "tag") {
         return value;
     }
     return null;
@@ -76,6 +80,7 @@ function asGraphNode(value) {
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
         store: asGraphStore(raw["store"]),
+        stamp: asGraphStamp(raw["stamp"]),
         piece: asGraphPiece(raw["piece"]),
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
@@ -105,7 +110,14 @@ function asGraphPiece(value) {
         cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
         from: typeof raw["from"] === "string" ? raw["from"] : "",
         to: typeof raw["to"] === "string" ? raw["to"] : "",
+        every: asGraphEvery(raw["every"]),
     };
+}
+function asGraphStamp(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
 }
 function asGraphStore(value) {
     const raw = asGraphRecord(value);
@@ -377,6 +389,14 @@ function graphKindLabel(kind) {
         return "Reset";
     if (kind === "alive")
         return "Alive";
+    if (kind === "lock")
+        return "Lock";
+    if (kind === "decay")
+        return "Decay";
+    if (kind === "expire")
+        return "Expire";
+    if (kind === "tag")
+        return "Tag";
     if (kind === "feed")
         return "Feed";
     if (kind === "sort")
@@ -947,6 +967,8 @@ function graphNodeForm(state, node) {
     form.appendChild(graphLabelled("Name", name));
     if (node.kind === "group")
         graphGroupFields(form, node);
+    else if (node.stamp !== null)
+        graphStampFields(form, node);
     else if (node.piece !== null)
         graphPieceFields(form, node);
     else if (node.store !== null)
@@ -1126,12 +1148,36 @@ function graphMatches(name, query) {
     const against = name.toLowerCase();
     return terms.every((term) => against.includes(term));
 }
+/** A box that marks what passes through it rather than narrowing it. */
+function graphStampFields(form, node) {
+    var _a;
+    var _b;
+    if (node.kind === "tag") {
+        const named = document.createElement("input");
+        named.type = "text";
+        named.name = "marks";
+        named.value = (_b = (_a = node.stamp) === null || _a === void 0 ? void 0 : _a.marks) !== null && _b !== void 0 ? _b : "";
+        named.placeholder = "long reads";
+        form.appendChild(graphLabelled("Marks it", named));
+        form.appendChild(graphElement("p", "hint", "Everything through this box carries the tag from here on. A Filter box later in the path can ask for it."));
+        return;
+    }
+    form.appendChild(graphElement("p", "hint", node.kind === "decay"
+        ? "Slot a Timer under this to say how long you get with each item in Focus. A Lock under it makes that time one you cannot pause."
+        : "Slot a Timer under this to say how long an item stays in the feed, counted from when it arrives. After that it is taken out — it stays in your history and in any other feed that said nothing about expiry."));
+}
 /** A jigsaw piece. One field each: a Timer says how long, a Reset says when
  *  you get another. */
 function graphPieceFields(form, node) {
     const piece = node.piece;
     if (piece === null)
         return;
+    if (node.kind === "lock") {
+        form.appendChild(graphElement("p", "hint", piece.under === null
+            ? "Loose on the canvas. Drop it on a Decay box to make its time one you cannot pause."
+            : "The Timer above this cannot be paused. The point of it is a stretch that runs whether you are looking or not."));
+        return;
+    }
     if (node.kind === "alive") {
         const pair = graphElement("div", "graph-times");
         for (const [name, value, label] of [
@@ -1147,12 +1193,26 @@ function graphPieceFields(form, node) {
         form.appendChild(pair);
     }
     else if (node.kind === "timer") {
-        const many = document.createElement("input");
-        many.type = "number";
-        many.name = "duration_minutes";
-        many.min = "1";
-        many.value = String(piece.minutes);
-        form.appendChild(graphLabelled("Minutes once you start reading", many));
+        const amount = document.createElement("input");
+        amount.type = "number";
+        amount.name = "duration_minutes";
+        amount.min = "1";
+        amount.value = String(piece.every.amount);
+        const unit = document.createElement("select");
+        unit.name = "every_unit";
+        for (const choice of piece.every.units) {
+            const option = document.createElement("option");
+            option.value = choice.name;
+            option.textContent = choice.label;
+            option.selected = choice.name === piece.every.unit;
+            unit.appendChild(option);
+        }
+        const pair = graphElement("div", "graph-pair");
+        pair.appendChild(amount);
+        pair.appendChild(unit);
+        // What the amount is an amount of depends on the box it is slotted
+        // into: a sitting, a stretch with one item, or how long that item stays.
+        form.appendChild(graphLabelled("How long", pair));
     }
     else {
         const when = document.createElement("input");
