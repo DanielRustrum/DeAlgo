@@ -782,12 +782,33 @@ def attach(
 
 
 def detach(session: Session, piece: GraphNode) -> bool:
-    """Take a piece out of whatever it was slotted under."""
+    """Take a piece out of whatever it was slotted under.
+
+    What was under it closes up behind it. Taking the middle piece out of a
+    chain is taking one piece out, not breaking the chain in half: everything
+    below it would otherwise be hanging off a piece that is slotted into
+    nothing, which is to say doing nothing at all.
+    """
     if piece.attached_to is None:
         return False
+    _close_up(session, piece)
     piece.attached_to = None
     session.flush()
     return True
+
+
+def _close_up(session: Session, piece: GraphNode) -> None:
+    """Move whatever is under a piece up to whatever the piece was under.
+
+    Said in one place because both ways of taking a piece out of a chain —
+    unslotting it and deleting it — have to do it, and a chain that healed
+    one way and not the other would be worse than one that never healed.
+    """
+    for below in session.scalars(
+        select(GraphNode).where(GraphNode.attached_to == piece.id)
+    ):
+        below.attached_to = piece.attached_to
+    session.flush()
 
 
 def pieces_under(all_nodes: list[GraphNode], host_pk: int) -> list[GraphNode]:
@@ -2255,6 +2276,22 @@ def remove(session: Session, node_pk: int, owner: OwnerId = None) -> bool:
         return False
 
     channel, playlist = node.channel, node.playlist
+
+    if node.kind in JIGSAW:
+        # The chain closes up behind it. The column carries a cascade on a
+        # database built from scratch, which would take everything below it
+        # as well — silently deleting a Reset because a Timer above it was
+        # removed.
+        _close_up(session, node)
+    else:
+        # A box's pieces describe that box, so they go with it rather than
+        # being left on the canvas slotted into nothing. Said here rather
+        # than left to the cascade, which a column added to an existing
+        # database does not carry.
+        for piece in pieces_under(nodes(session, owner), node.id):
+            session.delete(piece)
+        session.flush()
+
     session.delete(node)
     session.flush()
 

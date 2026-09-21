@@ -2939,6 +2939,64 @@ def test_a_box_is_not_a_piece(db):
             graph.attach(session, source, feed)
 
 
+def test_taking_out_a_middle_piece_closes_the_chain_up(db):
+    """Taking one piece out is taking one piece out, not breaking the chain
+    in half. What was below it would otherwise hang off a piece slotted into
+    nothing, which is to say doing nothing at all."""
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        first = graph.add_piece(session, kind="timer", host=feed, duration_minutes=10)
+        middle = graph.add_piece(session, kind="reset", host=first, cron="0 9 * * *")
+        last = graph.add_piece(session, kind="reset", host=middle, cron="0 18 * * *")
+
+        graph.detach(session, middle)
+
+        under = graph.pieces_under(graph.nodes(session), feed.id)
+        assert [one.id for one in under] == [first.id, last.id]
+        assert middle.attached_to is None
+        # And the feed still has a window, rather than losing the lot.
+        assert graph.consumption(session)[feed.playlist_pk] != []
+
+
+def test_deleting_a_middle_piece_does_not_take_the_rest_with_it(db):
+    """The column carries a cascade on a database built from scratch, which
+    would delete a Reset because a Timer above it was removed."""
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        first = graph.add_piece(session, kind="timer", host=feed)
+        middle = graph.add_piece(session, kind="reset", host=first)
+        last = graph.add_piece(session, kind="reset", host=middle, cron="0 18 * * *")
+        ids = (feed.id, first.id, last.id)
+
+    with db.session_scope() as session:
+        graph.remove(session, middle.id)
+
+    with db.session_scope() as session:
+        feed_pk, first_pk, last_pk = ids
+        assert session.get(GraphNode, last_pk) is not None
+        under = graph.pieces_under(graph.nodes(session), feed_pk)
+        assert [one.id for one in under] == [first_pk, last_pk]
+
+
+def test_deleting_a_box_takes_its_pieces_with_it(db):
+    """They describe that box. Left behind they would be slotted into
+    nothing — litter on the canvas rather than a setting."""
+    build(db)
+    with db.session_scope() as session:
+        feed = node_for(session, "feed", "PLone")
+        graph.add_piece(session, kind="timer", host=feed)
+        feed_pk = feed.id
+
+    with db.session_scope() as session:
+        graph.remove(session, feed_pk)
+
+    with db.session_scope() as session:
+        left = [one for one in graph.nodes(session) if one.kind in graph.JIGSAW]
+        assert left == []
+
+
 def test_a_piece_can_be_taken_back_out(db):
     build(db)
     with db.session_scope() as session:
