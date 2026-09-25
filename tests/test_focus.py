@@ -274,15 +274,30 @@ def test_the_post_is_readable_before_the_script_runs(client, db):
     assert "Read me without JS" in words.split("</div>", 1)[0]
 
 
-def test_opening_on_a_post_hides_the_player_and_shows_the_timer(client, db):
+def test_opening_on_a_post_hides_the_player(client, db):
     post_id = make_post(db)
 
     body = client.get(f"/focus?start={post_id}").text
     stage = body.split('id="focus-stage"', 1)[1].split(">", 1)[0]
-    timer = body.split('id="focus-timer"', 1)[1].split(">", 1)[0]
 
     assert "hidden" in stage
-    assert "hidden" not in timer
+
+
+def test_a_post_gets_no_countdown_unless_a_decay_box_gave_it_one(client, db):
+    """A countdown nobody asked for is one that hurries you for no reason,
+    and a Decay box is how you ask."""
+    from dealgo.models import Video
+
+    post_id = make_post(db)
+    timer = client.get(f"/focus?start={post_id}").text.split('id="focus-timer"', 1)[1]
+    assert "hidden" in timer.split(">", 1)[0]
+
+    with db.session_scope() as session:
+        session.get(Video, post_id).view_seconds = 45
+
+    body = client.get(f"/focus?start={post_id}").text
+    assert "hidden" not in body.split('id="focus-timer"', 1)[1].split(">", 1)[0]
+    assert "45s" in body
 
 
 def test_opening_on_a_post_does_not_autoplay_a_video_underneath(client, db):
@@ -336,15 +351,13 @@ def make_link(db, *, title="An article", body="Some words", link="https://exampl
 
 def test_an_item_from_a_feed_is_read_rather_than_played(client, db):
     """It has no player and no end of its own, which is the same shape as a
-    community post — so it gets the reader and the timer, not the stage."""
+    community post — so it gets the reader rather than the stage."""
     item_id = make_link(db)
 
     body = client.get(f"/focus?start={item_id}").text
     stage = body.split('id="focus-stage"', 1)[1].split(">", 1)[0]
-    timer = body.split('id="focus-timer"', 1)[1].split(">", 1)[0]
 
     assert "hidden" in stage
-    assert "hidden" not in timer
     assert "Some words" in body
 
 

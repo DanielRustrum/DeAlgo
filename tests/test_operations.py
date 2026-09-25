@@ -329,3 +329,71 @@ def test_a_tag_box_is_named_after_the_tag_it_puts_on(db):
     from dealgo.models import GraphNode
 
     assert GraphNode(kind="tag", marks="long reads").title == "Tag: long reads"
+
+
+# -- an Expire box says something about the feed, not only about arrivals ---
+
+
+def test_wiring_an_expire_box_reaches_what_is_already_in_the_feed(world, db):
+    """Without this a box wired to a feed of eighty items changes nothing
+    anybody can see until the eighty have been read."""
+    from dealgo.models import GraphNode
+
+    uploads(world, 2)
+    sync_service.run_sync("manual", force=True)
+    with db.session_scope() as session:
+        assert all(one.expires_at is None for one in session.scalars(select(Placement)))
+
+    # The box arrives afterwards, the way it does when somebody adds one.
+    wire(db, expires(minutes=1440))
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        assert all(one.expires_at is not None for one in session.scalars(select(Placement)))
+
+
+def test_something_that_has_already_overstayed_goes_on_that_run(world, db):
+    """Counted from when it arrived, which is what the Timer says — so the
+    rule is true of the feed the moment it is wired, not a week later."""
+    import datetime as dt
+
+    uploads(world, 2)
+    sync_service.run_sync("manual", force=True)
+    with db.session_scope() as session:
+        for placement in session.scalars(select(Placement)):
+            placement.added_at = utcnow() - dt.timedelta(days=15)
+
+    wire(db, expires(minutes=7 * 1440))
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        gone = session.scalars(
+            select(Placement).where(Placement.removed_at.is_not(None))
+        ).all()
+        assert len(gone) == 2
+    # And they are still items, in the history and in any other feed.
+    assert len(items(db)) == 2
+
+
+def test_an_end_already_worked_out_is_not_worked_out_again(world, db):
+    """A second run must not push the end further away each time."""
+    wire(db, expires(minutes=1440))
+    uploads(world, 1)
+    sync_service.run_sync("manual", force=True)
+    with db.session_scope() as session:
+        first = session.scalar(select(Placement)).expires_at
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        assert session.scalar(select(Placement)).expires_at == first
+
+
+def test_a_feed_with_no_expire_box_gets_no_ends(world, db):
+    wire(db, lambda s: graph.add_filter(s, label="Just a filter"))
+    uploads(world, 2)
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        assert all(one.expires_at is None for one in session.scalars(select(Placement)))

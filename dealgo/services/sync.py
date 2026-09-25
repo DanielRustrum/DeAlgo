@@ -433,6 +433,13 @@ def _run(
         session.commit()
         _prune(session, client, playlists, result, owner)
 
+    # An Expire box wired up says something about the feed, not only about
+    # what turns up next, so anything already in one gets its end worked out
+    # before the sweep rather than waiting to be read first.
+    marked = _stamp_what_is_already_here(session, owner)
+    if marked:
+        pen.write(f"worked out when {marked} already here will leave")
+
     # Whatever an Expire box said had had its time, taken out of the feed it
     # was in. After the filling, so something that arrived with no time left
     # on it goes in the same run it came in.
@@ -2050,6 +2057,48 @@ def _stamp_expiry(
         placement.expires_at = to_naive_utc(
             dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
         )
+
+
+def _stamp_what_is_already_here(
+    session: Session, owner: OwnerId = None
+) -> int:
+    """Put an end on what was already in a feed when an Expire box arrived.
+
+    Wiring one up says something about the feed, not only about what happens
+    to turn up next. Without this a box wired to a feed of eighty items
+    changes nothing anybody can see until the eighty have been read.
+
+    Counted from when each item arrived, which is what the Timer says — so
+    something that has already overstayed is past its end the moment the
+    rule appears, and the sweep takes it on the same run.
+    """
+    known = graph.pieces_of(session, owner)
+    put = 0
+    for path in graph.routes(session, owner):
+        if path.playlist is None:
+            continue
+        minutes = graph.stamped_life(path.stamps, known)
+        if minutes is None:
+            continue
+        waiting = session.scalars(
+            select(Placement)
+            .join(Video, Video.id == Placement.video_pk)
+            .where(
+                belongs_to(Video, owner),
+                Video.channel_pk == path.channel.id,
+                Placement.playlist_pk == path.playlist.id,
+                Placement.expires_at.is_(None),
+                Placement.removed_at.is_(None),
+                Placement.playlist_item_id.is_not(None),
+            )
+        )
+        for placement in waiting:
+            began = placement.added_at or utcnow()
+            placement.expires_at = began + dt.timedelta(minutes=minutes)
+            put += 1
+    if put:
+        session.flush()
+    return put
 
 
 def _sweep_expired(

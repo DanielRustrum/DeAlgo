@@ -721,3 +721,35 @@ def test_an_item_removed_for_having_expired_is_off_the_page(client, db):
     body = client.get("/feed").text
 
     assert "New science video" not in body
+
+
+def test_the_reading_timer_only_appears_for_what_a_decay_box_touched(client, db):
+    """A countdown nobody asked for is one that hurries you for no reason,
+    and a Decay box is how you ask."""
+    from dealgo.models import Video
+
+    import re
+
+    def timer_tag(body: str) -> str:
+        """The timer's own tag, whitespace squeezed: the attribute lands on
+        the next line, so a flat string match reads as absent when it is
+        not."""
+        found = re.search(r'<div class="focus-timer".*?>', body, re.S)
+        return " ".join(found.group(0).split()) if found else ""
+
+    with db.session_scope() as session:
+        for video in session.scalars(select(Video)):
+            video.kind = "post"
+
+    # Through no Decay box: the region is there and not shown.
+    shut = timer_tag(client.get("/focus").text)
+    assert shut != ""
+    assert "hidden" in shut
+
+    with db.session_scope() as session:
+        for video in session.scalars(select(Video)):
+            video.view_seconds = 45
+
+    timed = client.get("/focus").text
+    assert "hidden" not in timer_tag(timed)
+    assert "45s" in timed

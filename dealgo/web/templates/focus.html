@@ -64,11 +64,16 @@
     </p>
   </article>
 
-  {# The reading timer: a post has no end of its own. Click to hold it. #}
-  <div class="focus-timer" id="focus-timer" {{ 'hidden' if queue[0].kind == 'video' }}>
+  {# The reading timer, for what came through a Decay box. Everything else
+     sits there until you say you are done with it: a countdown nobody asked
+     for is one that hurries you for no reason, and that box is how you ask.
+     Drawn hidden and shown by focus.js, which knows what the first item
+     carries. #}
+  <div class="focus-timer" id="focus-timer"
+       {{ 'hidden' if queue[0].kind == 'video' or not queue[0].seconds }}>
     <button class="focus-timer-button" type="button" id="focus-timer-toggle"
             title="Hold the timer where it is">
-      <span class="focus-timer-count" id="focus-timer-count">{{ post_seconds }}s</span>
+      <span class="focus-timer-count" id="focus-timer-count">{{ queue[0].seconds or post_seconds }}s</span>
       <span class="focus-timer-word" id="focus-timer-word">until the next one</span>
     </button>
     <div class="focus-timer-track"><div class="focus-timer-fill" id="focus-timer-fill"></div></div>

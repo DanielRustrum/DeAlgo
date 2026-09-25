@@ -237,6 +237,15 @@ function focusIsRead(item: FocusItem): boolean {
   return item.kind !== "video";
 }
 
+/** Whether this one is on the clock at all.
+ *
+ *  Only what came through a Decay box. Everything else sits there until you
+ *  say you are done with it: a countdown nobody asked for is a countdown
+ *  that hurries you for no reason, and the box is how you ask. */
+function focusIsTimed(item: FocusItem | null): boolean {
+  return item !== null && item.seconds !== null;
+}
+
 function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   const elements = sitting.elements;
   elements.tiles.textContent = "";
@@ -247,10 +256,11 @@ function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   elements.postUrl.href = item.url;
   elements.postUrl.textContent = `Open it on ${item.source} ↗`;
   elements.post.hidden = false;
-  elements.timer.hidden = false;
+  elements.timer.hidden = !focusIsTimed(item);
   elements.stage.hidden = true;
   if (sitting.player) sitting.player.pauseVideo();
-  startFocusTimer(sitting, item);
+  if (focusIsTimed(item)) startFocusTimer(sitting, item);
+  else stopFocusTimer(sitting);
 }
 
 function showFocusVideo(sitting: FocusSitting, item: FocusItem): void {
@@ -402,7 +412,9 @@ function advanceFocus(sitting: FocusSitting, markWatched: boolean): void {
     .catch((): void => {
       sitting.advancing = false;
       setFocusStatus(sitting, "could not advance — check the connection");
-      if (focusIsRead(sitting.current)) startFocusTimer(sitting, sitting.current);
+      if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
+        startFocusTimer(sitting, sitting.current);
+      }
     });
 }
 
@@ -537,8 +549,11 @@ function initFocusMode(): void {
   pointFrameAtFirstVideo(sitting);
   awaitYouTubeApi(sitting);
 
-  if (focusIsRead(sitting.current)) startFocusTimer(sitting, sitting.current);
-  else warnIfPlayerNeverWakes(sitting);
+  if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
+    startFocusTimer(sitting, sitting.current);
+  } else if (!focusIsRead(sitting.current)) {
+    warnIfPlayerNeverWakes(sitting);
+  }
 }
 
 initFocusMode();
