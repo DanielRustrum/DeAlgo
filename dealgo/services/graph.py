@@ -250,6 +250,11 @@ class Route:
     #: Tag. Kept apart from the filters because they turn nothing away: they
     #: are read after an item has been let through, not while deciding.
     stamps: list[GraphNode] = field(default_factory=list)
+    #: Every box between the start and the end, in the order they are
+    #: passed. The other lists are what each kind is *for*; this is what an
+    #: item actually walks through, which is the only way to say which boxes
+    #: it reached before one of them turned it away.
+    walked: list[GraphNode] = field(default_factory=list)
     #: The node this path started at. Carried rather than looked up: a
     #: channel may be drawn twice, so there is no answering "which box is
     #: this channel" after the fact.
@@ -468,6 +473,7 @@ def _walk(
     source: GraphNode | None = None,
     asked: list[GraphNode] | None = None,
     marked: list[GraphNode] | None = None,
+    passed: list[GraphNode] | None = None,
 ) -> None:
     """Depth-first from a start, collecting what it passes until an end.
 
@@ -484,6 +490,7 @@ def _walk(
     ordered = ordered or []
     asked = asked or []
     marked = marked or []
+    passed = passed or []
 
     for target_id in out.get(node.id, []):
         target = by_id.get(target_id)
@@ -499,6 +506,7 @@ def _walk(
                         sorts=list(ordered),
                         checks=list(asked),
                         stamps=list(marked),
+                        walked=list(passed),
                         source=source,
                         finish=target,
                     )
@@ -517,6 +525,7 @@ def _walk(
                         sorts=list(ordered),
                         checks=list(asked),
                         stamps=list(marked),
+                        walked=list(passed),
                         source=source,
                         finish=target,
                     )
@@ -536,6 +545,7 @@ def _walk(
                 source,
                 asked + [target] if target.kind == "plugin" else asked,
                 marked + [target] if target.kind in STAMPS else marked,
+                passed + [target],
             )
 
 
@@ -1639,7 +1649,11 @@ def try_it(
         for video in recent[path.channel.id]:
             judged, stopped_at = _judge(video, path, settings, start)
             if judged.passed:
-                _note(trial.through, [node.id for node in path.filters] + [start.id], judged)
+                _note(
+                    trial.through,
+                    [node.id for node in path.walked] + [start.id],
+                    judged,
+                )
                 landing.append((video, judged))
             else:
                 _note(trial.held, [stopped_at], judged)
@@ -1650,9 +1664,10 @@ def try_it(
         if order is not None:
             landing.sort(key=lambda pair: _ranked(pair[0], order))
 
-        # The sort box and the feed see the batch in the order it arrives.
+        # The feed sees the batch in the order it arrives. The sort box is
+        # already in `walked` with everything else the item went through, so
+        # noting it again here would count it twice.
         for _, judged in landing:
-            _note(trial.through, [order.id] if order is not None else [], judged)
             _note(trial.through, [end.id], judged)
 
     for box in nodes(session, owner):
@@ -1710,9 +1725,9 @@ def _try_withdrawal(
                 continue
             judged, stopped_at = _judge(video, path, settings, box)
             if judged.passed:
-                _note(trial.through, [node.id for node in path.filters] + [box.id], judged)
-                order = path.order
-                _note(trial.through, [order.id] if order is not None else [], judged)
+                _note(
+                    trial.through, [node.id for node in path.walked] + [box.id], judged
+                )
                 _note(trial.through, [end.id], judged)
             else:
                 _note(trial.held, [stopped_at], judged)
@@ -1757,8 +1772,14 @@ def _judge(
 
 
 def _before(stopped_at: int, path: Route, start: GraphNode) -> list[int]:
-    """The boxes an item passed before the one that stopped it."""
-    walked = [start.id] + [node.id for node in path.filters]
+    """The boxes an item passed before the one that stopped it.
+
+    From the boxes it actually walks through, in that order — not from the
+    filters alone. A Decay or a Tag box turns nothing away, but it is still
+    a box an item went through, and one that reported nothing looked broken
+    rather than uninvolved.
+    """
+    walked = [start.id] + [node.id for node in path.walked]
     return walked[: walked.index(stopped_at)] if stopped_at in walked else []
 
 

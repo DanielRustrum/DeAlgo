@@ -397,3 +397,78 @@ def test_a_feed_with_no_expire_box_gets_no_ends(world, db):
 
     with db.session_scope() as session:
         assert all(one.expires_at is None for one in session.scalars(select(Placement)))
+
+
+# -- the trial follows them too --------------------------------------------
+
+
+def test_a_test_marks_the_boxes_that_mark_what_passes(world, db):
+    """They turn nothing away, but an item still goes through them — and a
+    box that reported nothing looked broken rather than uninvolved."""
+    from dealgo.db import get_settings
+    from dealgo.models import GraphNode
+
+    ids = wire(
+        db,
+        lambda s: graph.add_stamp(s, kind="tag", marks="news"),
+        decay(minutes=2),
+        expires(minutes=1440),
+    )
+    uploads(world, 2)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        trial = graph.try_it(
+            session, get_settings(session), channels=[channel.id]
+        )
+        marked = set(trial.through) | set(trial.held)
+
+    # Every one of them, not just the filters and sorts.
+    assert set(ids) <= marked
+
+
+def test_a_box_after_the_one_that_turned_it_away_is_not_marked(world, db):
+    """It never saw the item. Saying it did would be worse than saying
+    nothing."""
+    from dealgo.db import get_settings
+    from dealgo.models import GraphNode
+
+    ids = wire(
+        db,
+        lambda s: graph.add_filter(s, label="Refuses everything"),
+        lambda s: graph.add_stamp(s, kind="tag", marks="never"),
+    )
+    with db.session_scope() as session:
+        session.get(GraphNode, ids[0]).title_include = "nothing matches this"
+    uploads(world, 2)
+    # The trial pushes what is already here through the graph, so there has
+    # to be something here.
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        trial = graph.try_it(
+            session, get_settings(session), channels=[channel.id]
+        )
+
+    assert ids[0] in trial.held          # the filter stopped them
+    assert ids[1] not in trial.through   # the tag box never saw them
+
+
+def test_a_sort_box_is_counted_once(world, db):
+    """It is in the walked list with everything else now; noting it again
+    would count every item through it twice."""
+    from dealgo.db import get_settings
+
+    ids = wire(db, lambda s: graph.add_sort(s, label="Newest"))
+    uploads(world, 3)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        trial = graph.try_it(
+            session, get_settings(session), channels=[channel.id]
+        )
+
+    assert len(trial.through.get(ids[0], [])) == 3
