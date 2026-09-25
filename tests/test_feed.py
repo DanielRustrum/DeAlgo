@@ -651,12 +651,66 @@ def expiring(db, title, *, hours):
 
 
 def pills(body: str) -> list[str]:
+    """Every "leaves …" pill on the page, whichever card it is on."""
     import re
 
     return [
         " ".join(one.split())
-        for one in re.findall(r'<span class="card-expiry"[^>]*>(.*?)</span>', body, re.S)
+        for one in re.findall(
+            r'<span class="card-mark"[^>]*>((?:(?!</span>).)*)</span>', body, re.S
+        )
+        if "leaves" in one
     ]
+
+
+def marks(body: str, title: str) -> list[str]:
+    """The little pills on one card, in the order they are drawn."""
+    import re
+
+    card = re.search(
+        r'<article class="card[^>]*>(?:(?!</article>).)*?' + re.escape(title) + r'.*?</article>',
+        body,
+        re.S,
+    )
+    if card is None:
+        return []
+    # The exact class, not a prefix: the row they sit in is `card-marks`,
+    # which would otherwise match and swallow the lot.
+    return [
+        " ".join(one.split())
+        for one in re.findall(
+            r'<span class="card-mark(?: card-mark-tag)?"[^>]*>((?:(?!</span>).)*)</span>',
+            card.group(0),
+            re.S,
+        )
+    ]
+
+
+def test_a_card_shows_what_the_boxes_left_on_it(client, db):
+    """A tag, how long you get with it, and when it leaves: the attributes
+    the boxes on its way here put there."""
+    import datetime as dt
+
+    from dealgo.models import Placement, Video
+
+    with db.session_scope() as session:
+        video = session.scalar(select(Video).where(Video.title == "New science video"))
+        video.tags = "long reads"
+        video.view_seconds = 180
+        video.view_locked = True
+        session.scalar(
+            select(Placement).where(Placement.video_pk == video.id)
+        ).expires_at = utcnow() + dt.timedelta(days=6)
+
+    said = marks(client.get("/feed").text, "New science video")
+
+    assert said == ["long reads", "3 min · no pause", "leaves in 6 days"]
+
+
+def test_a_card_the_boxes_left_alone_shows_nothing(client, db):
+    """Which is almost all of them: a feed with none of these boxes on its
+    paths reads exactly as it did before there were any."""
+    assert marks(client.get("/feed").text, "New science video") == []
 
 
 def test_a_card_says_when_it_leaves_the_feed(client, db):

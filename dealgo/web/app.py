@@ -246,6 +246,20 @@ def _until(value: dt.datetime | None) -> str:
     return "on " + value.strftime("%d %b %Y")
 
 
+def _spell(seconds: int | None) -> str:
+    """A stretch of seconds, said the way somebody would say it.
+
+    Focus counts in seconds and a Decay box is set in minutes, so both land
+    here: "45s" and "3 min" rather than one of them in the other's units.
+    """
+    if not seconds:
+        return ""
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = round(seconds / 60)
+    return f"{minutes} min"
+
+
 def _stamp(value: dt.datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M UTC") if value else "—"
 
@@ -258,6 +272,7 @@ def _clock(value: dt.datetime | None) -> str:
 TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).label
 TEMPLATES.env.filters["ago"] = _ago
 TEMPLATES.env.filters["until"] = _until
+TEMPLATES.env.filters["spell"] = _spell
 TEMPLATES.env.filters["stamp"] = _stamp
 TEMPLATES.env.filters["clock"] = _clock
 # What a template is handed. Jinja takes anything, so this says only that the
@@ -2866,7 +2881,9 @@ def graph_try(request: Request, node_pk: int) -> JSONResponse:
         if node is None or node.kind != "trigger":
             return JSONResponse({"error": "That node is not a trigger."}, status_code=400)
 
-        reaches = graph_service.wired_channels(session, node, owner)
+        # The boxes, not the channels behind them: a channel drawn twice is
+        # one channel and two boxes, and this trigger reaches one of them.
+        reaches = graph_service.wired_sources(session, node, owner)
         # The other half of what a trigger can set off. A trigger wired only
         # to a Withdraw box has plenty to say about what a run would do, and
         # asking only about channels answered that it had nothing.
@@ -2878,7 +2895,7 @@ def graph_try(request: Request, node_pk: int) -> JSONResponse:
 
         trial = graph_service.try_it(
             session, get_settings(session, owner), owner,
-            channels=reaches, pulls=pulls,
+            sources=reaches, pulls=pulls,
         )
         boxes = {entry.id: entry for entry in graph_service.nodes(session, owner)}
 

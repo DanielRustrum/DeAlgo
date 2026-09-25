@@ -47,6 +47,17 @@ def uploads(world, how_many=2):
     }
 
 
+def box_of(session, channel) -> int:
+    """The source box that stands for this channel on the canvas."""
+    from dealgo.models import GraphNode
+
+    return session.scalar(
+        select(GraphNode.id).where(
+            GraphNode.kind == "source", GraphNode.channel_pk == channel.id
+        )
+    )
+
+
 def items(db) -> list[Video]:
     with db.session_scope() as session:
         return list(session.scalars(select(Video)))
@@ -420,7 +431,7 @@ def test_a_test_marks_the_boxes_that_mark_what_passes(world, db):
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
         trial = graph.try_it(
-            session, get_settings(session), channels=[channel.id]
+            session, get_settings(session), sources=[box_of(session, channel)]
         )
         marked = set(trial.through) | set(trial.held)
 
@@ -449,7 +460,7 @@ def test_a_box_after_the_one_that_turned_it_away_is_not_marked(world, db):
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
         trial = graph.try_it(
-            session, get_settings(session), channels=[channel.id]
+            session, get_settings(session), sources=[box_of(session, channel)]
         )
 
     assert ids[0] in trial.held          # the filter stopped them
@@ -468,7 +479,46 @@ def test_a_sort_box_is_counted_once(world, db):
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
         trial = graph.try_it(
-            session, get_settings(session), channels=[channel.id]
+            session, get_settings(session), sources=[box_of(session, channel)]
         )
 
     assert len(trial.through.get(ids[0], [])) == 3
+
+
+def test_a_test_follows_the_flow_its_trigger_is_wired_to(world, db):
+    """A channel drawn twice is one channel and two boxes, and the two may
+    run down quite different paths. Narrowing the trial by the channel lit
+    up both, so a test on one trigger reported what another flow would do.
+    """
+    from dealgo.db import get_settings
+    from dealgo.models import GraphNode, Playlist
+
+    # The fixture's channel, wired a second time down a path of its own.
+    ids = wire(db, lambda s: graph.add_stamp(s, kind="tag", marks="first"))
+    uploads(world, 2)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        playlist = session.scalar(select(Playlist))
+        second = graph.add_source(session, channel=channel, source_kind="youtube")
+        elsewhere = graph.add_stamp(session, kind="tag", marks="second")
+        feed = session.scalar(select(GraphNode).where(GraphNode.kind == "feed"))
+        graph.connect(session, second, elsewhere)
+        graph.connect(session, elsewhere, feed)
+        pulse = graph.add_trigger(session, trigger_kind="pulse")
+        graph.connect(session, pulse, second)
+        asked, other, mine = pulse.id, ids[0], elsewhere.id
+
+    with db.session_scope() as session:
+        node = session.get(GraphNode, asked)
+        trial = graph.try_it(
+            session,
+            get_settings(session),
+            sources=graph.wired_sources(session, node),
+        )
+        marked = set(trial.through) | set(trial.held)
+
+    # Its own flow, and not the other one that the same channel also feeds.
+    assert mine in marked
+    assert other not in marked

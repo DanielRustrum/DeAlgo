@@ -767,6 +767,27 @@ def due_withdrawals(
     return due
 
 
+def wired_sources(
+    session: Session, node: GraphNode, owner: OwnerId = None
+) -> list[int]:
+    """The source boxes a trigger box is wired to, by box.
+
+    Not the channels behind them, which is a different question with a
+    different answer: a channel drawn twice is one channel and two boxes,
+    and a trigger reaches one of the boxes.
+    """
+    all_nodes, all_edges = load(session, owner)
+    by_id = {entry.id: entry for entry in all_nodes}
+    reached: list[int] = []
+    for edge in all_edges:
+        if edge.source_pk != node.id:
+            continue
+        target = by_id.get(edge.target_pk)
+        if target is not None and target.kind == "source" and target.id not in reached:
+            reached.append(target.id)
+    return reached
+
+
 def wired_withdrawals(
     session: Session, node: GraphNode, owner: OwnerId = None
 ) -> list[GraphNode]:
@@ -1593,7 +1614,7 @@ def try_it(
     settings: Settings,
     owner: OwnerId = None,
     limit: int = 30,
-    channels: Collection[int] | None = None,
+    sources: Collection[int] | None = None,
     pulls: Collection[int] | None = None,
 ) -> Trial:
     """Push recent items through the graph and say where they would land.
@@ -1602,9 +1623,14 @@ def try_it(
     wired up the way I think" without waiting for a run, and without a run's
     consequences.
 
-    ``channels`` narrows it to what one trigger sets off, which is how it is
+    ``sources`` narrows it to what one trigger sets off, which is how it is
     asked: a trigger is the thing that starts a run, so it is the thing worth
     asking what a run would do.
+
+    Source *boxes*, not channels. A channel may be drawn twice — that is the
+    point of being allowed a second box — and the two may run down quite
+    different paths. Narrowing by the channel lit up both of them, so a test
+    on one trigger reported what a different flow would do.
 
     ``pulls`` is the other half of that: the Withdraw boxes it is wired to.
     A withdrawal is a path like any other and its filters have as much to
@@ -1629,7 +1655,7 @@ def try_it(
         # the Withdraw box's business.
         if path.playlist is None or not path.playlist.enabled:
             continue
-        if channels is not None and path.channel.id not in channels:
+        if sources is not None and (path.source is None or path.source.id not in sources):
             continue  # asked of one trigger: only what that trigger sets off
         start, end = path.source, feed_node.get(path.playlist.id)
         if start is None or end is None:

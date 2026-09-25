@@ -113,20 +113,25 @@ td.rank { width: 58px; }
 }
 .card-age { font-size: 12px; color: var(--muted); }
 
-// When an Expire box takes it out of this feed. Quiet: it is a fact about
-// the card rather than a warning, right up until it is nearly true.
-.card-expiry {
+// What the boxes on its way here left on it: a tag, how long you get with
+// it, when it leaves. Quiet: they are facts about the card rather than
+// warnings, and the row is a date and its actions first.
+.card-marks {
+  display: flex; gap: 4px; align-items: center;
+  min-width: 0; overflow: hidden;
+}
+.card-mark {
   font-size: 11px;
   color: var(--muted);
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 1px 7px;
   white-space: nowrap;
-  // The row is a name and its actions; this sits between them and gives way
-  // first when the card is narrow.
   overflow: hidden;
   text-overflow: ellipsis;
 }
+// A tag is the one somebody chose the words for, so it reads as a label.
+.card-mark-tag { color: #2ac3de; border-color: rgba(42, 195, 222, 0.4); }
 
 // The quick actions stay out of the way until wanted.
 .card-quick { display: flex; gap: 2px; opacity: 0; transition: opacity 120ms; }

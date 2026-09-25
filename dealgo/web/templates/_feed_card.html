@@ -40,14 +40,29 @@
       {{ video.published_at | ago }}
     </span>
 
-    {# When an Expire box takes it out of this feed. The section's answer
-       where there is one, since the same item in two feeds may have two;
-       the item's own soonest where the card is drawn on its own, as it is
-       after being marked watched. #}
+    {# What the boxes on its way here left on it: the tags a Tag box put on,
+       how long a Decay box gives you with it, and when an Expire box takes
+       it out of this feed.
+
+       The section's answer for the expiry where there is one, since the same
+       item in two feeds may have two; the item's own soonest where the card
+       is drawn on its own, as it is after being marked watched. #}
     {% set leaves = section.expiring.get(video.id) if section is defined else video.expires_at %}
-    {% if leaves %}
-    <span class="card-expiry" title="Leaves this feed {{ leaves | stamp }}">
-      leaves {{ leaves | until }}
+    {% if video.tag_list or video.view_seconds or leaves %}
+    <span class="card-marks">
+      {% for tag in video.tag_list %}
+      <span class="card-mark card-mark-tag">{{ tag }}</span>
+      {% endfor %}
+      {% if video.view_seconds %}
+      <span class="card-mark" title="How long you get with it in Focus{{ ', and that time cannot be paused' if video.view_locked }}">
+        {{ video.view_seconds | spell }}{{ ' · no pause' if video.view_locked }}
+      </span>
+      {% endif %}
+      {% if leaves %}
+      <span class="card-mark" title="Leaves this feed {{ leaves | stamp }}">
+        leaves {{ leaves | until }}
+      </span>
+      {% endif %}
     </span>
     {% endif %}
 
