@@ -629,3 +629,95 @@ def test_clearing_the_filter_keeps_a_search(client, db):
 
     body = client.get(f"/feed?playlist={music_id}&q=mus").text
     assert 'href="/feed?q=mus"' in body
+
+
+# -- when something leaves the feed ----------------------------------------
+
+
+def expiring(db, title, *, hours):
+    """Put an end on one of the fixture's videos, in its Science placement."""
+    import datetime as dt
+
+    from dealgo.models import Placement, Video
+
+    with db.session_scope() as session:
+        video = session.scalar(select(Video).where(Video.title == title))
+        placement = session.scalar(
+            select(Placement).where(Placement.video_pk == video.id)
+        )
+        placement.expires_at = (
+            utcnow() + dt.timedelta(hours=hours) if hours is not None else None
+        )
+
+
+def pills(body: str) -> list[str]:
+    import re
+
+    return [
+        " ".join(one.split())
+        for one in re.findall(r'<span class="card-expiry"[^>]*>(.*?)</span>', body, re.S)
+    ]
+
+
+def test_a_card_says_when_it_leaves_the_feed(client, db):
+    """An Expire box put an end on it. Knowing that a thing is going is most
+    of the use of it going."""
+    expiring(db, "New science video", hours=3)
+
+    said = pills(client.get("/feed").text)
+
+    assert said == ["leaves in 3 hours"]
+
+
+def test_a_card_with_no_end_on_it_says_nothing(client, db):
+    """Which is almost all of them: a feed with no Expire box anywhere on
+    its paths should read exactly as it did before there were any."""
+    assert pills(client.get("/feed").text) == []
+
+
+def test_the_count_is_rounded_the_way_a_countdown_reads(client, db):
+    """"In 23 hours" for something a day away is the kind of accuracy
+    nobody asked for."""
+    import datetime as dt
+
+    from dealgo.web.app import _until
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    said = {
+        label: _until(now + dt.timedelta(**gap))
+        for label, gap in {
+            "a moment": {"seconds": 30},
+            "an hour": {"hours": 1, "seconds": 1},
+            "a day": {"days": 1, "seconds": 1},
+            "just short of a day": {"hours": 23, "minutes": 59},
+            "a week": {"days": 7, "seconds": 1},
+            "long off": {"days": 90},
+            "already past": {"hours": -2},
+        }.items()
+    }
+
+    assert said["a moment"] == "any moment"
+    assert said["an hour"] == "in 1 hour"
+    assert said["a day"] == "in 1 day"
+    assert said["just short of a day"] == "in 1 day"
+    assert said["a week"] == "in 7 days"
+    # Past a month the count stops meaning anything and the date says it.
+    assert said["long off"].startswith("on ")
+    # Still on the page with its moment passed: it goes at the end of the
+    # next run, which is what "any moment" means.
+    assert said["already past"] == "any moment"
+
+
+def test_an_item_removed_for_having_expired_is_off_the_page(client, db):
+    from dealgo.models import Placement, Video
+
+    with db.session_scope() as session:
+        video = session.scalar(select(Video).where(Video.title == "New science video"))
+        placement = session.scalar(select(Placement).where(Placement.video_pk == video.id))
+        placement.playlist_item_id = None
+        placement.removed_at = utcnow()
+        placement.removal_reason = "its time in this feed ran out"
+
+    body = client.get("/feed").text
+
+    assert "New science video" not in body

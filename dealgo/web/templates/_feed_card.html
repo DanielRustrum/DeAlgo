@@ -40,6 +40,17 @@
       {{ video.published_at | ago }}
     </span>
 
+    {# When an Expire box takes it out of this feed. The section's answer
+       where there is one, since the same item in two feeds may have two;
+       the item's own soonest where the card is drawn on its own, as it is
+       after being marked watched. #}
+    {% set leaves = section.expiring.get(video.id) if section is defined else video.expires_at %}
+    {% if leaves %}
+    <span class="card-expiry" title="Leaves this feed {{ leaves | stamp }}">
+      leaves {{ leaves | until }}
+    </span>
+    {% endif %}
+
     {# Revealed on hover or focus: the card stays clean, the action stays there. #}
     <div class="card-quick">
       {% if video.watched %}

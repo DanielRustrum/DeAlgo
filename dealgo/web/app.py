@@ -216,6 +216,36 @@ def _ago(value: dt.datetime | None) -> str:
     return value.strftime("%d %b %Y")
 
 
+def _until(value: dt.datetime | None) -> str:
+    """How long until something, said the way a person would say it.
+
+    The mirror of `ago`, and it stops at the same place: past thirty days the
+    count stops meaning anything and the date says it better. Something whose
+    moment has passed but which is still on the page is going at the end of
+    the next run, which is what "any moment" means.
+    """
+    if value is None:
+        return ""
+    seconds = int(
+        (
+            value.replace(tzinfo=None)
+            - dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+        ).total_seconds()
+    )
+    if seconds <= 60:
+        return "any moment"
+
+    # Rounded to the nearest, and the unit chosen from the rounded number
+    # rather than the raw one. Counting down, "in 23 hours" for something a
+    # day away is the kind of accuracy nobody asked for: a whole day short
+    # of the hour still reads as a day.
+    for size, unit, over in ((60, "minute", 60), (3600, "hour", 24), (86400, "day", 30)):
+        count = round(seconds / size)
+        if count < over:
+            return f"in {max(1, count)} {unit}{'s' if count != 1 else ''}"
+    return "on " + value.strftime("%d %b %Y")
+
+
 def _stamp(value: dt.datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M UTC") if value else "—"
 
@@ -227,6 +257,7 @@ def _clock(value: dt.datetime | None) -> str:
 
 TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).label
 TEMPLATES.env.filters["ago"] = _ago
+TEMPLATES.env.filters["until"] = _until
 TEMPLATES.env.filters["stamp"] = _stamp
 TEMPLATES.env.filters["clock"] = _clock
 # What a template is handed. Jinja takes anything, so this says only that the
@@ -925,6 +956,7 @@ def _feed_context(
                         "total": 0,
                         "shut": _window_words(opens),
                         "opens_at": state.opens_at,
+                        "expiring": {},
                     }
                 )
                 continue
@@ -953,8 +985,28 @@ def _feed_context(
             )
             or 0
         )
+        # When an Expire box takes each of these out of *this* feed. Per
+        # section rather than per item: the same video in two feeds may have
+        # two different answers, and the one that matters here is this one's.
+        expiring = {
+            video_pk: when
+            for video_pk, when in session.execute(
+                select(Placement.video_pk, Placement.expires_at).where(
+                    Placement.playlist_pk == target.id,
+                    Placement.expires_at.is_not(None),
+                    Placement.removed_at.is_(None),
+                )
+            )
+        }
         sections.append(
-            {"playlist": target, "videos": videos, "total": total, "shut": [], "opens_at": None}
+            {
+                "playlist": target,
+                "videos": videos,
+                "total": total,
+                "shut": [],
+                "opens_at": None,
+                "expiring": expiring,
+            }
         )
 
     return {

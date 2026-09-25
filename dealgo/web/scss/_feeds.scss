@@ -113,6 +113,21 @@ td.rank { width: 58px; }
 }
 .card-age { font-size: 12px; color: var(--muted); }
 
+// When an Expire box takes it out of this feed. Quiet: it is a fact about
+// the card rather than a warning, right up until it is nearly true.
+.card-expiry {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  // The row is a name and its actions; this sits between them and gives way
+  // first when the card is narrow.
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 // The quick actions stay out of the way until wanted.
 .card-quick { display: flex; gap: 2px; opacity: 0; transition: opacity 120ms; }
 .card:hover .card-quick, .card-quick:focus-within { opacity: 1; }

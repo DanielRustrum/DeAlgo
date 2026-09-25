@@ -443,6 +443,21 @@ class Video(Base):
         return [tag.strip() for tag in (self.tags or "").split(",") if tag.strip()]
 
     @property
+    def expires_at(self) -> Optional[dt.datetime]:
+        """The soonest an Expire box takes this out of a feed it is in.
+
+        The soonest of them: an item in two feeds with different answers
+        leaves one of them first, and that is the one worth knowing. None
+        when no path it came down said anything about expiry.
+        """
+        ends = [
+            one.expires_at
+            for one in self.placements
+            if one.expires_at is not None and one.removed_at is None
+        ]
+        return min(ends) if ends else None
+
+    @property
     def is_post(self) -> bool:
         return self.kind == "post"
 
