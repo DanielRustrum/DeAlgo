@@ -1680,13 +1680,9 @@ def try_it(
 
         landing: list[tuple[Video, Judged]] = []
         for video in recent[path.channel.id]:
-            judged, stopped_at = _judge(video, path, settings, start, known)
+            judged, stopped_at = _judge(video, path, settings, start)
             if judged.passed:
-                _note(
-                    trial.through,
-                    [node.id for node in path.walked] + [start.id],
-                    judged,
-                )
+                _walk_marks(trial, judged, path, start, known)
                 landing.append((video, judged))
             else:
                 _note(trial.held, [stopped_at], judged)
@@ -1697,11 +1693,11 @@ def try_it(
         if order is not None:
             landing.sort(key=lambda pair: _ranked(pair[0], order))
 
-        # The feed sees the batch in the order it arrives. The sort box is
-        # already in `walked` with everything else the item went through, so
-        # noting it again here would count it twice.
+        # The feed sees the batch in the order it arrives, carrying whatever
+        # every box on the way left on it. The sort box is already in
+        # `walked` with the rest, so noting it again would count it twice.
         for _, judged in landing:
-            _note(trial.through, [end.id], judged)
+            _note(trial.through, [end.id], _carrying(judged, path.stamps, known))
 
     for box in nodes(session, owner):
         if box.kind != "withdraw":
@@ -1757,23 +1753,17 @@ def _try_withdrawal(
             end = feed_node.get(path.playlist.id)
             if end is None:
                 continue
-            judged, stopped_at = _judge(video, path, settings, box, known)
+            judged, stopped_at = _judge(video, path, settings, box)
             if judged.passed:
-                _note(
-                    trial.through, [node.id for node in path.walked] + [box.id], judged
-                )
-                _note(trial.through, [end.id], judged)
+                _walk_marks(trial, judged, path, box, known)
+                _note(trial.through, [end.id], _carrying(judged, path.stamps, known))
             else:
                 _note(trial.held, [stopped_at], judged)
                 _note(trial.through, _before(stopped_at, path, box), judged)
 
 
 def _judge(
-    video: Video,
-    path: Route,
-    settings: Settings,
-    start: GraphNode,
-    pieces_for: Any = None,
+    video: Video, path: Route, settings: Settings, start: GraphNode
 ) -> tuple[Judged, int]:
     """Whether this path takes the video, and the box that turned it away.
 
@@ -1789,13 +1779,10 @@ def _judge(
             kind=video.kind,
             passed=passed,
             reason=reason,
-            # Only what got through carries them: a trial says what would
-            # happen, and nothing happens to something turned away.
-            marks=(
-                stamp_marks(path.stamps, pieces_for)
-                if passed and pieces_for is not None
-                else []
-            ),
+            # Filled in per box by whoever is walking the path: what an
+            # item carries depends on how far along it has got, not on the
+            # path as a whole.
+            marks=[],
         )
 
     # The channel's own settings first: if they refuse it, it never left.
@@ -1814,6 +1801,33 @@ def _judge(
 
     decision = sync_service._decide(video, path, None, settings)
     return seen(decision.accept, decision.reason), start.id
+
+
+def _walk_marks(
+    trial: Trial, judged: Judged, path: Route, start: GraphNode, pieces_for: Any
+) -> None:
+    """Note an item at every box it passed, carrying what it had by then.
+
+    What an item carries depends on how far along it has got. An Expire box
+    wired before a Decay box has not met the Decay box when the item reaches
+    it, and saying otherwise told the reader the flow ran in an order it
+    does not.
+    """
+    # At the source box it carries nothing: nothing has been applied yet.
+    _note(trial.through, [start.id], _carrying(judged, [], pieces_for))
+
+    so_far: list[GraphNode] = []
+    for box in path.walked:
+        if box.kind in STAMPS:
+            so_far = so_far + [box]
+        _note(trial.through, [box.id], _carrying(judged, so_far, pieces_for))
+
+
+def _carrying(judged: Judged, stamps: list[GraphNode], pieces_for: Any) -> Judged:
+    """The same item, said to be carrying what these boxes put on it."""
+    import dataclasses
+
+    return dataclasses.replace(judged, marks=stamp_marks(stamps, pieces_for))
 
 
 def _before(stopped_at: int, path: Route, start: GraphNode) -> list[int]:

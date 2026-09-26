@@ -522,3 +522,42 @@ def test_a_test_follows_the_flow_its_trigger_is_wired_to(world, db):
     # Its own flow, and not the other one that the same channel also feeds.
     assert mine in marked
     assert other not in marked
+
+
+def test_the_marks_arrive_box_by_box_and_not_all_at_once(world, db):
+    """What an item carries depends on how far along it has got. An Expire
+    box wired before a Decay box has not met the Decay box when the item
+    reaches it, and saying otherwise told the reader the flow ran in an
+    order it does not."""
+    from dealgo.db import get_settings
+    from dealgo.models import GraphNode
+
+    ids = wire(
+        db,
+        lambda s: graph.add_stamp(s, kind="tag", marks="news"),
+        expires(minutes=7 * 1440),
+        decay(minutes=3),
+    )
+    uploads(world, 1)
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        source = box_of(session, channel)
+        feed = session.scalar(select(GraphNode).where(GraphNode.kind == "feed")).id
+        trial = graph.try_it(session, get_settings(session), sources=[source])
+        carried = {
+            where: (trial.through[pk][0].marks if trial.through.get(pk) else None)
+            for where, pk in (
+                ("source", source), ("tag", ids[0]), ("expire", ids[1]),
+                ("decay", ids[2]), ("feed", feed),
+            )
+        }
+
+    assert carried["source"] == []
+    assert carried["tag"] == ["“news”"]
+    # The Expire box is before the Decay box, so it has not met it yet.
+    assert carried["expire"] == ["“news”", "gone 1 week after it arrives"]
+    assert carried["decay"] == ["“news”", "3 min", "gone 1 week after it arrives"]
+    # And the feed sees everything every box put on it.
+    assert carried["feed"] == ["“news”", "3 min", "gone 1 week after it arrives"]
