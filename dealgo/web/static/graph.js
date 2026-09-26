@@ -2301,6 +2301,9 @@ function asGraphJudged(value) {
             id: raw["id"],
             title: typeof raw["title"] === "string" ? raw["title"] : "",
             reason: typeof reason === "string" ? reason : null,
+            marks: Array.isArray(raw["marks"])
+                ? raw["marks"].filter((one) => typeof one === "string")
+                : [],
         });
     }
     return read;
@@ -2434,9 +2437,17 @@ function graphJudgedList(name, items, side, numbered = false) {
     for (const item of items) {
         const row = graphElement("li", "graph-sheet-row");
         row.appendChild(graphElement("span", "graph-sheet-title", item.title));
-        // Only the held-back side has a reason to give.
+        // Only the held-back side has a reason to give; only the side that got
+        // through has anything left on it.
         if (side === "held" && item.reason !== null) {
             row.appendChild(graphElement("span", "graph-sheet-reason", item.reason));
+        }
+        if (item.marks.length > 0) {
+            const marks = graphElement("span", "graph-sheet-marks");
+            for (const said of item.marks) {
+                marks.appendChild(graphElement("span", "graph-sheet-mark", said));
+            }
+            row.appendChild(marks);
         }
         list.appendChild(row);
     }
@@ -2560,6 +2571,8 @@ function asGraphHeld(value) {
             id: raw["id"],
             title: typeof raw["title"] === "string" ? raw["title"] : "",
             reason: box === "" ? why : `${box}: ${why}`,
+            // Nothing happens to something that was turned away.
+            marks: [],
         });
     }
     return read;

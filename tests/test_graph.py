@@ -2609,6 +2609,17 @@ def test_opening_a_test_tab_only_runs_a_trial_when_it_can(canvas_report):
 
 
 @needs_node
+def test_a_judged_item_shows_what_would_be_left_on_it(canvas_report):
+    """A trial says what would happen, and what the boxes leave on an item
+    is as much of that as which feed it lands in."""
+    marks = canvas_report["judgedMarks"]
+
+    assert marks["marked"] == ["“news”", "3 min · no pause"]
+    # And nothing at all where the boxes said nothing, which is most items.
+    assert marks["plain"] == []
+
+
+@needs_node
 def test_a_trial_is_numbered_and_a_filters_report_is_not(canvas_report):
     """A trial lists the batch in the order it would arrive, and on a sort box
     that order is the whole answer. A filter's two piles are not an order, so

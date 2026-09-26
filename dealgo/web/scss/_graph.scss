@@ -757,6 +757,18 @@ $tab: 18px;
 .graph-sheet-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .graph-sheet-reason { font-size: 11.5px; color: var(--bad); }
 
+// What the boxes on this path would leave on it. The same pills a card
+// wears once it gets there, so it is recognisable when it does.
+.graph-sheet-marks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+.graph-sheet-mark {
+  font-size: 10.5px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
 // -- the palette -----------------------------------------------------------
 
 // The way back to a group. Same edge as the palette, and never open at the

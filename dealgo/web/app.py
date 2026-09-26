@@ -3165,6 +3165,10 @@ def _judged(item: graph_service.Judged) -> Context:
         "title": item.title,
         "kind": item.kind,
         "reason": item.reason,
+        # What the boxes on this path would leave on it. A trial says what
+        # would happen, and these are as much of that as which feed it
+        # lands in.
+        "marks": item.marks,
     }
 
 

@@ -2900,6 +2900,10 @@ interface GraphJudged {
   id: number;
   title: string;
   reason: string | null;
+  /** What the boxes on this path would leave on it: a tag, how long you get
+   *  with it, when it leaves. Empty for anything held back — nothing happens
+   *  to something turned away. */
+  marks: string[];
 }
 
 function asGraphJudged(value: unknown): GraphJudged[] {
@@ -2913,6 +2917,9 @@ function asGraphJudged(value: unknown): GraphJudged[] {
       id: raw["id"],
       title: typeof raw["title"] === "string" ? raw["title"] : "",
       reason: typeof reason === "string" ? reason : null,
+      marks: Array.isArray(raw["marks"])
+        ? raw["marks"].filter((one): one is string => typeof one === "string")
+        : [],
     });
   }
   return read;
@@ -3068,9 +3075,17 @@ function graphJudgedList(
   for (const item of items) {
     const row = graphElement("li", "graph-sheet-row");
     row.appendChild(graphElement("span", "graph-sheet-title", item.title));
-    // Only the held-back side has a reason to give.
+    // Only the held-back side has a reason to give; only the side that got
+    // through has anything left on it.
     if (side === "held" && item.reason !== null) {
       row.appendChild(graphElement("span", "graph-sheet-reason", item.reason));
+    }
+    if (item.marks.length > 0) {
+      const marks = graphElement("span", "graph-sheet-marks");
+      for (const said of item.marks) {
+        marks.appendChild(graphElement("span", "graph-sheet-mark", said));
+      }
+      row.appendChild(marks);
     }
     list.appendChild(row);
   }
@@ -3194,6 +3209,8 @@ function asGraphHeld(value: unknown): GraphJudged[] {
       id: raw["id"],
       title: typeof raw["title"] === "string" ? raw["title"] : "",
       reason: box === "" ? why : `${box}: ${why}`,
+      // Nothing happens to something that was turned away.
+      marks: [],
     });
   }
   return read;

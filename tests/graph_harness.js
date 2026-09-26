@@ -385,7 +385,10 @@ async function main() {
   const listed = (numbered) => {
     const part = context.graphJudgedList(
       "Gets through",
-      [{ id: 1, title: "One", reason: null }, { id: 2, title: "Two", reason: null }],
+      [
+        { id: 1, title: "One", reason: null, marks: [] },
+        { id: 2, title: "Two", reason: null, marks: ["“news”", "3 min"] },
+      ],
       "through",
       numbered,
     );
@@ -393,6 +396,29 @@ async function main() {
     return { tag: list.tag, className: list.className };
   };
   report.lists = { trial: listed(true), report: listed(false) };
+
+  // What the boxes on the path would leave on an item, shown beside it: a
+  // trial says what would happen, and these are as much of that as which
+  // feed it lands in.
+  report.judgedMarks = (() => {
+    const part = context.graphJudgedList(
+      "Gets through",
+      [
+        { id: 1, title: "Plain", reason: null, marks: [] },
+        { id: 2, title: "Marked", reason: null, marks: ["“news”", "3 min · no pause"] },
+      ],
+      "through",
+      true,
+    );
+    const rows = part.children[1].children;
+    const marksOf = (row) => {
+      const holder = row.children.find(
+        (child) => child.className === "graph-sheet-marks",
+      );
+      return holder === undefined ? [] : holder.children.map((one) => one.textContent);
+    };
+    return { plain: marksOf(rows[0]), marked: marksOf(rows[1]) };
+  })();
 
   // A trigger's box has two sides; every other box has one.
   const tabs = (node) => {

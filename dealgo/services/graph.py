@@ -1286,6 +1286,10 @@ class Judged:
     kind: str
     passed: bool
     reason: str | None = None
+    #: What the boxes on this path would leave on it, in the words they use
+    #: on the canvas. A trial says what would happen, and these are as much
+    #: of what would happen as which feed it lands in.
+    marks: list[str] = field(default_factory=list)
 
 
 def filter_report(
@@ -1648,6 +1652,9 @@ def try_it(
 
     trial = Trial()
     recent: dict[int, list[Video]] = {}
+    # Read once for the whole trial: every path asks the same boxes what is
+    # slotted under them.
+    known = pieces_of(session, owner)
 
     for path in routes(session, owner):
         # A trial follows items to a feed. A path into a repository has no
@@ -1673,7 +1680,7 @@ def try_it(
 
         landing: list[tuple[Video, Judged]] = []
         for video in recent[path.channel.id]:
-            judged, stopped_at = _judge(video, path, settings, start)
+            judged, stopped_at = _judge(video, path, settings, start, known)
             if judged.passed:
                 _note(
                     trial.through,
@@ -1724,6 +1731,7 @@ def _try_withdrawal(
     """
     from ..models import RepositoryItem
 
+    known = pieces_of(session, owner)
     name = store_name(box.repository)
     if not name:
         return
@@ -1749,7 +1757,7 @@ def _try_withdrawal(
             end = feed_node.get(path.playlist.id)
             if end is None:
                 continue
-            judged, stopped_at = _judge(video, path, settings, box)
+            judged, stopped_at = _judge(video, path, settings, box, known)
             if judged.passed:
                 _note(
                     trial.through, [node.id for node in path.walked] + [box.id], judged
@@ -1761,7 +1769,11 @@ def _try_withdrawal(
 
 
 def _judge(
-    video: Video, path: Route, settings: Settings, start: GraphNode
+    video: Video,
+    path: Route,
+    settings: Settings,
+    start: GraphNode,
+    pieces_for: Any = None,
 ) -> tuple[Judged, int]:
     """Whether this path takes the video, and the box that turned it away.
 
@@ -1777,6 +1789,13 @@ def _judge(
             kind=video.kind,
             passed=passed,
             reason=reason,
+            # Only what got through carries them: a trial says what would
+            # happen, and nothing happens to something turned away.
+            marks=(
+                stamp_marks(path.stamps, pieces_for)
+                if passed and pieces_for is not None
+                else []
+            ),
         )
 
     # The channel's own settings first: if they refuse it, it never left.
@@ -2322,6 +2341,26 @@ def stamped_life(stamps: list[GraphNode], pieces_for: Any) -> int | None:
             continue
         shortest = minutes if shortest is None else min(shortest, minutes)
     return shortest
+
+
+def stamp_marks(stamps: list[GraphNode], pieces_for: Any) -> list[str]:
+    """What these boxes would leave on an item, said the way they say it.
+
+    The same words the boxes themselves carry, so a trial and the canvas
+    agree about what is going to happen — and the same words a card shows
+    afterwards, so it is recognisable when it gets there.
+    """
+    said = [f"“{one}”" for one in stamped_tags(stamps)]
+
+    seconds = stamped_seconds(stamps, pieces_for)
+    if seconds is not None:
+        spoken = f"{seconds}s" if seconds < 60 else f"{round(seconds / 60)} min"
+        said.append(spoken + (" · no pause" if stamped_locked(stamps, pieces_for) else ""))
+
+    minutes = stamped_life(stamps, pieces_for)
+    if minutes is not None:
+        said.append(f"gone {every_words(minutes)} after it arrives")
+    return said
 
 
 def stamped_tags(stamps: list[GraphNode]) -> list[str]:
