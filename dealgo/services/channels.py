@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..models import Channel, Video
 from .. import sources
-from ..sources import syndication
+from ..sources import newsletter, syndication
 from ..plugins.publisher import ChannelInfo, PublishError
 from . import filters
 from . import ordering
@@ -105,6 +105,22 @@ def add_source(
     if existing is not None:
         raise ChannelError(f"{existing.title or found.key} is already being watched")
 
+    if found.needs_finding:
+        # A place rather than a feed: a newsletter is known by where it
+        # lives, and every platform puts its feed somewhere slightly
+        # different. So the site is asked, which also reads it — there is
+        # nothing left to confirm afterwards.
+        said = newsletter.find(found.key, http)
+        if said is None:
+            raise ChannelError(
+                f"{found.title} does not publish a feed that could be found. "
+                "If you know where it is, a Feed address box takes it directly."
+            )
+        return _keep(
+            session, found, feed_url=said.feed_url, title=said.title,
+            backfill_days=backfill_days, owner=owner,
+        )
+
     # Read once before keeping it: a feed that cannot be read is a source that
     # would sit there failing quietly every sync.
     try:
@@ -114,12 +130,28 @@ def add_source(
     except ElementTree.ParseError as exc:
         raise ChannelError(f"that address did not give back a feed: {exc}") from exc
 
+    return _keep(
+        session, found, feed_url=found.feed_url, title=feed.title or found.title,
+        backfill_days=backfill_days, owner=owner,
+    )
+
+
+def _keep(
+    session: Session,
+    found: sources.Resolved,
+    *,
+    feed_url: str,
+    title: str,
+    backfill_days: int | None,
+    owner: OwnerId,
+) -> Channel:
+    """File a source whose feed has been read and found to be one."""
     channel = Channel(
         owner_pk=owner,
         channel_id=found.key,
-        title=feed.title or found.title,
+        title=title or found.title,
         source_kind=found.kind,
-        source_url=found.feed_url,
+        source_url=feed_url,
         # Nothing to send items to yet, so it waits rather than quietly
         # queueing things that have nowhere to go.
         enabled=False,

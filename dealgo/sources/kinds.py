@@ -7,11 +7,19 @@ them in turn. What is left here is the part that cannot be a plugin:
 * **RSS**, the floor. Anything with no plugin to claim it is taken at its
   word as the address of a feed, which is what it most often is. It is not a
   peer of the others; it is what they are all built on.
+* **Newsletter**, which is the floor said the way somebody thinks of it. A
+  newsletter is known by where it lives rather than by where its feed is, and
+  every platform puts that feed somewhere slightly different — so this one
+  kind resolves to a site and has its feed found by reading it. Not a plugin
+  because it belongs to no service: Substack, Ghost, beehiiv and a WordPress
+  with an email list are all the same answer to "which newsletter".
 * **the vocabulary** — ``Resolved``, ``SourceKind``, ``UnknownSource`` — so
   the rest of the app talks about sources without knowing a plugin exists.
 
 Nothing here makes a request. A plugin says where a feed is by the shape of
-what was typed; reading it is the host's business, and so are rate limits.
+what was typed; reading it is the host's business, and so are rate limits —
+which is why a Newsletter resolves with no feed address at all and says so,
+rather than fetching one from in here.
 """
 
 from __future__ import annotations
@@ -38,6 +46,17 @@ class Resolved:
     #: one case is a YouTube handle, which needs this account's Google
     #: connection — not something a plugin is ever handed.
     needs_host: bool = False
+
+    @property
+    def needs_finding(self) -> bool:
+        """Whether where its feed lives still has to be worked out.
+
+        A blank feed address is not a missing answer, it is the answer: this
+        is a place rather than a feed, and which feed it publishes is settled
+        by asking it. Nothing in this module asks anything, so it says so and
+        leaves it to the half that is allowed to make requests.
+        """
+        return not self.feed_url
 
 
 @dataclass(frozen=True)
@@ -67,6 +86,18 @@ RSS = SourceKind(
 )
 
 
+#: A newsletter, known the way somebody knows one: by where it lives. Its
+#: feed is found by reading the site rather than guessed from the spelling,
+#: because every platform puts it somewhere slightly different and nobody
+#: should have to know which one theirs is on.
+NEWSLETTER = SourceKind(
+    "newsletter", "Newsletter", "platformer.news, or wherever it lives",
+    plugin="",
+    noun="Newsletter",
+    blurb="A newsletter by where it lives. Its feed is found by asking the site.",
+)
+
+
 def all_kinds() -> tuple[SourceKind, ...]:
     """Every kind of somewhere that can be watched, plugins first.
 
@@ -91,7 +122,7 @@ def all_kinds() -> tuple[SourceKind, ...]:
         )
         for kind in registry.current().source_kinds()
     )
-    return offered + (RSS,)
+    return offered + (NEWSLETTER, RSS)
 
 
 def describe(kind: str) -> SourceKind:
@@ -125,7 +156,9 @@ def resolve(reference: str, *, within: str = "") -> Resolved:
     if not typed:
         raise UnknownSource("Give it something to watch.")
 
-    if within and within != RSS.name:
+    #: The two kinds the host owns itself. Everything else is a plugin's, and
+    #: is asked of the plugin that offered it.
+    if within and within not in (RSS.name, NEWSLETTER.name):
         said = registry.current().accept(within, typed)
         if said is not None:
             return Resolved(
@@ -139,6 +172,24 @@ def resolve(reference: str, *, within: str = "") -> Resolved:
             f"“{typed}” is not something {describe(within).label} recognises. "
             f"Try {describe(within).example}."
         )
+    if within == NEWSLETTER.name:
+        # A place, not a feed. Which feed it publishes is the site's to say,
+        # and asking it is not this module's to do.
+        from . import newsletter
+
+        site = newsletter.site_url(typed)
+        if not site:
+            raise UnknownSource(
+                f"“{typed}” is not somewhere a newsletter could live. "
+                f"Try {NEWSLETTER.example}."
+            )
+        return Resolved(
+            kind=NEWSLETTER.name,
+            key=site,
+            feed_url="",
+            title=(urlparse(site).hostname or site),
+        )
+
     if within == RSS.name:
         # The box that takes an address takes an address, and whether it is
         # a feed is settled by reading it rather than by its spelling.
@@ -181,7 +232,13 @@ def item_url(kind: str, key: str, link: str | None) -> str | None:
 
 
 def home_url(kind: str, key: str) -> str | None:
-    """Where the source itself lives. Its plugin's to say."""
+    """Where the source itself lives. Its plugin's to say.
+
+    Except a newsletter's, which is the one kind whose key *is* where it
+    lives — that is how one is named, and there is no plugin to ask.
+    """
+    if kind == NEWSLETTER.name:
+        return key or None
     from ..plugins import registry
 
     return registry.current().home(kind, key)

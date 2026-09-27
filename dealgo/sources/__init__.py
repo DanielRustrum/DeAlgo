@@ -16,11 +16,13 @@ only fill a feed that lives inside De-Algo.
 """
 
 from .kinds import (
+    NEWSLETTER,
     RSS,
     Resolved,
     SourceKind,
     UnknownSource,
     describe,
+    home_url,
     item_url,
     all_kinds,
     resolve,
@@ -29,6 +31,7 @@ from .kinds import (
 from .syndication import Item, Feed, parse, fetch
 
 __all__ = [
+    "NEWSLETTER",
     "RSS",
     "Resolved",
     "SourceKind",
@@ -36,6 +39,7 @@ __all__ = [
     "describe",
     "all_kinds",
     "resolve",
+    "home_url",
     "item_url",
     "suggest_mirror",
     "Item",

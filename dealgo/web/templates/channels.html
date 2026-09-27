@@ -179,9 +179,18 @@
 {%- endmacro %}
 
         {# A feed is what every graph ends at, so it is not filed under
-           anything. Nor is the one source kind that is not a plugin's: an
-           address is the floor everything else is built on. #}
+           anything. Nor are the two source kinds that are not a plugin's: an
+           address is the floor everything else is built on, and a newsletter
+           is that floor said the way somebody thinks of one. #}
         <ul class="palette-list">
+          <li class="palette-item" data-palette="source" data-source-kind="newsletter"
+              tabindex="0" role="button">
+            <span class="palette-swatch kind-source"></span>
+            <span class="palette-text">
+              <strong>Newsletter</strong>
+              <span class="palette-blurb">A newsletter by where it lives. Its feed is found by asking the site.</span>
+            </span>
+          </li>
           <li class="palette-item" data-palette="source" data-source-kind="rss"
               tabindex="0" role="button">
             <span class="palette-swatch kind-source"></span>
