@@ -266,7 +266,15 @@ $tab: 18px;
 .graph-node.kind-timer,
 .graph-node.kind-reset,
 .graph-node.kind-alive,
-.graph-node.kind-lock {
+.graph-node.kind-lock,
+.graph-node.kind-has-words,
+.graph-node.kind-lacks-words,
+.graph-node.kind-longer-than,
+.graph-node.kind-shorter-than,
+.graph-node.kind-carrying,
+.graph-node.kind-at-most,
+.graph-node.kind-order,
+.graph-node.kind-rule {
   border-left-color: $piece;
   padding: 8px 12px;
 }
@@ -319,7 +327,10 @@ $tab: 18px;
 .graph-node.is-piece:not(.has-piece)::after,
 .graph-node.kind-feed:not(.has-piece)::after,
 .graph-node.kind-decay:not(.has-piece)::after,
-.graph-node.kind-expire:not(.has-piece)::after {
+.graph-node.kind-expire:not(.has-piece)::after,
+.graph-node.kind-filter:not(.has-piece)::after,
+.graph-node.kind-sort:not(.has-piece)::after,
+.graph-node.kind-plugin:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(#{$tab} / -2);
@@ -331,6 +342,15 @@ $tab: 18px;
   border: 1px solid var(--line);
   clip-path: inset(50% 0 0 0);
 }
+
+// What a plugin's box can be asked, listed in its panel. Plain rows: it is
+// something to read before going to the palette, not something to click.
+.graph-offers {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--muted);
+}
+.graph-offers strong { color: var(--text); font-weight: 500; }
 
 // Two ends of a stretch, side by side: they are one setting, and stacked
 // they read as two.
@@ -884,7 +904,15 @@ $tab: 18px;
 .palette-swatch.kind-timer,
 .palette-swatch.kind-reset,
 .palette-swatch.kind-alive,
-.palette-swatch.kind-lock { background: #9ece6a; }
+.palette-swatch.kind-lock,
+.palette-swatch.kind-has-words,
+.palette-swatch.kind-lacks-words,
+.palette-swatch.kind-longer-than,
+.palette-swatch.kind-shorter-than,
+.palette-swatch.kind-carrying,
+.palette-swatch.kind-at-most,
+.palette-swatch.kind-order,
+.palette-swatch.kind-rule { background: #9ece6a; }
 .palette-swatch.kind-tag,
 .palette-swatch.kind-decay,
 .palette-swatch.kind-expire { background: #2ac3de; }

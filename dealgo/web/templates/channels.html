@@ -165,6 +165,22 @@
           </ul>
         </details>
 
+        {# Conditions: what a Filter narrows by and what a Sort orders by,
+           one piece each. A box saying "Filter" told you nothing about what
+           it filtered; a piece saying "Longer than" says it on the canvas. #}
+        <details class="palette-group">
+          <summary>Conditions</summary>
+          <ul class="palette-list">
+            {{ node_row('has-words', 'Title has', 'Only what matches. Words, or /a regex/. Goes under a Filter.') }}
+            {{ node_row('lacks-words', 'Title lacks', 'Holds anything that matches. Goes under a Filter.') }}
+            {{ node_row('longer-than', 'Longer than', 'Holds anything shorter. Goes under a Filter.') }}
+            {{ node_row('shorter-than', 'Shorter than', 'Holds anything longer. Goes under a Filter.') }}
+            {{ node_row('carrying', 'Carrying', 'Only what a Tag box earlier put a mark on.') }}
+            {{ node_row('at-most', 'At most', 'How many may get through in one run.') }}
+            {{ node_row('order', 'Order', 'What to put the batch in order by. Goes under a Sort.') }}
+          </ul>
+        </details>
+
         <details class="palette-group">
           <summary>Triggers</summary>
           <ul class="palette-list">

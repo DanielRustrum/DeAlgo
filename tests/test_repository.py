@@ -343,7 +343,9 @@ def wired_through_a_filter(world, db, *, exclude="skip", takes=None):
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         feed = session.scalar(select(GraphNode).where(GraphNode.kind == "feed"))
         narrow = graph.add_filter(session, label="Filter")
-        narrow.title_exclude = exclude
+        graph.add_piece(
+            session, kind="lacks-words", host=narrow
+        ).title_exclude = exclude
         # Straight to the feed would let everything past the filter.
         for edge in graph.edges(session):
             if edge.source_pk == box.id and edge.target_pk == feed.id:

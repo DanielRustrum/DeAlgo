@@ -402,7 +402,12 @@ def wire_sort(db, *, sort_by: str, newest_first: bool = True):
         graph.load(session)
         source = next(n for n in graph.nodes(session) if n.kind == "source")
         feed = next(n for n in graph.nodes(session) if n.kind == "feed")
-        order = graph.add_sort(session, sort_by=sort_by, newest_first=newest_first)
+        order = graph.add_sort(session)
+        # What to order by is a piece under the box, not a field on it.
+        graph.add_piece(
+            session, kind="order", host=order,
+            sort_by=sort_by, newest_first=newest_first,
+        )
         graph.connect(session, source, order)
         graph.connect(session, order, feed)
         # The straight wire would skip the sort, so it comes out.

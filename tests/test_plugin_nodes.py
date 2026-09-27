@@ -1,8 +1,13 @@
-"""Boxes a plugin puts in the palette.
+"""What a plugin puts in the palette: its own box, and its own conditions.
 
-A plugin node is a filter whose rule is somebody's Lua: given one item and
-whatever its fields were set to, say whether it may carry on. A pure question
-with a yes-or-no answer, which is the one shape that fits inside the sandbox.
+A plugin's box stands for the plugin. The questions it can ask are pieces
+slotted under it, one per condition — given one item and whatever its fields
+were set to, say whether it may carry on. A pure question with a yes-or-no
+answer, which is the one shape that fits inside the sandbox.
+
+A condition that is a fact about one service lives here rather than in the
+host: whether a video is a Short, how many have watched it. The host's own
+conditions are about anything at all, and are tested in test_graph.
 """
 
 from __future__ import annotations
@@ -96,19 +101,19 @@ def test_a_plugin_may_offer_boxes_and_no_sources(here):
 # -- how the palette groups them -------------------------------------------
 
 
-def test_a_plugin_with_one_box_shows_it_directly(canvas, here):
-    """No dropdown of its own: a fold holding one row is a fold to open for
-    no reason."""
+def test_a_plugin_offers_its_own_box_and_its_conditions_under_it(canvas, here):
+    """The box is the plugin; the conditions are what it can be asked. So even
+    a plugin with one condition brings two rows, and gets a fold of its own."""
     (here / "solo.lua").write_text(ONE_BOX % "Solo", encoding="utf-8")
     registry.reload()
 
     body = canvas.get("/channels").text
     inside = body.split("<summary>Plugins</summary>", 1)[1].split("</aside>", 1)[0]
 
-    assert 'data-plugin-node="solo:only"' in inside
-    # No fold of its own: a fold holding one row is a fold to open for no
-    # reason. The row sits directly under the Plugins heading.
-    assert "<summary>Solo</summary>" not in body
+    assert "<summary>Solo</summary>" in inside
+    assert 'data-palette="plugin"' in inside
+    assert 'data-plugin-node="solo"' in inside          # the box: the plugin
+    assert 'data-plugin-node="solo:only"' in inside     # the condition
 
 
 def test_a_plugin_with_several_boxes_gets_a_fold_of_its_own(canvas, here):
@@ -155,21 +160,61 @@ def test_the_shipped_plugin_with_three_boxes_is_folded(canvas):
 # -- putting one on the canvas ---------------------------------------------
 
 
-def test_a_plugin_box_can_be_dropped_and_is_named_after_itself(canvas, db):
-    made = canvas.post(
-        "/graph/nodes", data={"kind": "plugin", "plugin_node": "shape:not-shouting"}
-    ).json()
+def test_a_plugin_box_is_named_after_its_plugin_and_asks_nothing_alone(canvas, db):
+    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "shape"}).json()
 
     box = only(made, "plugin")
-    assert box["title"] == "Not shouting"
-    assert box["plugin"]["ref"] == "shape:not-shouting"
-    assert box["note"] == "Holds titles that are mostly capitals."
+    assert box["title"] == "Shape"
+    assert box["plugin"]["ref"] == "shape"
+    assert box["note"] == "slot a Shape condition under it"
+    # No fields of its own: what it asks is in the pieces under it.
+    assert box["plugin"]["fields"] == []
+    assert [one["ref"] for one in box["plugin"]["offers"]] == [
+        "shape:long-enough", "shape:has-words", "shape:not-shouting",
+    ]
+
+
+def test_a_plugin_condition_slots_under_its_box_and_says_what_it_asks(canvas, db):
+    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "shape"}).json()
+    box = only(made, "plugin")
+
+    with_piece = canvas.post(
+        "/graph/nodes",
+        data={"kind": "rule", "plugin_node": "shape:not-shouting",
+              "attach_to": str(box["id"])},
+    ).json()
+
+    piece = only(with_piece, "rule")
+    assert piece["title"] == "Not shouting"
+    assert piece["plugin"]["ref"] == "shape:not-shouting"
+    assert piece["note"] == "Holds titles that are mostly capitals."
     # Its fields arrive with the defaults its plugin declared.
-    assert box["plugin"]["fields"][0]["value"] == "60"
+    assert piece["plugin"]["fields"][0]["value"] == "60"
+    # And the box now says how many it carries.
+    assert only(with_piece, "plugin")["note"] == "1 condition"
+
+
+def test_a_plugin_condition_goes_nowhere_but_a_plugin_box(canvas):
+    drawn = canvas.get("/api/graph").json()
+    refused = canvas.post(
+        "/graph/nodes",
+        data={"kind": "rule", "plugin_node": "shape:has-words",
+              "attach_to": str(only(drawn, "feed")["id"])},
+    )
+
+    assert refused.status_code == 400
+    assert "Plugin" in refused.json()["error"]
 
 
 def test_a_box_whose_plugin_is_not_loaded_is_refused(canvas):
-    answer = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "nope:nope"})
+    answer = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "nope"})
+
+    assert answer.status_code == 400
+    assert "not loaded" in answer.json()["error"]
+
+
+def test_a_condition_whose_plugin_is_not_loaded_is_refused(canvas):
+    answer = canvas.post("/graph/nodes", data={"kind": "rule", "plugin_node": "nope:nope"})
 
     assert answer.status_code == 400
     assert "not loaded" in answer.json()["error"]
@@ -178,9 +223,7 @@ def test_a_box_whose_plugin_is_not_loaded_is_refused(canvas):
 def test_a_plugin_box_wires_where_a_filter_wires(canvas, db):
     drawn = canvas.get("/api/graph").json()
     source, feed = only(drawn, "source"), only(drawn, "feed")
-    made = canvas.post(
-        "/graph/nodes", data={"kind": "plugin", "plugin_node": "shape:has-words"}
-    ).json()
+    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "shape"}).json()
     box = only(made, "plugin")
 
     into = canvas.post("/graph/connect", data={"source": source["id"], "target": box["id"]})
@@ -189,40 +232,42 @@ def test_a_plugin_box_wires_where_a_filter_wires(canvas, db):
     assert into.status_code == 200 and onward.status_code == 200
 
 
+def a_condition(canvas, ref: str, under: int | None = None) -> dict:
+    """Drop a plugin condition, under a box of its plugin if one is wanted."""
+    said = {"kind": "rule", "plugin_node": ref}
+    if under is not None:
+        said["attach_to"] = str(under)
+    return only(canvas.post("/graph/nodes", data=said).json(), "rule")
+
+
 def test_its_fields_are_saved_under_the_names_its_plugin_chose(canvas, db):
-    made = canvas.post(
-        "/graph/nodes", data={"kind": "plugin", "plugin_node": "shape:long-enough"}
-    ).json()
-    box = only(made, "plugin")
+    piece = a_condition(canvas, "shape:long-enough")
 
     answer = canvas.post(
-        f"/graph/nodes/{box['id']}",
+        f"/graph/nodes/{piece['id']}",
         data={"box_form": "1", "active": "1", "plugin_minutes": "12"},
     )
 
     assert answer.status_code == 200
-    again = only(answer.json(), "plugin")
+    again = only(answer.json(), "rule")
     assert again["plugin"]["fields"][0]["value"] == "12"
     with db.session_scope() as session:
-        stored = session.get(GraphNode, box["id"])
+        stored = session.get(GraphNode, piece["id"])
     assert '"minutes": "12"' in stored.plugin_settings
 
 
 def test_a_field_its_plugin_no_longer_declares_is_not_kept(canvas, db):
-    """A box should not carry a dropped field for ever in a column nobody
+    """A piece should not carry a dropped field for ever in a column nobody
     reads."""
-    made = canvas.post(
-        "/graph/nodes", data={"kind": "plugin", "plugin_node": "shape:long-enough"}
-    ).json()
-    box = only(made, "plugin")
+    piece = a_condition(canvas, "shape:long-enough")
 
     canvas.post(
-        f"/graph/nodes/{box['id']}",
+        f"/graph/nodes/{piece['id']}",
         data={"box_form": "1", "active": "1", "plugin_minutes": "9", "plugin_invented": "x"},
     )
 
     with db.session_scope() as session:
-        stored = session.get(GraphNode, box["id"])
+        stored = session.get(GraphNode, piece["id"])
     assert "invented" not in (stored.plugin_settings or "")
 
 
@@ -230,15 +275,18 @@ def test_a_field_its_plugin_no_longer_declares_is_not_kept(canvas, db):
 
 
 def wire_through_a_box(canvas, db, ref: str, settings: dict[str, str]):
-    """Source → plugin box → feed, with the box set up."""
+    """Source → plugin box → feed, with one of that plugin's conditions in it."""
     drawn = canvas.get("/api/graph").json()
     source, feed = only(drawn, "source"), only(drawn, "feed")
-    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": ref}).json()
+    made = canvas.post(
+        "/graph/nodes", data={"kind": "plugin", "plugin_node": ref.split(":", 1)[0]}
+    ).json()
     box = only(made, "plugin")
     canvas.post("/graph/connect", data={"source": source["id"], "target": box["id"]})
     canvas.post("/graph/connect", data={"source": box["id"], "target": feed["id"]})
+    piece = a_condition(canvas, ref, box["id"])
     canvas.post(
-        f"/graph/nodes/{box['id']}",
+        f"/graph/nodes/{piece['id']}",
         data={"box_form": "1", "active": "1", **{f"plugin_{k}": v for k, v in settings.items()}},
     )
     return box["id"]
@@ -456,3 +504,47 @@ def test_every_shipped_box_survives_an_item_with_nothing_in_it():
 
     for node in found.node_kinds():
         assert found.keeps(node.ref, empty, {}) in (True, False), node.ref
+
+
+def test_a_condition_is_told_whether_an_item_is_a_broadcast(db, here):
+    """Whether something is live is only known while the details are in hand,
+    which is when a condition is asked. The host kept it to itself once, which
+    is why "no live" had to be a switch on the host's own box."""
+    from dealgo.plugins.publisher import VideoDetails
+    from dealgo.services import graph as graph_module
+    from dealgo.services import sync as sync_service
+
+    (here / "watching.lua").write_text("""
+        return { api = 1, name = "Watching", nodes = { { kind = "no-premieres",
+          label = "No premieres", keep = function(item)
+            return item.live ~= "upcoming"
+          end } } }
+    """, encoding="utf-8")
+    registry.reload()
+
+    with db.session_scope() as session:
+        channel = Channel(channel_id="UCone", title="One")
+        playlist = Playlist(playlist_id="PLone", title="One")
+        session.add_all([channel, playlist])
+        session.flush()
+        soon = Video(video_id="soon", channel_pk=channel.id, title="Coming up",
+                     status="pending")
+        session.add(soon)
+        session.flush()
+
+        box = graph_module.add_plugin_node(session, ref="watching")
+        piece = graph_module.add_piece(
+            session, kind="rule", host=box, ref="watching:no-premieres"
+        )
+        path = graph_module.Route(
+            channel=channel, playlist=playlist, checks=[piece]
+        )
+
+        upcoming = VideoDetails("soon", "Coming up", 0, "upcoming", "public")
+        out = VideoDetails("soon", "Coming up", 600, "none", "public")
+
+        assert sync_service._plugin_refusal(soon, path, upcoming) is not None
+        assert sync_service._plugin_refusal(soon, path, out) is None
+        # No details in hand is not a broadcast: the lookup happens after
+        # discovery and may never say.
+        assert sync_service._plugin_refusal(soon, path, None) is None

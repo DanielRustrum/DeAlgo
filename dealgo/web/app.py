@@ -836,16 +836,31 @@ def _palette_plugins() -> list[Context]:
                 "swatch": "source",
             }
         )
-    for node in found.node_kinds():
-        grouped.setdefault(node.plugin, []).append(
+    for plugin in found.working:
+        if not plugin.nodes:
+            continue
+        # One box for the plugin itself, and one piece per thing it knows how
+        # to ask. The box used to be the question; a plugin that could ask
+        # four things meant four boxes and no way to say "YouTube" at all.
+        grouped.setdefault(plugin.title, []).append(
             {
                 "palette": "plugin",
-                "ref": node.ref,
-                "label": node.label,
-                "blurb": node.blurb,
+                "ref": plugin.id,
+                "label": plugin.title,
+                "blurb": f"Narrows by what {plugin.title} knows. Slot its conditions under it.",
                 "swatch": "plugin",
             }
         )
+        for node in plugin.nodes:
+            grouped.setdefault(plugin.title, []).append(
+                {
+                    "palette": graph_service.RULE,
+                    "ref": node.ref,
+                    "label": node.label,
+                    "blurb": node.blurb,
+                    "swatch": graph_service.RULE,
+                }
+            )
     return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
 def _channel_list_response(
     request: Request,
@@ -2015,12 +2030,13 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
         for node in nodes
         if node.kind in ("deposit", "withdraw")
     }
-    # What is slotted under each marking box, since what those boxes do is
-    # whatever their pieces say.
+    # What is slotted under each box that reads pieces, since what those
+    # boxes do is whatever their pieces say. A Filter narrows by nothing at
+    # all until something is slotted under it.
     slotted = {
         node.id: graph_service.pieces_under(nodes, node.id)
         for node in nodes
-        if node.kind in graph_service.STAMPS
+        if node.kind in graph_service.SLOTTED
     }
     # And what each piece is slotted into, since a Timer says an amount and
     # the box it is in is what the amount means.
@@ -2060,7 +2076,11 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     }
                 ),
                 "polled": _how_polled(node, plan) if node.kind == "source" else None,
-                "plugin": _plugin_facts(node) if node.kind == "plugin" else None,
+                "plugin": (
+                    _plugin_facts(node)
+                    if node.kind in ("plugin", graph_service.RULE)
+                    else None
+                ),
                 "channel": facts.get(node.channel_pk or 0) if node.kind == "source" else None,
                 # Which kind of somewhere an empty box is for, and what to
                 # type into it. Sent per box rather than looked up in the
@@ -2090,15 +2110,18 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     if node.kind in graph_service.JIGSAW
                     else None
                 ),
+                # A condition piece: what it narrows by, and how to ask for
+                # it. Sent per piece rather than looked up in the browser,
+                # so the canvas has one way of drawing every condition.
+                "condition": _condition_facts(node),
                 "feed": (
                     _feed_facts(node, windows.get(node.playlist_pk or 0, []))
                     if node.kind == "feed"
                     else None
                 ),
-                "overrides": {name: value for name, value in node.overrides.items()},
                 "sort": (
                     None
-                    if node.kind != "sort"
+                    if node.kind != "order"
                     else {
                         "by": node.sort_by or graph_service.DEFAULT_SORT_BY,
                         "desc": (node.sort_dir or "desc") == "desc",
@@ -2240,14 +2263,6 @@ def _next_firing(node: GraphNode) -> str | None:
         return None
     when = trigger.get_next_fire_time(None, dt.datetime.now(dt.timezone.utc))
     return when.isoformat() if when is not None else None
-
-
-def _sort_words(node: GraphNode) -> str:
-    """What a sort box does, in the words that belong to what it sorts by."""
-    return graph_service.sort_words(
-        node.sort_by or graph_service.DEFAULT_SORT_BY,
-        (node.sort_dir or "desc") == "desc",
-    )
 
 
 def _is_on(node: GraphNode) -> bool:
@@ -2401,6 +2416,40 @@ def _join_clauses(parts: list[str]) -> str:
 
 
 
+def _how_many(count: int, thing: str) -> str:
+    return f"{count} {thing}" if count == 1 else f"{count} {thing}s"
+
+
+def _condition_facts(node: GraphNode) -> Context | None:
+    """What one condition piece is, and what it is set to.
+
+    None for anything that is not one. The shape is the same for every
+    condition — a label, a kind of field, and what is in it — so the canvas
+    draws them all one way and none of them needs code of its own.
+    """
+    spec = graph_service.condition(node.kind)
+    if spec is None:
+        return None
+    raw = getattr(node, spec.column, None)
+    amount, unit = (
+        graph_service.split_length(int(raw))
+        if spec.field == "duration" and raw
+        else ("", graph_service.LENGTH_UNITS[1][0])
+    )
+    return {
+        "kind": node.kind,
+        "label": spec.label,
+        "blurb": spec.blurb,
+        "field": spec.field,
+        "asks": spec.asks,
+        "under": spec.under,
+        "value": "" if raw is None else str(amount if spec.field == "duration" else raw),
+        "unit": unit,
+        "units": [name for name, _ in graph_service.LENGTH_UNITS],
+        "says": graph_service.condition_words(node),
+    }
+
+
 def _plugin_facts(node: GraphNode) -> Context | None:
     """What a plugin box is, and what its fields are set to.
 
@@ -2409,6 +2458,27 @@ def _plugin_facts(node: GraphNode) -> Context | None:
     for rather than showing an empty form.
     """
     ref = node.plugin_ref or ""
+    if node.kind == "plugin":
+        # The box is the plugin itself now. What it asks is in the pieces
+        # slotted under it, so the box carries no fields of its own.
+        found = next(
+            (one for one in registry.current().working if one.id == ref), None
+        )
+        if found is None:
+            return {"ref": ref, "missing": ref or "a plugin", "fields": [], "blurb": ""}
+        return {
+            "ref": ref,
+            "missing": None,
+            "plugin": found.title,
+            "blurb": f"narrows by what {found.title} knows",
+            "fields": [],
+            # What may be slotted under it, for the panel to offer.
+            "offers": [
+                {"ref": one.ref, "label": one.label, "blurb": one.blurb}
+                for one in found.nodes
+            ],
+        }
+
     box = registry.current().node(ref)
     was = sync_service._plugin_settings(node)
     if box is None:
@@ -2442,15 +2512,42 @@ def _node_note(
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
         return "drag it to move everything in it"
-    if node.kind == "plugin":
+    if node.kind == graph_service.RULE:
+        # A condition a plugin declared. Its own words, since the host has
+        # none for it — it is the plugin that knows what it asks.
         box = registry.current().node(node.plugin_ref or "")
         if box is None:
             return "its plugin is switched off — it narrows nothing"
         return box.blurb or f"from {box.plugin}"
+    if node.kind == "plugin":
+        found = next(
+            (one for one in registry.current().working if one.id == (node.plugin_ref or "")),
+            None,
+        )
+        if found is None:
+            return "its plugin is switched off — it narrows nothing"
+        slotted = [one for one in (pieces or []) if one.kind == graph_service.RULE]
+        if not slotted:
+            return f"slot a {found.title} condition under it"
+        return _how_many(len(slotted), "condition")
     if node.kind in graph_service.JIGSAW:
         if node.attached_to is None:
             return "drop it on a box to slot it in"
         return graph_service.piece_note(node, host)
+    if node.kind == "filter":
+        said = [
+            graph_service.condition_words(one)
+            for one in (pieces or [])
+            if one.kind in graph_service.CONDITION_KINDS and one.enabled
+        ]
+        return " · ".join(said) if said else "slot a condition under it"
+    if node.kind == "sort":
+        ordering = next(
+            (one for one in (pieces or []) if one.kind == "order" and one.enabled), None
+        )
+        if ordering is None:
+            return "slot an Order under it"
+        return graph_service.condition_words(ordering)
     if node.kind in graph_service.STAMPS:
         return graph_service.stamp_words(node, pieces or [])
     if node.kind in ("deposit", "withdraw"):
@@ -2462,8 +2559,6 @@ def _node_note(
             return f"{held} waiting in {name}"
         how = "all of it" if not node.takes else f"{node.takes} at a time"
         return f"pulls {how} from {name}"
-    if node.kind == "sort":
-        return _sort_words(node)
     if node.kind == "trigger":
         # Wired to a feed it opens a window, which is a different sentence
         # from the one about setting a channel off.
@@ -2599,19 +2694,18 @@ def graph_add_node(
         elif kind == "sort":
             graph_service.add_sort(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "plugin":
-            box = registry.current().node(plugin_node.strip())
-            if box is None:
+            # The box is the plugin, not one of its questions: what it asks
+            # is whatever conditions get slotted under it.
+            wanted = plugin_node.strip()
+            found = next(
+                (one for one in registry.current().working if one.id == wanted), None
+            )
+            if found is None:
                 return JSONResponse(
                     {"error": "That box's plugin is not loaded."}, status_code=400
                 )
             graph_service.add_plugin_node(
-                session,
-                owner,
-                ref=box.ref,
-                label=title.strip() or box.label,
-                settings={f.name: f.default for f in box.fields if f.default},
-                x=x,
-                y=y,
+                session, owner, ref=found.id, label=title.strip() or found.title, x=x, y=y
             )
         elif kind in graph_service.STAMPS:
             graph_service.add_stamp(
@@ -2630,8 +2724,22 @@ def graph_add_node(
                 if attach_to.strip().isdigit()
                 else None
             )
+            asked: dict[str, str] = {}
+            ref = ""
+            if kind == graph_service.RULE:
+                box = registry.current().node(plugin_node.strip())
+                if box is None:
+                    return JSONResponse(
+                        {"error": "That condition's plugin is not loaded."},
+                        status_code=400,
+                    )
+                ref = box.ref
+                asked = {one.name: one.default for one in box.fields if one.default}
             try:
-                graph_service.add_piece(session, owner, kind=kind, host=host, x=x, y=y)
+                graph_service.add_piece(
+                    session, owner, kind=kind, host=host, ref=ref,
+                    settings=asked, x=x, y=y,
+                )
             except graph_service.GraphError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
         elif kind in ("deposit", "withdraw"):
@@ -3213,15 +3321,11 @@ async def graph_save_node(
     duration_minutes: str = Form(""),
     sort_by: str = Form(""),
     sort_dir: str = Form(""),
-    skip_videos: str = Form(""),
-    skip_shorts: str = Form(""),
-    skip_live: str = Form(""),
-    skip_posts: str = Form(""),
-    title_include: str = Form(""),
-    title_exclude: str = Form(""),
-    min_duration_sec: str = Form(""),
-    max_duration_sec: str = Form(""),
-    max_per_run: str = Form(""),
+    # What a condition piece is set to. One pair rather than a parameter per
+    # rule: a piece carries exactly one value, and which column it lands in
+    # is the piece's kind rather than the form's business.
+    value: str = Form(""),
+    value_unit: str = Form(""),
     repository: str = Form(""),
     takes_how_many: str = Form(""),
     alive_from: str = Form(""),
@@ -3270,14 +3374,16 @@ async def graph_save_node(
             )
             if answer is not None:
                 return answer
-        elif node.kind == "sort":
-            try:
-                node.sort_by = graph_service.check_sort_key(sort_by or graph_service.DEFAULT_SORT_BY)
-            except graph_service.GraphError as exc:
-                return JSONResponse({"error": str(exc)}, status_code=400)
-            node.sort_dir = "asc" if sort_dir == "asc" else "desc"
         elif node.kind == "tag":
             node.marks = graph_service.tag_name(marks) or None
+        elif node.kind in graph_service.CONDITION_KINDS:
+            answer = _save_condition(
+                node, value=value, unit=value_unit, sort_by=sort_by, sort_dir=sort_dir
+            )
+            if answer is not None:
+                return answer
+        elif node.kind == graph_service.RULE:
+            await _save_plugin_box(request, node)
         elif node.kind in graph_service.JIGSAW:
             if node.kind == "alive":
                 begins = graph_service.clock_time(alive_from)
@@ -3311,25 +3417,10 @@ async def graph_save_node(
                 # waiting — which is what the field says it means and the
                 # least surprising answer to an unreadable one.
                 node.takes = int(wanted) if wanted.isdigit() and int(wanted) > 0 else None
-        elif node.kind == "plugin":
-            await _save_plugin_box(request, node)
         elif node.kind == "trigger":
             answer = _save_trigger(node, every_minutes, every_unit, cron, duration_minutes)
             if answer is not None:
                 return answer
-        elif node.kind == "filter":
-            _save_filter_rules(
-                node,
-                switches={
-                    "skip_videos": skip_videos, "skip_shorts": skip_shorts,
-                    "skip_live": skip_live, "skip_posts": skip_posts,
-                },
-                text={"title_include": title_include, "title_exclude": title_exclude},
-                numbers={
-                    "min_duration_sec": min_duration_sec, "max_duration_sec": max_duration_sec,
-                    "max_per_run": max_per_run,
-                },
-            )
 
         session.flush()
         return JSONResponse(_graph_payload(session, owner))
@@ -3536,26 +3627,46 @@ def _save_trigger(
     return None
 
 
-def _save_filter_rules(
-    node: GraphNode,
-    *,
-    switches: dict[str, str],
-    text: dict[str, str],
-    numbers: dict[str, str],
-) -> None:
-    """A filter's every field is three-valued: "" means leave it to the channel.
+def _save_condition(
+    node: GraphNode, *, value: str, unit: str, sort_by: str, sort_dir: str
+) -> JSONResponse | None:
+    """What one condition piece was told, into the column that rule lives in.
 
-    Which is why blanks are stored as NULL rather than as zero or false — that
-    is the whole difference between a filter box and a second copy of the
+    A blank is stored as NULL rather than as zero or false: an empty
+    condition narrows nothing and leaves the answer to the channel, which is
+    the whole difference between a condition and a second copy of the
     channel's settings.
     """
-    for name, raw in switches.items():
-        setattr(node, name, None if raw.strip() == "" else raw.strip() == "1")
-    for name, raw in text.items():
-        setattr(node, name, raw.strip() or None)
-    for name, raw in numbers.items():
-        value = raw.strip()
-        setattr(node, name, int(value) if value.isdigit() else None)
+    spec = graph_service.condition(node.kind)
+    if spec is None:
+        return None
+
+    if spec.field == "order":
+        try:
+            node.sort_by = graph_service.check_sort_key(
+                sort_by or graph_service.DEFAULT_SORT_BY
+            )
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        return None
+
+    said = value.strip()
+    if spec.field == "text":
+        # A tag is filed the way every other tag is filed, so one typed two
+        # ways still matches the Tag box that put it on.
+        kept = graph_service.tag_name(said) if node.kind == "carrying" else said
+        setattr(node, spec.column, kept or None)
+        return None
+
+    if not (said.isdigit() and int(said) > 0):
+        setattr(node, spec.column, None)
+        return None
+    if spec.field == "duration":
+        setattr(node, spec.column, graph_service.seconds_from(int(said), unit))
+    else:
+        setattr(node, spec.column, int(said))
+    return None
 
 
 # -- the admin's tab ------------------------------------------------------

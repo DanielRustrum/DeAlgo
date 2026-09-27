@@ -440,12 +440,17 @@ def test_coming_to_the_feed_starts_the_sitting(client, db):
 def test_a_spent_sitting_shuts_the_feed_and_says_when_it_opens(client, db):
     import datetime as dt
 
-    daily_window(db, last_fired_at=utcnow() - dt.timedelta(hours=12))
+    # Sat down just after the last midnight, so the Reset has not come round
+    # since. Anchored to that midnight rather than said as "twelve hours ago",
+    # which is on the far side of it for half of every day — the feed would be
+    # re-armed and open, and the test would pass or fail by the hour it ran.
+    began = utcnow().replace(hour=0, minute=0, second=1, microsecond=0)
+    daily_window(db, minutes=1, last_fired_at=began)
 
     body = client.get("/feed").text
 
     assert "This feed is shut" in body
-    assert "90 minutes once you start reading" in body
+    assert "1 minute once you start reading" in body
     # The thing actually worth knowing, rather than leaving you to work it out.
     assert "It opens again" in body
 

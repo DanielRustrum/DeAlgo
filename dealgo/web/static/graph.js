@@ -10,9 +10,22 @@
 // position is saved on release, because a round trip per pixel is absurd.
 //
 // Top-level `function` declarations only: see the note in dialog.ts.
+/** The conditions the host itself offers, as against a plugin's. */
+function graphConditionKinds() {
+    return [
+        "has-words", "lacks-words", "longer-than", "shorter-than",
+        "carrying", "at-most", "order",
+    ];
+}
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
-    return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock");
+    return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
+        kind === "rule" || graphConditionKinds().indexOf(kind) >= 0);
+}
+/** Which boxes have somewhere for a piece to go. */
+function graphTakesPieces(kind) {
+    return (kind === "feed" || kind === "decay" || kind === "expire" ||
+        kind === "filter" || kind === "sort" || kind === "plugin");
 }
 // -- reading what the server said -----------------------------------------
 function asGraphRecord(value) {
@@ -36,23 +49,18 @@ function asGraphNodeKind(value) {
         value === "lock" ||
         value === "decay" ||
         value === "expire" ||
-        value === "tag") {
+        value === "tag" ||
+        value === "has-words" ||
+        value === "lacks-words" ||
+        value === "longer-than" ||
+        value === "shorter-than" ||
+        value === "carrying" ||
+        value === "at-most" ||
+        value === "order" ||
+        value === "rule") {
         return value;
     }
     return null;
-}
-function asGraphOverrides(value) {
-    const raw = asGraphRecord(value);
-    const out = {};
-    if (raw === null)
-        return out;
-    for (const key of Object.keys(raw)) {
-        const found = raw[key];
-        if (typeof found === "string" || typeof found === "number" || typeof found === "boolean") {
-            out[key] = found;
-        }
-    }
-    return out;
 }
 function asGraphNode(value) {
     const raw = asGraphRecord(value);
@@ -82,9 +90,9 @@ function asGraphNode(value) {
         store: asGraphStore(raw["store"]),
         stamp: asGraphStamp(raw["stamp"]),
         piece: asGraphPiece(raw["piece"]),
+        condition: asGraphCondition(raw["condition"]),
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
-        overrides: asGraphOverrides(raw["overrides"]),
     };
 }
 function asGraphAsks(value) {
@@ -111,6 +119,28 @@ function asGraphPiece(value) {
         from: typeof raw["from"] === "string" ? raw["from"] : "",
         to: typeof raw["to"] === "string" ? raw["to"] : "",
         every: asGraphEvery(raw["every"]),
+    };
+}
+function asGraphCondition(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const units = raw["units"];
+    const field = raw["field"];
+    return {
+        label: typeof raw["label"] === "string" ? raw["label"] : "",
+        blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
+        field: field === "duration" || field === "number" || field === "order"
+            ? field
+            : "text",
+        asks: typeof raw["asks"] === "string" ? raw["asks"] : "",
+        under: raw["under"] === "sort" ? "sort" : "filter",
+        value: typeof raw["value"] === "string" ? raw["value"] : "",
+        unit: typeof raw["unit"] === "string" ? raw["unit"] : "minutes",
+        units: Array.isArray(units)
+            ? units.filter((one) => typeof one === "string")
+            : [],
+        says: typeof raw["says"] === "string" ? raw["says"] : "",
     };
 }
 function asGraphStamp(value) {
@@ -196,12 +226,24 @@ function asGraphPlugin(value) {
             placeholder: typeof one["placeholder"] === "string" ? one["placeholder"] : "",
         });
     }
+    const offers = [];
+    for (const entry of Array.isArray(raw["offers"]) ? raw["offers"] : []) {
+        const one = asGraphRecord(entry);
+        if (one === null || typeof one["ref"] !== "string")
+            continue;
+        offers.push({
+            ref: one["ref"],
+            label: typeof one["label"] === "string" ? one["label"] : one["ref"],
+            blurb: typeof one["blurb"] === "string" ? one["blurb"] : "",
+        });
+    }
     return {
         ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
         missing: typeof missing === "string" ? missing : null,
         plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
         blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
         fields: fields.filter((one) => one.name !== ""),
+        offers,
     };
 }
 function asGraphSort(value) {
@@ -405,6 +447,22 @@ function graphKindLabel(kind) {
         return "Group";
     if (kind === "plugin")
         return "Plugin";
+    if (kind === "rule")
+        return "Rule";
+    if (kind === "has-words")
+        return "Title has";
+    if (kind === "lacks-words")
+        return "Title lacks";
+    if (kind === "longer-than")
+        return "Longer than";
+    if (kind === "shorter-than")
+        return "Shorter than";
+    if (kind === "carrying")
+        return "Carrying";
+    if (kind === "at-most")
+        return "At most";
+    if (kind === "order")
+        return "Order";
     return kind === "trigger" ? "Trigger" : "Filter";
 }
 function graphPort(where, carries, says) {
@@ -787,31 +845,6 @@ function graphLabelled(name, control) {
     row.appendChild(control);
     return row;
 }
-function graphTextField(name, value, placeholder) {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.name = name;
-    input.value = value === undefined ? "" : String(value);
-    input.placeholder = placeholder;
-    return input;
-}
-/** Three-valued, because "leave it to the channel" is a real answer. */
-function graphSwitchField(name, value) {
-    const select = document.createElement("select");
-    select.name = name;
-    for (const [text, option] of [
-        ["as the channel says", ""],
-        ["let through", "0"],
-        ["block", "1"],
-    ]) {
-        const choice = document.createElement("option");
-        choice.value = option;
-        choice.textContent = text;
-        choice.selected = value === undefined ? option === "" : String(value === true ? "1" : "0") === option;
-        select.appendChild(choice);
-    }
-    return select;
-}
 /** The open box's detail, drawn on the canvas beside the box it belongs to.
  *
  *  In the scene rather than beside it, so it pans with the box and stays
@@ -967,6 +1000,13 @@ function graphNodeForm(state, node) {
     form.appendChild(graphLabelled("Name", name));
     if (node.kind === "group")
         graphGroupFields(form, node);
+    // Conditions first: an Order piece carries a sort as well, and a plugin's
+    // condition is a piece as well, so the narrowest answer has to be asked
+    // before the broad ones.
+    else if (node.condition !== null)
+        graphConditionFields(form, node, node.condition);
+    else if (node.kind === "rule")
+        graphPluginFields(form, node);
     else if (node.stamp !== null)
         graphStampFields(form, node);
     else if (node.piece !== null)
@@ -977,8 +1017,6 @@ function graphNodeForm(state, node) {
         graphChannelFields(state, form, node);
     else if (node.kind === "feed")
         graphFeedFields(form, node);
-    else if (node.sort !== null)
-        graphSortFields(form, node.sort);
     else if (node.trigger !== null)
         graphTriggerFields(form, node);
     else if (node.kind === "plugin")
@@ -1165,6 +1203,49 @@ function graphStampFields(form, node) {
     form.appendChild(graphElement("p", "hint", node.kind === "decay"
         ? "Slot a Timer under this to say how long you get with each item in Focus. A Lock under it makes that time one you cannot pause."
         : "Slot a Timer under this to say how long an item stays in the feed, counted from when it arrives. After that it is taken out — it stays in your history and in any other feed that said nothing about expiry."));
+}
+/** One condition. Exactly one thing to fill in, because that is what makes
+ *  it one condition: a box narrowing three ways is three pieces. */
+function graphConditionFields(form, node, said) {
+    var _a;
+    if (((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null) {
+        const where = said.under === "sort" ? "a Sort box" : "a Filter box";
+        form.appendChild(graphElement("p", "hint", `Loose on the canvas. Drop it on ${where} to slot it in.`));
+    }
+    if (said.field === "order") {
+        if (node.sort !== null)
+            graphSortFields(form, node.sort);
+        return;
+    }
+    const field = document.createElement("input");
+    field.type = said.field === "text" ? "text" : "number";
+    field.name = "value";
+    field.value = said.value;
+    field.placeholder = said.field === "text" ? "" : "no limit";
+    if (said.field !== "text")
+        field.min = "1";
+    if (said.field === "duration") {
+        // A number and what it counts, side by side: "longer than 2 minutes" is
+        // one answer, and splitting it across two rows makes it read as two.
+        const unit = document.createElement("select");
+        unit.name = "value_unit";
+        for (const choice of said.units) {
+            const option = document.createElement("option");
+            option.value = choice;
+            option.textContent = choice;
+            option.selected = choice === said.unit;
+            unit.appendChild(option);
+        }
+        const pair = graphElement("div", "graph-pair");
+        pair.appendChild(field);
+        pair.appendChild(unit);
+        form.appendChild(graphLabelled(said.asks, pair));
+    }
+    else {
+        form.appendChild(graphLabelled(said.asks, field));
+    }
+    if (said.blurb !== "")
+        form.appendChild(graphElement("p", "hint", said.blurb));
 }
 /** A jigsaw piece. One field each: a Timer says how long, a Reset says when
  *  you get another. */
@@ -1360,6 +1441,22 @@ function graphPluginFields(form, node) {
         if (one.placeholder !== "")
             field.placeholder = one.placeholder;
         form.appendChild(graphLabelled(one.label, field));
+    }
+    if (box.offers.length > 0) {
+        // A plugin box asks nothing by itself. What it asks is the conditions
+        // slotted under it, so the panel names them rather than leaving somebody
+        // to go looking in the palette for what fits.
+        const list = graphElement("ul", "graph-offers");
+        for (const one of box.offers) {
+            const row = graphElement("li", "");
+            row.appendChild(graphElement("strong", "", one.label));
+            if (one.blurb !== "")
+                row.appendChild(graphElement("span", "", ` — ${one.blurb}`));
+            list.appendChild(row);
+        }
+        form.appendChild(graphLabelled(`Conditions ${box.plugin} can be asked`, list));
+        form.appendChild(graphElement("p", "hint", "Drag one out of the palette and drop it on the bottom of this box. Everything slotted under it has to agree before an item gets past."));
+        return;
     }
     if (box.fields.length === 0) {
         form.appendChild(graphElement("p", "hint", "Nothing to set: it judges on its own."));
@@ -1607,20 +1704,13 @@ function nameGraphSortEnds(way, sort, by) {
     if (rising !== undefined)
         rising.textContent = last;
 }
+/** A Filter or a Sort box. Neither carries a rule of its own any more: what
+ *  a box narrows by is the conditions slotted under it, one piece per
+ *  condition, so the canvas says what a box does without being opened. */
 function graphFilterFields(form, node) {
-    for (const [text, key] of [
-        ["Videos", "skip_videos"],
-        ["Shorts", "skip_shorts"],
-        ["Live", "skip_live"],
-        ["Posts", "skip_posts"],
-    ]) {
-        form.appendChild(graphLabelled(text, graphSwitchField(key, node.overrides[key])));
-    }
-    form.appendChild(graphLabelled("Title must contain", graphTextField("title_include", node.overrides["title_include"], "any")));
-    form.appendChild(graphLabelled("Title must not contain", graphTextField("title_exclude", node.overrides["title_exclude"], "nothing")));
-    form.appendChild(graphLabelled("Shortest, in seconds", graphTextField("min_duration_sec", node.overrides["min_duration_sec"], "no limit")));
-    form.appendChild(graphLabelled("Longest, in seconds", graphTextField("max_duration_sec", node.overrides["max_duration_sec"], "no limit")));
-    form.appendChild(graphLabelled("Most per sync", graphTextField("max_per_run", node.overrides["max_per_run"], "no limit")));
+    form.appendChild(graphElement("p", "hint", node.kind === "sort"
+        ? "Slot an Order piece under this to say what to put the batch in order by. Without one it orders nothing."
+        : "Slot conditions under this — Title has, Longer than, At most — one piece each. Everything they all agree on gets past. Without any it narrows nothing."));
 }
 // -- picking things up -----------------------------------------------------
 /** The node a pointer is on, whatever shape that node is drawn as.
@@ -1837,7 +1927,7 @@ function onGraphPointerMove(state, event) {
     if (drag.kind === "move") {
         const held = state.nodes.find((one) => one.id === drag.nodeId);
         if (held !== undefined && held.piece !== null && held.piece.under === null) {
-            markGraphSlotFor(state, event, held.id);
+            markGraphSlotFor(state, event, held.id, held.kind);
         }
     }
     if (drag.kind === "pick") {
@@ -1952,7 +2042,7 @@ function onGraphPointerUp(state, event) {
         // be deleted and dragged out of the palette again.
         const loose = state.nodes.find((one) => one.id === drag.nodeId);
         if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
-            const slot = graphSlotFor(state, event);
+            const slot = graphSlotFor(state, event, loose.kind);
             if (slot !== null && slot.under !== loose.id) {
                 void applyGraph(state, `/graph/nodes/${loose.id}/attach`, new URLSearchParams({ under: String(slot.under) }));
                 return;
@@ -2810,8 +2900,27 @@ function graphPaletteName(kind) {
 function graphSlotReach() {
     return 150;
 }
-/** Every place a piece could be slotted, with where each one sits. */
-function graphSlots(state) {
+/** Whether this kind of piece belongs under this kind of box.
+ *
+ *  The same answer the server gives, said here as well so a piece being
+ *  dragged only lights up the boxes it can actually go into — a refusal you
+ *  can see coming is better than one that arrives after the drop. */
+function graphPieceGoesUnder(piece, box) {
+    if (piece === "order")
+        return box === "sort";
+    if (graphConditionKinds().indexOf(piece) >= 0)
+        return box === "filter";
+    if (piece === "rule")
+        return box === "plugin";
+    // A Timer, Reset, Alive or Lock. These say something about reading, which
+    // is a question only these three boxes ask.
+    return box === "feed" || box === "decay" || box === "expire";
+}
+/** Every place a piece of this kind could be slotted, with where each sits.
+ *
+ *  Null asks for every slot there is, which is what an ordinary drag wants
+ *  before anything is known about what is being dragged. */
+function graphSlots(state, held = null) {
     var _a, _b;
     const below = new Map();
     for (const node of state.nodes) {
@@ -2829,6 +2938,13 @@ function graphSlots(state) {
         // A group is a background, and a piece belongs to the box at the top of
         // its own chain rather than starting a second one.
         if (node.kind === "group" || node.piece !== null)
+            continue;
+        // A box that ignores what is slotted into it is not somewhere a piece
+        // goes: offering a slot under a source box would be an invitation to
+        // nothing. The same list the notch is drawn from.
+        if (!graphTakesPieces(node.kind))
+            continue;
+        if (held !== null && !graphPieceGoesUnder(held, node.kind))
             continue;
         // Walk to the end of whatever is already slotted in, so a second piece
         // lands under the first rather than beside it.
@@ -2852,11 +2968,11 @@ function graphSlots(state) {
     return found;
 }
 /** The slot a piece being dragged would drop into, if any. */
-function graphSlotFor(state, event) {
+function graphSlotFor(state, event, held = null) {
     const at = pointInGraph(state, event);
     let nearest = null;
     let best = graphSlotReach();
-    for (const slot of graphSlots(state)) {
+    for (const slot of graphSlots(state, held)) {
         // Measured to the slot's middle, so a box is easiest to hit from
         // directly below it and hardest from off to one side.
         const dx = at.x - (slot.x + slot.width / 2);
@@ -2873,13 +2989,13 @@ function graphSlotFor(state, event) {
 function markGraphSlot(state, event) {
     const dropping = state.dropping;
     const wanted = dropping !== null && graphIsPiece(dropping.kind)
-        ? graphSlotFor(state, event)
+        ? graphSlotFor(state, event, dropping.kind)
         : null;
     showGraphSlot(state, wanted);
 }
 /** The same, for a piece already on the canvas being dragged onto one. */
-function markGraphSlotFor(state, event, moving) {
-    const slot = graphSlotFor(state, event);
+function markGraphSlotFor(state, event, moving, held) {
+    const slot = graphSlotFor(state, event, held);
     showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
 function showGraphSlot(state, wanted) {
@@ -2930,7 +3046,7 @@ function finishGraphDrop(state, event) {
     // landed. Dropped nowhere near one it is simply a piece on the canvas,
     // which can be picked up and put somewhere.
     const onto = graphIsPiece(dropping.kind)
-        ? ((_b = (_a = graphSlotFor(state, event)) === null || _a === void 0 ? void 0 : _a.under) !== null && _b !== void 0 ? _b : null)
+        ? ((_b = (_a = graphSlotFor(state, event, dropping.kind)) === null || _a === void 0 ? void 0 : _a.under) !== null && _b !== void 0 ? _b : null)
         : null;
     void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which, onto);
 }

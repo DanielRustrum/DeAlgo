@@ -4,13 +4,21 @@ The graph is the truth about routing. A video leaves a source node, follows
 wires, and lands in every feed node it can reach — narrowed on the way by any
 filter node it passes through.
 
-Two rules make it comprehensible:
+Three rules make it comprehensible:
 
 * **A channel's own filters are the default.** They apply on every path out of
   that channel, exactly as they did before there was a graph.
 * **A filter node overrides, it does not replace.** Anything it leaves unset
-  stays whatever the channel said. So a channel can take Shorts everywhere
-  except down one particular wire, without its settings being duplicated.
+  stays whatever the channel said. So a channel can take long videos
+  everywhere except down one particular wire, without its settings being
+  duplicated.
+* **A box says on the canvas what it does.** A Filter narrows by the condition
+  pieces slotted under it, one piece per condition, and a Sort orders by the
+  Order piece under it. The rules sat in the boxes' own popovers once, which
+  meant a canvas of boxes all reading "Filter" and no way to tell them apart
+  without opening each one. A condition that is a fact about one service —
+  whether a video is a Short — belongs to the plugin that knows what those
+  words mean, and is a piece under that plugin's box instead.
 
 Existing setups are turned into a graph the first time one is asked for, so
 nobody has to build theirs again.
@@ -28,6 +36,7 @@ writer, so the two cannot disagree.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
 from collections.abc import Collection
 from dataclasses import dataclass, field
@@ -38,7 +47,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import (
-    Channel, GraphEdge, GraphNode, Playlist, Settings, Video, to_naive_utc, utcnow,
+    CONDITION_LABELS, Channel, GraphEdge, GraphNode, Playlist, Settings, Video,
+    to_naive_utc, utcnow,
 )
 from . import ordering
 from .scope import OwnerId, owned
@@ -61,14 +71,119 @@ KINDS = (
     # slotted under a box and changes what that box does. Pieces chain, and
     # a chain belongs to the box at the top of it.
     "timer", "reset", "alive", "lock",
+    # Conditions: one piece per thing a Filter narrows by, and one for what
+    # a Sort orders by. Listed by hand rather than spread from `CONDITIONS`
+    # so that this tuple stays the one readable list of what a box can be.
+    "has-words", "lacks-words", "longer-than", "shorter-than",
+    "carrying", "at-most", "order",
+    # A condition a plugin declared, slotted under that plugin's box.
+    "rule",
 )
+
+@dataclass(frozen=True)
+class Condition:
+    """One thing a Filter or a Sort box can be told, as a piece.
+
+    A rule used to be a field in a box's popover, which meant a box said
+    "Filter" and you had to open it to find out what it filtered. A piece
+    says what it is on the canvas, and a box narrowing three ways is three
+    pieces rather than one form filled in three places.
+
+    Each keeps its value in the column that rule always used, so nothing is
+    stored twice and a box from before this converts into pieces rather than
+    being read two ways.
+
+    Only what is true of any item at all is here. Anything that is a fact
+    about one service — whether a video is a Short, how many have watched it —
+    belongs to the plugin that knows what those words mean, and is offered as
+    a piece under that plugin's box instead. See `RULE`.
+    """
+
+    kind: str
+    label: str
+    blurb: str
+    #: Which box it goes under: a Filter narrows, a Sort orders.
+    under: str
+    #: The column it writes, which is the same column that rule lived in when
+    #: it was a field on the box.
+    column: str
+    #: How the panel asks for it, and what to call the field.
+    field: str
+    asks: str
+
+
+CONDITIONS: tuple[Condition, ...] = (
+    Condition(
+        "has-words", CONDITION_LABELS["has-words"], "Only what matches this.", "filter",
+        "title_include", "text", "Words, or /a regex/",
+    ),
+    Condition(
+        "lacks-words", CONDITION_LABELS["lacks-words"], "Holds anything that matches this.", "filter",
+        "title_exclude", "text", "Words, or /a regex/",
+    ),
+    Condition(
+        "longer-than", CONDITION_LABELS["longer-than"], "Holds anything shorter.", "filter",
+        "min_duration_sec", "duration", "How long",
+    ),
+    Condition(
+        "shorter-than", CONDITION_LABELS["shorter-than"], "Holds anything longer.", "filter",
+        "max_duration_sec", "duration", "How long",
+    ),
+    Condition(
+        "carrying", CONDITION_LABELS["carrying"], "Only what a Tag box earlier put a mark on.",
+        "filter", "tagged", "text", "This tag",
+    ),
+    Condition(
+        "at-most", CONDITION_LABELS["at-most"], "How many may get through in one run.", "filter",
+        "max_per_run", "number", "Per run",
+    ),
+    Condition(
+        "order", CONDITION_LABELS["order"], "What to put the batch in order by.", "sort",
+        "sort_by", "order", "By",
+    ),
+)
+
+CONDITION_KINDS: tuple[str, ...] = tuple(one.kind for one in CONDITIONS)
+
+#: A condition that belongs to a plugin rather than to the host. One kind
+#: rather than one per condition, because which conditions exist depends on
+#: which plugins are loaded and the host cannot have a column for each: which
+#: one this piece is lives in `plugin_ref`, exactly as it did when the same
+#: thing was a box of its own.
+RULE = "rule"
+
+
+def condition(kind: str) -> Condition | None:
+    return next((one for one in CONDITIONS if one.kind == kind), None)
+
+
+def conditions_for(kind: str) -> tuple[Condition, ...]:
+    """The pieces that may be slotted under a box of this kind."""
+    return tuple(one for one in CONDITIONS if one.under == kind)
+
+
+def filter_rules(pieces: list[GraphNode]) -> dict[str, Any]:
+    """What the condition pieces under a Filter box narrow by.
+
+    `pieces` comes nearest-first, and the one nearest the box has the last
+    word — the same rule a filter nearest a feed already lives by. So they
+    are read from the far end back.
+    """
+    said: dict[str, Any] = {}
+    for piece in reversed(pieces):
+        if piece.kind in CONDITION_KINDS and piece.enabled:
+            said.update(piece.overrides)
+    return said
+
 
 #: The box kinds that read what is slotted under them. A feed reads a Timer
 #: as a sitting and a Reset as when it comes back; a Decay reads a Timer as
 #: time with one item and a Lock as "and you cannot pause it"; an Expire
-#: reads a Timer as a lifetime. Every other kind ignores a piece entirely,
-#: which is why only these three are drawn with somewhere for one to go.
-SLOTTED = ("feed", "decay", "expire")
+#: reads a Timer as a lifetime. A Filter reads conditions, a Sort reads an
+#: Order, a plugin box reads whatever conditions that plugin declared.
+#: Every other kind ignores a piece entirely, which is why only these are
+#: drawn with somewhere for one to go.
+SLOTTED = ("feed", "decay", "expire", "filter", "sort", "plugin")
 
 #: The boxes that mark what goes through them. On a path like a filter, but
 #: they turn nothing away — what they do shows up after the item has landed.
@@ -76,7 +191,19 @@ STAMPS = ("decay", "expire", "tag")
 
 #: The pieces, as against the boxes. Kept together so "is this a piece"
 #: is one question asked in one place.
-JIGSAW = ("timer", "reset", "alive", "lock")
+JIGSAW: tuple[str, ...] = ("timer", "reset", "alive", "lock") + CONDITION_KINDS + (RULE,)
+
+#: Which boxes each piece may be slotted under. A condition under a feed
+#: would be a piece nobody ever reads, so it is refused at the drop rather
+#: than discovered later by a box that quietly narrows nothing.
+#:
+#: The four older pieces are left unrestricted: they were droppable anywhere
+#: before there was anywhere they could not go, and narrowing them now would
+#: unslot pieces somebody has already placed.
+PIECE_HOSTS: dict[str, tuple[str, ...]] = {
+    **{one.kind: (one.under,) for one in CONDITIONS},
+    RULE: ("plugin",),
+}
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -139,6 +266,14 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "reset": (),
     "alive": (),
     "lock": (),
+    "has-words": (),
+    "lacks-words": (),
+    "longer-than": (),
+    "shorter-than": (),
+    "carrying": (),
+    "at-most": (),
+    "order": (),
+    "rule": (),
     # They mark what passes and pass it on, so they sit where a filter sits.
     "decay": MIDDLE + ENDS,
     "expire": MIDDLE + ENDS,
@@ -213,6 +348,28 @@ def every_words(minutes: int) -> str:
     amount, unit = split_every(minutes)
     return f"{amount} {unit[:-1] if amount == 1 else unit}"
 
+#: How a length of video is asked for, and what each unit is in seconds.
+#: Short units, because "longer than" is usually about minutes rather than
+#: about days, which is what the other unit list is for.
+LENGTH_UNITS: tuple[tuple[str, int], ...] = (
+    ("seconds", 1), ("minutes", 60), ("hours", 3600),
+)
+
+
+def seconds_from(amount: int, unit: str) -> int:
+    """An amount and a unit as the seconds to store."""
+    size = next((size for name, size in LENGTH_UNITS if name == unit), 1)
+    return max(1, amount) * size
+
+
+def split_length(seconds: int) -> tuple[int, str]:
+    """The seconds back as the largest unit they divide into evenly."""
+    for name, size in reversed(LENGTH_UNITS):
+        if seconds >= size and seconds % size == 0:
+            return seconds // size, name
+    return seconds, "seconds"
+
+
 # Where the trigger column goes, and how much clear space a channel box needs
 # to its left for one to fit beside it.
 TRIGGER_COLUMN = 40
@@ -242,10 +399,16 @@ class Route:
     filters: list[GraphNode] = field(default_factory=list)
     #: Sort boxes on this path, in the order they are passed through.
     sorts: list[GraphNode] = field(default_factory=list)
-    #: Plugin boxes on this path. Kept apart from `filters` because a filter
-    #: lays settings over the channel's and these ask a question per item —
-    #: the two cannot be merged into one dictionary.
+    #: The plugin conditions on this path: the pieces slotted under every
+    #: plugin box it passes. Kept apart from `filters` because a filter lays
+    #: settings over the channel's and these ask a question per item — the
+    #: two cannot be merged into one dictionary.
     checks: list[GraphNode] = field(default_factory=list)
+    #: What is slotted under each box on the canvas, by box id. Carried on
+    #: the path because what a Filter narrows by and what a Sort orders by
+    #: are now pieces, and a path that could not see them would be a path
+    #: that filters nothing.
+    slots: dict[int, list[GraphNode]] = field(default_factory=dict)
     #: Boxes that mark what passes rather than narrowing it — Decay, Expire,
     #: Tag. Kept apart from the filters because they turn nothing away: they
     #: are read after an item has been let through, not while deciding.
@@ -269,18 +432,25 @@ class Route:
 
     @property
     def order(self) -> GraphNode | None:
-        """The sort box that decides this path's order, if any.
+        """What decides this path's order, if anything does.
 
-        The last one, as with filters: the nearest the feed has the final say,
-        because that is the one describing what arrives.
+        The Order piece under the last sort box: the nearest the feed has the
+        final say, because that is the one describing what arrives. A sort
+        box with nothing slotted under it orders nothing, the same way a
+        Filter with no conditions narrows nothing.
         """
-        return self.sorts[-1] if self.sorts else None
+        for box in reversed(self.sorts):
+            for piece in self.slots.get(box.id, []):
+                if piece.kind == "order" and piece.enabled:
+                    return piece
+        return None
 
     def effective(self) -> dict[str, Any]:
-        """The channel's filters with each filter node laid over the top.
+        """The channel's filters with every condition on the path over them.
 
-        Later nodes win, so a path can narrow twice and the last word is the
-        one nearest the feed.
+        A filter box narrows by whatever is slotted under it. Later boxes
+        win, so a path can narrow twice and the last word is the one nearest
+        the feed.
         """
         settings: dict[str, Any] = {
             "skip_videos": self.channel.skip_videos,
@@ -294,7 +464,7 @@ class Route:
             "max_per_run": self.channel.max_per_run,
         }
         for node in self.filters:
-            settings.update(node.overrides)
+            settings.update(filter_rules(self.slots.get(node.id, [])))
         return settings
 
 
@@ -358,7 +528,7 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
             # Every path out of this box, whether it reaches a feed straight
             # away or goes through filters on the way.
             _walk(node, by_id, out, channel, [], set(), found, source=node)
-    return _once_each(found)
+    return _once_each(_slot_in(found, all_nodes))
 
 
 def clock_time(raw: str | None) -> str:
@@ -423,6 +593,33 @@ def store_name(raw: str | None) -> str:
     joined and are not.
     """
     return " ".join((raw or "").split()).lower()[:60]
+
+
+def _slot_in(found: list[Route], all_nodes: list[GraphNode]) -> list[Route]:
+    """Hand every path what is slotted under the boxes it passes.
+
+    Worked out once for the whole canvas rather than per path: a filter box
+    on nine paths has one chain of conditions under it, and reading it nine
+    times would be nine walks of the same chain.
+
+    The plugin boxes a path passed are swapped here for the conditions
+    slotted under them, because a plugin box narrows nothing by itself — it
+    is the pieces under it that ask the questions.
+    """
+    slots = {
+        node.id: pieces_under(all_nodes, node.id)
+        for node in all_nodes
+        if node.kind in SLOTTED
+    }
+    for path in found:
+        path.slots = slots
+        path.checks = [
+            piece
+            for box in path.checks
+            for piece in slots.get(box.id, [])
+            if piece.kind == RULE and piece.enabled
+        ]
+    return found
 
 
 def _once_each(found: list[Route]) -> list[Route]:
@@ -845,7 +1042,7 @@ def paths_from(
 
     found: list[Route] = []
     _walk(node, by_id, out, channel, [], set(), found, source=node)
-    return _once_each(found)
+    return _once_each(_slot_in(found, all_nodes))
 
 
 def wired_channels(
@@ -891,6 +1088,16 @@ def attach(
         raise GraphError("A piece cannot be slotted under itself.")
     if host.kind == "group":
         raise GraphError("A group is a background, not something to slot into.")
+
+    # Where this kind of piece is allowed to end up. A chain belongs to the
+    # box at the top of it, so what matters is that box and not whatever the
+    # piece was dropped directly onto.
+    wanted = PIECE_HOSTS.get(piece.kind)
+    if wanted is not None:
+        landing = host if host.kind not in JIGSAW else host_of(nodes(session, owner), host)
+        if landing is None or landing.kind not in wanted:
+            named = " or a ".join(one.capitalize() for one in wanted)
+            raise GraphError(f"{piece.title} goes under a {named} box.")
 
     # No rings. Walking up from the host must not arrive back at the piece.
     seen = {piece.id}
@@ -1215,6 +1422,7 @@ def piece_note(piece: GraphNode, host: GraphNode | None) -> str:
     said = piece_words(piece)
     if piece.kind != "timer":
         return said
+
     if host is None:
         return said
     if host.kind == "decay":
@@ -1222,6 +1430,43 @@ def piece_note(piece: GraphNode, host: GraphNode | None) -> str:
     if host.kind == "expire":
         return f"gone {said} after it arrives"
     return f"{said} once you start reading"
+
+
+def length_words(seconds: int) -> str:
+    """A stretch of a video, said the way somebody would say it out loud."""
+    if seconds < 60:
+        return f"{seconds}s"
+    return every_words(max(1, round(seconds / 60)))
+
+
+def condition_words(piece: GraphNode) -> str:
+    """What one condition piece narrows by, in its own words.
+
+    A condition nobody has filled in yet says so rather than saying nothing:
+    an empty "Title has" narrows nothing at all, and a piece that looked
+    busy while doing nothing would be the worst of both.
+    """
+    spec = condition(piece.kind)
+    if spec is None:
+        return ""
+    if piece.kind == "order":
+        return sort_words(
+            piece.sort_by or DEFAULT_SORT_BY, (piece.sort_dir or "desc") == "desc"
+        )
+    value = getattr(piece, spec.column, None)
+    if value is None or value == "":
+        return "open it and say what"
+    if piece.kind == "has-words":
+        return f"title has “{value}”"
+    if piece.kind == "lacks-words":
+        return f"title lacks “{value}”"
+    if piece.kind == "longer-than":
+        return f"longer than {length_words(int(value))}"
+    if piece.kind == "shorter-than":
+        return f"shorter than {length_words(int(value))}"
+    if piece.kind == "carrying":
+        return f"tagged “{tag_name(str(value))}”"
+    return f"{int(value)} per run"
 
 
 def stamp_words(node: GraphNode, pieces: list[GraphNode]) -> str:
@@ -1250,6 +1495,8 @@ def piece_words(piece: GraphNode, window: int | None = None) -> str:
     long a sitting lasts, how long you get with one item, how long an item
     stays — so the host is asked for the sentence and this says the amount.
     """
+    if piece.kind in CONDITION_KINDS:
+        return condition_words(piece)
     if piece.kind == "lock":
         return "cannot be paused"
     if piece.kind == "alive":
@@ -1379,7 +1626,7 @@ def _paths_into(session: Session, node: GraphNode, owner: OwnerId) -> list[Route
                 walk(earlier, [earlier] + carried, seen)
 
     walk(node, [node], set())
-    return found
+    return _slot_in(found, all_nodes)
 
 
 # -- giving a group to somebody else ---------------------------------------
@@ -1416,16 +1663,37 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             "label": node.label,
             "enabled": node.enabled,
         }
+        if node.attached_to is not None and node.attached_to in refs:
+            # A piece travels as what it is slotted under, not as where it
+            # happens to lie: the assembly is the thing being handed over.
+            entry["under"] = refs[node.attached_to]
         if node.kind == "source" and node.channel is not None:
             entry["channel_id"] = node.channel.channel_id
             entry["title"] = node.channel.title
         elif node.kind == "feed" and node.playlist is not None:
             entry["title"] = node.playlist.title
-        elif node.kind == "filter":
-            entry["rules"] = dict(node.overrides)
-        elif node.kind == "sort":
-            entry["sort_by"] = node.sort_by or DEFAULT_SORT_BY
+        elif node.kind in CONDITION_KINDS:
+            # A condition carries one value, in the column that rule lives
+            # in. Written under its own name so the file reads as what it is.
+            spec = condition(node.kind)
+            if spec is not None:
+                entry["value"] = getattr(node, spec.column, None)
             entry["sort_dir"] = node.sort_dir or "desc"
+        elif node.kind in ("plugin", RULE):
+            entry["plugin_ref"] = node.plugin_ref or ""
+            entry["plugin_settings"] = node.plugin_settings or ""
+        elif node.kind == "timer":
+            entry["duration_minutes"] = node.duration_minutes
+        elif node.kind == "reset":
+            entry["cron"] = node.cron
+        elif node.kind == "alive":
+            entry["alive_from"] = node.alive_from or ""
+            entry["alive_to"] = node.alive_to or ""
+        elif node.kind == "tag":
+            entry["marks"] = node.marks or ""
+        elif node.kind in ("deposit", "withdraw"):
+            entry["repository"] = node.repository or ""
+            entry["takes"] = node.takes
         elif node.kind == "trigger":
             entry["trigger_kind"] = node.trigger_kind or "pulse"
             entry["every_minutes"] = node.every_minutes
@@ -1502,6 +1770,22 @@ def import_group(
             made[int(entry.get("ref", -1))] = node
     session.flush()
 
+    # Slotted in once every box exists, because a piece may be exported
+    # before what it goes under. A piece that refuses to go where the file
+    # says is left lying on the canvas rather than dropped.
+    for entry in payload.get("nodes") or []:
+        if not isinstance(entry, dict) or "under" not in entry:
+            continue
+        piece = made.get(int(entry.get("ref", -1)))
+        host = made.get(int(entry.get("under", -1)))
+        if piece is None or host is None:
+            continue
+        try:
+            attach(session, piece, host, owner)
+        except GraphError:
+            continue
+    session.flush()
+
     for pair in payload.get("wires") or []:
         if not isinstance(pair, list) or len(pair) != 2:
             continue
@@ -1555,22 +1839,67 @@ def _unpack(
 
     if kind == "filter":
         node = add_filter(session, owner, label=label or "Filter", x=x, y=y)
+        # A format-1 file kept every rule on the box. They are pieces now, so
+        # the file is unpacked into pieces — the same conversion the database
+        # got, said once more for a file somebody exported before it.
         rules = entry.get("rules")
         if isinstance(rules, dict):
-            for name, value in rules.items():
-                if name in FILTER_RULES:
-                    setattr(node, name, value)
+            under: GraphNode = node
+            for spec in conditions_for("filter"):
+                said = rules.get(spec.column)
+                if said is None or said == "":
+                    continue
+                under = add_piece(
+                    session, owner, kind=spec.kind, host=under, x=x, y=y + 60
+                )
+                setattr(under, spec.column, said)
         return node
 
     if kind == "sort":
-        return add_sort(
-            session,
-            owner,
-            label=label,
-            sort_by=str(entry.get("sort_by") or DEFAULT_SORT_BY),
+        node = add_sort(session, owner, label=label, x=x, y=y)
+        if "sort_by" in entry:
+            add_piece(
+                session, owner, kind="order", host=node, x=x, y=y + 60,
+                sort_by=str(entry.get("sort_by") or DEFAULT_SORT_BY),
+                newest_first=str(entry.get("sort_dir") or "desc") == "desc",
+            )
+        return node
+
+    if kind in CONDITION_KINDS:
+        piece = add_piece(
+            session, owner, kind=kind, x=x, y=y,
+            sort_by=str(entry.get("value") or DEFAULT_SORT_BY),
             newest_first=str(entry.get("sort_dir") or "desc") == "desc",
-            x=x,
-            y=y,
+        )
+        said = condition(kind)
+        if said is not None and kind != "order" and entry.get("value") not in (None, ""):
+            setattr(piece, said.column, entry.get("value"))
+        return piece
+
+    if kind in JIGSAW:
+        return add_piece(
+            session, owner, kind=kind, x=x, y=y,
+            duration_minutes=entry.get("duration_minutes"),
+            cron=str(entry.get("cron") or "") or None,
+            alive=(str(entry.get("alive_from") or ""), str(entry.get("alive_to") or "")),
+            ref=str(entry.get("plugin_ref") or ""),
+        )
+
+    if kind == "plugin":
+        return add_plugin_node(
+            session, owner, ref=str(entry.get("plugin_ref") or ""), label=label, x=x, y=y
+        )
+
+    if kind in ("deposit", "withdraw"):
+        return add_store(
+            session, owner, kind=kind,
+            repository=str(entry.get("repository") or ""),
+            takes=entry.get("takes"), x=x, y=y,
+        )
+
+    if kind in STAMPS:
+        return add_stamp(
+            session, owner, kind=kind, marks=str(entry.get("marks") or ""), x=x, y=y
         )
 
     if kind == "trigger":
@@ -1588,12 +1917,9 @@ def _unpack(
 
 
 # What a filter file is allowed to set, so a stray key cannot reach a column
-# that has nothing to do with filtering.
-FILTER_RULES = (
-    "skip_videos", "skip_shorts", "skip_live", "skip_posts",
-    "title_include", "title_exclude",
-    "min_duration_sec", "max_duration_sec", "max_per_run",
-)
+# that has nothing to do with filtering. A format-1 file's rules are read
+# against this before being unpacked into pieces.
+FILTER_RULES = tuple(one.column for one in CONDITIONS if one.under == "filter")
 
 
 # -- trying it without running it ------------------------------------------
@@ -1793,7 +2119,8 @@ def _judge(
 
     for index, node in enumerate(path.filters):
         so_far = Route(
-            channel=path.channel, playlist=path.playlist, filters=path.filters[: index + 1]
+            channel=path.channel, playlist=path.playlist,
+            filters=path.filters[: index + 1], slots=path.slots,
         )
         decision = sync_service._decide(video, so_far, None, settings)
         if not decision.accept:
@@ -2163,8 +2490,6 @@ def add_plugin_node(
     Which box it is lives in `plugin_ref`, because the host has no column per
     plugin and never will: the fields are the plugin's to declare.
     """
-    import json
-
     node = GraphNode(
         owner_pk=owner,
         kind="plugin",
@@ -2411,6 +2736,10 @@ def add_piece(
     duration_minutes: int | None = None,
     cron: str | None = None,
     alive: tuple[str, str] | None = None,
+    ref: str = "",
+    settings: dict[str, str] | None = None,
+    sort_by: str = "",
+    newest_first: bool = True,
     x: int = 0,
     y: int = 0,
 ) -> GraphNode:
@@ -2419,9 +2748,15 @@ def add_piece(
     Its own position is kept for the moment it is unslotted: a piece that is
     attached is drawn under its host and does not use it, but a piece nobody
     has slotted anywhere has to be somewhere.
+
+    A condition piece starts empty, which is a condition that narrows
+    nothing: it is dropped on a box first and told what it means second, the
+    same way a Tag box is dropped before it is named.
     """
     if kind not in JIGSAW:
         raise GraphError(f"There is no {kind} piece.")
+    if kind == RULE and not ref:
+        raise GraphError("A plugin condition has to say which one it is.")
     ends = alive or DEFAULT_ALIVE
     piece = GraphNode(
         owner_pk=owner,
@@ -2430,6 +2765,12 @@ def add_piece(
         cron=(cron or DEFAULT_CRON) if kind == "reset" else None,
         alive_from=clock_time(ends[0]) if kind == "alive" else None,
         alive_to=clock_time(ends[1]) if kind == "alive" else None,
+        plugin_ref=ref or None if kind == RULE else None,
+        plugin_settings=(
+            json.dumps(settings) if kind == RULE and settings else None
+        ),
+        sort_by=check_sort_key(sort_by or DEFAULT_SORT_BY) if kind == "order" else None,
+        sort_dir=("desc" if newest_first else "asc") if kind == "order" else None,
         x=x,
         y=y,
     )
@@ -2476,20 +2817,15 @@ def add_sort(
     owner: OwnerId = None,
     *,
     label: str = "",
-    sort_by: str = DEFAULT_SORT_BY,
-    newest_first: bool = True,
     x: int = COLUMN_X["sort"],
     y: int = 40,
 ) -> GraphNode:
-    node = GraphNode(
-        owner_pk=owner,
-        kind="sort",
-        label=label,
-        sort_by=check_sort_key(sort_by),
-        sort_dir="desc" if newest_first else "asc",
-        x=x,
-        y=y,
-    )
+    """A Sort box, which orders by whatever Order piece is slotted under it.
+
+    It carries no key of its own: a box that ordered by something without
+    saying so on the canvas was a box you had to open to read.
+    """
+    node = GraphNode(owner_pk=owner, kind="sort", label=label, x=x, y=y)
     session.add(node)
     session.flush()
     return node

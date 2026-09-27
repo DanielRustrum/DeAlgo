@@ -194,6 +194,15 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
     # and are untouched.
     ("channel", "tags"),
     ("graph_node", "tag"),
+    # The four content switches, which were never general: a Short, a
+    # premiere and a community post are YouTube's own distinctions. They are
+    # YouTube conditions now, slotted under a YouTube box. A channel still
+    # has its own four — that is what it takes from the source at all, which
+    # is a different question from what one path narrows to.
+    ("graph_node", "skip_videos"),
+    ("graph_node", "skip_shorts"),
+    ("graph_node", "skip_live"),
+    ("graph_node", "skip_posts"),
 )
 
 
@@ -228,17 +237,20 @@ def _feed_windows_become_pieces() -> None:
         for edge_pk, feed_pk, owner_pk, kind, minutes, cron in windows:
             made = connection.execute(
                 text(
-                    "INSERT INTO graph_node (owner_pk, kind, enabled, x, y, "
+                    # `label` is NOT NULL with no SQL default: the ORM fills
+                    # it in and raw SQL has to say it.
+                    "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
                     "attached_to, duration_minutes) "
-                    "VALUES (:owner, 'timer', 1, 0, 0, :host, :minutes)"
+                    "VALUES (:owner, 'timer', 1, '', 0, 0, :host, :minutes)"
                 ),
                 {"owner": owner_pk, "host": feed_pk, "minutes": minutes or 30},
             )
             if kind == "schedule" and cron:
                 connection.execute(
                     text(
-                        "INSERT INTO graph_node (owner_pk, kind, enabled, x, y, "
-                        "attached_to, cron) VALUES (:owner, 'reset', 1, 0, 0, :host, :cron)"
+                        "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                        "attached_to, cron) "
+                        "VALUES (:owner, 'reset', 1, '', 0, 0, :host, :cron)"
                     ),
                     {"owner": owner_pk, "host": made.lastrowid, "cron": cron},
                 )
@@ -247,6 +259,227 @@ def _feed_windows_become_pieces() -> None:
             )
     if windows:
         log.info("turned %d feed window(s) into jigsaw pieces", len(windows))
+
+
+#: Which condition piece each filter column becomes. The kind the rule turns
+#: into, and the column it keeps living in — a condition carries its value
+#: where that rule always was, so this converts the shape and not the data.
+_RULES_AS_PIECES: tuple[tuple[str, str], ...] = (
+    ("title_include", "has-words"),
+    ("title_exclude", "lacks-words"),
+    ("min_duration_sec", "longer-than"),
+    ("max_duration_sec", "shorter-than"),
+    ("tagged", "carrying"),
+    ("max_per_run", "at-most"),
+)
+
+#: The four switches that used to sit on a Filter box, and the YouTube
+#: condition each becomes. These were never general: a Short, a premiere and
+#: a community post are YouTube's own distinctions, and they belong to the
+#: plugin that knows what those words mean.
+_SWITCHES_AS_PLUGIN_RULES: tuple[tuple[str, str], ...] = (
+    ("skip_videos", "youtube:no-videos"),
+    ("skip_shorts", "youtube:no-shorts"),
+    ("skip_live", "youtube:no-live"),
+    ("skip_posts", "youtube:no-posts"),
+)
+
+
+def _rules_become_pieces() -> None:
+    """Turn what a Filter or a Sort box carried into the pieces that say it.
+
+    A box used to hold every rule at once, which meant a canvas of boxes all
+    saying "Filter" and no way to tell them apart without opening each one.
+    A rule is a piece now, one per condition, so a box says what it does.
+
+    Each piece keeps the value in the column that rule always lived in, so
+    this moves the rule onto a piece and changes nothing about what it means.
+
+    The four content switches are the exception: they were YouTube's
+    distinctions sitting in the host, so they become a YouTube box wired in
+    beside the filter with the matching condition slotted under it. The
+    filter box stays where it is and keeps whatever else it carried.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    if "graph_node" not in set(inspector.get_table_names()):
+        return
+    columns = {c["name"] for c in inspector.get_columns("graph_node")}
+    if "attached_to" not in columns or "plugin_ref" not in columns:
+        return
+    # Nothing to convert once no box carries a rule of its own. Asked of the
+    # data rather than remembered in a marker table, so a database restored
+    # from a backup taken before this is converted on the next start.
+    wanted = [name for name, _ in _RULES_AS_PIECES if name in columns]
+    switches = [name for name, _ in _SWITCHES_AS_PLUGIN_RULES if name in columns]
+    if not wanted and not switches and "sort_by" not in columns:
+        return
+
+    made = 0
+    with engine.begin() as connection:
+        # A box that already has pieces under it has been converted, or was
+        # drawn after this: either way its rules are not to be read twice.
+        carried = wanted + switches
+        still = " OR ".join(
+            [f"n.{name} IS NOT NULL" for name in carried] + ["n.sort_by IS NOT NULL"]
+        )
+        boxes = connection.execute(text(f"""
+            SELECT n.id, n.owner_pk, n.kind, n.x, n.y, n.sort_by, n.sort_dir,
+                   {", ".join("n." + name for name in carried) or "NULL"}
+            FROM graph_node n
+            WHERE n.kind IN ('filter', 'sort') AND ({still})
+        """)).fetchall()
+
+        for row in boxes:
+            node_pk, owner_pk, kind, x, y = row[0], row[1], row[2], row[3], row[4]
+            sort_by, sort_dir = row[5], row[6]
+            values = dict(zip(carried, row[7:]))
+
+            if kind == "sort":
+                connection.execute(
+                    text(
+                        "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                        "attached_to, sort_by, sort_dir) "
+                        "VALUES (:owner, 'order', 1, '', :x, :y, :host, :by, :dir)"
+                    ),
+                    {
+                        "owner": owner_pk, "x": x, "y": y + 60, "host": node_pk,
+                        "by": sort_by or "published", "dir": sort_dir or "desc",
+                    },
+                )
+                made += 1
+                # Cleared, so a second run finds nothing left to convert.
+                connection.execute(
+                    text(
+                        "UPDATE graph_node SET sort_by = NULL, sort_dir = NULL "
+                        "WHERE id = :pk"
+                    ),
+                    {"pk": node_pk},
+                )
+                continue
+
+            under = node_pk
+            for column, piece_kind in _RULES_AS_PIECES:
+                said = values.get(column)
+                if said is None or said == "":
+                    continue
+                under = connection.execute(
+                    text(
+                        f"INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                        f"attached_to, {column}) "
+                        f"VALUES (:owner, :kind, 1, '', :x, :y, :host, :value)"
+                    ),
+                    {
+                        "owner": owner_pk, "kind": piece_kind, "x": x, "y": y + 60,
+                        "host": under, "value": said,
+                    },
+                ).lastrowid
+                made += 1
+
+            # The switches, as a YouTube box on the same spot, wired where the
+            # filter was wired. Only made when one of them was actually on:
+            # a filter that said nothing about Shorts gets no box.
+            wanted_rules = [
+                ref for column, ref in _SWITCHES_AS_PLUGIN_RULES if values.get(column)
+            ]
+            connection.execute(
+                text(
+                    "UPDATE graph_node SET "
+                    + ", ".join(f"{name} = NULL" for name in carried)
+                    + " WHERE id = :pk"
+                ),
+                {"pk": node_pk},
+            )
+            if not wanted_rules:
+                continue
+            box = connection.execute(
+                text(
+                    "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, plugin_ref) "
+                    "VALUES (:owner, 'plugin', 1, '', :x, :y, 'youtube')"
+                ),
+                {"owner": owner_pk, "x": (x or 0) + 220, "y": y},
+            ).lastrowid
+            made += 1
+            slot = box
+            for ref in wanted_rules:
+                slot = connection.execute(
+                    text(
+                        "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                        "attached_to, plugin_ref) "
+                        "VALUES (:owner, 'rule', 1, '', :x, :y, :host, :ref)"
+                    ),
+                    {
+                        "owner": owner_pk, "x": (x or 0) + 220, "y": (y or 0) + 60,
+                        "host": slot, "ref": ref,
+                    },
+                ).lastrowid
+                made += 1
+            # Wired in after the filter: everything the filter let by goes on
+            # to the new box, and on from there wherever the filter went.
+            onward = connection.execute(
+                text("SELECT id, target_pk FROM graph_edge WHERE source_pk = :pk"),
+                {"pk": node_pk},
+            ).fetchall()
+            for edge_pk, target_pk in onward:
+                connection.execute(
+                    text("UPDATE graph_edge SET source_pk = :box WHERE id = :pk"),
+                    {"box": box, "pk": edge_pk},
+                )
+            connection.execute(
+                text(
+                    "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) "
+                    "VALUES (:owner, :source, :target)"
+                ),
+                {"owner": owner_pk, "source": node_pk, "target": box},
+            )
+
+    if made:
+        log.info("turned %d box rule(s) into jigsaw pieces", made)
+
+
+def _plugin_boxes_become_pieces() -> None:
+    """Turn a plugin's old one-question box into a box plus a condition.
+
+    A plugin box used to *be* the question — "No Shorts" was a box. Now the
+    box is the plugin and the questions are pieces under it, which is what
+    lets one YouTube box ask three things instead of needing three boxes.
+    """
+    engine = get_engine()
+    inspector = inspect(engine)
+    if "graph_node" not in set(inspector.get_table_names()):
+        return
+    columns = {c["name"] for c in inspector.get_columns("graph_node")}
+    if "attached_to" not in columns or "plugin_ref" not in columns:
+        return
+
+    with engine.begin() as connection:
+        old = connection.execute(text("""
+            SELECT id, owner_pk, x, y, plugin_ref, plugin_settings
+            FROM graph_node
+            WHERE kind = 'plugin' AND plugin_ref LIKE '%:%'
+        """)).fetchall()
+        for node_pk, owner_pk, x, y, ref, settings in old:
+            connection.execute(
+                text(
+                    "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                    "attached_to, plugin_ref, plugin_settings) "
+                    "VALUES (:owner, 'rule', 1, '', :x, :y, :host, :ref, :said)"
+                ),
+                {
+                    "owner": owner_pk, "x": x, "y": (y or 0) + 60, "host": node_pk,
+                    "ref": ref, "said": settings,
+                },
+            )
+            # The box keeps its place and its wires and becomes the plugin.
+            connection.execute(
+                text(
+                    "UPDATE graph_node SET plugin_ref = :plugin, plugin_settings = NULL, "
+                    "label = '' WHERE id = :pk"
+                ),
+                {"plugin": str(ref).split(":", 1)[0], "pk": node_pk},
+            )
+    if old:
+        log.info("turned %d plugin box(es) into a box and a condition", len(old))
 
 
 def _wires_belong_to_boxes() -> None:
@@ -555,6 +788,8 @@ def init_db() -> None:
     _retire_tag_nodes()
     _wires_belong_to_boxes()
     _feed_windows_become_pieces()
+    _plugin_boxes_become_pieces()
+    _rules_become_pieces()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     _drop_removed_columns()

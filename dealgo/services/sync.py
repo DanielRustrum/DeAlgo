@@ -1092,7 +1092,9 @@ def _fill_missing_details(
 # -- phase 2: filter and insert -------------------------------------------
 
 
-def _plugin_refusal(video: Video, path: "graph.Route") -> filters.Decision | None:
+def _plugin_refusal(
+    video: Video, path: "graph.Route", detail: "VideoDetails | None" = None
+) -> filters.Decision | None:
     """Ask each plugin box on this path, and stop at the first no.
 
     The item is handed over as plain values, not as a database row: a plugin
@@ -1112,6 +1114,10 @@ def _plugin_refusal(video: Video, path: "graph.Route") -> filters.Decision | Non
         "views": video.view_count or 0,
         "likes": video.like_count or 0,
         "is_short": video.is_short,
+        # Whether it is a broadcast, live or still to come. Only known while
+        # the details are in hand, which is when this is asked — a plugin
+        # judging an item cannot go and look it up.
+        "live": (detail.live_state or "") if detail else "",
         "source": video.channel.source_kind if video.channel else "",
     }
     # Whose work this is, for the whole of the asking. A plugin reaching the
@@ -1650,7 +1656,7 @@ def _decide(
     # Plugin boxes, before the rules that cost anything to work out. Each is
     # somebody's Lua answering one question about one item, and a box that
     # says no ends the path there.
-    refused = _plugin_refusal(video, path)
+    refused = _plugin_refusal(video, path, detail)
     if refused is not None:
         return refused
 
@@ -1766,7 +1772,8 @@ def _attribute(
     """
     for index, node in enumerate(path.filters):
         so_far = graph.Route(
-            channel=path.channel, playlist=path.playlist, filters=path.filters[: index + 1]
+            channel=path.channel, playlist=path.playlist,
+            filters=path.filters[: index + 1], slots=path.slots,
         )
         if _decide(video, so_far, detail, settings).accept:
             _note_filtered(node.id, passed=True)

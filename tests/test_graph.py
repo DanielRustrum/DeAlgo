@@ -39,6 +39,18 @@ def node_for(session, kind, name):
     raise AssertionError(f"no {kind} called {name}")
 
 
+def narrow(session, box, kind, value=None, **more):
+    """Slot a condition under a box, the way dropping one out of the palette
+    does. A filter carries no rule of its own: what it narrows by is the
+    pieces under it, one per condition."""
+    piece = graph.add_piece(session, kind=kind, host=box, **more)
+    spec = graph.condition(kind)
+    if spec is not None and value is not None:
+        setattr(piece, spec.column, value)
+    session.flush()
+    return piece
+
+
 # -- laying one out --------------------------------------------------------
 
 
@@ -282,24 +294,25 @@ def test_a_direct_path_uses_the_channels_own_filters(db):
         assert paths[0].filters == []
 
 
-def test_a_filter_node_overrides_only_what_it_sets(db):
-    """The rest stays whatever the channel said — which is what makes it an
-    override rather than a second set of settings to keep in step."""
+def test_a_condition_overrides_only_what_it_sets(db):
+    """The rest stays whatever the channel said — which is what makes a
+    condition an override rather than a second set of settings to keep in
+    step."""
     build(db)
     with db.session_scope() as session:
         graph.load(session)
         source = node_for(session, "source", "UCone")
-        source.channel.skip_shorts = True
+        source.channel.min_duration_sec = 60
         source.channel.title_exclude = "trailer"
 
-        middle = graph.add_filter(session, label="Shorts welcome")
-        middle.skip_shorts = False
+        middle = graph.add_filter(session, label="Long ones")
+        narrow(session, middle, "longer-than", 1200)
         graph.connect(session, source, middle)
         graph.connect(session, middle, node_for(session, "feed", "PLone"))
 
     with db.session_scope() as session:
         rules = graph.routes(session)[0].effective()
-        assert rules["skip_shorts"] is False          # the node's word
+        assert rules["min_duration_sec"] == 1200      # the piece's word
         assert rules["title_exclude"] == "trailer"    # the channel's, untouched
 
 
@@ -311,7 +324,7 @@ def test_one_channel_can_reach_two_feeds_by_different_rules(db):
         graph.connect(session, source, node_for(session, "feed", "PLall"))
 
         only_long = graph.add_filter(session, label="Long ones")
-        only_long.min_duration_sec = 1200
+        narrow(session, only_long, "longer-than", 1200)
         graph.connect(session, source, only_long)
         graph.connect(session, only_long, node_for(session, "feed", "PLlong"))
 
@@ -329,9 +342,9 @@ def test_filters_in_a_row_are_applied_in_order(db):
         graph.load(session)
         source = node_for(session, "source", "UCone")
         first = graph.add_filter(session, label="First")
-        first.max_per_run = 5
+        narrow(session, first, "at-most", 5)
         second = graph.add_filter(session, label="Second")
-        second.max_per_run = 2
+        narrow(session, second, "at-most", 2)
         graph.connect(session, source, first)
         graph.connect(session, first, second)
         graph.connect(session, second, node_for(session, "feed", "PLone"))
@@ -373,7 +386,7 @@ def test_a_filter_node_changes_what_reaches_one_feed(world, db):
         source = graph.nodes(session)[0]
         assert source.kind == "source"
         gate = graph.add_filter(session, label="20 minutes or more")
-        gate.min_duration_sec = 1200
+        narrow(session, gate, "longer-than", 1200)
         graph.connect(session, source, gate)
         feed_node = next(n for n in graph.nodes(session) if n.playlist_pk == long_only.id)
         graph.connect(session, gate, feed_node)
@@ -686,24 +699,60 @@ def test_a_filter_can_be_dropped_in_and_wired_between_the_two(canvas):
     assert sorted(wire["kind"] for wire in wires) == ["edge", "edge"]
 
 
-def test_a_filter_keeps_the_rules_it_is_given_and_inherits_the_blanks(canvas, db):
+def test_a_condition_keeps_what_it_is_given_and_a_blank_leaves_it_alone(canvas, db):
+    """A condition carries exactly one thing, so the form sends one value and
+    the piece's kind decides where it lands. A blank is "leave it to the
+    channel" rather than zero."""
     graph_now = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
-    node_id = only(graph_now, "filter")["id"]
+    box_id = only(graph_now, "filter")["id"]
+
+    made = canvas.post(
+        "/graph/nodes",
+        data={"kind": "longer-than", "attach_to": str(box_id)},
+    ).json()
+    piece_id = only(made, "longer-than")["id"]
 
     answer = canvas.post(
-        f"/graph/nodes/{node_id}",
-        data={"label": "Long ones", "skip_shorts": "1", "min_duration_sec": "600",
-              "skip_live": "", "title_include": "  "},
+        f"/graph/nodes/{piece_id}",
+        data={"label": "", "value": "10", "value_unit": "minutes"},
     )
-    saved = only(answer.json(), "filter")
-    assert saved["title"] == "Long ones"
-    assert saved["overrides"] == {"skip_shorts": True, "min_duration_sec": 600}
+    saved = only(answer.json(), "longer-than")
+    assert saved["title"] == "Longer than"
+    assert saved["note"] == "longer than 10 minutes"
+    assert saved["condition"]["value"] == "10"
+    assert saved["condition"]["unit"] == "minutes"
 
     with db.session_scope() as session:
-        node = session.get(GraphNode, node_id)
-        assert node.skip_shorts is True
-        assert node.skip_live is None  # blank means "leave it to the channel"
-        assert node.title_include is None
+        assert session.get(GraphNode, piece_id).min_duration_sec == 600
+
+    # The box itself says what its pieces say, so the canvas reads without
+    # anything being opened.
+    assert only(answer.json(), "filter")["note"] == "longer than 10 minutes"
+
+    blanked = canvas.post(f"/graph/nodes/{piece_id}", data={"value": "  "})
+    assert only(blanked.json(), "longer-than")["note"] == "open it and say what"
+    with db.session_scope() as session:
+        assert session.get(GraphNode, piece_id).min_duration_sec is None
+
+
+def test_a_condition_only_goes_under_the_box_it_belongs_to(canvas):
+    """Refused at the drop rather than discovered later by a piece that
+    quietly does nothing."""
+    graph_now = canvas.post("/graph/nodes", data={"kind": "filter"}).json()
+    box_id = only(graph_now, "filter")["id"]
+    feed_id = only(graph_now, "feed")["id"]
+
+    refused = canvas.post(
+        "/graph/nodes", data={"kind": "order", "attach_to": str(box_id)}
+    )
+    assert refused.status_code == 400
+    assert "Sort" in refused.json()["error"]
+
+    refused = canvas.post(
+        "/graph/nodes", data={"kind": "has-words", "attach_to": str(feed_id)}
+    )
+    assert refused.status_code == 400
+    assert "Filter" in refused.json()["error"]
 
 
 def test_a_box_can_be_taken_off_the_canvas_whatever_it_stands_for(canvas, db):
@@ -1455,10 +1504,11 @@ def test_the_palette_folds_away_what_is_optional(canvas):
 
     assert "<summary>Operations</summary>" in body
     assert "<summary>Triggers</summary>" in body
-    # Operations, Jigsaw, Triggers, Plugins, Layout. The plugins one is there
-    # because a shipped plugin offers boxes; a plugin offering none adds
-    # nothing.
-    assert body.count('<details class="palette-group">') == 5
+    # Operations, Jigsaw, Conditions, Triggers, Plugins, Layout. The plugins
+    # one is there because a shipped plugin offers conditions; a plugin
+    # offering none adds nothing.
+    assert '<summary>Conditions</summary>' in body
+    assert body.count('<details class="palette-group">') == 6
     assert "<summary>Plugins</summary>" in body
     assert "palette-group\" open" not in body
 
@@ -1496,14 +1546,29 @@ def test_a_sort_box_sits_on_the_path_and_says_which_way(db):
     with db.session_scope() as session:
         source = node_for(session, "source", "UCone")
         feed = node_for(session, "feed", "PLone")
-        order = graph.add_sort(session, sort_by="views")
-        graph.connect(session, source, order)
-        graph.connect(session, order, feed)
+        box = graph.add_sort(session)
+        narrow(session, box, "order", sort_by="views")
+        graph.connect(session, source, box)
+        graph.connect(session, box, feed)
 
         path = graph.routes(session)[0]
         assert path.order is not None
         assert path.order.sort_by == "views"
         assert path.filters == []  # a sort narrows nothing
+
+
+def test_a_sort_box_with_nothing_slotted_under_it_orders_nothing(db):
+    """The same as a Filter with no conditions: a box that quietly did
+    something without saying what on the canvas is a box you must open."""
+    build(db)
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        feed = node_for(session, "feed", "PLone")
+        box = graph.add_sort(session)
+        graph.connect(session, source, box)
+        graph.connect(session, box, feed)
+
+        assert graph.routes(session)[0].order is None
 
 
 def test_the_sort_nearest_the_feed_has_the_last_word(db):
@@ -1513,8 +1578,10 @@ def test_the_sort_nearest_the_feed_has_the_last_word(db):
     with db.session_scope() as session:
         source = node_for(session, "source", "UCone")
         feed = node_for(session, "feed", "PLone")
-        first = graph.add_sort(session, sort_by="published")
-        second = graph.add_sort(session, sort_by="likes")
+        first = graph.add_sort(session)
+        narrow(session, first, "order", sort_by="published")
+        second = graph.add_sort(session)
+        narrow(session, second, "order", sort_by="likes")
         graph.connect(session, source, first)
         graph.connect(session, first, second)
         graph.connect(session, second, feed)
@@ -1540,20 +1607,29 @@ def test_a_sort_by_nothing_in_particular_is_refused(db):
     build(db)
     with db.session_scope() as session:
         with pytest.raises(graph.GraphError):
-            graph.add_sort(session, sort_by="vibes")
+            graph.add_piece(session, kind="order", sort_by="vibes")
 
 
-def test_a_sort_box_can_be_made_and_set_from_the_canvas(canvas):
+def test_a_sort_box_is_told_what_to_order_by_with_a_piece(canvas):
     added = canvas.post("/graph/nodes", data={"kind": "sort"}).json()
     box = only(added, "sort")
-    assert box["sort"]["by"] == "published"
-    assert box["note"] == "Newest first"
+    assert box["sort"] is None
+    assert box["note"] == "slot an Order under it"
+
+    made = canvas.post(
+        "/graph/nodes", data={"kind": "order", "attach_to": str(box["id"])}
+    ).json()
+    piece = only(made, "order")
+    assert piece["sort"]["by"] == "published"
+    assert piece["note"] == "Newest first"
+    # And the box says what its piece says, without being opened.
+    assert only(made, "sort")["note"] == "Newest first"
 
     saved = canvas.post(
-        f"/graph/nodes/{box['id']}",
+        f"/graph/nodes/{piece['id']}",
         data={"box_form": "1", "active": "1", "sort_by": "duration", "sort_dir": "asc"},
     ).json()
-    changed = only(saved, "sort")
+    changed = only(saved, "order")
     assert changed["sort"] == {
         "by": "duration",
         "desc": False,
@@ -1892,14 +1968,19 @@ def test_a_trial_names_the_filter_that_held_something(canvas, db):
     source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
     canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
     canvas.post("/graph/connect", data={"source": middle["id"], "target": feed["id"]})
-    canvas.post(
-        f"/graph/nodes/{middle['id']}",
-        data={"box_form": "1", "active": "1", "label": "No shorts", "skip_shorts": "1"},
+    canvas.post(f"/graph/nodes/{middle['id']}",
+                data={"box_form": "1", "active": "1", "label": "No shorts"})
+    piece = only(
+        canvas.post("/graph/nodes",
+                    data={"kind": "lacks-words", "attach_to": str(middle["id"])}).json(),
+        "lacks-words",
     )
+    canvas.post(f"/graph/nodes/{piece['id']}", data={"value": "short"})
 
     trial = canvas.get(f"/graph/nodes/{wire_trigger(canvas)}/test").json()
 
-    # The filter reports holding it, not the channel it came through.
+    # The filter reports holding it, not the channel it came through, and not
+    # the piece that says why — a condition is how a box is told, not a box.
     held = trial["items"][str(middle["id"])]["held"]
     assert [item["title"] for item in held] == ["A short"]
     assert held[0]["box"] == "No shorts"
@@ -1949,10 +2030,14 @@ def test_every_box_the_trial_touched_gets_its_own_share(canvas, db):
     source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
     canvas.post("/graph/connect", data={"source": source["id"], "target": middle["id"]})
     canvas.post("/graph/connect", data={"source": middle["id"], "target": feed["id"]})
-    canvas.post(
-        f"/graph/nodes/{middle['id']}",
-        data={"box_form": "1", "active": "1", "label": "No shorts", "skip_shorts": "1"},
+    canvas.post(f"/graph/nodes/{middle['id']}",
+                data={"box_form": "1", "active": "1", "label": "No shorts"})
+    piece = only(
+        canvas.post("/graph/nodes",
+                    data={"kind": "lacks-words", "attach_to": str(middle["id"])}).json(),
+        "lacks-words",
     )
+    canvas.post(f"/graph/nodes/{piece['id']}", data={"value": "short"})
     trigger_id = wire_trigger(canvas)
 
     items = canvas.get(f"/graph/nodes/{trigger_id}/test").json()["items"]
@@ -2225,7 +2310,7 @@ def test_a_filter_that_lets_nothing_through_is_where_the_flow_stops(world, db):
         source = next(n for n in graph.nodes(session) if n.kind == "source")
         feed = next(n for n in graph.nodes(session) if n.kind == "feed")
         middle = graph.add_filter(session, label="Only long ones")
-        middle.min_duration_sec = 3600  # nothing will be this long
+        narrow(session, middle, "longer-than", 3600)  # nothing will be this long
         graph.connect(session, source, middle)
         graph.connect(session, middle, feed)
         # The straight wire would let everything past the filter.
@@ -2435,8 +2520,39 @@ def test_only_a_real_graph_is_drawn(canvas_report):
 
 
 @needs_node
-def test_a_filter_shows_only_what_it_actually_decides(canvas_report):
-    assert canvas_report["keepsOnlyRealOverrides"] == {"skip_shorts": True, "min_duration_sec": 600}
+def test_a_condition_piece_arrives_as_one_thing_to_fill_in(canvas_report):
+    said = canvas_report["readsACondition"]
+    assert said["label"] == "Longer than"
+    assert said["field"] == "duration"
+    assert said["value"] == "2" and said["unit"] == "minutes"
+    # A unit that is not a string is not a unit.
+    assert said["units"] == ["seconds", "minutes", "hours"]
+
+
+@needs_node
+def test_a_condition_the_payload_half_described_still_draws(canvas_report):
+    """A field type nobody recognises is drawn as a line of text, because a
+    field nobody can fill in is worse than one drawn plainly."""
+    said = canvas_report["mendsAHalfCondition"]
+    assert said["field"] == "text"
+    assert said["under"] == "filter"
+    assert said["label"] == "" and said["units"] == []
+
+
+@needs_node
+def test_a_piece_only_lights_up_the_boxes_it_belongs_under(canvas_report):
+    """Said in the browser as well as on the server: a refusal you can see
+    coming beats one that arrives after the drop."""
+    said = canvas_report["slotsFor"]
+    assert said["orderUnderSort"] is True
+    assert said["orderUnderFilter"] is False
+    assert said["wordsUnderFilter"] is True
+    assert said["wordsUnderFeed"] is False
+    assert said["ruleUnderPlugin"] is True
+    # The four older pieces say something about reading, which is a question
+    # only a feed, a Decay and an Expire box ask.
+    assert said["timerUnderFeed"] is True
+    assert said["timerUnderFilter"] is False
 
 
 @needs_node

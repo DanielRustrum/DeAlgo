@@ -76,10 +76,26 @@ async function main() {
   report.dropsARubbishNode = asGraph({ nodes: [{ id: "one", kind: "source" }, null], wires: [] });
   report.readsTheError = context.asGraphError({ error: "A box cannot feed itself." });
 
-  // Only what a filter actually decides is kept, so "inherit" stays visible.
-  report.keepsOnlyRealOverrides = context.asGraphOverrides({
-    skip_shorts: true, min_duration_sec: 600, title_include: null, nested: { no: 1 },
+  // A condition piece: one thing to fill in, and a sensible answer for
+  // whatever the payload left out.
+  report.readsACondition = context.asGraphCondition({
+    label: "Longer than", blurb: "Holds anything shorter.", field: "duration",
+    asks: "How long", under: "filter", value: "2", unit: "minutes",
+    units: ["seconds", "minutes", "hours", 7], says: "longer than 2 minutes",
   });
+  report.mendsAHalfCondition = context.asGraphCondition({ field: "nonsense" });
+
+  // Which boxes a piece may be slotted under. The same answer the server
+  // gives, so a drag only lights up somewhere it can actually land.
+  report.slotsFor = {
+    orderUnderSort: context.graphPieceGoesUnder("order", "sort"),
+    orderUnderFilter: context.graphPieceGoesUnder("order", "filter"),
+    wordsUnderFilter: context.graphPieceGoesUnder("has-words", "filter"),
+    wordsUnderFeed: context.graphPieceGoesUnder("has-words", "feed"),
+    ruleUnderPlugin: context.graphPieceGoesUnder("rule", "plugin"),
+    timerUnderFeed: context.graphPieceGoesUnder("timer", "feed"),
+    timerUnderFilter: context.graphPieceGoesUnder("timer", "filter"),
+  };
 
   const curve = context.graphCurve(0, 0, 200, 100);
   report.curve = { d: curve, starts: curve.startsWith("M 0 0"), ends: curve.endsWith("200 100") };

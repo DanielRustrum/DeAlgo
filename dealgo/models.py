@@ -583,6 +583,22 @@ class LoginSession(Base):
         return utcnow() >= to_naive_utc(self.expires_at)
 
 
+#: What each condition piece is called. Here rather than in the graph
+#: service because a box has to be able to say what it is without anything
+#: else being loaded — a model that could not name itself would be a model
+#: you cannot read a row of. The graph service builds its table of
+#: conditions from this, so the words are written once.
+CONDITION_LABELS: dict[str, str] = {
+    "has-words": "Title has",
+    "lacks-words": "Title lacks",
+    "longer-than": "Longer than",
+    "shorter-than": "Shorter than",
+    "carrying": "Carrying",
+    "at-most": "At most",
+    "order": "Order",
+}
+
+
 class GraphNode(Base):
     """One box on the Configuration canvas.
 
@@ -640,16 +656,16 @@ class GraphNode(Base):
     )
     label: Mapped[str] = mapped_column(String(120), default="")
 
-    # Filter nodes only. Every one nullable: NULL is "inherit", which is what
-    # makes a filter node an override rather than a replacement.
-    skip_videos: Mapped[Optional[bool]] = mapped_column(Boolean)
-    skip_shorts: Mapped[Optional[bool]] = mapped_column(Boolean)
-    skip_live: Mapped[Optional[bool]] = mapped_column(Boolean)
-    skip_posts: Mapped[Optional[bool]] = mapped_column(Boolean)
+    # Condition pieces only. Every one nullable: NULL is "inherit", which is
+    # what makes a condition an override rather than a replacement.
+    #
+    # One piece uses one of these, and which one is the piece's kind. They
+    # sat on the Filter box itself once, which meant a canvas of boxes all
+    # saying "Filter" and no way to tell them apart without opening each.
     title_include: Mapped[Optional[str]] = mapped_column(Text)
     title_exclude: Mapped[Optional[str]] = mapped_column(Text)
-    # Filter boxes: only items carrying this tag get past. A Tag box
-    # earlier on the path is what puts one on.
+    # Only items carrying this tag get past. A Tag box earlier on the path
+    # is what puts one on.
     tagged: Mapped[Optional[str]] = mapped_column(String(40))
     # Tag boxes: what this one marks whatever comes through it with.
     marks: Mapped[Optional[str]] = mapped_column(String(40))
@@ -765,13 +781,21 @@ class GraphNode(Base):
             return "Expire"
         if self.kind == "group":
             return "Group"
-        if self.kind == "plugin":
+        if self.kind in ("plugin", "rule"):
             # From the box's own name rather than from the registry: a model
             # that had to ask which plugins are loaded in order to say what a
             # box is called would be a model that cannot be read on its own.
             # "shape:not-shouting" reads back as "Not shouting".
             named = (self.plugin_ref or "").split(":")[-1].replace("-", " ").replace("_", " ")
-            return named[:1].upper() + named[1:] if named else "Plugin"
+            if named:
+                return named[:1].upper() + named[1:]
+            return "Plugin" if self.kind == "plugin" else "Rule"
+        # A condition piece. Its name is the whole of what it is — a box
+        # saying "Filter" told you nothing, a piece saying "Longer than"
+        # tells you what that box does without opening it.
+        named = CONDITION_LABELS.get(self.kind, "")
+        if named:
+            return named
         # An empty box, waiting to be told what it stands for. Named after
         # the kind it was dragged out as, so a canvas with three empty boxes
         # on it says which is which.
@@ -782,9 +806,12 @@ class GraphNode(Base):
 
     @property
     def overrides(self) -> dict[str, object]:
-        """Only what this node actually decides, so "inherit" stays visible."""
+        """Only what this node actually decides, so "inherit" stays visible.
+
+        Read off a condition piece now rather than off a filter box: a piece
+        carries exactly one of these, which is what makes it one condition.
+        """
         named = (
-            "skip_videos", "skip_shorts", "skip_live", "skip_posts",
             "title_include", "title_exclude", "tagged",
             "min_duration_sec", "max_duration_sec", "max_per_run",
         )

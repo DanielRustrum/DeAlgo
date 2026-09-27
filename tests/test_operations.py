@@ -90,7 +90,10 @@ def test_a_filter_further_down_can_ask_for_that_tag(world, db):
         lambda s: graph.add_filter(s, label="Only tagged"),
     )
     with db.session_scope() as session:
-        session.get(GraphNode, ids[1]).tagged = "keep"
+        # What a Filter narrows by is a condition slotted under it.
+        graph.add_piece(
+            session, kind="carrying", host=session.get(GraphNode, ids[1])
+        ).tagged = "keep"
     uploads(world, 2)
 
     result = sync_service.run_sync("manual", force=True)
@@ -103,7 +106,9 @@ def test_a_filter_asking_for_a_tag_nothing_carries_turns_it_away(world, db):
 
     ids = wire(db, lambda s: graph.add_filter(s, label="Only tagged"))
     with db.session_scope() as session:
-        session.get(GraphNode, ids[0]).tagged = "never-applied"
+        graph.add_piece(
+            session, kind="carrying", host=session.get(GraphNode, ids[0])
+        ).tagged = "never-applied"
     uploads(world, 2)
 
     result = sync_service.run_sync("manual", force=True)
@@ -451,7 +456,9 @@ def test_a_box_after_the_one_that_turned_it_away_is_not_marked(world, db):
         lambda s: graph.add_stamp(s, kind="tag", marks="never"),
     )
     with db.session_scope() as session:
-        session.get(GraphNode, ids[0]).title_include = "nothing matches this"
+        graph.add_piece(
+            session, kind="has-words", host=session.get(GraphNode, ids[0])
+        ).title_include = "nothing matches this"
     uploads(world, 2)
     # The trial pushes what is already here through the graph, so there has
     # to be something here.

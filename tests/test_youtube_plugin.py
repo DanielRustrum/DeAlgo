@@ -450,3 +450,70 @@ def test_the_same_post_is_only_read_once(signed_in, google):
     serves(google, twice)
 
     assert len(read_posts()) == 1
+
+
+# -- what kind of thing a YouTube item is ----------------------------------
+#
+# A Short, a premiere and a community post are YouTube's own distinctions.
+# They sat on the host's Filter box once, as four switches nobody outside
+# YouTube could mean anything by; they are conditions of this plugin's now,
+# slotted under its box.
+
+
+def an_item(**over) -> dict:
+    """One item as the host hands it over: plain values only."""
+    base = {
+        "title": "", "kind": "video", "words": "", "link": "", "duration": 0,
+        "views": 0, "likes": 0, "is_short": False, "live": "", "source": "youtube",
+    }
+    base.update(over)
+    return base
+
+
+def shipped():
+    from pathlib import Path
+
+    from dealgo.plugins import registry
+
+    here = Path(__file__).resolve().parent.parent / "dealgo" / "plugins" / "builtin"
+    return registry.read(here)
+
+
+def test_no_videos_holds_an_ordinary_upload_and_nothing_else():
+    """A Short and a broadcast are their own things, each with a condition of
+    its own. This one is about everything else."""
+    found = shipped()
+
+    assert found.keeps("youtube:no-videos", an_item(), {}) is False
+    assert found.keeps("youtube:no-videos", an_item(is_short=True), {}) is True
+    assert found.keeps("youtube:no-videos", an_item(live="upcoming"), {}) is True
+    assert found.keeps("youtube:no-videos", an_item(kind="post"), {}) is True
+
+
+def test_no_live_holds_a_broadcast_whether_it_has_started_or_not():
+    found = shipped()
+
+    assert found.keeps("youtube:no-live", an_item(live="live"), {}) is False
+    assert found.keeps("youtube:no-live", an_item(live="upcoming"), {}) is False
+    assert found.keeps("youtube:no-live", an_item(live="none"), {}) is True
+    # Nothing recorded is not a broadcast: the details are fetched after
+    # discovery and may never say.
+    assert found.keeps("youtube:no-live", an_item(), {}) is True
+
+
+def test_no_posts_holds_a_community_post():
+    found = shipped()
+
+    assert found.keeps("youtube:no-posts", an_item(kind="post"), {}) is False
+    assert found.keeps("youtube:no-posts", an_item(kind="video"), {}) is True
+
+
+def test_the_content_conditions_let_everything_else_by():
+    """The rule that keeps them safe to place anywhere: a subreddit has no
+    Shorts and no premieres, and must not be swallowed by a question about
+    either."""
+    found = shipped()
+    elsewhere = an_item(source="reddit", kind="post", is_short=True, live="live")
+
+    for ref in ("youtube:no-videos", "youtube:no-live", "youtube:no-posts"):
+        assert found.keeps(ref, elsewhere, {}) is True, ref
