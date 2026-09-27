@@ -48,7 +48,7 @@ from ..models import (
     utcnow,
 )
 from .. import sources
-from ..plugins import permissions, registry
+from ..plugins import fetching, permissions, registry
 from ..services import accounts
 from ..services.scope import OwnerId, belongs_to, owned
 from ..services import backup as backup_service
@@ -3817,6 +3817,7 @@ def _plugins_view(request: Request, pending: Context | None = None) -> HTMLRespo
     found = registry.current()
     mine = registry.folder()
     leaning = _sources_per_kind()
+    came_from = registry.origins()
     return render(
         request,
         "plugins.html",
@@ -3840,7 +3841,11 @@ def _plugins_view(request: Request, pending: Context | None = None) -> HTMLRespo
                     # A shipped one comes back with the next start anyway,
                     # so a Remove button on it would be a lie — pausing is
                     # how you turn one of those off.
-                    "mine": plugin.path.parent == mine,
+                    "mine": plugin.home.parent == mine,
+                    # Where it was fetched from, when it was. Shown so that
+                    # "where did this come from" is answerable without
+                    # remembering, and so it can be fetched again.
+                    "origin": came_from.get(plugin.id),
                     # How much is leaning on it, so switching one off is a
                     # decision rather than a discovery.
                     "leaning": sum(leaning.get(k.kind, 0) for k in plugin.sources),
@@ -3963,9 +3968,67 @@ async def add_plugin(request: Request, file: UploadFile = File(...)) -> Response
     return _plugins_view(request, pending={"name": name, "source": text, "plugin": checked})
 
 
+@app.post("/admin/plugins/fetch")
+def fetch_plugin(request: Request, url: str = Form(""), ref: str = Form("")) -> Response:
+    """Take a plugin out of a git repository, and put it to somebody.
+
+    The same door as an upload, reached a different way: what comes back is
+    text, it is read with nothing granted, and it lands only once its
+    permissions have been agreed to. Fetching is not installing.
+    """
+    wanted = (ref or "").strip()
+    if len(wanted) > 120 or any(one.isspace() for one in wanted):
+        return redirect("/admin/plugins", err="That is not a branch or tag name.")
+
+    try:
+        with sync_service.http_client() as http:
+            got = fetching.fetch(url, http, ref=wanted)
+    except registry.PluginError as exc:
+        return redirect("/admin/plugins", err=str(exc))
+
+    if not got.plugin_id or not set(got.plugin_id) <= registry.PLAIN:
+        return redirect(
+            "/admin/plugins",
+            err="That repository's name cannot be a plugin id. Rename it to "
+                "letters, numbers, dashes or underscores.",
+        )
+    if len(got.source.encode("utf-8")) > MOST_PLUGIN_BYTES:
+        return redirect("/admin/plugins", err="That plugin.lua is far too big to be one.")
+
+    # Read before it is kept, with nothing granted, exactly as an upload is.
+    checked = registry.judge(got.plugin_id, got.source)
+    if checked.trouble:
+        return redirect("/admin/plugins", err=f"{got.plugin_id}: {checked.trouble}")
+
+    # Held aside while somebody decides. A plugin may be more than one file,
+    # and what was read and judged here is then exactly what lands — a second
+    # fetch on the way past consent would leave a gap in which the repository
+    # could become something else.
+    try:
+        registry.stage(got.plugin_id, got.source, got.extras)
+    except (OSError, registry.PluginError) as exc:
+        return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
+
+    return _plugins_view(
+        request,
+        pending={
+            "name": f"{got.plugin_id}.lua",
+            "source": got.source,
+            "plugin": checked,
+            "origin": got.origin,
+            "ref": got.ref,
+            "extras": sorted(got.extras),
+        },
+    )
+
+
 @app.post("/admin/plugins/confirm")
 async def confirm_plugin(
-    request: Request, name: str = Form(""), source: str = Form("")
+    request: Request,
+    name: str = Form(""),
+    source: str = Form(""),
+    origin: str = Form(""),
+    ref: str = Form(""),
 ) -> Response:
     """Keep a plugin, with exactly the permissions that were ticked.
 
@@ -3986,13 +4049,20 @@ async def confirm_plugin(
     wanted = {want.name for want in checked.wants if want.known}
     granting = frozenset(name for name in wanted if sent.get(f"grant_{name}") == "1")
 
-    folder = registry.folder()
     try:
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / f"{stem}.lua").write_text(source, encoding="utf-8")
-    except OSError as exc:  # pragma: no cover - a full or unwritable volume
+        # A fetched one is already on disk, waiting: taking it is a rename,
+        # and it brings whatever else came with it. An uploaded one is the
+        # file in front of us and nothing else.
+        if not (origin and registry.take_staged(stem)):
+            registry.keep(stem, source)
+    except (OSError, registry.PluginError) as exc:  # a full or unwritable volume
         return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
 
+    if origin:
+        # Where it came from, so the Update button has somewhere to go. Kept
+        # against the id rather than in the folder: a plugin that could write
+        # its own origin could point its next update at somewhere else.
+        registry.set_origin(stem, origin[:2000], ref[:120])
     registry.set_granted(stem, granting)
     said = f"{checked.title} added"
     if granting:
@@ -4046,12 +4116,8 @@ def remove_plugin(request: Request, plugin_id: str) -> Response:
     Only your own: a shipped plugin lives in the image and would come back on
     the next start, so a button offering to remove one would be a lie.
     """
-    if not set(plugin_id) <= registry.PLAIN:
-        return redirect("/admin/plugins", err="That is not a plugin here.")
-    path = registry.folder() / f"{plugin_id}.lua"
-    if not path.is_file():
+    if not registry.discard(plugin_id):
         return redirect("/admin/plugins", err="That is not a plugin you added.")
-    path.unlink()
     registry.reload()
     return redirect("/admin/plugins", ok=f"{plugin_id} removed.")
 

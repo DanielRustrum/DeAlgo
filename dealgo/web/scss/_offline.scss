@@ -203,6 +203,10 @@
 .plugin-doing { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .plugin-doing form { display: inline; }
 .pill-shipped { color: var(--muted); }
+// Where a plugin was fetched from, as a link to the repository. A link
+// rather than a note, because the next thing you want is to look at it.
+.pill-origin { color: var(--accent); text-decoration: none; }
+.pill-origin:hover { text-decoration: underline; }
 
 // The worked example. Wide and preformatted, so it scrolls rather than
 // wrapping Lua into something that would not run.

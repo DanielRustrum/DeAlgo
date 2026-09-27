@@ -17,6 +17,18 @@
   <form class="modal-body" method="post" action="/admin/plugins/confirm">
     <input type="hidden" name="name" value="{{ pending.name }}">
     <textarea name="source" hidden>{{ pending.source }}</textarea>
+    {% if pending.origin %}
+    <input type="hidden" name="origin" value="{{ pending.origin }}">
+    <input type="hidden" name="ref" value="{{ pending.ref }}">
+    <p class="hint">
+      Fetched from <code>{{ pending.origin }}</code>{% if pending.ref %} at
+      <code>{{ pending.ref }}</code>{% endif %}.
+      {%- if pending.extras %} It brings {{ pending.extras | length }} other
+      file{{ 's' if pending.extras | length != 1 }} with it, which are kept
+      beside it: <code>{{ pending.extras | join('</code>, <code>') | safe }}</code>.
+      Only its <code>plugin.lua</code> is ever run.{% endif %}
+    </p>
+    {% endif %}
 
     <div class="consent-offers">
       <strong>What it offers</strong>
@@ -112,6 +124,12 @@
         {% if plugin.replaces %}
         <span class="pill pill-paused" title="{{ plugin.replaces }}">replaces the shipped one</span>
         {% endif %}
+        {% if plugin.origin %}
+        <a class="pill pill-origin" href="{{ plugin.origin.url }}" target="_blank"
+           rel="noopener noreferrer"
+           title="Fetched from {{ plugin.origin.url }}{{ ' at ' ~ plugin.origin.ref if plugin.origin.ref }}">
+          {{ plugin.origin.ref or 'fetched' }}</a>
+        {% endif %}
         {% if not plugin.loaded %}<span class="pill pill-failed">not loaded</span>
         {% elif plugin.paused %}<span class="pill pill-paused">switched off</span>{% endif %}
       </div>
@@ -190,6 +208,15 @@
 
         <a class="btn btn-quiet" href="/admin/plugins/{{ plugin.id }}/source">Read it</a>
 
+        {% if plugin.origin %}
+        <form method="post" action="/admin/plugins/fetch">
+          <input type="hidden" name="url" value="{{ plugin.origin.url }}">
+          <input type="hidden" name="ref" value="{{ plugin.origin.ref }}">
+          <button class="btn btn-quiet" type="submit"
+                  title="Fetch it again from {{ plugin.origin.url }}">Update</button>
+        </form>
+        {% endif %}
+
         {% if plugin.mine %}
         <form method="post" action="/admin/plugins/{{ plugin.id }}/remove"
               onsubmit="return confirm('Remove {{ plugin.title }} for good? Switching it off keeps the file.')">
@@ -206,7 +233,29 @@
 </section>
 
 <section class="panel">
-  <h2>Add one</h2>
+  <h2>Add one from a repository</h2>
+  <form class="stack-form" method="post" action="/admin/plugins/fetch">
+    <label>
+      Where it lives
+      <input type="url" name="url" required
+             placeholder="https://github.com/someone/dealgo-plugin-letterboxd">
+    </label>
+    <label>
+      Branch or tag <span class="hint">optional</span>
+      <input type="text" name="ref" placeholder="main">
+    </label>
+    <button class="btn btn-primary" type="submit">Fetch it</button>
+    <p class="hint">
+      The repository's own archive, over https — GitHub, GitLab, Codeberg and
+      anything running Gitea. Nothing is cloned and nothing in it is run:
+      what comes back is a <code>plugin.lua</code>, read and put to you
+      exactly as an uploaded one is, and kept only once you have said yes.
+    </p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Add one from a file</h2>
   <form class="stack-form" method="post" action="/admin/plugins" enctype="multipart/form-data">
     <label>
       A .lua file
@@ -214,9 +263,10 @@
     </label>
     <button class="btn btn-primary" type="submit">Add it</button>
     <p class="hint">
-      It lands in <code>{{ folder }}</code> and is read straight away. A file
-      named after one that ships with De-Algo replaces it, which is how you
-      change a shipped plugin without editing the image.
+      It lands in a folder of its own under <code>{{ folder }}</code> and is
+      read straight away. One named after a plugin that ships with De-Algo
+      replaces it, which is how you change a shipped plugin without editing
+      the image.
     </p>
     <p class="error-note">
       <strong>A plugin is code, and it runs here.</strong>

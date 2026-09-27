@@ -169,6 +169,13 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # before permissions did, so this is a column rather than part of the
     # table's creation.
     ("plugin_state", "granted", "TEXT"),
+    # Where a plugin was fetched from, so it can be fetched again. Here
+    # rather than in its folder because it is a record of what this install
+    # did, not part of the plugin — one that could write its own origin
+    # could point an update at somewhere else entirely.
+    ("plugin_state", "origin", "TEXT"),
+    ("plugin_state", "origin_ref", "VARCHAR(120)"),
+    ("plugin_state", "fetched_at", "DATETIME"),
 )
 
 # run_event is a new table rather than new columns, so it needs no entry here:

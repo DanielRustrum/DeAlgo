@@ -135,7 +135,7 @@ def test_a_good_plugin_is_taken_and_read_at_once(admin, here):
     answer = upload(admin, "mine.lua", GOOD)
 
     assert "Mine added" in answer.text
-    assert (here / "mine.lua").is_file()
+    assert (here / "mine" / "plugin.lua").is_file()
     # And it is working immediately, not after a restart.
     assert registry.current().recognise("mine/thing").kind == "mine"
 
@@ -453,7 +453,7 @@ def test_agreeing_to_none_of_it_still_adds_the_plugin(admin, here):
     """It loads, it works, and it finds the capability missing."""
     upload(admin, "asks.lua", ASKS)
 
-    assert (here / "asks.lua").is_file()
+    assert (here / "asks" / "plugin.lua").is_file()
     assert probe() == {"clock": False, "net": False}
 
 
