@@ -269,6 +269,7 @@ def run_sync(
     force: bool = False,
     owner: OwnerId = None,
     only: Collection[int] | None = None,
+    sources: Collection[int] | None = None,
     fired_by: int | None = None,
     reach_back: int | None = None,
     withdrawals: Collection[int] | None = None,
@@ -279,10 +280,16 @@ def run_sync(
     ``force`` polls every enabled channel regardless of its minimum gap. The
     scheduler never forces; this is for someone pressing the button.
 
-    ``only`` narrows the pass to certain channels, by primary key. A trigger
-    on the canvas is wired to some channels and not others, and this is how it
-    says so. The publishing half still runs over everything, because what a
-    new video is allowed into is a question about the whole graph.
+    ``only`` narrows the polling half to certain channels, by primary key. A
+    trigger on the canvas is wired to some channels and not others, and this
+    is how it says so.
+
+    ``sources`` narrows the publishing half to certain source *boxes*, which
+    is a different question with a different answer: a channel drawn twice is
+    one channel and two boxes, wired down two paths that filter differently,
+    and a trigger reaches one of them. Without it the publishing half runs
+    over the whole graph, which is what a scheduled pass wants — it is
+    standing in for every trigger at once.
 
     ``withdrawals`` narrows the pulling half the way ``only`` narrows the
     polling half: the Withdraw boxes one trigger is wired to, pulled whether
@@ -312,7 +319,7 @@ def run_sync(
             with http_client() as http, session_scope() as session:
                 return _run(
                     session, http, trigger, force=force, owner=owner, only=only,
-                    fired_by=fired_by, reach_back=reach_back,
+                    sources=sources, fired_by=fired_by, reach_back=reach_back,
                     withdrawals=withdrawals,
                 )
     except Busy:
@@ -360,6 +367,7 @@ def _run(
     force: bool = False,
     owner: OwnerId = None,
     only: Collection[int] | None = None,
+    sources: Collection[int] | None = None,
     fired_by: int | None = None,
     reach_back: int | None = None,
     withdrawals: Collection[int] | None = None,
@@ -415,7 +423,7 @@ def _run(
             f"No Google account connected — {len(youtube_feeds)} YouTube feed(s) are collecting "
             "inside De-Algo. Nothing is written to YouTube until you connect one."
         )
-        _publish(session, client, settings, result, owner, pen=pen)
+        _publish(session, client, settings, result, owner, pen=pen, sources=sources)
         session.commit()
     elif youtube_feeds and quota_state.spendable < cost_of("add"):
         # Feeds cost nothing, so discovery already ran; only writing stops.
@@ -426,10 +434,10 @@ def _run(
         )
         log.info("skipping the insert phase: quota exhausted until %s", quota_state.resets_at)
         pen.warn(f"YouTube quota is spent ({quota_state.used}/{quota_state.budget} units).")
-        _publish(session, client, settings, result, owner, pen=pen)
+        _publish(session, client, settings, result, owner, pen=pen, sources=sources)
         session.commit()
     else:
-        _publish(session, client, settings, result, owner, pen=pen)
+        _publish(session, client, settings, result, owner, pen=pen, sources=sources)
         session.commit()
         _prune(session, client, playlists, result, owner)
 
@@ -1339,6 +1347,7 @@ def _publish(
     result: SyncResult,
     owner: OwnerId = None,
     pen: runlog.Pen | None = None,
+    sources: Collection[int] | None = None,
 ) -> None:
     say = pen or runlog.Quiet()
     added_per_playlist: dict[int, int] = {}
@@ -1371,6 +1380,12 @@ def _publish(
     # times over.
     routes_for: dict[int, list[graph.Route]] = {}
     for path in graph.routes(session, owner):
+        # Set off from a trigger, this run belongs to the boxes that trigger
+        # is wired to. A channel drawn twice is one channel and two boxes,
+        # each starting a path of its own, and only one of them was asked to
+        # run — the other waits for whatever sets it off.
+        if sources is not None and (path.source is None or path.source.id not in sources):
+            continue
         # A path into a repository has no feed to be switched off; whether it
         # is live is the Deposit box's own switch, which the walk checked.
         if path.deposits or (path.playlist is not None and path.playlist.enabled):

@@ -2870,6 +2870,13 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
         node = session.scalar(
             owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
         )
+        # The boxes themselves, as well as the channels behind them. Polling
+        # is a question about a channel — one poll however many boxes draw it
+        # — and filing is a question about a box, because each starts a path
+        # of its own. A trigger reaches one of them, not both.
+        boxes = (
+            graph_service.wired_sources(session, node, owner) if node is not None else []
+        )
         # A trigger may be wired to sources, to Withdraw boxes, or to both.
         # Pulling needs no network and no quota, so it happens here rather
         # than in the thread — and a trigger wired only to a Withdraw box has
@@ -2912,6 +2919,7 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
             "force": True,
             "owner": owner,
             "only": frozenset(targets),
+            "sources": frozenset(boxes),
             "fired_by": node_pk,
             "reach_back": reach_back,
             "withdrawals": pulled,

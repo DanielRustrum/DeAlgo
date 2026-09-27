@@ -4227,3 +4227,77 @@ def test_a_trigger_does_not_reach_through_a_box_that_is_switched_off(db):
 
     with db.session_scope() as session:
         assert graph.polling_plan(session) == {}
+
+
+def test_a_run_from_one_trigger_fills_only_the_boxes_it_is_wired_to(world, db):
+    """Two boxes for one channel, each with a pulse and a feed of its own.
+    Pressing one pulse must not fill the other's feed: that is the whole
+    reason to draw a second box.
+
+    Polling is a question about the channel — one poll however many boxes
+    draw it. Filing is a question about the box, because each starts a path
+    of its own.
+    """
+    from dealgo.models import Placement, Playlist as PlaylistModel, Video
+    from dealgo.plugins.publisher import VideoDetails
+    from dealgo.services import graph, sync as sync_service
+    from fakes import entry
+
+    with db.session_scope() as session:
+        mine = PlaylistModel(playlist_id="PLmine", title="Mine")
+        theirs = PlaylistModel(playlist_id="PLtheirs", title="Theirs")
+        session.add_all([mine, theirs])
+        session.flush()
+
+        graph.load(session)
+        first = next(n for n in graph.nodes(session) if n.kind == "source")
+        # Only the two feeds below, so the fixture's own wire is out of the way.
+        for edge in graph.edges(session):
+            graph.disconnect(session, edge.id)
+
+        second = graph.add_source(session, channel=first.channel)
+        for box, feed in (
+            (first, next(n for n in graph.nodes(session) if n.playlist_pk == mine.id)),
+            (second, next(n for n in graph.nodes(session) if n.playlist_pk == theirs.id)),
+        ):
+            graph.connect(session, box, feed)
+        pulse = graph.add_trigger(session, trigger_kind="pulse", every_minutes=60)
+        graph.connect(session, pulse, first)
+        # The second box has a pulse of its own, drawn and not pressed.
+        other = graph.add_trigger(session, trigger_kind="pulse", every_minutes=60)
+        graph.connect(session, other, second)
+        first_pk, mine_pk, theirs_pk = first.id, mine.id, theirs.id
+
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    with db.session_scope() as session:
+        channel_pk = session.scalar(select(Channel)).id
+    sync_service.run_sync(
+        "pulse", force=True, only=[channel_pk], sources=[first_pk]
+    )
+
+    with db.session_scope() as session:
+        landed = {
+            session.get(PlaylistModel, one.playlist_pk).id
+            for one in session.scalars(select(Placement))
+        }
+    assert landed == {mine_pk}
+    assert theirs_pk not in landed
+
+
+def test_a_run_with_no_box_named_still_fills_everything(world, db):
+    """Which is what a scheduled pass wants: it is standing in for every
+    trigger at once, so it is not one trigger's run."""
+    from dealgo.models import Placement
+    from dealgo.plugins.publisher import VideoDetails
+    from dealgo.services import sync as sync_service
+    from fakes import entry
+
+    world["entries"] = [entry("v0", minutes_ago=5)]
+    world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
+
+    sync_service.run_sync("manual", force=True)
+
+    with db.session_scope() as session:
+        assert session.scalars(select(Placement)).all() != []
