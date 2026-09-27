@@ -846,7 +846,7 @@ def _palette_plugins() -> list[Context]:
     # One condition piece per thing a plugin knows how to ask. A plugin has no
     # box of its own: it widens what the app's Filter box can be told, rather
     # than standing a second kind of Filter beside it.
-    for node in found.node_kinds():
+    for node in found.augmentations():
         grouped.setdefault(node.plugin, []).append(
             {
                 "palette": graph_service.RULE,
@@ -854,6 +854,9 @@ def _palette_plugins() -> list[Context]:
                 "label": node.label,
                 "blurb": node.blurb,
                 "swatch": graph_service.RULE,
+                # Which of the app's boxes it slots under, for the row to say
+                # so: a plugin can add to a Filter or to a Sort.
+                "under": node.under,
             }
         )
     return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
@@ -2114,7 +2117,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 ),
                 "sort": (
                     None
-                    if node.kind != "order"
+                    if not _orders(node)
                     else {
                         "by": node.sort_by or graph_service.DEFAULT_SORT_BY,
                         "desc": (node.sort_dir or "desc") == "desc",
@@ -2439,6 +2442,21 @@ def _condition_facts(node: GraphNode) -> Context | None:
     }
 
 
+def _orders(node: GraphNode) -> bool:
+    """Whether this piece is what puts a batch in order.
+
+    The app's own Order piece, or a plugin's ordering — both are slotted
+    under a Sort and both answer where an item goes, so the panel asks them
+    the same thing.
+    """
+    if node.kind == "order":
+        return True
+    if node.kind != graph_service.RULE:
+        return False
+    found = registry.current().augmentation(node.plugin_ref or "")
+    return found is not None and found.orders
+
+
 def _plugin_facts(node: GraphNode) -> Context | None:
     """What a plugin's condition asks, and what its fields are set to.
 
@@ -2447,7 +2465,7 @@ def _plugin_facts(node: GraphNode) -> Context | None:
     for rather than showing an empty form.
     """
     ref = node.plugin_ref or ""
-    box = registry.current().node(ref)
+    box = registry.current().augmentation(ref)
     was = sync_service._plugin_settings(node)
     if box is None:
         plugin_id = ref.split(":", 1)[0] if ":" in ref else ref
@@ -2457,6 +2475,9 @@ def _plugin_facts(node: GraphNode) -> Context | None:
         "missing": None,
         "blurb": box.blurb,
         "plugin": box.plugin,
+        # Which of the app's boxes it slots under, so a loose one can say
+        # where it goes rather than leaving somebody to try it and find out.
+        "under": box.under,
         "fields": [
             {
                 "name": one.name,
@@ -2483,7 +2504,7 @@ def _node_note(
     if node.kind == graph_service.RULE:
         # A condition a plugin declared. Its own words, since the host has
         # none for it — it is the plugin that knows what it asks.
-        box = registry.current().node(node.plugin_ref or "")
+        box = registry.current().augmentation(node.plugin_ref or "")
         if box is None:
             return "its plugin is switched off — it narrows nothing"
         return box.blurb or f"from {box.plugin}"
@@ -2505,10 +2526,18 @@ def _node_note(
         return " · ".join(said) if said else "slot a condition under it"
     if node.kind == "sort":
         ordering = next(
-            (one for one in (pieces or []) if one.kind == "order" and one.enabled), None
+            (one for one in (pieces or []) if one.enabled and _orders(one)), None
         )
         if ordering is None:
             return "slot an Order under it"
+        if ordering.kind == graph_service.RULE:
+            # A plugin's ordering works its own number out, so there is no
+            # key to name — only which end of it comes first. Named by the
+            # plugin's own label, which is the plugin's to choose.
+            found = registry.current().augmentation(ordering.plugin_ref or "")
+            named = (found.label if found is not None else ordering.title).lower()
+            way = "first" if (ordering.sort_dir or "desc") == "desc" else "last"
+            return f"{named} {way}"
         return graph_service.condition_words(ordering)
     if node.kind in graph_service.STAMPS:
         return graph_service.stamp_words(node, pieces or [])
@@ -2675,7 +2704,7 @@ def graph_add_node(
             asked: dict[str, str] = {}
             ref = ""
             if kind == graph_service.RULE:
-                box = registry.current().node(plugin_node.strip())
+                box = registry.current().augmentation(plugin_node.strip())
                 if box is None:
                     return JSONResponse(
                         {"error": "That condition's plugin is not loaded."},
@@ -3332,6 +3361,10 @@ async def graph_save_node(
                 return answer
         elif node.kind == graph_service.RULE:
             await _save_plugin_box(request, node)
+            # A plugin's ordering carries which end comes first, the same way
+            # the app's own Order piece does.
+            if _orders(node):
+                node.sort_dir = "asc" if sort_dir == "asc" else "desc"
         elif node.kind in graph_service.AUGMENTATIONS:
             if node.kind == "alive":
                 begins = graph_service.clock_time(alive_from)
@@ -3525,7 +3558,7 @@ def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Chan
 
 
 async def _save_plugin_box(request: Request, node: GraphNode) -> None:
-    """Keep whatever a plugin box's own fields were set to.
+    """Keep whatever a plugin augmentation's own fields were set to.
 
     Read straight off the form rather than through named parameters, because
     the host does not know the names: they are the plugin's to declare, and a
@@ -3534,7 +3567,7 @@ async def _save_plugin_box(request: Request, node: GraphNode) -> None:
     Only fields the plugin still declares are kept. A box whose plugin has
     dropped a field should not carry it for ever in a column nobody reads.
     """
-    box = registry.current().node(node.plugin_ref or "")
+    box = registry.current().augmentation(node.plugin_ref or "")
     if box is None:
         return  # its plugin is off; there is nothing to save it against
 

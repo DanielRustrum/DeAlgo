@@ -1095,7 +1095,7 @@ def _fill_missing_details(
 def _plugin_refusal(
     video: Video, path: "graph.Route", detail: "VideoDetails | None" = None
 ) -> filters.Decision | None:
-    """Ask each plugin box on this path, and stop at the first no.
+    """Ask each plugin condition on this path, and stop at the first no.
 
     The item is handed over as plain values, not as a database row: a plugin
     is given what it needs to judge and nothing it could write through.
@@ -1105,28 +1105,14 @@ def _plugin_refusal(
 
 
     found = registry.current()
-    item = {
-        "title": video.title or "",
-        "kind": video.kind,
-        "words": video.body or "",
-        "link": video.link or "",
-        "duration": video.duration_sec or 0,
-        "views": video.view_count or 0,
-        "likes": video.like_count or 0,
-        "is_short": video.is_short,
-        # Whether it is a broadcast, live or still to come. Only known while
-        # the details are in hand, which is when this is asked — a plugin
-        # judging an item cannot go and look it up.
-        "live": (detail.live_state or "") if detail else "",
-        "source": video.channel.source_kind if video.channel else "",
-    }
+    item = _as_item(video, detail)
     # Whose work this is, for the whole of the asking. A plugin reaching the
     # site through `dealgo` sees this account and no other, and outside a
     # block like this it sees nobody at all.
     with site.acting_for(path.channel.owner_pk):
         for node in path.checks:
             ref = node.plugin_ref or ""
-            box = found.node(ref)
+            box = found.augmentation(ref)
             if box is None:
                 # Its plugin is switched off or gone. The box stays on the
                 # canvas and stops narrowing anything, which is the same
@@ -1137,8 +1123,53 @@ def _plugin_refusal(
     return None
 
 
+def _as_item(video: Video, detail: VideoDetails | None = None) -> dict[str, object]:
+    """One item as a plugin is handed it: plain values, nothing to write to.
+
+    The same shape whether it is being judged or being put in order, so a
+    plugin only ever learns one vocabulary for what an item is.
+    """
+    return {
+        "title": video.title or "",
+        "kind": video.kind,
+        "words": video.body or "",
+        "link": video.link or "",
+        "duration": video.duration_sec or 0,
+        "views": video.view_count or 0,
+        "likes": video.like_count or 0,
+        "is_short": video.is_short,
+        # Whether it is a broadcast, live or still to come. Only known while
+        # the details are in hand — a plugin cannot go and look it up, and a
+        # batch is put in order long after they have been let go of.
+        "live": (detail.live_state or "") if detail else "",
+        "source": video.channel.source_kind if video.channel else "",
+    }
+
+
+def ordering_value(video: Video, piece: GraphNode) -> float:
+    """Where this item goes in a batch, by whatever is slotted under the Sort.
+
+    Two kinds of ordering answer the same question. The app's own Order piece
+    names one of a handful of things it knows how to measure; a plugin's
+    ordering works its own number out from the item. Bigger comes first,
+    before the direction is applied, for both.
+
+    A plugin that could not say puts the item at nothing in particular, which
+    leaves it in the order it arrived in among the others it could not
+    place — rather than at an invented position that would look deliberate.
+    """
+    if piece.kind != graph.RULE:
+        return _sort_value(video, piece.sort_by or graph.DEFAULT_SORT_BY)
+    owner = video.channel.owner_pk if video.channel is not None else None
+    with site.acting_for(owner):
+        said = registry.current().ranks(
+            piece.plugin_ref or "", _as_item(video), _plugin_settings(piece)
+        )
+    return 0.0 if said is None else said
+
+
 def _plugin_settings(node: GraphNode) -> dict[str, str]:
-    """What a plugin box's fields were set to, as plain strings."""
+    """What a plugin augmentation's fields were set to, as plain strings."""
     if not node.plugin_settings:
         return {}
     try:
@@ -1734,7 +1765,7 @@ def _sorter(video: Video, paths: Sequence["graph.Route"]) -> tuple[int, float] |
         box = path.order
         if box is None:
             continue
-        rank = _sort_value(video, box.sort_by or graph.DEFAULT_SORT_BY)
+        rank = ordering_value(video, box)
         return (box.id, -rank if (box.sort_dir or "desc") == "desc" else rank)
     return None
 

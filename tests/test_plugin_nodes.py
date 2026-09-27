@@ -99,7 +99,7 @@ def test_a_plugin_may_offer_boxes_and_no_sources(here):
     (here / "pair.lua").write_text(TWO_BOXES, encoding="utf-8")
     found = registry.read(here)
 
-    assert [n.ref for n in found.node_kinds()] == ["pair:first", "pair:second"]
+    assert [n.ref for n in found.augmentations()] == ["pair:first", "pair:second"]
 
 
 # -- how the palette groups them -------------------------------------------
@@ -389,7 +389,7 @@ def test_every_source_plugin_offers_boxes_of_its_own():
     """Each grouping case is exercised by something real rather than only by
     a fixture: one box, several boxes, and none."""
     found = shipped()
-    counted = {p.title: len(p.nodes) for p in found.plugins}
+    counted = {p.title: len(p.augments) for p in found.plugins}
 
     assert counted["YouTube"] > 1 and counted["Reddit"] > 1   # folds of their own
     assert counted["Bluesky"] == 1 and counted["Substack"] == 1   # shown directly
@@ -489,14 +489,17 @@ def test_substack_holds_the_short_ones():
     assert found.keeps("substack:long-read", an_item(source="substack", words="a note"), {}) is False
 
 
-def test_every_shipped_box_survives_an_item_with_nothing_in_it():
-    """A box is placed before anything has been polled, and the first thing
+def test_every_shipped_augmentation_survives_an_item_with_nothing_in_it():
+    """One is placed before anything has been polled, and the first thing
     through may be missing everything it asks about."""
     found = shipped()
     empty = {"source": "youtube"}
 
-    for node in found.node_kinds():
-        assert found.keeps(node.ref, empty, {}) in (True, False), node.ref
+    for one in found.augmentations():
+        if one.orders:
+            assert isinstance(found.ranks(one.ref, empty, {}), float), one.ref
+        else:
+            assert found.keeps(one.ref, empty, {}) in (True, False), one.ref
 
 
 def test_a_condition_is_told_whether_an_item_is_a_broadcast(db, here):
@@ -541,3 +544,218 @@ def test_a_condition_is_told_whether_an_item_is_a_broadcast(db, here):
         # No details in hand is not a broadcast: the lookup happens after
         # discovery and may never say.
         assert sync_service._plugin_refusal(soon, path, None) is None
+
+
+# -- augmentations that order rather than narrow ---------------------------
+#
+# Which of the app's boxes an augmentation slots under says what it has to
+# answer: `keep` under a Filter, `rank` under a Sort. Both are questions about
+# one item, which is the one shape that fits inside the sandbox.
+
+
+ORDERING = """return {
+  api = 1, name = "Measure",
+  augmentations = {
+    { kind = "by-length", label = "How long it is", under = "sort",
+      rank = function(item) return #(item.title or "") end },
+  },
+}"""
+
+
+def test_an_augmentation_says_which_box_it_goes_under(here):
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    found = registry.read(here)
+
+    one = found.augmentation("measure:by-length")
+    assert one.under == "sort" and one.orders is True
+    # The default is a Filter, which is what most of them are.
+    assert registry.read(SHIPPED).augmentation("shape:has-words").under == "filter"
+
+
+def test_an_ordering_without_a_way_to_rank_is_refused(here):
+    """A piece that could never do anything is a plugin that does not load,
+    rather than something that quietly sits there."""
+    (here / "lazy.lua").write_text("""
+        return { api = 1, augmentations = { { kind = "lazy", under = "sort",
+          keep = function() return true end } } }
+    """, encoding="utf-8")
+    found = registry.read(here)
+
+    assert "goes under a sort, so it needs a `rank` function" in found.broken[0].trouble
+
+
+def test_a_condition_without_a_way_to_keep_is_refused(here):
+    (here / "lazy.lua").write_text("""
+        return { api = 1, augmentations = { { kind = "lazy",
+          rank = function() return 1 end } } }
+    """, encoding="utf-8")
+    found = registry.read(here)
+
+    assert "goes under a filter, so it needs a `keep` function" in found.broken[0].trouble
+
+
+def test_a_box_the_app_does_not_have_to_augment_is_refused(here):
+    """A Timer is about clocks and sittings, which is the host's own
+    machinery — there is nothing a plugin could put there."""
+    (here / "odd.lua").write_text("""
+        return { api = 1, augmentations = { { kind = "odd", under = "feed",
+          keep = function() return true end } } }
+    """, encoding="utf-8")
+    found = registry.read(here)
+
+    assert "`under` has to be" in found.broken[0].trouble
+    assert "“feed”" in found.broken[0].trouble
+
+
+def test_a_plugin_written_against_the_old_name_still_reads(here):
+    """`nodes` was the name when what a plugin declared was a box of its own.
+    Nothing about what it declares has changed, so nothing of anybody's
+    should stop loading."""
+    (here / "old.lua").write_text(ONE_BOX % "Old", encoding="utf-8")
+    found = registry.read(here)
+
+    assert found.broken == []
+    assert [one.ref for one in found.augmentations()] == ["old:only"]
+
+
+def test_an_ordering_answers_with_a_number(here):
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    found = registry.read(here)
+
+    assert found.ranks("measure:by-length", {"title": "abcd"}, {}) == 4.0
+    assert found.ranks("measure:by-length", {"title": ""}, {}) == 0.0
+
+
+def test_an_ordering_that_cannot_say_says_nothing(here):
+    """Rather than an invented position, which would quietly reorder a feed
+    and look deliberate."""
+    (here / "odd.lua").write_text("""
+        return { api = 1, name = "Odd", augmentations = {
+          { kind = "throws", under = "sort",
+            rank = function() error("no") end },
+          { kind = "talks", under = "sort",
+            rank = function() return "quite long" end },
+          { kind = "flips", under = "sort",
+            rank = function() return true end },
+        } }
+    """, encoding="utf-8")
+    found = registry.read(here)
+
+    for kind in ("throws", "talks", "flips"):
+        assert found.ranks(f"odd:{kind}", {"title": "x"}, {}) is None, kind
+
+
+def test_asking_a_condition_to_order_gets_nothing(here):
+    """And asking an ordering to judge lets the item by: each answers its own
+    question and nothing else."""
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    found = registry.read(here)
+
+    assert found.ranks("shape:has-words", {"title": "x"}, {}) is None
+    assert found.keeps("measure:by-length", {"title": "x"}, {}) is True
+
+
+# -- and on the canvas -----------------------------------------------------
+
+
+def test_an_ordering_slots_under_a_sort_and_nowhere_else(canvas, here):
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    registry.reload()
+
+    made = canvas.post("/graph/nodes", data={"kind": "sort"}).json()
+    sort_id = only(made, "sort")["id"]
+    filter_id = only(
+        canvas.post("/graph/nodes", data={"kind": "filter"}).json(), "filter"
+    )["id"]
+
+    refused = canvas.post(
+        "/graph/nodes",
+        data={"kind": "rule", "plugin_node": "measure:by-length",
+              "attach_to": str(filter_id)},
+    )
+    assert refused.status_code == 400
+    assert "Sort" in refused.json()["error"]
+
+    landed = canvas.post(
+        "/graph/nodes",
+        data={"kind": "rule", "plugin_node": "measure:by-length",
+              "attach_to": str(sort_id)},
+    ).json()
+    assert only(landed, "rule")["piece"]["under"] == sort_id
+    # The Sort says what it orders by, without being opened.
+    assert only(landed, "sort")["note"] == "how long it is first"
+
+
+def test_an_ordering_can_be_turned_round_from_its_panel(canvas, here):
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    registry.reload()
+
+    sort_id = only(canvas.post("/graph/nodes", data={"kind": "sort"}).json(), "sort")["id"]
+    piece = only(
+        canvas.post(
+            "/graph/nodes",
+            data={"kind": "rule", "plugin_node": "measure:by-length",
+                  "attach_to": str(sort_id)},
+        ).json(),
+        "rule",
+    )
+    # It carries the two ends the app's own Order piece carries, so the panel
+    # can offer them the same way.
+    assert piece["sort"]["desc"] is True
+
+    turned = canvas.post(
+        f"/graph/nodes/{piece['id']}",
+        data={"box_form": "1", "active": "1", "sort_dir": "asc"},
+    ).json()
+    assert only(turned, "rule")["sort"]["desc"] is False
+    assert only(turned, "sort")["note"] == "how long it is last"
+
+
+def test_the_palette_says_which_box_a_plugins_augmentation_goes_under(canvas, here):
+    """So the drag lights up only the boxes it can land on, before anything
+    has been asked of the server about what this one is."""
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    registry.reload()
+
+    body = canvas.get("/channels").text
+    row = [
+        chunk for chunk in body.split('<li class="palette-item"')
+        if 'data-plugin-node="measure:by-length"' in chunk
+    ][0]
+
+    assert 'data-under="sort"' in row
+    assert "palette-augment" in row   # and it is marked as an augmentation
+
+
+def test_a_sort_with_a_plugins_ordering_puts_the_batch_in_that_order(db, here):
+    """End to end, through the thing that actually orders a batch."""
+    from dealgo.services import graph as graph_module
+    from dealgo.services import sync as sync_service
+
+    (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
+    registry.reload()
+
+    with db.session_scope() as session:
+        channel = Channel(channel_id="UCone", title="One")
+        session.add(channel)
+        session.flush()
+        titles = ["mid", "the longest one here", "short"]
+        made = []
+        for index, title in enumerate(titles):
+            video = Video(video_id=f"v{index}", channel_pk=channel.id, title=title,
+                          status="pending")
+            session.add(video)
+            made.append(video)
+        session.flush()
+
+        box = graph_module.add_sort(session)
+        piece = graph_module.add_piece(
+            session, kind="rule", host=box, ref="measure:by-length"
+        )
+
+        # Biggest first: the plugin measures the title, so the longest leads.
+        ranked = sorted(made, key=lambda one: -sync_service.ordering_value(one, piece))
+        assert [one.title for one in ranked] == [
+            "the longest one here", "short", "mid"
+        ]
+        assert sync_service.ordering_value(made[1], piece) == float(len(titles[1]))

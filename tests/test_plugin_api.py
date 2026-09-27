@@ -29,7 +29,7 @@ def a_plugin(source: str, granted=frozenset(), plugin_id="api"):
 
 def ask(plugin, found, lua: str):
     """Run a snippet inside the plugin, through its own `probe` box."""
-    node = found.node(f"{plugin.id}:probe")
+    node = found.augmentation(f"{plugin.id}:probe")
     return plugin.box.call(node._keep, plugin.box.table(), plugin.box.table())
 
 
@@ -376,8 +376,8 @@ def test_two_plugins_each_get_their_own(db, two_accounts):
     opened = next(p for p in found.plugins if p.id == "open")
     shut = next(p for p in found.plugins if p.id == "shut")
     with site.acting_for(1):
-        saw = opened.box.call(found.node("open:probe")._keep, opened.box.table(), opened.box.table())
-        blind = shut.box.call(found.node("shut:probe2")._keep, shut.box.table(), shut.box.table())
+        saw = opened.box.call(found.augmentation("open:probe")._keep, opened.box.table(), opened.box.table())
+        blind = shut.box.call(found.augmentation("shut:probe2")._keep, shut.box.table(), shut.box.table())
 
     assert saw["n"] == 1
     assert blind["n"] == 0

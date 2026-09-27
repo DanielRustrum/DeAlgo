@@ -86,7 +86,7 @@ interface GraphNodeView {
   trigger: GraphTrigger | null;
   /** Sort boxes only. */
   sort: GraphSort | null;
-  /** What a plugin box is, when this is one. Null for every other kind. */
+  /** What a plugin's augmentation is, when this is one. Null otherwise. */
   plugin: GraphPlugin | null;
   /** Group nodes only: how big the rectangle is. */
   size: { width: number; height: number } | null;
@@ -151,6 +151,8 @@ interface GraphPlugin {
   /** Which plugin it came from — "YouTube" — for the word above the title. */
   plugin: string;
   blurb: string;
+  /** Which of the app's boxes it slots under: "filter" or "sort". */
+  under: string;
   fields: GraphPluginField[];
 }
 
@@ -311,9 +313,12 @@ interface GraphTrial {
 /** A palette row on its way to the canvas. */
 interface GraphDropping {
   kind: string;
-  /** Which of a plugin's boxes this is, as "<plugin>:<node>". Empty for
-   *  every kind the host knows by name. */
+  /** Which of a plugin's augmentations this is, as "<plugin>:<name>". Empty
+   *  for every kind the host knows by name. */
   which: string;
+  /** Which box a plugin's augmentation slots under. Empty for the host's
+   *  own kinds, which answer that from their kind alone. */
+  under: string;
   pointerId: number;
   ghost: HTMLElement;
 }
@@ -524,6 +529,7 @@ function asGraphPlugin(value: unknown): GraphPlugin | null {
     missing: typeof missing === "string" ? missing : null,
     plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
     blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
+    under: raw["under"] === "sort" ? "sort" : "filter",
     fields: fields.filter((one): boolean => one.name !== ""),
   };
 }
@@ -920,7 +926,7 @@ function graphTriggerLabel(node: GraphNodeView): string {
   // out; "Channel" said the same for a subreddit and a YouTube channel and
   // so said nothing at all.
   if (node.kind === "source") return graphSourceLabel(node);
-  // A plugin box is its plugin's, and saying so is more use than the word
+  // A plugin's augmentation is its plugin's, and saying so is more use than the word
   // "plugin" over a name that is already the box's own.
   if (node.plugin !== null && node.plugin.plugin !== "") return node.plugin.plugin;
   return graphKindLabel(node.kind);
@@ -1894,7 +1900,7 @@ function graphTakes(channel: GraphChannel): HTMLElement {
   return group;
 }
 
-/** A plugin box's own fields, exactly as its plugin declared them.
+/** A plugin augmentation's own fields, exactly as its plugin declared them.
  *
  *  The host knows none of these names. They are sent back under the names
  *  the plugin chose and stored as they came, because a column per field is
@@ -1928,14 +1934,15 @@ function graphPluginFields(form: HTMLElement, node: GraphNodeView): void {
   }
 
   if (node.piece?.under == null) {
+    const where = box.under === "sort" ? "a Sort" : "a Filter";
     form.appendChild(
-      graphElement(
-        "p",
-        "hint",
-        "Loose on the canvas. Drop it on a Filter box to slot it in.",
-      ),
+      graphElement("p", "hint", `Loose on the canvas. Drop it on ${where} box to slot it in.`),
     );
   }
+
+  // A plugin's ordering works its own number out, so there is no key to
+  // choose — only which end of it comes first.
+  if (node.sort !== null) graphEndsField(form, node.sort, "Which end first", node.title);
 
   if (box.fields.length === 0) {
     form.appendChild(graphElement("p", "hint", "Nothing to set: it judges on its own."));
@@ -2188,20 +2195,11 @@ function graphSortFields(form: HTMLElement, sort: GraphSort): void {
   }
   form.appendChild(graphLabelled("Order by", by));
 
-  const way = document.createElement("select");
-  way.name = "sort_dir";
-  for (const value of ["desc", "asc"] as const) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.selected = (value === "desc") === sort.desc;
-    way.appendChild(option);
-  }
   // "Most first" means one thing for a duration and another for a date, so
   // the ends are named after what is being sorted, and renamed when that
   // changes rather than leaving the reader to work out which end is which.
-  nameGraphSortEnds(way, sort, sort.by);
+  const way = graphEndsField(form, sort, "Which end first");
   by.addEventListener("change", (): void => nameGraphSortEnds(way, sort, by.value));
-  form.appendChild(graphLabelled("Which end first", way));
 
   form.appendChild(
     graphElement(
@@ -2210,6 +2208,34 @@ function graphSortFields(form: HTMLElement, sort: GraphSort): void {
       "The order things are added to the feed in. Views and likes are read when the details are fetched, so a video nobody has looked up yet sorts last.",
     ),
   );
+}
+
+/** Which end of an ordering comes first.
+ *
+ *  Shared, because a plugin's ordering is asked the same thing: it works its
+ *  own number out, and which end of that number leads is still the reader's
+ *  to choose. Given a name, it says "most X first" rather than "most first",
+ *  since a number nobody named needs saying what it is a number of. */
+function graphEndsField(
+  form: HTMLElement, sort: GraphSort, label: string, named = ""
+): HTMLSelectElement {
+  const way = document.createElement("select");
+  way.name = "sort_dir";
+  for (const value of ["desc", "asc"] as const) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.selected = (value === "desc") === sort.desc;
+    way.appendChild(option);
+  }
+  if (named === "") {
+    nameGraphSortEnds(way, sort, sort.by);
+  } else {
+    const [most, least] = way.options;
+    if (most !== undefined) most.textContent = `Most ${named.toLowerCase()} first`;
+    if (least !== undefined) least.textContent = `Least ${named.toLowerCase()} first`;
+  }
+  form.appendChild(graphLabelled(label, way));
+  return way;
 }
 
 /** Label the two ends for whatever is being sorted by. */
@@ -2483,7 +2509,7 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
   if (drag.kind === "move") {
     const held = state.nodes.find((one): boolean => one.id === drag.nodeId);
     if (held !== undefined && held.piece !== null && held.piece.under === null) {
-      markGraphSlotFor(state, event, held.id, held.kind);
+      markGraphSlotFor(state, event, held.id, held.kind, held.plugin?.under ?? "");
     }
   }
 
@@ -2605,7 +2631,7 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
     // be deleted and dragged out of the palette again.
     const loose = state.nodes.find((one): boolean => one.id === drag.nodeId);
     if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
-      const slot = graphSlotFor(state, event, loose.kind);
+      const slot = graphSlotFor(state, event, loose.kind, loose.plugin?.under ?? "");
       if (slot !== null && slot.under !== loose.id) {
         void applyGraph(
           state,
@@ -3513,9 +3539,10 @@ function beginGraphDrop(
   kind: string,
   which = "",
   named = "",
+  under = "",
 ): void {
   const ghost = graphElement("div", `graph-node kind-${graphPaletteKind(kind)} is-ghost`);
-  // A plugin box is named by its plugin, so the ghost carries that rather
+  // A plugin's row is named by its plugin, so the ghost carries that rather
   // than the word "plugin", which would tell the reader nothing.
   ghost.appendChild(
     graphElement("span", "graph-node-kind", named || graphPaletteName(kind)),
@@ -3525,7 +3552,7 @@ function beginGraphDrop(
   moveGraphGhost(ghost, event);
   document.body.appendChild(ghost);
 
-  state.dropping = { kind, which, pointerId: event.pointerId, ghost };
+  state.dropping = { kind, which, under, pointerId: event.pointerId, ghost };
 }
 
 function moveGraphGhost(ghost: HTMLElement, event: PointerEvent): void {
@@ -3581,11 +3608,19 @@ interface GraphSlot {
  *  The same answer the server gives, said here as well so a piece being
  *  dragged only lights up the boxes it can actually go into — a refusal you
  *  can see coming is better than one that arrives after the drop. */
-function graphPieceGoesUnder(piece: GraphNodeKind, box: GraphNodeKind): boolean {
+function graphPieceGoesUnder(
+  piece: GraphNodeKind, box: GraphNodeKind, under = ""
+): boolean {
   if (piece === "order") return box === "sort";
   if (graphConditionKinds().indexOf(piece) >= 0) return box === "filter";
-  // A plugin's condition goes where every other condition goes.
-  if (piece === "rule") return box === "filter";
+  // A plugin's augmentation goes where that plugin said. Unknown — a piece
+  // whose plugin is switched off — is allowed anywhere it could have gone,
+  // because refusing to move it as well would be twice the punishment for
+  // something that is not the canvas's fault.
+  if (piece === "rule") {
+    if (under === "") return box === "filter" || box === "sort";
+    return box === under;
+  }
   // A Timer, Reset, Alive or Lock. These say something about reading, which
   // is a question only these three boxes ask.
   return box === "feed" || box === "decay" || box === "expire";
@@ -3595,7 +3630,9 @@ function graphPieceGoesUnder(piece: GraphNodeKind, box: GraphNodeKind): boolean 
  *
  *  Null asks for every slot there is, which is what an ordinary drag wants
  *  before anything is known about what is being dragged. */
-function graphSlots(state: GraphState, held: GraphNodeKind | null = null): GraphSlot[] {
+function graphSlots(
+  state: GraphState, held: GraphNodeKind | null = null, under = ""
+): GraphSlot[] {
   const below = new Map<number, GraphNodeView[]>();
   for (const node of state.nodes) {
     const host = node.piece?.under;
@@ -3614,7 +3651,7 @@ function graphSlots(state: GraphState, held: GraphNodeKind | null = null): Graph
     // goes: offering a slot under a source box would be an invitation to
     // nothing. The same list the notch is drawn from.
     if (!graphTakesPieces(node.kind)) continue;
-    if (held !== null && !graphPieceGoesUnder(held, node.kind)) continue;
+    if (held !== null && !graphPieceGoesUnder(held, node.kind, under)) continue;
 
     // Walk to the end of whatever is already slotted in, so a second piece
     // lands under the first rather than beside it.
@@ -3638,12 +3675,13 @@ function graphSlots(state: GraphState, held: GraphNodeKind | null = null): Graph
 
 /** The slot a piece being dragged would drop into, if any. */
 function graphSlotFor(
-  state: GraphState, event: PointerEvent, held: GraphNodeKind | null = null
+  state: GraphState, event: PointerEvent,
+  held: GraphNodeKind | null = null, under = ""
 ): GraphSlot | null {
   const at = pointInGraph(state, event);
   let nearest: GraphSlot | null = null;
   let best = graphSlotReach();
-  for (const slot of graphSlots(state, held)) {
+  for (const slot of graphSlots(state, held, under)) {
     // Measured to the slot's middle, so a box is easiest to hit from
     // directly below it and hardest from off to one side.
     const dx = at.x - (slot.x + slot.width / 2);
@@ -3662,16 +3700,17 @@ function markGraphSlot(state: GraphState, event: PointerEvent): void {
   const dropping = state.dropping;
   const wanted =
     dropping !== null && graphIsPiece(dropping.kind as GraphNodeKind)
-      ? graphSlotFor(state, event, dropping.kind as GraphNodeKind)
+      ? graphSlotFor(state, event, dropping.kind as GraphNodeKind, dropping.under)
       : null;
   showGraphSlot(state, wanted);
 }
 
 /** The same, for a piece already on the canvas being dragged onto one. */
 function markGraphSlotFor(
-  state: GraphState, event: PointerEvent, moving: number, held: GraphNodeKind
+  state: GraphState, event: PointerEvent, moving: number,
+  held: GraphNodeKind, under = ""
 ): void {
-  const slot = graphSlotFor(state, event, held);
+  const slot = graphSlotFor(state, event, held, under);
   showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
 
@@ -3723,7 +3762,9 @@ function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   // landed. Dropped nowhere near one it is simply a piece on the canvas,
   // which can be picked up and put somewhere.
   const onto = graphIsPiece(dropping.kind as GraphNodeKind)
-    ? (graphSlotFor(state, event, dropping.kind as GraphNodeKind)?.under ?? null)
+    ? (graphSlotFor(
+        state, event, dropping.kind as GraphNodeKind, dropping.under,
+      )?.under ?? null)
     : null;
   void dropGraphNode(
     state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30),
@@ -3978,10 +4019,14 @@ function listenToPalette(state: GraphState, panel: HTMLElement): void {
     // answer by itself.
     const which = item.dataset["pluginNode"] ?? item.dataset["sourceKind"] ?? "";
     const named = item.querySelector(".palette-text strong")?.textContent ?? "";
+    // A plugin's augmentation says which of the app's boxes it goes under,
+    // so the drag lights up only those before anything has been asked of the
+    // server about what this one is.
+    const under = item.dataset["under"] ?? "";
 
     item.addEventListener("pointerdown", (event: PointerEvent): void => {
       event.preventDefault();
-      beginGraphDrop(state, event, kind, which, named);
+      beginGraphDrop(state, event, kind, which, named, under);
     });
     // Pressed rather than dragged: it goes in the middle of the view, which
     // is the only spot the reader is certainly looking at.

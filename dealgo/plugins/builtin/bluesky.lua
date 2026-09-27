@@ -92,7 +92,7 @@ return {
 
   -- One box, which is what a plugin with a single thing to offer looks like
   -- in the palette: the row shows under Plugins with no fold of its own.
-  nodes = {
+  augmentations = {
     {
       kind = "said-something",
       label = "Said something",

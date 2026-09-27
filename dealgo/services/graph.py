@@ -213,11 +213,28 @@ AUGMENTATIONS: tuple[str, ...] = (
 #: unslot pieces somebody has already placed.
 PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     **{one.kind: (one.under,) for one in CONDITIONS},
-    # A plugin's condition goes where every other condition goes. There is
-    # no plugin box for it to hang off: a plugin widens what a Filter can be
-    # told rather than putting a second kind of Filter on the canvas.
-    RULE: ("filter",),
 }
+
+
+def piece_hosts(piece: GraphNode) -> tuple[str, ...] | None:
+    """Which boxes this particular piece may be slotted under.
+
+    None means anywhere, which is what the four older pieces answer.
+
+    A plugin's augmentation is asked of the plugin rather than read off a
+    table here: what it goes under is the plugin's to declare, and a Filter
+    and a Sort ask different enough questions that a piece answering one
+    would do nothing under the other.
+    """
+    if piece.kind != RULE:
+        return PIECE_HOSTS.get(piece.kind)
+    from ..plugins import registry
+
+    found = registry.current().augmentation(piece.plugin_ref or "")
+    # Its plugin is switched off or gone. It narrows nothing while that is
+    # true, and refusing to move it as well would be twice the punishment
+    # for something that is not the canvas's fault.
+    return None if found is None else (found.under,)
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)
@@ -445,14 +462,18 @@ class Route:
     def order(self) -> GraphNode | None:
         """What decides this path's order, if anything does.
 
-        The Order piece under the last sort box: the nearest the feed has the
-        final say, because that is the one describing what arrives. A sort
-        box with nothing slotted under it orders nothing, the same way a
+        The ordering piece under the last sort box: the nearest the feed has
+        the final say, because that is the one describing what arrives. A
+        sort box with nothing slotted under it orders nothing, the same way a
         Filter with no conditions narrows nothing.
+
+        Either the app's own Order piece or a plugin's ordering. Both answer
+        the same question — where does this item go in the batch — so which
+        of the two it is, is the ordering's business rather than the path's.
         """
         for box in reversed(self.sorts):
             for piece in self.slots.get(box.id, []):
-                if piece.kind == "order" and piece.enabled:
+                if piece.enabled and piece.kind in ("order", RULE):
                     return piece
         return None
 
@@ -625,6 +646,8 @@ def _slot_in(found: list[Route], all_nodes: list[GraphNode]) -> list[Route]:
     }
     for path in found:
         path.slots = slots
+        # Only the ones under a Filter: a plugin's ordering is under a Sort,
+        # and is read as the path's order rather than asked of each item.
         path.checks = [
             piece
             for box in path.filters
@@ -1099,7 +1122,7 @@ def attach(
     # Where this kind of piece is allowed to end up. A chain belongs to the
     # box at the top of it, so what matters is that box and not whatever the
     # piece was dropped directly onto.
-    wanted = PIECE_HOSTS.get(piece.kind)
+    wanted = piece_hosts(piece)
     if wanted is not None:
         landing = host if host.kind not in AUGMENTATIONS else host_of(nodes(session, owner), host)
         if landing is None or landing.kind not in wanted:
@@ -2180,7 +2203,7 @@ def _ranked(video: Video, order: GraphNode) -> tuple[float, int]:
     """Where this video lands in a sorted batch, as the sort box sees it."""
     from . import sync as sync_service
 
-    value = sync_service._sort_value(video, order.sort_by or DEFAULT_SORT_BY)
+    value = sync_service.ordering_value(video, order)
     return (-value if (order.sort_dir or "desc") == "desc" else value, video.id)
 
 
@@ -2750,7 +2773,16 @@ def add_piece(
     session.add(piece)
     session.flush()
     if host is not None:
-        attach(session, piece, host, owner)
+        # A piece has to exist before it can be slotted in — it is found by
+        # id — so a refused drop has to take it away again. Otherwise saying
+        # "that goes under a Sort" would leave the thing it refused lying on
+        # the canvas, which is a refusal that did half of what was asked.
+        try:
+            attach(session, piece, host, owner)
+        except GraphError:
+            session.delete(piece)
+            session.flush()
+            raise
     return piece
 
 

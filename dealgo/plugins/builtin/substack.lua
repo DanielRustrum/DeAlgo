@@ -63,7 +63,7 @@ return {
     },
   },
 
-  nodes = {
+  augmentations = {
     {
       kind = "long-read",
       label = "Long read",

@@ -136,7 +136,7 @@
 {% macro plugin_row(node, plugin) -%}
   <li class="palette-item" data-palette="{{ node.palette }}"
       {% if node.palette == 'source' %}data-source-kind="{{ node.ref }}"
-      {% else %}data-plugin-node="{{ node.ref }}"{% endif %}
+      {% else %}data-plugin-node="{{ node.ref }}" data-under="{{ node.under }}"{% endif %}
       tabindex="0" role="button">
     <span class="palette-swatch kind-{{ node.swatch }}"></span>
     <span class="palette-text">
@@ -144,7 +144,8 @@
       <span class="palette-blurb">{{ node.blurb or 'From ' ~ plugin ~ '.' }}</span>
     </span>
     {% if is_augmentation(node.palette) %}
-      <span class="palette-badge" title="An augmentation: it slots under a Filter box">
+      <span class="palette-badge"
+            title="An augmentation: it slots under {{ 'a Sort' if node.under == 'sort' else 'a Filter' }} box">
         {{ augment_mark() }}
       </span>
     {% endif %}
@@ -181,7 +182,12 @@
 
         {# Augmentations rather than boxes: each slots under something and
            changes what that something does, instead of sitting on a path.
-           Every row that does is marked, here and wherever else one turns up. #}
+           Every row that is one is marked, here and wherever else one turns
+           up — the conditions used to be filed apart, which said they were a
+           different sort of thing when they are the same sort of thing.
+
+           In the order of what they slot under: the ones about reading a
+           feed, then what a Filter narrows by, then what a Sort orders by. #}
         <details class="palette-group">
           <summary>Augmentations</summary>
           <ul class="palette-list">
@@ -189,15 +195,6 @@
             {{ node_row('reset', 'Reset', 'When that time comes back — a cron. Drop it on a box.') }}
             {{ node_row('alive', 'Alive', 'Only between two times of day. Narrows whatever else is slotted in.') }}
             {{ node_row('lock', 'Lock', 'Makes the Timer above it one you cannot pause.') }}
-          </ul>
-        </details>
-
-        {# Conditions: what a Filter narrows by and what a Sort orders by,
-           one piece each. A box saying "Filter" told you nothing about what
-           it filtered; a piece saying "Longer than" says it on the canvas. #}
-        <details class="palette-group">
-          <summary>Conditions</summary>
-          <ul class="palette-list">
             {{ node_row('has-words', 'Title has', 'Only what matches. Words, or /a regex/. Goes under a Filter.') }}
             {{ node_row('lacks-words', 'Title lacks', 'Holds anything that matches. Goes under a Filter.') }}
             {{ node_row('longer-than', 'Longer than', 'Holds anything shorter. Goes under a Filter.') }}

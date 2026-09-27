@@ -36,7 +36,7 @@ def a_plugin(body: str, granted=frozenset({"account"})):
 
 
 def ask(found, plugin):
-    return plugin.box.call(found.node("sender:probe")._keep, plugin.box.table(), plugin.box.table())
+    return plugin.box.call(found.augmentation("sender:probe")._keep, plugin.box.table(), plugin.box.table())
 
 
 @pytest.fixture

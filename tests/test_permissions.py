@@ -300,7 +300,7 @@ def test_the_request_budget_is_per_call_not_for_ever():
     _, client = a_client({"https://example.com/a": (200, b"hello")})
     found = registry.read(folder, granted={"fetcher": frozenset({"network"})}, http=client)
     plugin = found.plugins[0]
-    probe = found.node("fetcher:probe")
+    probe = found.augmentation("fetcher:probe")
 
     said = [
         plugin.box.call(probe._keep, plugin.box.table(), plugin.box.table())

@@ -127,18 +127,37 @@ class Field:
     placeholder: str = ""
 
 
-@dataclass(frozen=True)
-class NodeKind:
-    """A box a plugin puts in the palette.
+#: Which of the app's boxes a plugin may add an augmentation to, and what
+#: that augmentation has to answer to be one.
+#:
+#: Only these two, because only these two ask a question a sandbox can
+#: answer: something about one item, worked out from what it was handed. A
+#: Timer or an Alive is about clocks and sittings, which is the host's own
+#: machinery and nothing a plugin could implement.
+AUGMENTS: dict[str, str] = {"filter": "keep", "sort": "rank"}
 
-    It is a filter: given an item and whatever its fields were set to, it
-    answers whether that item may carry on down the path. A pure question
-    with a yes-or-no answer, which is the one shape that fits inside the
-    sandbox — no network, no database, nothing to be trusted with.
+
+@dataclass(frozen=True)
+class Augmentation:
+    """Something a plugin adds to one of the app's boxes.
+
+    It is slotted under a box on the canvas and changes what that box does.
+    A plugin has no box of its own: it widens what the app's Filter and Sort
+    can be told, rather than standing a second kind of either beside them.
+
+    Two jobs, and which one it is, is which box it goes under:
+
+    * **Under a Filter it narrows.** Given an item and whatever its fields
+      were set to, `keep` answers whether that item may carry on.
+    * **Under a Sort it orders.** `rank` answers with a number, and the batch
+      is put in order of it.
+
+    Both are pure questions about one item, which is the one shape that fits
+    inside the sandbox — no network, no database, nothing to be trusted with.
     """
 
-    #: Unique across every plugin, because a node has to be found again from
-    #: what is stored against it. Written "<plugin>:<node>".
+    #: Unique across every plugin, because one has to be found again from
+    #: what is stored against it. Written "<plugin>:<augmentation>".
     ref: str
     kind: str
     label: str
@@ -146,7 +165,14 @@ class NodeKind:
     fields: tuple[Field, ...]
     plugin: str
     plugin_id: str
+    #: Which of the app's boxes it slots under: "filter" or "sort".
+    under: str = "filter"
     _keep: Any = None
+    _rank: Any = None
+
+    @property
+    def orders(self) -> bool:
+        return self.under == "sort"
 
 
 @dataclass
@@ -161,7 +187,9 @@ class Plugin:
     #: else on this object is to be trusted.
     trouble: str | None = None
     sources: list[SourceKind] = field(default_factory=list)
-    nodes: list[NodeKind] = field(default_factory=list)
+    #: What it adds to the app's boxes. Named for what they are rather than
+    #: for what they were: a plugin declared boxes of its own once.
+    augments: list[Augmentation] = field(default_factory=list)
     #: How it writes back to its own service, if it can. The functions are
     #: the plugin's; what they are called is the host's vocabulary.
     publishes: dict[str, Any] = field(default_factory=dict)
@@ -234,34 +262,70 @@ class Registry:
     def source_kinds(self) -> list[SourceKind]:
         return [kind for plugin in self.working for kind in plugin.sources]
 
-    def node_kinds(self) -> list[NodeKind]:
-        return [kind for plugin in self.working for kind in plugin.nodes]
+    def augmentations(self) -> list[Augmentation]:
+        return [one for plugin in self.working for one in plugin.augments]
 
-    def node(self, ref: str) -> NodeKind | None:
-        return next((k for k in self.node_kinds() if k.ref == ref), None)
+    def augmentation(self, ref: str) -> Augmentation | None:
+        return next((one for one in self.augmentations() if one.ref == ref), None)
+
+    def _asking(self, ref: str, hook: str) -> tuple[Augmentation, "Sandbox", Any] | None:
+        """One augmentation's function, and the sandbox to call it in.
+
+        None where there is nothing to call: the plugin is switched off, or
+        gone, or this is not the kind of augmentation being asked for.
+        """
+        found = self.augmentation(ref)
+        if found is None:
+            return None
+        asking = getattr(found, hook, None)
+        if asking is None:
+            return None
+        plugin = next((p for p in self.working if p.id == found.plugin_id), None)
+        if plugin is None or plugin.box is None:
+            return None
+        return found, plugin.box, asking
 
     def keeps(self, ref: str, item: dict[str, object], settings: dict[str, str]) -> bool:
-        """Whether a plugin's box lets this item carry on.
+        """Whether a plugin's condition lets this item carry on.
 
-        A box that throws, or answers with something that is not a yes or a
-        no, lets the item by. A filter nobody can read the mind of should not
+        One that throws, or answers with something that is not a yes or a no,
+        lets the item by. A filter nobody can read the mind of should not
         silently swallow a feed: the failure belongs in the log, and the item
         belongs wherever it was going.
         """
-        found = self.node(ref)
-        if found is None or found._keep is None:
+        asking = self._asking(ref, "_keep")
+        if asking is None:
             return True
-        plugin = next((p for p in self.working if p.id == found.plugin_id), None)
-        if plugin is None or plugin.box is None:
-            return True
+        found, box, keep = asking
         try:
-            said = plugin.box.call(
-                found._keep, plugin.box.table(**item), plugin.box.table(**settings)
-            )
+            said = box.call(keep, box.table(**item), box.table(**settings))
         except PluginError as exc:
             log.warning("%s could not judge an item: %s", found.plugin, exc)
             return True
         return said is not False
+
+    def ranks(
+        self, ref: str, item: dict[str, object], settings: dict[str, str]
+    ) -> float | None:
+        """Where a plugin's ordering puts this item. Bigger comes first.
+
+        None where it could not say — it threw, or answered with something
+        that is not a number. The batch then falls back to the order it
+        arrived in for that item rather than to an invented position, because
+        a made-up number would quietly reorder a feed and look deliberate.
+        """
+        asking = self._asking(ref, "_rank")
+        if asking is None:
+            return None
+        found, box, rank = asking
+        try:
+            said = box.call(rank, box.table(**item), box.table(**settings))
+        except PluginError as exc:
+            log.warning("%s could not order an item: %s", found.plugin, exc)
+            return None
+        if isinstance(said, bool) or not isinstance(said, (int, float)):
+            return None
+        return float(said)
 
     def kind(self, name: str) -> SourceKind | None:
         return next((k for k in self.source_kinds() if k.kind == name), None)
@@ -729,7 +793,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
     try:
         plugin.wants = _wants(made.get("permissions"))
         plugin.sources = _sources(plugin, made.get("sources"))
-        plugin.nodes = _nodes(plugin, made.get("nodes"))
+        plugin.augments = _augmentations(plugin, _declared(made))
         plugin.publishes, plugin.costs = _publisher(made.get("publisher"))
     except PluginError as exc:
         plugin.trouble = str(exc)
@@ -775,7 +839,7 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     plugin.box = box
     try:
         plugin.sources = _sources(plugin, made.get("sources"))
-        plugin.nodes = _nodes(plugin, made.get("nodes"))
+        plugin.augments = _augmentations(plugin, _declared(made))
         plugin.publishes, plugin.costs = _publisher(made.get("publisher"))
     except PluginError as exc:  # pragma: no cover - it parsed a moment ago
         plugin.trouble = str(exc)
@@ -843,26 +907,43 @@ def _publisher(given: object) -> tuple[dict[str, Any], dict[str, int]]:
     return doing, prices
 
 
-def _nodes(plugin: Plugin, given: object) -> list[NodeKind]:
-    """The boxes a plugin puts in the palette, checked before they are drawn."""
+def _augmentations(plugin: Plugin, given: object) -> list[Augmentation]:
+    """What a plugin adds to the app's boxes, checked before it is drawn.
+
+    Each says which box it slots under and answers the question that box
+    asks: `keep` for a Filter, `rank` for a Sort. Both are checked here, so
+    an augmentation that could never do anything is a plugin that does not
+    load rather than a piece that quietly sits there.
+    """
     if given is None:
         return []
     if not isinstance(given, list):
-        raise PluginError("`nodes` has to be a list of tables")
+        raise PluginError("`augmentations` has to be a list of tables")
 
-    made: list[NodeKind] = []
+    made: list[Augmentation] = []
     for entry in given:
         if not isinstance(entry, dict):
-            raise PluginError("every entry in `nodes` has to be a table")
+            raise PluginError("every entry in `augmentations` has to be a table")
         name = str(entry.get("kind") or "").strip()
         if not name:
-            raise PluginError("a node needs a `kind`")
+            raise PluginError("an augmentation needs a `kind`")
         if not set(name) <= PLAIN:
-            raise PluginError(f"“{name}” is not a usable node kind")
-        if not callable(entry.get("keep")):
-            raise PluginError(f"node “{name}” needs a `keep` function")
+            raise PluginError(f"“{name}” is not a usable augmentation kind")
+
+        under = str(entry.get("under") or "filter").strip().lower()
+        wanted = AUGMENTS.get(under)
+        if wanted is None:
+            named = " or ".join(f"“{one}”" for one in AUGMENTS)
+            raise PluginError(
+                f"augmentation “{name}”: `under` has to be {named}, not “{under}”"
+            )
+        if not callable(entry.get(wanted)):
+            raise PluginError(
+                f"augmentation “{name}” goes under a {under}, "
+                f"so it needs a `{wanted}` function"
+            )
         made.append(
-            NodeKind(
+            Augmentation(
                 ref=f"{plugin.id}:{name}",
                 kind=name,
                 label=str(entry.get("label") or name.title()),
@@ -870,24 +951,38 @@ def _nodes(plugin: Plugin, given: object) -> list[NodeKind]:
                 fields=_fields(name, entry.get("fields")),
                 plugin=plugin.title,
                 plugin_id=plugin.id,
+                under=under,
                 _keep=entry.get("keep"),
+                _rank=entry.get("rank"),
             )
         )
     return made
+
+
+def _declared(made: dict[str, object]) -> object:
+    """What a plugin's file offered, under either name.
+
+    `nodes` was the name when what a plugin declared was a box of its own.
+    It is an augmentation of one of the app's boxes now, and `augmentations`
+    is what to call it — but a plugin written against the old name still
+    reads, because nothing about what it declares has changed.
+    """
+    offered = made.get("augmentations")
+    return made.get("nodes") if offered is None else offered
 
 
 def _fields(node: str, given: object) -> tuple[Field, ...]:
     if given is None:
         return ()
     if not isinstance(given, list):
-        raise PluginError(f"node “{node}”: `fields` has to be a list of tables")
+        raise PluginError(f"augmentation “{node}”: `fields` has to be a list of tables")
     made: list[Field] = []
     for entry in given:
         if not isinstance(entry, dict):
-            raise PluginError(f"node “{node}”: every field has to be a table")
+            raise PluginError(f"augmentation “{node}”: every field has to be a table")
         name = str(entry.get("name") or "").strip()
         if not name or not set(name) <= PLAIN:
-            raise PluginError(f"node “{node}”: a field needs a plain `name`")
+            raise PluginError(f"augmentation “{node}”: a field needs a plain `name`")
         made.append(
             Field(
                 name=name,

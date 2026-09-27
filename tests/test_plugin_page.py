@@ -401,7 +401,7 @@ ASKS = """return {
 def probe(plugin_id="asks"):
     """What the plugin can actually see from inside its own sandbox."""
     found = registry.current()
-    node = found.node(f"{plugin_id}:probe")
+    node = found.augmentation(f"{plugin_id}:probe")
     owner = next(p for p in found.plugins if p.id == plugin_id)
     return owner.box.call(node._keep, owner.box.table(), owner.box.table())
 

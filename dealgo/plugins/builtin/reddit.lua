@@ -87,7 +87,7 @@ return {
   -- Boxes for the canvas. Each judges Reddit's own posts and lets everything
   -- else by: a box about the shape of a Reddit post has no opinion about a
   -- YouTube upload, and a filter with no opinion passes.
-  nodes = {
+  augmentations = {
     {
       kind = "self-posts",
       label = "Self posts",

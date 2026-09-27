@@ -447,7 +447,7 @@ return {
   -- What kind of thing a YouTube item is lives here rather than in the host:
   -- a Short, a premiere and a community post are YouTube's own distinctions,
   -- and the host has no business knowing the difference.
-  nodes = {
+  augmentations = {
     {
       kind = "no-videos",
       label = "No videos",

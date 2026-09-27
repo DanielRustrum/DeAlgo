@@ -1504,11 +1504,14 @@ def test_the_palette_folds_away_what_is_optional(canvas):
 
     assert "<summary>Operations</summary>" in body
     assert "<summary>Triggers</summary>" in body
-    # Operations, Augmentations, Conditions, Triggers, Plugins, Layout. The plugins
-    # one is there because a shipped plugin offers conditions; a plugin
+    # Operations, Augmentations, Triggers, Plugins, Layout. The plugins one
+    # is there because a shipped plugin offers augmentations; a plugin
     # offering none adds nothing.
-    assert '<summary>Conditions</summary>' in body
-    assert body.count('<details class="palette-group">') == 6
+    #
+    # The conditions are filed under Augmentations rather than apart from
+    # them: they are the same sort of thing, and two folds said they were not.
+    assert '<summary>Conditions</summary>' not in body
+    assert body.count('<details class="palette-group">') == 5
     assert "<summary>Plugins</summary>" in body
     assert "palette-group\" open" not in body
 
@@ -4044,3 +4047,18 @@ def test_a_box_whose_plugin_was_switched_off_says_so(canvas, db, monkeypatch):
     ][0]
 
     assert lost["asks"]["known"] is False
+
+
+def test_a_refused_drop_leaves_nothing_behind(canvas):
+    """A piece has to exist before it can be slotted in — it is found by id —
+    so a refusal has to take it away again. Otherwise saying "that goes under
+    a Sort" would leave the thing it refused lying on the canvas."""
+    graph_now = canvas.post("/graph/nodes", data={"kind": "filter"}).json()
+    box_id = only(graph_now, "filter")["id"]
+
+    refused = canvas.post(
+        "/graph/nodes", data={"kind": "order", "attach_to": str(box_id)}
+    )
+    assert refused.status_code == 400
+
+    assert boxes(canvas.get("/api/graph").json(), "order") == []

@@ -24,11 +24,13 @@
         {% for kind in pending.plugin.sources %}
         <li>Reads <strong>{{ kind.label }}</strong> sources — {{ kind.example }}</li>
         {% endfor %}
-        {% for node in pending.plugin.nodes %}
-        <li>A box for the canvas: <strong>{{ node.label }}</strong>
+        {% for node in pending.plugin.augments %}
+        <li>{{ 'Orders' if node.orders else 'Narrows' }} what goes through a
+          <strong>{{ 'Sort' if node.orders else 'Filter' }}</strong> box:
+          <strong>{{ node.label }}</strong>
           {%- if node.blurb %} — {{ node.blurb }}{% endif %}</li>
         {% endfor %}
-        {% if not pending.plugin.sources and not pending.plugin.nodes %}
+        {% if not pending.plugin.sources and not pending.plugin.augments %}
         <li>Nothing yet.</li>
         {% endif %}
       </ul>
