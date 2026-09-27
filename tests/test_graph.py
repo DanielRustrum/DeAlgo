@@ -4085,13 +4085,13 @@ def test_every_augmentation_row_says_where_it_goes(canvas):
         found = re.search(r'data-plugin-node="([^"]+)"', row)
         ref = found.group(1) if found else ""
         wanted = graph.hosts_for(kind.group(1), ref)
-        where = graph.goes_under(kind.group(1), ref)
-        article = "an" if where[:1] in "AEIOU" else "a"
 
-        # Once as a sentence for the reader…
-        said = re.search(r'palette-under">\s*(.*?)\s*</span>', row, re.S)
-        assert said is not None, row
-        assert said.group(1) == f"Goes under {article} {where} box"
+        # Once as a pill per box, named and in that box's own colour…
+        pills = re.findall(r'palette-pill kind-([a-z-]+)">(.*?)</span>', row)
+        assert [one for one, _ in pills] == list(wanted), row
+        assert [named for _, named in pills] == [
+            graph.BOX_NAMES[one] for one in wanted
+        ]
         # …and once as the list the canvas lights up while it is dragged.
         carried = re.search(r'data-under="([a-z,-]*)"', row)
         assert carried is not None and carried.group(1) == ",".join(wanted)

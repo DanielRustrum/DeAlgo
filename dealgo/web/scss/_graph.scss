@@ -914,9 +914,24 @@ $tab: 18px;
 .palette-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .palette-text strong { font-size: 13px; }
 .palette-blurb { font-size: 11.5px; color: var(--muted); }
-// Where an augmentation goes, under its description. In the green the piece
-// and the notch wear, so the sentence and the shape you aim at agree.
-.palette-under { font-size: 11px; color: $piece; }
+// Where an augmentation goes, under its description: the boxes it may be
+// slotted under, named. Each wears its own box's colour, so the pill and the
+// box on the canvas are recognisably the same thing.
+.palette-under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.palette-pill {
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.palette-pill.kind-feed { color: var(--accent); }
+.palette-pill.kind-filter { color: var(--warn); }
+.palette-pill.kind-sort { color: #7aa2f7; }
+.palette-pill.kind-decay,
+.palette-pill.kind-expire { color: #2ac3de; }
 
 // The mark on a row that is an augmentation. Pushed to the far edge and quiet:
 // it answers "does this slot under something?" at a glance, and the rows that

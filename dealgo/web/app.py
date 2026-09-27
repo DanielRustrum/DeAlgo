@@ -280,8 +280,8 @@ TEMPLATES.env.globals["is_augmentation"] = (
 # And which boxes it goes under, for the row to say so: once as a sentence
 # under the description, once as the list the canvas lights up while it is
 # being dragged. Both from the table the drop itself is checked against.
-TEMPLATES.env.globals["goes_under"] = (
-    lambda kind, ref="": graph_service.goes_under(kind, ref)
+TEMPLATES.env.globals["host_boxes"] = (
+    lambda kind, ref="": graph_service.host_boxes(kind, ref)
 )
 TEMPLATES.env.globals["host_kinds"] = (
     lambda kind, ref="": ",".join(graph_service.hosts_for(kind, ref))

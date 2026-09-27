@@ -254,18 +254,18 @@ def hosts_for(kind: str, ref: str = "") -> tuple[str, ...]:
     return () if found is None else (found.under,)
 
 
-def goes_under(kind: str, ref: str = "") -> str:
-    """Where one goes, said out loud: "a Feed, a Decay or an Expire box".
+def host_boxes(kind: str, ref: str = "") -> list[dict[str, str]]:
+    """Where one goes, as the boxes themselves: their kind and their name.
 
-    "" where there is nothing to say, so a caller can print it or not
-    without asking a second question about which case it is in.
+    Named rather than described, because a list of names is what the reader
+    is actually going to look for in the palette — and because two of them
+    read no worse than one, where a sentence has to choose between "or" and
+    "and" for something that is neither.
     """
-    named = [BOX_NAMES.get(one, one.title()) for one in hosts_for(kind, ref)]
-    if not named:
-        return ""
-    if len(named) == 1:
-        return named[0]
-    return ", ".join(named[:-1]) + " or " + named[-1]
+    return [
+        {"kind": one, "label": BOX_NAMES.get(one, one.title())}
+        for one in hosts_for(kind, ref)
+    ]
 
 
 def piece_hosts(piece: GraphNode) -> tuple[str, ...] | None:

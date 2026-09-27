@@ -119,13 +119,20 @@
    slots under something; this says under what, which is the next thing you
    would ask and the thing that decides whether this row is any use to you.
 
+   The boxes themselves, each in its own colour, because a name is what you
+   then go looking for in the palette — and two of them read no worse than
+   one, where a sentence has to choose between "or" and "and" for something
+   that is neither.
+
    From the same table the drop is checked against, so a row cannot promise
    somewhere the canvas would then refuse. #}
 {% macro goes_under_line(kind, ref='') -%}
-  {% set where = goes_under(kind, ref) %}
-  {% if where %}
+  {% set boxes = host_boxes(kind, ref) %}
+  {% if boxes %}
     <span class="palette-under">
-      Goes under {{ 'an' if where[0] in 'AEIOU' else 'a' }} {{ where }} box
+      {%- for box in boxes -%}
+        <span class="palette-pill kind-{{ box.kind }}">{{ box.label }}</span>
+      {%- endfor -%}
     </span>
   {% endif %}
 {%- endmacro %}
