@@ -240,16 +240,18 @@ def test_a_removal_cannot_reach_outside_the_folder(admin, here, target):
         assert "not a plugin" in answer.text
 
 
-# -- reading the folder again ----------------------------------------------
+# -- reading the folder ------------------------------------------------------
 
 
 def test_a_file_put_there_by_hand_is_picked_up(admin, here):
-    """The folder is the truth; the page is a view of it."""
+    """The folder is the truth; the page is a view of it. Read on start now
+    rather than on a button, so a plugin dropped in by hand arrives with the
+    next one."""
     (here / "byhand.lua").write_text(GOOD.replace("mine", "byhand").replace("Mine", "By Hand"), encoding="utf-8")
 
-    answer = admin.post("/admin/plugins/reload", follow_redirects=True)
+    registry.reload()
 
-    assert "By Hand" in answer.text
+    assert "By Hand" in admin.get("/admin/plugins").text
     assert registry.current().recognise("byhand/thing") is not None
 
 
@@ -275,8 +277,8 @@ def test_switching_one_off_does_not_make_it_broken(admin):
     assert found.broken == []
     youtube = next(p for p in found.plugins if p.id == "youtube")
     assert youtube.loaded is True and youtube.paused is True
-    # Still readable, so you can see what you switched off.
-    assert admin.get("/admin/plugins/youtube/source").status_code == 200
+    # And still listed, so you can see what you switched off.
+    assert "YouTube" in admin.get("/admin/plugins").text
 
 
 def test_switching_it_back_on_restores_what_it_offered(admin):
@@ -357,31 +359,17 @@ def test_switching_something_that_is_not_here_is_refused(admin):
     assert "not a plugin here" in answer.text
 
 
-# -- reading one -----------------------------------------------------------
-
-
-def test_a_plugin_can_be_read_without_leaving_the_page(admin):
-    """It is code that runs here. Being able to read it is the least this
-    owes anybody."""
-    body = admin.get("/admin/plugins/reddit/source").text
-
-    assert "recognise" in body
-    assert "openrss.org" in body, "the whole file, not a summary"
-
-
-def test_reading_something_that_is_not_here_is_refused(admin):
-    answer = admin.get("/admin/plugins/nope/source", follow_redirects=True)
-
-    assert "not a plugin here" in answer.text
-
-
-def test_a_member_cannot_read_a_plugin(admin):
+def test_a_member_cannot_switch_a_plugin_off(admin):
+    """Which plugins this install runs is not a per-account preference."""
     admin.post("/logout")
     admin.post("/login", data={"username": "sam", "password": "member-password"})
 
-    refused = admin.get("/admin/plugins/reddit/source", follow_redirects=False)
+    refused = admin.post(
+        "/admin/plugins/reddit/pause", data={"on": "0"}, follow_redirects=False
+    )
 
     assert refused.status_code in (302, 303, 403)
+    assert registry.current().recognise("r/python") is not None
 
 
 # -- what a plugin is allowed to do ----------------------------------------

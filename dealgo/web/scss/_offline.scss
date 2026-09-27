@@ -208,21 +208,6 @@
 .pill-origin { color: var(--accent); text-decoration: none; }
 .pill-origin:hover { text-decoration: underline; }
 
-// The worked example. Wide and preformatted, so it scrolls rather than
-// wrapping Lua into something that would not run.
-.plugin-example {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  overflow-x: auto;
-  font-size: 12.5px;
-  line-height: 1.55;
-}
-.plugin-example code { white-space: pre; }
-
-// Beside the heading rather than under it: it acts on the list below.
-.panel-action { margin-left: auto; }
 
 
 // -- what a plugin is allowed to do ----------------------------------------

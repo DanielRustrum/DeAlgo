@@ -3753,59 +3753,6 @@ def add_account(
 #: megabyte of it is somebody uploading the wrong thing.
 MOST_PLUGIN_BYTES = 256 * 1024
 
-#: Shown on the page, so the shape is learnable without leaving it.
-PLUGIN_EXAMPLE = """-- What you return is configuration. It says what this plugin is and what
--- it offers; nothing in it does anything by itself.
---
--- Anything it *does* to the site goes through `dealgo`, which it is handed
--- rather than importing — and which answers nothing it was not granted.
-
-return {
-  id = "example",  name = "Example",  version = "1.0.0",  api = 1,
-
-  -- Asked for by name, with a reason somebody can weigh. Untick any of them
-  -- and this still loads; it just finds that capability missing.
-  permissions = {
-    { name = "read", why = "To suggest a tag based on what you already watch." },
-  },
-
-  sources = {
-    {
-      kind = "example",
-      label = "Example",
-      example = "what somebody would type",
-      playlistable = false,
-
-      recognise = function(reference)
-        local name = string.match(reference, "^example/(%w+)$")
-        if not name then return nil end
-        return {
-          key   = "example/" .. name,
-          feed  = "https://example.com/" .. name .. "/feed",
-          title = name,
-        }
-      end,
-    },
-  },
-
-  nodes = {
-    {
-      kind = "already-watched",
-      label = "Not already watched",
-      blurb = "Holds anything from a source you are watching twice.",
-      keep = function(item)
-        -- `dealgo` is always there. Without the read permission it simply
-        -- answers with nothing, so this does no harm either way — and
-        -- `dealgo.permissions()` is how a plugin finds out which it is.
-        for _, source in ipairs(dealgo.sources()) do
-          if source.title == item.title then return false end
-        end
-        return true
-      end,
-    },
-  },
-}"""
-
 
 @app.get("/admin/plugins", response_class=HTMLResponse)
 def plugins_page(request: Request) -> HTMLResponse:
@@ -3853,7 +3800,6 @@ def _plugins_view(request: Request, pending: Context | None = None) -> HTMLRespo
                 for plugin in found.plugins
             ],
             "folder": mine,
-            "example": PLUGIN_EXAMPLE,
             "pending": pending,
             "known_permissions": permissions.KNOWN,
         },
@@ -3895,29 +3841,6 @@ def pause_plugin(request: Request, plugin_id: str, on: str = Form("")) -> Respon
         "/admin/plugins",
         ok=f"{found.title} switched off. What it recognised is no longer recognised; "
         "sources already being watched keep their own feed address and carry on.",
-    )
-
-
-@app.get("/admin/plugins/{plugin_id}/source", response_class=HTMLResponse)
-def plugin_source(request: Request, plugin_id: str) -> Response:
-    """Read a plugin's Lua.
-
-    A plugin is code that runs here, so being able to read it without leaving
-    the page is the least this owes anybody.
-    """
-    if not set(plugin_id) <= registry.PLAIN:
-        return redirect("/admin/plugins", err="That is not a plugin here.")
-    found = next((p for p in registry.current().plugins if p.id == plugin_id), None)
-    if found is None:
-        return redirect("/admin/plugins", err="That is not a plugin here.")
-    try:
-        text = found.path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return redirect("/admin/plugins", err=f"Could not be read: {exc}")
-    return render(
-        request,
-        "plugin_source.html",
-        {"plugin": found, "source": text},
     )
 
 
@@ -4096,17 +4019,6 @@ async def set_plugin_permissions(request: Request, plugin_id: str) -> Response:
         ok=f"{found.title} now has {len(granting)} of the "
         f"{len(wanted)} thing{'s' if len(wanted) != 1 else ''} it asked for.",
     )
-
-
-@app.post("/admin/plugins/reload")
-def reload_plugins(request: Request) -> Response:
-    """Read the folder again, for a file put there by hand."""
-    found = registry.reload()
-    broken = len(found.broken)
-    said = f"{len(found.working)} plugin{'s' if len(found.working) != 1 else ''} loaded"
-    if broken:
-        said += f", {broken} not"
-    return redirect("/admin/plugins", ok=said + ".")
 
 
 @app.post("/admin/plugins/{plugin_id}/remove")
