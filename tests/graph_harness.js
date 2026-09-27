@@ -92,7 +92,8 @@ async function main() {
     orderUnderFilter: context.graphPieceGoesUnder("order", "filter"),
     wordsUnderFilter: context.graphPieceGoesUnder("has-words", "filter"),
     wordsUnderFeed: context.graphPieceGoesUnder("has-words", "feed"),
-    ruleUnderPlugin: context.graphPieceGoesUnder("rule", "plugin"),
+    ruleUnderFilter: context.graphPieceGoesUnder("rule", "filter"),
+    ruleUnderFeed: context.graphPieceGoesUnder("rule", "feed"),
     timerUnderFeed: context.graphPieceGoesUnder("timer", "feed"),
     timerUnderFilter: context.graphPieceGoesUnder("timer", "filter"),
   };

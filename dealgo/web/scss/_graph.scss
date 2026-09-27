@@ -241,7 +241,6 @@
 .graph-node.kind-sort { border-left-color: #7aa2f7; }
 // A plugin's box. Its own colour, because "which of these came from a
 // plugin" is a thing worth being able to see at a glance on a busy canvas.
-.graph-node.kind-plugin { border-left-color: #bb9af7; }
 .graph-node.kind-feed { border-left-color: var(--accent); }
 // The two ends of a repository. One colour between them, because they are
 // one thing seen from either side — and it is neither a feed's nor a
@@ -329,8 +328,7 @@ $tab: 18px;
 .graph-node.kind-decay:not(.has-piece)::after,
 .graph-node.kind-expire:not(.has-piece)::after,
 .graph-node.kind-filter:not(.has-piece)::after,
-.graph-node.kind-sort:not(.has-piece)::after,
-.graph-node.kind-plugin:not(.has-piece)::after {
+.graph-node.kind-sort:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(#{$tab} / -2);
@@ -342,15 +340,6 @@ $tab: 18px;
   border: 1px solid var(--line);
   clip-path: inset(50% 0 0 0);
 }
-
-// What a plugin's box can be asked, listed in its panel. Plain rows: it is
-// something to read before going to the palette, not something to click.
-.graph-offers {
-  margin: 0; padding: 0; list-style: none;
-  display: flex; flex-direction: column; gap: 4px;
-  font-size: 12px; color: var(--muted);
-}
-.graph-offers strong { color: var(--text); font-weight: 500; }
 
 // Two ends of a stretch, side by side: they are one setting, and stacked
 // they read as two.
@@ -898,7 +887,6 @@ $tab: 18px;
 .palette-swatch.kind-filter { background: var(--warn); }
 .palette-swatch.kind-sort { background: #7aa2f7; }
 .palette-swatch.kind-group { background: var(--line); }
-.palette-swatch.kind-plugin { background: #bb9af7; }
 .palette-swatch.kind-deposit,
 .palette-swatch.kind-withdraw { background: #e0af68; }
 .palette-swatch.kind-timer,
@@ -911,7 +899,8 @@ $tab: 18px;
 .palette-swatch.kind-shorter-than,
 .palette-swatch.kind-carrying,
 .palette-swatch.kind-at-most,
-.palette-swatch.kind-order,
+.palette-swatch.kind-order { background: #9ece6a; }
+// A plugin's condition is a piece like any other, and wears the same green.
 .palette-swatch.kind-rule { background: #9ece6a; }
 .palette-swatch.kind-tag,
 .palette-swatch.kind-decay,

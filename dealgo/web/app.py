@@ -836,31 +836,19 @@ def _palette_plugins() -> list[Context]:
                 "swatch": "source",
             }
         )
-    for plugin in found.working:
-        if not plugin.nodes:
-            continue
-        # One box for the plugin itself, and one piece per thing it knows how
-        # to ask. The box used to be the question; a plugin that could ask
-        # four things meant four boxes and no way to say "YouTube" at all.
-        grouped.setdefault(plugin.title, []).append(
+    # One condition piece per thing a plugin knows how to ask. A plugin has no
+    # box of its own: it widens what the app's Filter box can be told, rather
+    # than standing a second kind of Filter beside it.
+    for node in found.node_kinds():
+        grouped.setdefault(node.plugin, []).append(
             {
-                "palette": "plugin",
-                "ref": plugin.id,
-                "label": plugin.title,
-                "blurb": f"Narrows by what {plugin.title} knows. Slot its conditions under it.",
-                "swatch": "plugin",
+                "palette": graph_service.RULE,
+                "ref": node.ref,
+                "label": node.label,
+                "blurb": node.blurb,
+                "swatch": graph_service.RULE,
             }
         )
-        for node in plugin.nodes:
-            grouped.setdefault(plugin.title, []).append(
-                {
-                    "palette": graph_service.RULE,
-                    "ref": node.ref,
-                    "label": node.label,
-                    "blurb": node.blurb,
-                    "swatch": graph_service.RULE,
-                }
-            )
     return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
 def _channel_list_response(
     request: Request,
@@ -2077,9 +2065,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                 ),
                 "polled": _how_polled(node, plan) if node.kind == "source" else None,
                 "plugin": (
-                    _plugin_facts(node)
-                    if node.kind in ("plugin", graph_service.RULE)
-                    else None
+                    _plugin_facts(node) if node.kind == graph_service.RULE else None
                 ),
                 "channel": facts.get(node.channel_pk or 0) if node.kind == "source" else None,
                 # Which kind of somewhere an empty box is for, and what to
@@ -2416,10 +2402,6 @@ def _join_clauses(parts: list[str]) -> str:
 
 
 
-def _how_many(count: int, thing: str) -> str:
-    return f"{count} {thing}" if count == 1 else f"{count} {thing}s"
-
-
 def _condition_facts(node: GraphNode) -> Context | None:
     """What one condition piece is, and what it is set to.
 
@@ -2451,34 +2433,13 @@ def _condition_facts(node: GraphNode) -> Context | None:
 
 
 def _plugin_facts(node: GraphNode) -> Context | None:
-    """What a plugin box is, and what its fields are set to.
+    """What a plugin's condition asks, and what its fields are set to.
 
-    None when the plugin is switched off or gone: the box stays drawn and
+    None when the plugin is switched off or gone: the piece stays drawn and
     stops narrowing anything, and the canvas says which plugin it is waiting
     for rather than showing an empty form.
     """
     ref = node.plugin_ref or ""
-    if node.kind == "plugin":
-        # The box is the plugin itself now. What it asks is in the pieces
-        # slotted under it, so the box carries no fields of its own.
-        found = next(
-            (one for one in registry.current().working if one.id == ref), None
-        )
-        if found is None:
-            return {"ref": ref, "missing": ref or "a plugin", "fields": [], "blurb": ""}
-        return {
-            "ref": ref,
-            "missing": None,
-            "plugin": found.title,
-            "blurb": f"narrows by what {found.title} knows",
-            "fields": [],
-            # What may be slotted under it, for the panel to offer.
-            "offers": [
-                {"ref": one.ref, "label": one.label, "blurb": one.blurb}
-                for one in found.nodes
-            ],
-        }
-
     box = registry.current().node(ref)
     was = sync_service._plugin_settings(node)
     if box is None:
@@ -2519,27 +2480,21 @@ def _node_note(
         if box is None:
             return "its plugin is switched off — it narrows nothing"
         return box.blurb or f"from {box.plugin}"
-    if node.kind == "plugin":
-        found = next(
-            (one for one in registry.current().working if one.id == (node.plugin_ref or "")),
-            None,
-        )
-        if found is None:
-            return "its plugin is switched off — it narrows nothing"
-        slotted = [one for one in (pieces or []) if one.kind == graph_service.RULE]
-        if not slotted:
-            return f"slot a {found.title} condition under it"
-        return _how_many(len(slotted), "condition")
     if node.kind in graph_service.JIGSAW:
         if node.attached_to is None:
             return "drop it on a box to slot it in"
         return graph_service.piece_note(node, host)
     if node.kind == "filter":
-        said = [
-            graph_service.condition_words(one)
-            for one in (pieces or [])
-            if one.kind in graph_service.CONDITION_KINDS and one.enabled
-        ]
+        # Every condition under it, the app's own said in its own words and a
+        # plugin's said by the name that plugin gave it.
+        said: list[str] = []
+        for one in pieces or []:
+            if not one.enabled:
+                continue
+            if one.kind in graph_service.CONDITION_KINDS:
+                said.append(graph_service.condition_words(one))
+            elif one.kind == graph_service.RULE:
+                said.append(one.title.lower())
         return " · ".join(said) if said else "slot a condition under it"
     if node.kind == "sort":
         ordering = next(
@@ -2693,20 +2648,6 @@ def graph_add_node(
             graph_service.add_filter(session, owner, label=title.strip() or "Filter", x=x, y=y)
         elif kind == "sort":
             graph_service.add_sort(session, owner, label=title.strip(), x=x, y=y)
-        elif kind == "plugin":
-            # The box is the plugin, not one of its questions: what it asks
-            # is whatever conditions get slotted under it.
-            wanted = plugin_node.strip()
-            found = next(
-                (one for one in registry.current().working if one.id == wanted), None
-            )
-            if found is None:
-                return JSONResponse(
-                    {"error": "That box's plugin is not loaded."}, status_code=400
-                )
-            graph_service.add_plugin_node(
-                session, owner, ref=found.id, label=title.strip() or found.title, x=x, y=y
-            )
         elif kind in graph_service.STAMPS:
             graph_service.add_stamp(
                 session, owner, kind=kind, marks=title.strip(), x=x, y=y

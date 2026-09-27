@@ -25,7 +25,7 @@ function graphIsPiece(kind) {
 /** Which boxes have somewhere for a piece to go. */
 function graphTakesPieces(kind) {
     return (kind === "feed" || kind === "decay" || kind === "expire" ||
-        kind === "filter" || kind === "sort" || kind === "plugin");
+        kind === "filter" || kind === "sort");
 }
 // -- reading what the server said -----------------------------------------
 function asGraphRecord(value) {
@@ -40,7 +40,6 @@ function asGraphNodeKind(value) {
         value === "sort" ||
         value === "feed" ||
         value === "group" ||
-        value === "plugin" ||
         value === "deposit" ||
         value === "withdraw" ||
         value === "timer" ||
@@ -226,24 +225,12 @@ function asGraphPlugin(value) {
             placeholder: typeof one["placeholder"] === "string" ? one["placeholder"] : "",
         });
     }
-    const offers = [];
-    for (const entry of Array.isArray(raw["offers"]) ? raw["offers"] : []) {
-        const one = asGraphRecord(entry);
-        if (one === null || typeof one["ref"] !== "string")
-            continue;
-        offers.push({
-            ref: one["ref"],
-            label: typeof one["label"] === "string" ? one["label"] : one["ref"],
-            blurb: typeof one["blurb"] === "string" ? one["blurb"] : "",
-        });
-    }
     return {
         ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
         missing: typeof missing === "string" ? missing : null,
         plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
         blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
         fields: fields.filter((one) => one.name !== ""),
-        offers,
     };
 }
 function asGraphSort(value) {
@@ -445,8 +432,6 @@ function graphKindLabel(kind) {
         return "Sort";
     if (kind === "group")
         return "Group";
-    if (kind === "plugin")
-        return "Plugin";
     if (kind === "rule")
         return "Rule";
     if (kind === "has-words")
@@ -497,7 +482,7 @@ function graphPortWords(kind, where) {
             ? "Takes a signal: a trigger wired here says when this channel is polled."
             : "Gives out what it collects — videos and posts — to whatever is wired on.";
     }
-    if (kind === "filter" || kind === "plugin") {
+    if (kind === "filter") {
         return where === "in"
             ? "Takes what arrives, and judges it."
             : "Gives out only what got through.";
@@ -1019,8 +1004,6 @@ function graphNodeForm(state, node) {
         graphFeedFields(form, node);
     else if (node.trigger !== null)
         graphTriggerFields(form, node);
-    else if (node.kind === "plugin")
-        graphPluginFields(form, node);
     else
         graphFilterFields(form, node);
     const buttons = graphElement("div", "graph-form-buttons");
@@ -1422,11 +1405,12 @@ function graphTakes(channel) {
  *  the plugin chose and stored as they came, because a column per field is
  *  not a thing a plugin can ask for. */
 function graphPluginFields(form, node) {
+    var _a;
     const box = node.plugin;
     if (box === null)
         return;
     if (box.missing !== null) {
-        form.appendChild(graphElement("p", "hint", `This box belongs to “${box.missing}”, which is not loaded. It narrows nothing while that is true. Switch the plugin on under Admin → Plugins, or take the box off the canvas.`));
+        form.appendChild(graphElement("p", "hint", `This condition belongs to “${box.missing}”, which is not loaded. It narrows nothing while that is true. Switch the plugin on under Admin → Plugins, or take the piece off the canvas.`));
         return;
     }
     if (box.blurb !== "")
@@ -1442,21 +1426,8 @@ function graphPluginFields(form, node) {
             field.placeholder = one.placeholder;
         form.appendChild(graphLabelled(one.label, field));
     }
-    if (box.offers.length > 0) {
-        // A plugin box asks nothing by itself. What it asks is the conditions
-        // slotted under it, so the panel names them rather than leaving somebody
-        // to go looking in the palette for what fits.
-        const list = graphElement("ul", "graph-offers");
-        for (const one of box.offers) {
-            const row = graphElement("li", "");
-            row.appendChild(graphElement("strong", "", one.label));
-            if (one.blurb !== "")
-                row.appendChild(graphElement("span", "", ` — ${one.blurb}`));
-            list.appendChild(row);
-        }
-        form.appendChild(graphLabelled(`Conditions ${box.plugin} can be asked`, list));
-        form.appendChild(graphElement("p", "hint", "Drag one out of the palette and drop it on the bottom of this box. Everything slotted under it has to agree before an item gets past."));
-        return;
+    if (((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null) {
+        form.appendChild(graphElement("p", "hint", "Loose on the canvas. Drop it on a Filter box to slot it in."));
     }
     if (box.fields.length === 0) {
         form.appendChild(graphElement("p", "hint", "Nothing to set: it judges on its own."));
@@ -2910,8 +2881,9 @@ function graphPieceGoesUnder(piece, box) {
         return box === "sort";
     if (graphConditionKinds().indexOf(piece) >= 0)
         return box === "filter";
+    // A plugin's condition goes where every other condition goes.
     if (piece === "rule")
-        return box === "plugin";
+        return box === "filter";
     // A Timer, Reset, Alive or Lock. These say something about reading, which
     // is a question only these three boxes ask.
     return box === "feed" || box === "decay" || box === "expire";

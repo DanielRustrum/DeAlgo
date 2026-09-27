@@ -1,9 +1,13 @@
-"""What a plugin puts in the palette: its own box, and its own conditions.
+"""What a plugin puts in the palette: conditions for the app's Filter box.
 
-A plugin's box stands for the plugin. The questions it can ask are pieces
-slotted under it, one per condition — given one item and whatever its fields
-were set to, say whether it may carry on. A pure question with a yes-or-no
-answer, which is the one shape that fits inside the sandbox.
+A plugin has no box of its own. It widens what a Filter can be told: each
+condition it declares is a jigsaw piece that slots under a Filter alongside
+the app's own conditions, so one Filter can ask "longer than ten minutes, and
+not a Short".
+
+Each is a pure question with a yes-or-no answer — given one item and whatever
+its fields were set to, say whether it may carry on — which is the one shape
+that fits inside the sandbox.
 
 A condition that is a fact about one service lives here rather than in the
 host: whether a video is a Short, how many have watched it. The host's own
@@ -101,19 +105,20 @@ def test_a_plugin_may_offer_boxes_and_no_sources(here):
 # -- how the palette groups them -------------------------------------------
 
 
-def test_a_plugin_offers_its_own_box_and_its_conditions_under_it(canvas, here):
-    """The box is the plugin; the conditions are what it can be asked. So even
-    a plugin with one condition brings two rows, and gets a fold of its own."""
+def test_a_plugin_with_one_condition_shows_it_directly(canvas, here):
+    """No dropdown of its own: a fold holding one row is a fold to open for
+    no reason. And no box for the plugin either — a plugin adds conditions,
+    it does not add a second kind of Filter."""
     (here / "solo.lua").write_text(ONE_BOX % "Solo", encoding="utf-8")
     registry.reload()
 
     body = canvas.get("/channels").text
     inside = body.split("<summary>Plugins</summary>", 1)[1].split("</aside>", 1)[0]
 
-    assert "<summary>Solo</summary>" in inside
-    assert 'data-palette="plugin"' in inside
-    assert 'data-plugin-node="solo"' in inside          # the box: the plugin
-    assert 'data-plugin-node="solo:only"' in inside     # the condition
+    assert 'data-palette="rule"' in inside
+    assert 'data-plugin-node="solo:only"' in inside
+    assert 'data-plugin-node="solo"' not in inside.replace('"solo:only"', "")
+    assert "<summary>Solo</summary>" not in body
 
 
 def test_a_plugin_with_several_boxes_gets_a_fold_of_its_own(canvas, here):
@@ -160,23 +165,9 @@ def test_the_shipped_plugin_with_three_boxes_is_folded(canvas):
 # -- putting one on the canvas ---------------------------------------------
 
 
-def test_a_plugin_box_is_named_after_its_plugin_and_asks_nothing_alone(canvas, db):
-    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "shape"}).json()
-
-    box = only(made, "plugin")
-    assert box["title"] == "Shape"
-    assert box["plugin"]["ref"] == "shape"
-    assert box["note"] == "slot a Shape condition under it"
-    # No fields of its own: what it asks is in the pieces under it.
-    assert box["plugin"]["fields"] == []
-    assert [one["ref"] for one in box["plugin"]["offers"]] == [
-        "shape:long-enough", "shape:has-words", "shape:not-shouting",
-    ]
-
-
-def test_a_plugin_condition_slots_under_its_box_and_says_what_it_asks(canvas, db):
-    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "shape"}).json()
-    box = only(made, "plugin")
+def test_a_plugin_condition_slots_under_a_filter_and_says_what_it_asks(canvas, db):
+    made = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
+    box = only(made, "filter")
 
     with_piece = canvas.post(
         "/graph/nodes",
@@ -190,11 +181,35 @@ def test_a_plugin_condition_slots_under_its_box_and_says_what_it_asks(canvas, db
     assert piece["note"] == "Holds titles that are mostly capitals."
     # Its fields arrive with the defaults its plugin declared.
     assert piece["plugin"]["fields"][0]["value"] == "60"
-    # And the box now says how many it carries.
-    assert only(with_piece, "plugin")["note"] == "1 condition"
+    # And the Filter says what it carries, in the plugin's own words.
+    assert only(with_piece, "filter")["note"] == "not shouting"
 
 
-def test_a_plugin_condition_goes_nowhere_but_a_plugin_box(canvas):
+def test_a_plugin_condition_sits_beside_the_apps_own_under_one_filter(canvas, db):
+    """The point of putting them in the same place: one Filter asking both."""
+    made = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
+    box = only(made, "filter")
+
+    canvas.post(
+        "/graph/nodes",
+        data={"kind": "rule", "plugin_node": "shape:not-shouting",
+              "attach_to": str(box["id"])},
+    )
+    piece = only(
+        canvas.post("/graph/nodes",
+                    data={"kind": "longer-than", "attach_to": str(box["id"])}).json(),
+        "longer-than",
+    )
+    said = canvas.post(
+        f"/graph/nodes/{piece['id']}", data={"value": "10", "value_unit": "minutes"}
+    ).json()
+
+    # Nearest the box first, which is the order a chain of pieces is read in:
+    # the plugin's condition was slotted first, so the app's went under it.
+    assert only(said, "filter")["note"] == "not shouting · longer than 10 minutes"
+
+
+def test_a_plugin_condition_goes_nowhere_but_a_filter(canvas):
     drawn = canvas.get("/api/graph").json()
     refused = canvas.post(
         "/graph/nodes",
@@ -203,14 +218,7 @@ def test_a_plugin_condition_goes_nowhere_but_a_plugin_box(canvas):
     )
 
     assert refused.status_code == 400
-    assert "Plugin" in refused.json()["error"]
-
-
-def test_a_box_whose_plugin_is_not_loaded_is_refused(canvas):
-    answer = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "nope"})
-
-    assert answer.status_code == 400
-    assert "not loaded" in answer.json()["error"]
+    assert "Filter" in refused.json()["error"]
 
 
 def test_a_condition_whose_plugin_is_not_loaded_is_refused(canvas):
@@ -218,18 +226,6 @@ def test_a_condition_whose_plugin_is_not_loaded_is_refused(canvas):
 
     assert answer.status_code == 400
     assert "not loaded" in answer.json()["error"]
-
-
-def test_a_plugin_box_wires_where_a_filter_wires(canvas, db):
-    drawn = canvas.get("/api/graph").json()
-    source, feed = only(drawn, "source"), only(drawn, "feed")
-    made = canvas.post("/graph/nodes", data={"kind": "plugin", "plugin_node": "shape"}).json()
-    box = only(made, "plugin")
-
-    into = canvas.post("/graph/connect", data={"source": source["id"], "target": box["id"]})
-    onward = canvas.post("/graph/connect", data={"source": box["id"], "target": feed["id"]})
-
-    assert into.status_code == 200 and onward.status_code == 200
 
 
 def a_condition(canvas, ref: str, under: int | None = None) -> dict:
@@ -275,13 +271,10 @@ def test_a_field_its_plugin_no_longer_declares_is_not_kept(canvas, db):
 
 
 def wire_through_a_box(canvas, db, ref: str, settings: dict[str, str]):
-    """Source → plugin box → feed, with one of that plugin's conditions in it."""
+    """Source → filter → feed, with one of a plugin's conditions slotted in."""
     drawn = canvas.get("/api/graph").json()
     source, feed = only(drawn, "source"), only(drawn, "feed")
-    made = canvas.post(
-        "/graph/nodes", data={"kind": "plugin", "plugin_node": ref.split(":", 1)[0]}
-    ).json()
-    box = only(made, "plugin")
+    box = only(canvas.post("/graph/nodes", data={"kind": "filter"}).json(), "filter")
     canvas.post("/graph/connect", data={"source": source["id"], "target": box["id"]})
     canvas.post("/graph/connect", data={"source": box["id"], "target": feed["id"]})
     piece = a_condition(canvas, ref, box["id"])
@@ -532,7 +525,7 @@ def test_a_condition_is_told_whether_an_item_is_a_broadcast(db, here):
         session.add(soon)
         session.flush()
 
-        box = graph_module.add_plugin_node(session, ref="watching")
+        box = graph_module.add_filter(session)
         piece = graph_module.add_piece(
             session, kind="rule", host=box, ref="watching:no-premieres"
         )

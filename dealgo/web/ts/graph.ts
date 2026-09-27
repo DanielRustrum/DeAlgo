@@ -12,9 +12,6 @@
 
 type GraphNodeKind =
   | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
-  // A box a plugin put in the palette. It behaves like a filter and is drawn
-  // like one; what it judges by is somebody's Lua rather than these rules.
-  | "plugin"
   // The two ends of a named repository. A deposit ends a path the way a feed
   // does; a withdraw starts one the way a source does.
   | "deposit"
@@ -39,9 +36,9 @@ type GraphNodeKind =
   | "carrying"
   | "at-most"
   | "order"
-  // A condition a plugin declared, slotted under that plugin's box. One kind
-  // for all of them, because which ones exist depends on which plugins are
-  // loaded — which one this is arrives in `plugin`.
+  // A condition a plugin declared, slotted under a Filter like any other.
+  // One kind for all of them, because which ones exist depends on which
+  // plugins are loaded — which one this is arrives in `plugin`.
   | "rule";
 
 /** The conditions the host itself offers, as against a plugin's. */
@@ -64,7 +61,7 @@ function graphIsPiece(kind: GraphNodeKind): boolean {
 function graphTakesPieces(kind: GraphNodeKind): boolean {
   return (
     kind === "feed" || kind === "decay" || kind === "expire" ||
-    kind === "filter" || kind === "sort" || kind === "plugin"
+    kind === "filter" || kind === "sort"
   );
 }
 /** There used to be two: a source's wire was stored against its channel and
@@ -155,15 +152,6 @@ interface GraphPlugin {
   plugin: string;
   blurb: string;
   fields: GraphPluginField[];
-  /** A plugin box: the conditions that plugin can be asked, for its panel to
-   *  name. Empty on a condition piece, which is one of them already. */
-  offers: GraphPluginOffer[];
-}
-
-interface GraphPluginOffer {
-  ref: string;
-  label: string;
-  blurb: string;
 }
 
 interface GraphSort {
@@ -346,7 +334,6 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "sort" ||
     value === "feed" ||
     value === "group" ||
-    value === "plugin" ||
     value === "deposit" ||
     value === "withdraw" ||
     value === "timer" ||
@@ -532,23 +519,12 @@ function asGraphPlugin(value: unknown): GraphPlugin | null {
       placeholder: typeof one["placeholder"] === "string" ? one["placeholder"] : "",
     });
   }
-  const offers: GraphPluginOffer[] = [];
-  for (const entry of Array.isArray(raw["offers"]) ? raw["offers"] : []) {
-    const one = asGraphRecord(entry);
-    if (one === null || typeof one["ref"] !== "string") continue;
-    offers.push({
-      ref: one["ref"],
-      label: typeof one["label"] === "string" ? one["label"] : one["ref"],
-      blurb: typeof one["blurb"] === "string" ? one["blurb"] : "",
-    });
-  }
   return {
     ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
     missing: typeof missing === "string" ? missing : null,
     plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
     blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
     fields: fields.filter((one): boolean => one.name !== ""),
-    offers,
   };
 }
 
@@ -737,7 +713,6 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "feed") return "Feed";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
-  if (kind === "plugin") return "Plugin";
   if (kind === "rule") return "Rule";
   if (kind === "has-words") return "Title has";
   if (kind === "lacks-words") return "Title lacks";
@@ -856,7 +831,7 @@ function graphPortWords(kind: GraphNodeKind, where: "in" | "out"): string {
       ? "Takes a signal: a trigger wired here says when this channel is polled."
       : "Gives out what it collects — videos and posts — to whatever is wired on.";
   }
-  if (kind === "filter" || kind === "plugin") {
+  if (kind === "filter") {
     return where === "in"
       ? "Takes what arrives, and judges it."
       : "Gives out only what got through.";
@@ -1413,7 +1388,6 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.kind === "source") graphChannelFields(state, form, node);
   else if (node.kind === "feed") graphFeedFields(form, node);
   else if (node.trigger !== null) graphTriggerFields(form, node);
-  else if (node.kind === "plugin") graphPluginFields(form, node);
   else graphFilterFields(form, node);
 
   const buttons = graphElement("div", "graph-form-buttons");
@@ -1934,7 +1908,7 @@ function graphPluginFields(form: HTMLElement, node: GraphNodeView): void {
       graphElement(
         "p",
         "hint",
-        `This box belongs to “${box.missing}”, which is not loaded. It narrows nothing while that is true. Switch the plugin on under Admin → Plugins, or take the box off the canvas.`,
+        `This condition belongs to “${box.missing}”, which is not loaded. It narrows nothing while that is true. Switch the plugin on under Admin → Plugins, or take the piece off the canvas.`,
       ),
     );
     return;
@@ -1953,28 +1927,14 @@ function graphPluginFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphLabelled(one.label, field));
   }
 
-  if (box.offers.length > 0) {
-    // A plugin box asks nothing by itself. What it asks is the conditions
-    // slotted under it, so the panel names them rather than leaving somebody
-    // to go looking in the palette for what fits.
-    const list = graphElement("ul", "graph-offers");
-    for (const one of box.offers) {
-      const row = graphElement("li", "");
-      row.appendChild(graphElement("strong", "", one.label));
-      if (one.blurb !== "") row.appendChild(graphElement("span", "", ` — ${one.blurb}`));
-      list.appendChild(row);
-    }
-    form.appendChild(
-      graphLabelled(`Conditions ${box.plugin} can be asked`, list),
-    );
+  if (node.piece?.under == null) {
     form.appendChild(
       graphElement(
         "p",
         "hint",
-        "Drag one out of the palette and drop it on the bottom of this box. Everything slotted under it has to agree before an item gets past.",
+        "Loose on the canvas. Drop it on a Filter box to slot it in.",
       ),
     );
-    return;
   }
 
   if (box.fields.length === 0) {
@@ -3624,7 +3584,8 @@ interface GraphSlot {
 function graphPieceGoesUnder(piece: GraphNodeKind, box: GraphNodeKind): boolean {
   if (piece === "order") return box === "sort";
   if (graphConditionKinds().indexOf(piece) >= 0) return box === "filter";
-  if (piece === "rule") return box === "plugin";
+  // A plugin's condition goes where every other condition goes.
+  if (piece === "rule") return box === "filter";
   // A Timer, Reset, Alive or Lock. These say something about reading, which
   // is a question only these three boxes ask.
   return box === "feed" || box === "decay" || box === "expire";

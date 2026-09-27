@@ -295,10 +295,10 @@ def _rules_become_pieces() -> None:
     Each piece keeps the value in the column that rule always lived in, so
     this moves the rule onto a piece and changes nothing about what it means.
 
-    The four content switches are the exception: they were YouTube's
-    distinctions sitting in the host, so they become a YouTube box wired in
-    beside the filter with the matching condition slotted under it. The
-    filter box stays where it is and keeps whatever else it carried.
+    The four content switches are the exception only in whose words they end
+    up in: they were YouTube's distinctions sitting in the host, so each
+    becomes one of YouTube's conditions — slotted under the same box, among
+    the rest. The box stays where it is and keeps its wires.
     """
     engine = get_engine()
     inspector = inspect(engine)
@@ -379,9 +379,25 @@ def _rules_become_pieces() -> None:
             # The switches, as a YouTube box on the same spot, wired where the
             # filter was wired. Only made when one of them was actually on:
             # a filter that said nothing about Shorts gets no box.
-            wanted_rules = [
-                ref for column, ref in _SWITCHES_AS_PLUGIN_RULES if values.get(column)
-            ]
+            # The switches, as YouTube's own conditions, under the same box.
+            # They were that box's rules; they stay that box's rules, said by
+            # the plugin that knows what a Short is. Nothing is rewired.
+            for column, ref in _SWITCHES_AS_PLUGIN_RULES:
+                if not values.get(column):
+                    continue
+                under = connection.execute(
+                    text(
+                        "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                        "attached_to, plugin_ref) "
+                        "VALUES (:owner, 'rule', 1, '', :x, :y, :host, :ref)"
+                    ),
+                    {
+                        "owner": owner_pk, "x": x, "y": (y or 0) + 60,
+                        "host": under, "ref": ref,
+                    },
+                ).lastrowid
+                made += 1
+
             connection.execute(
                 text(
                     "UPDATE graph_node SET "
@@ -390,59 +406,26 @@ def _rules_become_pieces() -> None:
                 ),
                 {"pk": node_pk},
             )
-            if not wanted_rules:
-                continue
-            box = connection.execute(
-                text(
-                    "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, plugin_ref) "
-                    "VALUES (:owner, 'plugin', 1, '', :x, :y, 'youtube')"
-                ),
-                {"owner": owner_pk, "x": (x or 0) + 220, "y": y},
-            ).lastrowid
-            made += 1
-            slot = box
-            for ref in wanted_rules:
-                slot = connection.execute(
-                    text(
-                        "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
-                        "attached_to, plugin_ref) "
-                        "VALUES (:owner, 'rule', 1, '', :x, :y, :host, :ref)"
-                    ),
-                    {
-                        "owner": owner_pk, "x": (x or 0) + 220, "y": (y or 0) + 60,
-                        "host": slot, "ref": ref,
-                    },
-                ).lastrowid
-                made += 1
-            # Wired in after the filter: everything the filter let by goes on
-            # to the new box, and on from there wherever the filter went.
-            onward = connection.execute(
-                text("SELECT id, target_pk FROM graph_edge WHERE source_pk = :pk"),
-                {"pk": node_pk},
-            ).fetchall()
-            for edge_pk, target_pk in onward:
-                connection.execute(
-                    text("UPDATE graph_edge SET source_pk = :box WHERE id = :pk"),
-                    {"box": box, "pk": edge_pk},
-                )
-            connection.execute(
-                text(
-                    "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) "
-                    "VALUES (:owner, :source, :target)"
-                ),
-                {"owner": owner_pk, "source": node_pk, "target": box},
-            )
 
     if made:
         log.info("turned %d box rule(s) into jigsaw pieces", made)
 
 
 def _plugin_boxes_become_pieces() -> None:
-    """Turn a plugin's old one-question box into a box plus a condition.
+    """Turn a plugin box into a Filter box carrying that plugin's condition.
 
-    A plugin box used to *be* the question — "No Shorts" was a box. Now the
-    box is the plugin and the questions are pieces under it, which is what
-    lets one YouTube box ask three things instead of needing three boxes.
+    There have been two shapes of plugin box and neither survives. The first
+    *was* the question — "No Shorts" was a box. The second stood for the
+    plugin, with its questions slotted under it. Both become the same thing: a
+    Filter box, with the plugin's conditions among the conditions under it.
+
+    A plugin has no box of its own now. It widens what the app's Filter box
+    can be told, rather than standing a second kind of Filter beside it — so
+    one Filter can ask "longer than ten minutes, and not a Short" instead of
+    needing two boxes wired in a row to say it.
+
+    The box keeps its place, its name and its wires, so the canvas looks the
+    same afterwards and nothing has to be drawn again.
     """
     engine = get_engine()
     inspector = inspect(engine)
@@ -470,16 +453,69 @@ def _plugin_boxes_become_pieces() -> None:
                     "ref": ref, "said": settings,
                 },
             )
-            # The box keeps its place and its wires and becomes the plugin.
-            connection.execute(
-                text(
-                    "UPDATE graph_node SET plugin_ref = :plugin, plugin_settings = NULL, "
-                    "label = '' WHERE id = :pk"
-                ),
-                {"plugin": str(ref).split(":", 1)[0], "pk": node_pk},
+        # And every plugin box, of either shape, is a Filter box now: what it
+        # asks is whatever is slotted under it, which is what a Filter means.
+        turned = connection.execute(
+            text("SELECT id FROM graph_node WHERE kind = 'plugin'")
+        ).scalars().all()
+        connection.execute(
+            text(
+                "UPDATE graph_node SET kind = 'filter', plugin_ref = NULL, "
+                "plugin_settings = NULL WHERE kind = 'plugin'"
             )
-    if old:
-        log.info("turned %d plugin box(es) into a box and a condition", len(old))
+        )
+        for node_pk in turned:
+            _fold_into_the_filter_before_it(connection, int(node_pk))
+    if turned:
+        log.info("turned %d plugin box(es) into filter boxes", len(turned))
+
+
+def _fold_into_the_filter_before_it(connection: Any, node_pk: int) -> None:
+    """Put a converted box's conditions on the Filter feeding it, if it can.
+
+    One release put a plugin's condition in a box of its own, wired in after
+    the Filter whose switches it came from. Converting that box to a Filter
+    leaves two boxes saying "Filter" in a row where one would do, so the pair
+    is folded back together.
+
+    Only where it provably changes nothing: the box must be fed by exactly one
+    Filter, that Filter must feed only this box and carry no conditions of its
+    own, and nothing else may reach either of them. Anything less and the box
+    stays as it is — two boxes in a row is untidy, a rewired path is wrong.
+    """
+    before = connection.execute(
+        text("SELECT source_pk FROM graph_edge WHERE target_pk = :pk"), {"pk": node_pk}
+    ).scalars().all()
+    if len(before) != 1:
+        return
+    earlier = int(before[0])
+    kind = connection.execute(
+        text("SELECT kind FROM graph_node WHERE id = :pk"), {"pk": earlier}
+    ).scalar()
+    if kind != "filter":
+        return
+    onward = connection.execute(
+        text("SELECT id FROM graph_edge WHERE source_pk = :pk"), {"pk": earlier}
+    ).scalars().all()
+    if len(onward) != 1:
+        return
+    held = connection.execute(
+        text("SELECT count(*) FROM graph_node WHERE attached_to = :pk"), {"pk": earlier}
+    ).scalar()
+    if held:
+        return
+
+    connection.execute(
+        text("UPDATE graph_node SET attached_to = :earlier WHERE attached_to = :pk"),
+        {"earlier": earlier, "pk": node_pk},
+    )
+    # What this box reached, the earlier one reaches now.
+    connection.execute(
+        text("UPDATE graph_edge SET source_pk = :earlier WHERE source_pk = :pk"),
+        {"earlier": earlier, "pk": node_pk},
+    )
+    connection.execute(text("DELETE FROM graph_edge WHERE id = :pk"), {"pk": onward[0]})
+    connection.execute(text("DELETE FROM graph_node WHERE id = :pk"), {"pk": node_pk})
 
 
 def _wires_belong_to_boxes() -> None:

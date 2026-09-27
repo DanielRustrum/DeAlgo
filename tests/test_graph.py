@@ -2548,7 +2548,10 @@ def test_a_piece_only_lights_up_the_boxes_it_belongs_under(canvas_report):
     assert said["orderUnderFilter"] is False
     assert said["wordsUnderFilter"] is True
     assert said["wordsUnderFeed"] is False
-    assert said["ruleUnderPlugin"] is True
+    # A plugin's condition goes where every other condition goes: there is no
+    # plugin box for it to hang off.
+    assert said["ruleUnderFilter"] is True
+    assert said["ruleUnderFeed"] is False
     # The four older pieces say something about reading, which is a question
     # only a feed, a Decay and an Expire box ask.
     assert said["timerUnderFeed"] is True

@@ -140,10 +140,11 @@ def test_a_filter_that_said_nothing_gets_no_pieces(db):
 # -- the four content switches --------------------------------------------
 
 
-def test_the_content_switches_become_a_youtube_box_on_the_path(db):
+def test_the_content_switches_become_youtube_conditions_under_the_same_box(db):
     """They were never general. A Short, a premiere and a community post are
     YouTube's own distinctions, so they belong to the plugin that knows what
-    those words mean."""
+    those words mean — and they were that box's rules, so they stay that box's
+    rules. Nothing is rewired."""
     box_pk, _, feed_pk = a_canvas(db)
     as_it_was(db, box_pk, skip_shorts=1, skip_live=1)
 
@@ -151,27 +152,20 @@ def test_the_content_switches_become_a_youtube_box_on_the_path(db):
 
     with db.session_scope() as session:
         every = graph.nodes(session)
-        box = next(one for one in every if one.kind == "plugin")
-        assert box.plugin_ref == "youtube"
-        assert [one.plugin_ref for one in graph.pieces_under(every, box.id)] == [
+        assert [one.plugin_ref for one in graph.pieces_under(every, box_pk)] == [
             "youtube:no-shorts", "youtube:no-live",
         ]
-
-        # Wired in after the filter, keeping what the filter reached.
         drawn = {(edge.source_pk, edge.target_pk) for edge in graph.edges(session)}
-        assert (box_pk, box.id) in drawn
-        assert (box.id, feed_pk) in drawn
-        assert (box_pk, feed_pk) not in drawn
+        assert (box_pk, feed_pk) in drawn
 
 
-def test_a_filter_that_said_nothing_about_content_gets_no_youtube_box(db):
+def test_a_filter_that_said_nothing_about_content_gets_no_youtube_condition(db):
     box_pk, _, _ = a_canvas(db)
     as_it_was(db, box_pk, title_include="cats")
 
     db.init_db()
 
-    with db.session_scope() as session:
-        assert [one for one in graph.nodes(session) if one.kind == "plugin"] == []
+    assert [kind for kind, _ in pieces_under(db, box_pk)] == ["has-words"]
 
 
 def test_the_youtube_box_holds_what_the_switch_held(db):
@@ -219,22 +213,38 @@ def test_a_sort_box_converted_once_is_not_converted_again(db):
 # -- a plugin box that was one of its plugin's questions ------------------
 
 
-def test_an_old_plugin_box_becomes_a_box_for_the_plugin_and_a_condition(db):
-    """A plugin box used to *be* the question. Now the box is the plugin and
-    the questions are pieces, which is what lets one box ask three things."""
+def a_plugin_box(db, ref: str, settings: str | None = None) -> int:
+    """A plugin box of whichever shape, the way an older install has it.
+
+    Raw SQL because there is no such kind any more: a plugin has no box, so
+    the service has nothing that makes one.
+    """
+    with db.get_engine().begin() as connection:
+        return int(
+            connection.execute(
+                text(
+                    "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                    "plugin_ref, plugin_settings) "
+                    "VALUES (NULL, 'plugin', 1, '', 420, 40, :ref, :said)"
+                ),
+                {"ref": ref, "said": settings},
+            ).lastrowid
+        )
+
+
+def test_a_plugin_box_that_was_one_question_becomes_a_filter_carrying_it(db):
+    """A plugin box used to *be* the question. A plugin has no box now: it
+    adds to what a Filter can be told, so the box becomes a Filter and the
+    question becomes a condition under it."""
     a_canvas(db)
-    with db.session_scope() as session:
-        old = graph.add_plugin_node(session, ref="shape:not-shouting", label="Not shouting")
-        old.plugin_settings = '{"most": "70"}'
-        session.flush()
-        old_pk = old.id
+    old_pk = a_plugin_box(db, "shape:not-shouting", '{"most": "70"}')
 
     db.init_db()
 
     with db.session_scope() as session:
         box = session.get(GraphNode, old_pk)
-        assert box.kind == "plugin" and box.plugin_ref == "shape"
-        assert box.plugin_settings is None
+        assert box.kind == "filter"
+        assert box.plugin_ref is None and box.plugin_settings is None
         piece = graph.pieces_under(graph.nodes(session), old_pk)[0]
         assert piece.kind == "rule"
         assert piece.plugin_ref == "shape:not-shouting"
@@ -242,16 +252,26 @@ def test_an_old_plugin_box_becomes_a_box_for_the_plugin_and_a_condition(db):
         assert piece.plugin_settings == '{"most": "70"}'
 
 
-def test_a_plugin_box_already_converted_is_left_alone(db):
+def test_a_plugin_box_that_stood_for_the_plugin_becomes_a_filter_too(db):
+    """The second shape, from the one release that had it: the box was the
+    plugin and its questions were already pieces. They stay where they are."""
     a_canvas(db)
-    with db.session_scope() as session:
-        box = graph.add_plugin_node(session, ref="shape")
-        graph.add_piece(session, kind="rule", host=box, ref="shape:has-words")
-        box_pk = box.id
+    old_pk = a_plugin_box(db, "shape")
+    with db.get_engine().begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                "attached_to, plugin_ref) "
+                "VALUES (NULL, 'rule', 1, '', 420, 100, :host, 'shape:has-words')"
+            ),
+            {"host": old_pk},
+        )
 
     db.init_db()
 
-    assert [kind for kind, _ in pieces_under(db, box_pk)] == ["rule"]
+    with db.session_scope() as session:
+        assert session.get(GraphNode, old_pk).kind == "filter"
+        assert [kind for kind, _ in pieces_under(db, old_pk)] == ["rule"]
 
 
 def test_a_box_keeps_its_wires_through_the_conversion(db):
@@ -259,14 +279,126 @@ def test_a_box_keeps_its_wires_through_the_conversion(db):
     to look the same afterwards."""
     _, _, feed_pk = a_canvas(db)
     with db.session_scope() as session:
-        source = next(one for one in graph.nodes(session) if one.kind == "source")
-        old = graph.add_plugin_node(session, ref="shape:has-words")
-        graph.connect(session, source, old)
-        graph.connect(session, old, session.get(GraphNode, feed_pk))
-        old_pk, source_pk = old.id, source.id
+        source_pk = next(one for one in graph.nodes(session) if one.kind == "source").id
+    old_pk = a_plugin_box(db, "shape:has-words")
+    with db.get_engine().begin() as connection:
+        for start, end in ((source_pk, old_pk), (old_pk, feed_pk)):
+            connection.execute(
+                text(
+                    "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) "
+                    "VALUES (NULL, :start, :end)"
+                ),
+                {"start": start, "end": end},
+            )
 
     db.init_db()
 
     with db.session_scope() as session:
         drawn = {(edge.source_pk, edge.target_pk) for edge in graph.edges(session)}
     assert (source_pk, old_pk) in drawn and (old_pk, feed_pk) in drawn
+
+
+# -- folding the pair back together ---------------------------------------
+#
+# One release put a plugin's condition in a box of its own, wired in after the
+# Filter whose switches it came from. Converting that box to a Filter would
+# leave two boxes saying "Filter" in a row where one would do.
+
+
+def a_pair(db, *, extra_wire: bool = False, on_the_filter: bool = False):
+    """Filter → plugin box → feed, the shape that release produced."""
+    box_pk, _, feed_pk = a_canvas(db)
+    if on_the_filter:
+        with db.session_scope() as session:
+            graph.add_piece(session, kind="has-words", host=session.get(GraphNode, box_pk))
+    # The box that stood for the plugin, with its question already a piece.
+    later = a_plugin_box(db, "shape")
+    with db.get_engine().begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO graph_node (owner_pk, kind, enabled, label, x, y, "
+                "attached_to, plugin_ref) "
+                "VALUES (NULL, 'rule', 1, '', 0, 0, :host, 'shape:not-shouting')"
+            ),
+            {"host": later},
+        )
+        # The filter reached the feed; now it reaches the new box instead.
+        connection.execute(
+            text("UPDATE graph_edge SET target_pk = :later WHERE source_pk = :box"),
+            {"later": later, "box": box_pk},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) "
+                "VALUES (NULL, :start, :end)"
+            ),
+            {"start": later, "end": feed_pk},
+        )
+        if extra_wire:
+            # Something else reaches the second box as well, so folding it into
+            # the first would put that path through the first box's conditions.
+            source_pk = connection.execute(
+                text("SELECT id FROM graph_node WHERE kind = 'source'")
+            ).scalar()
+            connection.execute(
+                text(
+                    "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) "
+                    "VALUES (NULL, :start, :end)"
+                ),
+                {"start": source_pk, "end": later},
+            )
+    return box_pk, later, feed_pk
+
+
+def test_the_pair_is_folded_back_into_one_filter(db):
+    box_pk, later_pk, feed_pk = a_pair(db)
+
+    db.init_db()
+
+    with db.session_scope() as session:
+        assert session.get(GraphNode, later_pk) is None
+        assert [one.plugin_ref for one in graph.pieces_under(graph.nodes(session), box_pk)] == [
+            "shape:not-shouting"
+        ]
+        drawn = {(edge.source_pk, edge.target_pk) for edge in graph.edges(session)}
+    # What the second box reached, the first reaches now.
+    assert (box_pk, feed_pk) in drawn
+    assert not any(later_pk in pair for pair in drawn)
+
+
+def test_a_box_something_else_reaches_is_left_where_it_is(db):
+    """Folding it would put that other path through the first box's
+    conditions, which is a rewired graph rather than a tidier one."""
+    box_pk, later_pk, _ = a_pair(db, extra_wire=True)
+
+    db.init_db()
+
+    with db.session_scope() as session:
+        assert session.get(GraphNode, later_pk).kind == "filter"
+        assert pieces_under(db, box_pk) == []
+
+
+def test_a_filter_that_carries_its_own_conditions_is_not_folded_into(db):
+    """Two chains of conditions are two boxes' worth of narrowing, and the
+    order they are read in is part of what they mean."""
+    box_pk, later_pk, _ = a_pair(db, on_the_filter=True)
+
+    db.init_db()
+
+    with db.session_scope() as session:
+        assert session.get(GraphNode, later_pk).kind == "filter"
+        assert [kind for kind, _ in pieces_under(db, box_pk)] == ["has-words"]
+
+
+def test_folding_twice_changes_nothing(db):
+    box_pk, later_pk, feed_pk = a_pair(db)
+
+    db.init_db()
+    db.init_db()
+
+    with db.session_scope() as session:
+        assert [one.plugin_ref for one in graph.pieces_under(graph.nodes(session), box_pk)] == [
+            "shape:not-shouting"
+        ]
+        drawn = [(edge.source_pk, edge.target_pk) for edge in graph.edges(session)]
+    assert drawn.count((box_pk, feed_pk)) == 1

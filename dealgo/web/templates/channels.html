@@ -109,9 +109,9 @@
   </li>
 {%- endmacro %}
 
-{# A plugin's own box. Two shapes come through here — the source kinds it
-   provides and the filter boxes it adds — and they differ only in which
-   attribute the canvas reads back. #}
+{# A plugin's own row. Two shapes come through here — the source kinds it
+   provides and the conditions it adds to the Filter box — and they differ
+   only in which attribute the canvas reads back. #}
 {% macro plugin_row(node, plugin) -%}
   <li class="palette-item" data-palette="{{ node.palette }}"
       {% if node.palette == 'source' %}data-source-kind="{{ node.ref }}"
@@ -189,10 +189,14 @@
           </ul>
         </details>
 
-        {# What the plugins add. One dropdown for all of them, and inside it:
-           a plugin with one box shows that box directly, and a plugin with
-           several gets a dropdown of its own. A plugin with none is not
-           mentioned — an empty heading is a question about nothing. #}
+        {# What the plugins add: the sources they can watch, and the
+           conditions they can be asked. A plugin has no box of its own — its
+           conditions slot under the app's Filter box like any other.
+
+           One dropdown for all of them, and inside it: a plugin with one row
+           shows that row directly, and a plugin with several gets a dropdown
+           of its own. A plugin with none is not mentioned — an empty heading
+           is a question about nothing. #}
         {% if plugin_nodes %}
         <details class="palette-group">
           <summary>Plugins</summary>

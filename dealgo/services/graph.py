@@ -56,7 +56,7 @@ from .scope import OwnerId, owned
 log = logging.getLogger(__name__)
 
 KINDS = (
-    "trigger", "source", "filter", "sort", "feed", "group", "plugin",
+    "trigger", "source", "filter", "sort", "feed", "group",
     # A repository, from its two ends. A Deposit ends a path the way a feed
     # does; a Withdraw starts one the way a source does. Together they let
     # every source funnel into one place and be pulled from when a pipeline
@@ -76,7 +76,9 @@ KINDS = (
     # so that this tuple stays the one readable list of what a box can be.
     "has-words", "lacks-words", "longer-than", "shorter-than",
     "carrying", "at-most", "order",
-    # A condition a plugin declared, slotted under that plugin's box.
+    # A condition a plugin declared, slotted under a Filter box like any
+    # other condition. A plugin has no box of its own: it adds to what the
+    # app's own boxes can be told, rather than standing beside them.
     "rule",
 )
 
@@ -179,11 +181,11 @@ def filter_rules(pieces: list[GraphNode]) -> dict[str, Any]:
 #: The box kinds that read what is slotted under them. A feed reads a Timer
 #: as a sitting and a Reset as when it comes back; a Decay reads a Timer as
 #: time with one item and a Lock as "and you cannot pause it"; an Expire
-#: reads a Timer as a lifetime. A Filter reads conditions, a Sort reads an
-#: Order, a plugin box reads whatever conditions that plugin declared.
+#: reads a Timer as a lifetime. A Filter reads conditions — the app's own and
+#: whatever ones the plugins declared — and a Sort reads an Order.
 #: Every other kind ignores a piece entirely, which is why only these are
 #: drawn with somewhere for one to go.
-SLOTTED = ("feed", "decay", "expire", "filter", "sort", "plugin")
+SLOTTED = ("feed", "decay", "expire", "filter", "sort")
 
 #: The boxes that mark what goes through them. On a path like a filter, but
 #: they turn nothing away — what they do shows up after the item has landed.
@@ -202,7 +204,10 @@ JIGSAW: tuple[str, ...] = ("timer", "reset", "alive", "lock") + CONDITION_KINDS 
 #: unslot pieces somebody has already placed.
 PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     **{one.kind: (one.under,) for one in CONDITIONS},
-    RULE: ("plugin",),
+    # A plugin's condition goes where every other condition goes. There is
+    # no plugin box for it to hang off: a plugin widens what a Filter can be
+    # told rather than putting a second kind of Filter on the canvas.
+    RULE: ("filter",),
 }
 
 # What a group starts out as, and the least it can be shrunk to.
@@ -233,7 +238,7 @@ DEFAULT_SORT_BY = "published"
 
 # Which wires make sense. Triggers feed channels, sources start paths, feeds
 # end them, filters and sorts sit in between — and nothing runs backwards.
-MIDDLE = ("filter", "sort", "plugin", "decay", "expire", "tag")
+MIDDLE = ("filter", "sort", "decay", "expire", "tag")
 #: Where a path may end: a feed, or a repository to be pulled from later.
 ENDS = ("feed", "deposit")
 
@@ -249,9 +254,6 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "trigger": ("source", "withdraw"),
     "source": MIDDLE + ENDS,
     "filter": MIDDLE + ENDS,
-    # A plugin box is a filter whose rule is somebody's Lua, so it sits
-    # exactly where a filter sits and wires to the same things.
-    "plugin": MIDDLE + ENDS,
     "sort": MIDDLE + ENDS,
     # A withdraw stands where a source stands: it starts a path, and what
     # comes out of it has already been through whatever filtered it on the
@@ -399,10 +401,10 @@ class Route:
     filters: list[GraphNode] = field(default_factory=list)
     #: Sort boxes on this path, in the order they are passed through.
     sorts: list[GraphNode] = field(default_factory=list)
-    #: The plugin conditions on this path: the pieces slotted under every
-    #: plugin box it passes. Kept apart from `filters` because a filter lays
-    #: settings over the channel's and these ask a question per item — the
-    #: two cannot be merged into one dictionary.
+    #: The plugin conditions on this path: the pieces slotted under the
+    #: Filter boxes it passes whose rule is somebody's Lua. Kept apart from
+    #: `filters` because a filter lays settings over the channel's and these
+    #: ask a question per item — the two cannot be merged into one dictionary.
     checks: list[GraphNode] = field(default_factory=list)
     #: What is slotted under each box on the canvas, by box id. Carried on
     #: the path because what a Filter narrows by and what a Sort orders by
@@ -602,9 +604,10 @@ def _slot_in(found: list[Route], all_nodes: list[GraphNode]) -> list[Route]:
     on nine paths has one chain of conditions under it, and reading it nine
     times would be nine walks of the same chain.
 
-    The plugin boxes a path passed are swapped here for the conditions
-    slotted under them, because a plugin box narrows nothing by itself — it
-    is the pieces under it that ask the questions.
+    The plugin conditions a path passes are gathered here as well: they are
+    pieces under the Filter boxes it already carries, and they are kept apart
+    from the rest because a condition answered by somebody's Lua is asked per
+    item rather than laid over the channel's settings.
     """
     slots = {
         node.id: pieces_under(all_nodes, node.id)
@@ -615,7 +618,7 @@ def _slot_in(found: list[Route], all_nodes: list[GraphNode]) -> list[Route]:
         path.slots = slots
         path.checks = [
             piece
-            for box in path.checks
+            for box in path.filters
             for piece in slots.get(box.id, [])
             if piece.kind == RULE and piece.enabled
         ]
@@ -644,8 +647,8 @@ def _once_each(found: list[Route]) -> list[Route]:
             path.store,
             tuple(node.id for node in path.filters),
             tuple(node.id for node in path.sorts),
-            # Two paths that differ only by which plugin boxes they pass are
-            # two different paths: each asks a different question.
+            # Two paths that differ only by which plugin conditions they meet
+            # are two different paths: each asks a different question.
             tuple(node.id for node in path.checks),
             # Two paths that mark an item differently are two paths: what
             # they leave on it is as much a difference as what they refuse.
@@ -668,7 +671,6 @@ def _walk(
     found: list[Route],
     ordered: list[GraphNode] | None = None,
     source: GraphNode | None = None,
-    asked: list[GraphNode] | None = None,
     marked: list[GraphNode] | None = None,
     passed: list[GraphNode] | None = None,
 ) -> None:
@@ -685,7 +687,6 @@ def _walk(
         return
     seen = seen | {node.id}
     ordered = ordered or []
-    asked = asked or []
     marked = marked or []
     passed = passed or []
 
@@ -701,7 +702,6 @@ def _walk(
                         playlist=target.playlist,
                         filters=list(carried),
                         sorts=list(ordered),
-                        checks=list(asked),
                         stamps=list(marked),
                         walked=list(passed),
                         source=source,
@@ -720,7 +720,6 @@ def _walk(
                         store=named,
                         filters=list(carried),
                         sorts=list(ordered),
-                        checks=list(asked),
                         stamps=list(marked),
                         walked=list(passed),
                         source=source,
@@ -740,7 +739,6 @@ def _walk(
                 found,
                 ordered + [target] if target.kind == "sort" else ordered,
                 source,
-                asked + [target] if target.kind == "plugin" else asked,
                 marked + [target] if target.kind in STAMPS else marked,
                 passed + [target],
             )
@@ -1679,7 +1677,7 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             if spec is not None:
                 entry["value"] = getattr(node, spec.column, None)
             entry["sort_dir"] = node.sort_dir or "desc"
-        elif node.kind in ("plugin", RULE):
+        elif node.kind == RULE:
             entry["plugin_ref"] = node.plugin_ref or ""
             entry["plugin_settings"] = node.plugin_settings or ""
         elif node.kind == "timer":
@@ -1883,11 +1881,6 @@ def _unpack(
             cron=str(entry.get("cron") or "") or None,
             alive=(str(entry.get("alive_from") or ""), str(entry.get("alive_to") or "")),
             ref=str(entry.get("plugin_ref") or ""),
-        )
-
-    if kind == "plugin":
-        return add_plugin_node(
-            session, owner, ref=str(entry.get("plugin_ref") or ""), label=label, x=x, y=y
         )
 
     if kind in ("deposit", "withdraw"):
@@ -2470,35 +2463,6 @@ def _reaches(session: Session, start: GraphNode, goal: GraphNode, owner: OwnerId
 def add_filter(session: Session, owner: OwnerId = None, *, label: str = "Filter",
                x: int = COLUMN_X["filter"], y: int = 40) -> GraphNode:
     node = GraphNode(owner_pk=owner, kind="filter", label=label or "Filter", x=x, y=y)
-    session.add(node)
-    session.flush()
-    return node
-
-
-def add_plugin_node(
-    session: Session,
-    owner: OwnerId = None,
-    *,
-    ref: str,
-    label: str = "",
-    settings: dict[str, str] | None = None,
-    x: int = COLUMN_X["filter"],
-    y: int = 40,
-) -> GraphNode:
-    """A box a plugin put in the palette.
-
-    Which box it is lives in `plugin_ref`, because the host has no column per
-    plugin and never will: the fields are the plugin's to declare.
-    """
-    node = GraphNode(
-        owner_pk=owner,
-        kind="plugin",
-        label=label or "",
-        plugin_ref=ref,
-        plugin_settings=json.dumps(settings) if settings else None,
-        x=x,
-        y=y,
-    )
     session.add(node)
     session.flush()
     return node
