@@ -3822,15 +3822,17 @@ def test_the_open_panel_follows_whichever_node_it_belongs_to(canvas_report):
 
 
 def test_a_channel_nodes_switch_still_pauses_the_channel(db):
-    """The other kind answers for the channel behind it, as it always did."""
+    """A lone box and the channel behind it are the same thing said twice, so
+    switching the box off pauses the channel, as it always did."""
     from dealgo.models import Channel as ChannelModel
     from dealgo.web import app as web_app
 
     build(db)
     with db.session_scope() as session:
         source = node_for(session, "source", "UCone")
-        web_app._switch(source, on=False)
+        web_app._switch(session, source, on=False)
         session.flush()
+        assert source.enabled is False
         assert session.scalars(select(ChannelModel)).one().enabled is False
 
 
@@ -4114,3 +4116,114 @@ def test_a_wheel_over_a_panel_scrolls_it_rather_than_zooming(canvas_report):
     assert said["theDrawing"] is False
     assert said["theCanvasItself"] is False
     assert said["nothingAtAll"] is False
+
+
+# -- one channel, two boxes ------------------------------------------------
+#
+# A channel may be drawn twice: two boxes, wired down two paths that filter
+# differently. Which is the whole reason to draw a second one — so the two
+# must not be one box in two places.
+
+
+def drawn_twice(canvas):
+    """A second box for the channel the canvas already has one for."""
+    made = canvas.post(
+        "/graph/nodes", data={"kind": "source", "source_kind": "youtube"}
+    ).json()
+    empty = [node for node in boxes(made, "source") if node["detail"] is None][0]
+    first = [node for node in boxes(made, "source") if node["detail"] is not None][0]
+    canvas.post(f"/graph/nodes/{empty['id']}", data={"source_pk": "1"})
+    return first["id"], empty["id"]
+
+
+def test_renaming_one_box_does_not_rename_the_other(canvas, db):
+    from dealgo.models import Channel as ChannelModel
+
+    first, second = drawn_twice(canvas)
+
+    said = canvas.post(
+        f"/graph/nodes/{second}", data={"box_form": "1", "active": "1", "label": "The long ones"}
+    ).json()
+
+    renamed = [node for node in boxes(said, "source") if node["id"] == second][0]
+    other = [node for node in boxes(said, "source") if node["id"] == first][0]
+    assert renamed["title"] == "The long ones"
+    assert other["title"] == "One Channel"
+    # And the channel keeps the name it came with: with two boxes, a name is
+    # the box's own.
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().title == "One Channel"
+
+
+def test_switching_one_box_off_leaves_the_other_on(canvas, db):
+    from dealgo.models import Channel as ChannelModel
+
+    first, second = drawn_twice(canvas)
+
+    said = canvas.post(f"/graph/nodes/{second}", data={"box_form": "1"}).json()  # unticked
+
+    assert [n for n in boxes(said, "source") if n["id"] == second][0]["enabled"] is False
+    assert [n for n in boxes(said, "source") if n["id"] == first][0]["enabled"] is True
+    # The channel is still watched: the other box still wants it.
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().enabled is True
+
+
+def test_switching_a_box_back_on_wakes_the_channel_it_needs(canvas, db):
+    """However many boxes there are. A box switched on for a channel nobody
+    watches would sit there doing nothing, and there is nowhere else to say
+    you want it back."""
+    from dealgo.models import Channel as ChannelModel
+
+    first, second = drawn_twice(canvas)
+    with db.session_scope() as session:
+        session.scalars(select(ChannelModel)).one().enabled = False
+
+    said = canvas.post(
+        f"/graph/nodes/{second}", data={"box_form": "1", "active": "1"}
+    ).json()
+
+    assert [n for n in boxes(said, "source") if n["id"] == second][0]["enabled"] is True
+    with db.session_scope() as session:
+        assert session.scalars(select(ChannelModel)).one().enabled is True
+
+
+def test_a_box_that_is_switched_off_carries_nothing_down_its_own_wires(db):
+    """The other box's paths are untouched, which is the point of the switch
+    being the box's."""
+    build(db, feeds=("PLone", "PLtwo"))
+    with db.session_scope() as session:
+        graph.load(session)
+        first = node_for(session, "source", "UCone")
+        graph.connect(session, first, node_for(session, "feed", "PLone"))
+        second = graph.add_source(session, channel=first.channel)
+        graph.connect(session, second, node_for(session, "feed", "PLtwo"))
+        second.enabled = False
+
+    with db.session_scope() as session:
+        reached = {path.playlist.playlist_id for path in graph.routes(session)}
+    assert reached == {"PLone"}
+
+
+def test_a_feed_box_that_is_switched_off_takes_nothing(db):
+    """The same rule at the other end of the wire."""
+    build(db)
+    with db.session_scope() as session:
+        graph.load(session)
+        node_for(session, "feed", "PLone").enabled = False
+
+    with db.session_scope() as session:
+        assert graph.routes(session) == []
+
+
+def test_a_trigger_does_not_reach_through_a_box_that_is_switched_off(db):
+    build(db)
+    with db.session_scope() as session:
+        graph.load(session)
+        source = node_for(session, "source", "UCone")
+        pulse = graph.add_trigger(session, trigger_kind="pulse", every_minutes=30)
+        graph.connect(session, pulse, source)
+        source.enabled = False
+
+    with db.session_scope() as session:
+        assert graph.polling_plan(session) == {}

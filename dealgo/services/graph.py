@@ -43,7 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import (
@@ -596,7 +596,10 @@ def routes(session: Session, owner: OwnerId = None) -> list[Route]:
 
     found: list[Route] = []
     for node in all_nodes:
-        if node.kind != "source":
+        # A box that is switched off is out of the graph. Said of the box and
+        # not only of the channel, because a channel may be drawn twice and
+        # switching one box off must not take the other with it.
+        if node.kind != "source" or not node.enabled:
             continue
         for channel in channels_of(session, node, owner):
             # Every path out of this box, whether it reaches a feed straight
@@ -769,7 +772,7 @@ def _walk(
         if target is None:
             continue
         if target.kind == "feed":
-            if target.playlist is not None:
+            if target.playlist is not None and target.enabled:
                 found.append(
                     Route(
                         channel=channel,
@@ -960,7 +963,7 @@ def triggers_for(session: Session, owner: OwnerId = None) -> dict[int, list[Grap
             continue
         if not start.enabled:
             continue  # a trigger that is switched off sets nothing off
-        if start.kind == "trigger" and end.kind == "source":
+        if start.kind == "trigger" and end.kind == "source" and end.enabled:
             # A tag node stands for several channels, and a trigger wired to
             # it is wired to all of them.
             for channel in channels_of(session, end, owner):
@@ -2945,12 +2948,18 @@ def add_feed(
 
 
 def rename(session: Session, node_pk: int, name: str, owner: OwnerId = None) -> GraphNode:
-    """Rename a box, and the thing behind it.
+    """Rename a box, and the thing behind it if this is its only box.
 
     A box that stands for a channel or a feed writes the new name through, so
     the rest of the app agrees with the canvas. The sync engine only fills in
     a channel's title when it is blank, so a rename is not undone by the next
     poll.
+
+    Only while it is the only box for that thing, though. A channel may be
+    drawn twice — two boxes, wired down two paths that filter differently —
+    and writing through would then rename the other box as well. Two boxes
+    that rename each other are one box in two places, which is the opposite
+    of why you drew the second.
     """
     node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
     if node is None:
@@ -2958,13 +2967,34 @@ def rename(session: Session, node_pk: int, name: str, owner: OwnerId = None) -> 
 
     wanted = " ".join(name.split())
     node.label = wanted
-    if wanted:
+    if wanted and stands_alone(session, node, owner):
         if node.kind == "source" and node.channel is not None:
             node.channel.title = wanted
         elif node.kind == "feed" and node.playlist is not None:
             node.playlist.title = wanted
     session.flush()
     return node
+
+
+def stands_alone(session: Session, node: GraphNode, owner: OwnerId = None) -> bool:
+    """Whether this is the only box on the canvas for the thing behind it.
+
+    Which decides what a box is allowed to write through to that thing: with
+    one box the canvas and the channel are the same thing said twice, and
+    with two they are not.
+    """
+    if node.kind == "source" and node.channel_pk is not None:
+        column, wanted = GraphNode.channel_pk, node.channel_pk
+    elif node.kind == "feed" and node.playlist_pk is not None:
+        column, wanted = GraphNode.playlist_pk, node.playlist_pk
+    else:
+        return False
+    others = session.scalar(
+        owned(select(func.count()).select_from(GraphNode), GraphNode, owner).where(
+            column == wanted, GraphNode.id != node.id
+        )
+    )
+    return not others
 
 
 def add_trigger(

@@ -2276,15 +2276,19 @@ def _next_firing(node: GraphNode) -> str | None:
 def _is_on(node: GraphNode) -> bool:
     """Whether this box is doing anything.
 
-    A source or feed box answers for the channel or playlist behind it, since
-    that is where the rest of the app reads it from. A filter or trigger box
-    stands for nothing else, so it answers for itself.
+    Both halves have to say so. The box's own switch is what one box says;
+    the channel or playlist behind it is whether there is anything to say it
+    about — a box for a channel nobody watches does nothing however it is
+    switched, and a second box for the same channel can be off while this
+    one is on.
     """
+    if not node.enabled:
+        return False
     if node.kind == "source":
         return node.channel.enabled if node.channel is not None else False
     if node.kind == "feed":
         return node.playlist.enabled if node.playlist is not None else False
-    return node.enabled
+    return True
 
 
 def _feed_facts(node: GraphNode, windows: list[GraphNode]) -> Context | None:
@@ -3347,7 +3351,7 @@ async def graph_save_node(
         graph_service.rename(session, node.id, label, owner)
 
         if box_form == "1":
-            _switch(node, on=active == "1")
+            _switch(session, node, on=active == "1", owner=owner)
 
         if node.kind == "feed" and node.playlist is not None and box_form == "1":
             _save_feed(node.playlist, max_items=max_items, max_per_run=feed_max_per_run)
@@ -3453,14 +3457,29 @@ def _attach_channel(
     return None
 
 
-def _switch(node: GraphNode, *, on: bool) -> None:
-    """Turn a box on or off, wherever that box keeps the answer."""
+def _switch(
+    session: Session, node: GraphNode, *, on: bool, owner: OwnerId = None
+) -> None:
+    """Turn a box on or off, and the thing behind it where that is the same.
+
+    The box's own switch, always. Whether it also reaches the channel or the
+    playlist is the rule a rename lives by: a box speaks for the thing behind
+    it only while it is the only box for it. Two boxes that switched each
+    other off would be one box in two places, which is the opposite of why
+    you drew the second.
+
+    Switching one *on* always reaches it, however many boxes there are. That
+    is the plain reading: a box switched on for a channel nobody is watching
+    would sit there doing nothing, and there is nowhere else to say you want
+    it back.
+    """
+    node.enabled = on
+    if not (on or graph_service.stands_alone(session, node, owner)):
+        return
     if node.kind == "source" and node.channel is not None:
         node.channel.enabled = on
     elif node.kind == "feed" and node.playlist is not None:
         node.playlist.enabled = on
-    else:
-        node.enabled = on
 
 
 def _save_feed(playlist: Playlist, *, max_items: str, max_per_run: str) -> None:
