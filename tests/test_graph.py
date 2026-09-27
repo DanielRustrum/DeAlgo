@@ -4095,3 +4095,22 @@ def test_every_augmentation_row_says_where_it_goes(canvas):
         # …and once as the list the canvas lights up while it is dragged.
         carried = re.search(r'data-under="([a-z,-]*)"', row)
         assert carried is not None and carried.group(1) == ",".join(wanted)
+
+
+@needs_node
+def test_a_wheel_over_a_panel_scrolls_it_rather_than_zooming(canvas_report):
+    """The palette, the finder, the run log and a box's own panel sit inside
+    the canvas so that they travel with it and stay put over it. Which means
+    a wheel over any of them reaches the canvas — and zooming the drawing is
+    not what you meant by scrolling the list you were reading.
+
+    Asked of the elements rather than of a list of which ones they are, so
+    the next panel laid over the canvas is covered without being remembered.
+    """
+    said = canvas_report["wheelGoesTo"]
+    assert said["theRowInAPanel"] is True   # from anywhere inside it
+    assert said["thePanelItself"] is True
+    # And the drawing still zooms, which is the whole point of the wheel.
+    assert said["theDrawing"] is False
+    assert said["theCanvasItself"] is False
+    assert said["nothingAtAll"] is False

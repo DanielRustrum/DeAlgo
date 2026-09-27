@@ -475,6 +475,26 @@ function graphPortIcon(carries) {
     svg.appendChild(mark);
     return svg;
 }
+/** Whether a wheel was meant for a panel rather than for the canvas.
+ *
+ *  The palette, the finder, the run log and a box's own panel all sit inside
+ *  the canvas, so that they travel with it and stay put over it. Which means
+ *  a wheel over any of them bubbles to the canvas, and the canvas zooms —
+ *  when what you meant was to get further down the list you were reading.
+ *
+ *  Asked of the elements themselves rather than of a list of which ones they
+ *  are: anything laid over the canvas that scrolls wants its own wheel, and a
+ *  list kept by hand is a list that goes stale the next time one is added. */
+function graphWheelBelongsToAPanel(target, canvas) {
+    let walk = target instanceof Element ? target : null;
+    while (walk !== null && walk !== canvas) {
+        const said = window.getComputedStyle(walk).overflowY;
+        if (said === "auto" || said === "scroll")
+            return true;
+        walk = walk.parentElement;
+    }
+    return false;
+}
 /** What each side of a box takes in or gives out, in a sentence. */
 function graphPortWords(kind, where) {
     if (kind === "trigger")
@@ -3398,8 +3418,11 @@ function listenToGraph(state) {
         void undoGraph(state);
     });
     // The wheel zooms while the pointer is over the canvas. The canvas fills
-    // the page, so a wheel there can only have been meant for it.
+    // the page, so a wheel there can only have been meant for it — unless it
+    // was over one of the panels laid on top of it, which scroll.
     canvas.addEventListener("wheel", (event) => {
+        if (graphWheelBelongsToAPanel(event.target, canvas))
+            return;
         event.preventDefault();
         // A line-by-line wheel reports small deltas and a trackpad reports
         // large ones, so the step is taken from the direction, not the size.

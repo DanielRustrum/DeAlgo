@@ -53,7 +53,13 @@ async function main() {
       Object.assign(this, fields);
     }
   }
-  const context = vm.createContext({ document: stubDocument(), window: {}, console, Element });
+  // Each stub element says how it overflows, which is what the wheel check
+  // asks of it: anything laid over the canvas that scrolls wants its own
+  // wheel, and the check has no list of which ones those are.
+  const window = {
+    getComputedStyle: (element) => ({ overflowY: element.overflowY ?? "visible" }),
+  };
+  const context = vm.createContext({ document: stubDocument(), window, console, Element });
   loadGraph(context);
 
   const report = {};
@@ -98,6 +104,21 @@ async function main() {
     // is allowed anywhere that reads one rather than being stuck fast.
     unknownUnderFilter: context.graphPieceGoesUnder("filter", ""),
     unknownUnderSource: context.graphPieceGoesUnder("source", ""),
+  };
+
+  // A wheel over a panel laid on the canvas scrolls that panel; a wheel over
+  // the drawing zooms. The panels live inside the canvas so that they travel
+  // with it, which is why the canvas has to be asked to let one past.
+  const board = new Element({ overflowY: "hidden", parentElement: null });
+  const panel = new Element({ overflowY: "auto", parentElement: board });
+  const row = new Element({ overflowY: "visible", parentElement: panel });
+  const drawing = new Element({ overflowY: "visible", parentElement: board });
+  report.wheelGoesTo = {
+    theRowInAPanel: context.graphWheelBelongsToAPanel(row, board),
+    thePanelItself: context.graphWheelBelongsToAPanel(panel, board),
+    theDrawing: context.graphWheelBelongsToAPanel(drawing, board),
+    theCanvasItself: context.graphWheelBelongsToAPanel(board, board),
+    nothingAtAll: context.graphWheelBelongsToAPanel(null, board),
   };
 
   const curve = context.graphCurve(0, 0, 200, 100);
