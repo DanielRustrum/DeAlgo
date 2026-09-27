@@ -143,9 +143,10 @@
   {% include "_flash.html" %}
 </div>
 
-<footer>
-  <span>De-Algo {{ version }}</span>
-  <span>Your feed, in the order it was published.</span>
-</footer>
+{# Only Settings fills this in. Everywhere else the page ends where its
+   content does: a strip saying what the app is called, at the bottom of
+   something you opened on purpose, is a line nobody reads twice — and the
+   version belongs where you would go looking for it. #}
+{% block footer %}{% endblock %}
 </body>
 </html>

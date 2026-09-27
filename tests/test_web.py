@@ -1423,3 +1423,13 @@ def test_hiding_the_notice_does_not_hide_the_state(client, db):
 # done with it.
 
 
+
+
+def test_the_footer_is_only_on_settings(client):
+    """A strip saying what the app is called, at the bottom of something you
+    opened on purpose, is a line nobody reads twice. The version belongs
+    where somebody would go looking for it."""
+    assert "<footer>" in client.get("/settings").text
+
+    for path in ("/", "/feed", "/channels", "/videos"):
+        assert "<footer>" not in client.get(path).text, path
