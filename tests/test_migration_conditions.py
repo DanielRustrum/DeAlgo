@@ -2,7 +2,7 @@
 
 A Filter box used to hold every rule at once, which meant a canvas of boxes
 all saying "Filter" and no way to tell them apart without opening each one.
-A rule is a jigsaw piece now, one per condition.
+A rule is an augmentation now, one per condition.
 
 These run against a database put back into that shape — the rule columns on
 the box, and a plugin box that is one of its plugin's questions — which is

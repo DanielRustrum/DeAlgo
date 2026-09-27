@@ -512,7 +512,7 @@ async function main() {
                    trigger: { kind: "pulse" } }),
   };
 
-  // A jigsaw piece is drawn under the box it is slotted into, stacked from
+  // An augmentation is drawn under the box it is slotted into, stacked from
   // the box's own coordinates. `offsetTop` is measured against whichever
   // ancestor happens to be positioned, so a piece placed from it lands
   // wherever that ancestor is rather than under its host.

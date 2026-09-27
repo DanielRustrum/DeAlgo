@@ -1230,8 +1230,8 @@ function graphConditionFields(form, node, said) {
     if (said.blurb !== "")
         form.appendChild(graphElement("p", "hint", said.blurb));
 }
-/** A jigsaw piece. One field each: a Timer says how long, a Reset says when
- *  you get another. */
+/** An augmentation. One field each: a Timer says how long, a Reset says
+ *  when you get another. */
 function graphPieceFields(form, node) {
     const piece = node.piece;
     if (piece === null)
@@ -1851,7 +1851,7 @@ function onGraphPointerDown(state, event) {
     if (node === undefined)
         return;
     // A slotted piece travels with whatever it is slotted into: dragging one
-    // drags the assembly, the way picking up a jigsaw by a piece picks up the
+    // drags the assembly, the way picking up a puzzle by a piece picks up the
     // part it belongs to. Its own position is worked out from its host's.
     while (node !== undefined && node.piece !== null && node.piece.under !== null) {
         const above = node.piece.under;
@@ -2021,7 +2021,7 @@ function onGraphPointerUp(state, event) {
         }
         if (!drag.moved) {
             // The box that was pressed, not the one that was dragged: pressing a
-            // jigsaw piece opens the piece, even though dragging it moves the
+            // augmentation opens that augmentation, even though dragging it moves
             // assembly it is part of.
             pickGraphNode(state, drag.pressed);
             return;

@@ -16,7 +16,7 @@ type GraphNodeKind =
   // does; a withdraw starts one the way a source does.
   | "deposit"
   | "withdraw"
-  // Jigsaw pieces. Not on any path and not wired to anything: each is
+  // Augmentations. Not on any path and not wired to anything: each is
   // slotted under a box and changes what that box does.
   | "timer"
   | "reset"
@@ -99,7 +99,7 @@ interface GraphNodeView {
   store: GraphStore | null;
   /** Decay, Expire and Tag boxes: what this one marks what passes with. */
   stamp: GraphStamp | null;
-  /** Jigsaw pieces: what this one is slotted under, and what it says. */
+  /** Augmentations: what this one is slotted under, and what it says. */
   piece: GraphPiece | null;
   /** Condition pieces: what this one narrows by, and how to ask for it. */
   condition: GraphCondition | null;
@@ -211,7 +211,7 @@ interface GraphDrag {
   kind: "move" | "wire" | "pan" | "resize" | "pick";
   /** Which box is being dragged. Zero while panning: a pan holds no box. */
   nodeId: number;
-  /** Which box was actually pressed. Different from `nodeId` when a jigsaw
+  /** Which box was actually pressed. Different from `nodeId` when an
    *  piece was pressed: the assembly is dragged by its host, but a press
    *  that went nowhere is a click on the piece itself. */
   pressed: number;
@@ -740,7 +740,7 @@ interface GraphAsks {
   known: boolean;
 }
 
-/** A jigsaw piece: what it is slotted under, and what it carries. */
+/** An augmentation: what it is slotted under, and what it carries. */
 interface GraphPiece {
   /** The box or piece it sits under. Null while it is loose on the canvas. */
   under: number | null;
@@ -1656,8 +1656,8 @@ function graphConditionFields(
   if (said.blurb !== "") form.appendChild(graphElement("p", "hint", said.blurb));
 }
 
-/** A jigsaw piece. One field each: a Timer says how long, a Reset says when
- *  you get another. */
+/** An augmentation. One field each: a Timer says how long, a Reset says
+ *  when you get another. */
 function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
   const piece = node.piece;
   if (piece === null) return;
@@ -2435,7 +2435,7 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   if (node === undefined) return;
 
   // A slotted piece travels with whatever it is slotted into: dragging one
-  // drags the assembly, the way picking up a jigsaw by a piece picks up the
+  // drags the assembly, the way picking up a puzzle by a piece picks up the
   // part it belongs to. Its own position is worked out from its host's.
   while (node !== undefined && node.piece !== null && node.piece.under !== null) {
     const above: number = node.piece.under;
@@ -2617,7 +2617,7 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
     }
     if (!drag.moved) {
       // The box that was pressed, not the one that was dragged: pressing a
-      // jigsaw piece opens the piece, even though dragging it moves the
+      // augmentation opens that augmentation, even though dragging it moves
       // assembly it is part of.
       pickGraphNode(state, drag.pressed);
       return;

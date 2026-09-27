@@ -67,9 +67,9 @@ KINDS = (
     # later: how long you get with it, how long it belongs in a feed, what
     # it is called.
     "decay", "expire", "tag",
-    # Jigsaw pieces. These are not on any path and have no wires: each is
-    # slotted under a box and changes what that box does. Pieces chain, and
-    # a chain belongs to the box at the top of it.
+    # Augmentations. These are not on any path and have no wires: each is
+    # slotted under a box and changes what that box does. They chain, and a
+    # chain belongs to the box at the top of it.
     "timer", "reset", "alive", "lock",
     # Conditions: one piece per thing a Filter narrows by, and one for what
     # a Sort orders by. Listed by hand rather than spread from `CONDITIONS`
@@ -191,9 +191,18 @@ SLOTTED = ("feed", "decay", "expire", "filter", "sort")
 #: they turn nothing away — what they do shows up after the item has landed.
 STAMPS = ("decay", "expire", "tag")
 
-#: The pieces, as against the boxes. Kept together so "is this a piece"
-#: is one question asked in one place.
-JIGSAW: tuple[str, ...] = ("timer", "reset", "alive", "lock") + CONDITION_KINDS + (RULE,)
+#: The augmentations, as against the boxes. An augmentation is not on any
+#: path and has no wires: it is slotted under a box and changes what that box
+#: does. Kept in one tuple so "is this an augmentation" is one question asked
+#: in one place.
+#:
+#: Called a piece throughout the code, which is what one of them is on the
+#: canvas — it is drawn with a tab and a notch and interlocks with whatever it
+#: is slotted into. "Augmentation" is what the kind of thing is called;
+#: "piece" is what one looks like.
+AUGMENTATIONS: tuple[str, ...] = (
+    ("timer", "reset", "alive", "lock") + CONDITION_KINDS + (RULE,)
+)
 
 #: Which boxes each piece may be slotted under. A condition under a feed
 #: would be a piece nobody ever reads, so it is refused at the drop rather
@@ -1075,13 +1084,13 @@ def wired_channels(
 def attach(
     session: Session, piece: GraphNode, host: GraphNode, owner: OwnerId = None
 ) -> GraphNode:
-    """Slot a jigsaw piece under a box, or under another piece.
+    """Slot an augmentation under a box, or under another one.
 
     Refused where it would make no sense, said at the moment of the drop
     rather than discovered later by a piece that quietly does nothing.
     """
-    if piece.kind not in JIGSAW:
-        raise GraphError(f"A {piece.kind} box is not a jigsaw piece.")
+    if piece.kind not in AUGMENTATIONS:
+        raise GraphError(f"A {piece.kind} box is not an augmentation.")
     if piece.id == host.id:
         raise GraphError("A piece cannot be slotted under itself.")
     if host.kind == "group":
@@ -1092,7 +1101,7 @@ def attach(
     # piece was dropped directly onto.
     wanted = PIECE_HOSTS.get(piece.kind)
     if wanted is not None:
-        landing = host if host.kind not in JIGSAW else host_of(nodes(session, owner), host)
+        landing = host if host.kind not in AUGMENTATIONS else host_of(nodes(session, owner), host)
         if landing is None or landing.kind not in wanted:
             named = " or a ".join(one.capitalize() for one in wanted)
             raise GraphError(f"{piece.title} goes under a {named} box.")
@@ -1142,7 +1151,7 @@ def _close_up(session: Session, piece: GraphNode) -> None:
 
 
 def pieces_under(all_nodes: list[GraphNode], host_pk: int) -> list[GraphNode]:
-    """Every jigsaw piece in the chain under one box, nearest first.
+    """Every augmentation in the chain under one box, nearest first.
 
     A chain rather than a list: a piece may be slotted under another, and all
     of them belong to the box at the top. Nearest first because that is the
@@ -1151,7 +1160,7 @@ def pieces_under(all_nodes: list[GraphNode], host_pk: int) -> list[GraphNode]:
     """
     below: dict[int, list[GraphNode]] = {}
     for node in all_nodes:
-        if node.kind in JIGSAW and node.attached_to is not None:
+        if node.kind in AUGMENTATIONS and node.attached_to is not None:
             below.setdefault(node.attached_to, []).append(node)
 
     found: list[GraphNode] = []
@@ -1172,7 +1181,7 @@ def host_of(all_nodes: list[GraphNode], piece: GraphNode) -> GraphNode | None:
     by_id = {node.id: node for node in all_nodes}
     seen: set[int] = {piece.id}
     walk = by_id.get(piece.attached_to) if piece.attached_to else None
-    while walk is not None and walk.kind in JIGSAW:
+    while walk is not None and walk.kind in AUGMENTATIONS:
         if walk.id in seen:
             return None
         seen.add(walk.id)
@@ -1181,7 +1190,7 @@ def host_of(all_nodes: list[GraphNode], piece: GraphNode) -> GraphNode | None:
 
 
 def consumption(session: Session, owner: OwnerId = None) -> dict[int, list[GraphNode]]:
-    """The jigsaw pieces slotted under each feed, by playlist.
+    """The augmentations slotted under each feed, by playlist.
 
     A feed with none is always open. What these do is the opposite of what a
     trigger wired to a channel does: that one says when to go and fetch,
@@ -1487,7 +1496,7 @@ def stamp_words(node: GraphNode, pieces: list[GraphNode]) -> str:
 
 
 def piece_words(piece: GraphNode, window: int | None = None) -> str:
-    """What one jigsaw piece does, in the words that belong to it.
+    """What one augmentation does, in the words that belong to it.
 
     A Timer reads differently depending on what it is slotted into — how
     long a sitting lasts, how long you get with one item, how long an item
@@ -1874,7 +1883,7 @@ def _unpack(
             setattr(piece, said.column, entry.get("value"))
         return piece
 
-    if kind in JIGSAW:
+    if kind in AUGMENTATIONS:
         return add_piece(
             session, owner, kind=kind, x=x, y=y,
             duration_minutes=entry.get("duration_minutes"),
@@ -2707,7 +2716,7 @@ def add_piece(
     x: int = 0,
     y: int = 0,
 ) -> GraphNode:
-    """A jigsaw piece, slotted under a box if one was named.
+    """An augmentation, slotted under a box if one was named.
 
     Its own position is kept for the moment it is unslotted: a piece that is
     attached is drawn under its host and does not use it, but a piece nobody
@@ -2717,7 +2726,7 @@ def add_piece(
     nothing: it is dropped on a box first and told what it means second, the
     same way a Tag box is dropped before it is named.
     """
-    if kind not in JIGSAW:
+    if kind not in AUGMENTATIONS:
         raise GraphError(f"There is no {kind} piece.")
     if kind == RULE and not ref:
         raise GraphError("A plugin condition has to say which one it is.")
@@ -2980,7 +2989,7 @@ def remove(session: Session, node_pk: int, owner: OwnerId = None) -> bool:
 
     channel, playlist = node.channel, node.playlist
 
-    if node.kind in JIGSAW:
+    if node.kind in AUGMENTATIONS:
         # The chain closes up behind it. The column carries a cascade on a
         # database built from scratch, which would take everything below it
         # as well — silently deleting a Reset because a Timer above it was

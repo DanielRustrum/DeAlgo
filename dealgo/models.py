@@ -681,10 +681,10 @@ class GraphNode(Base):
     plugin_ref: Mapped[Optional[str]] = mapped_column(String(80))
     plugin_settings: Mapped[Optional[str]] = mapped_column(Text)
 
-    # Jigsaw pieces only: the box this one is slotted under. A piece has one
-    # host and no wires — it augments what it is attached to rather than
-    # sitting on a path. Pieces chain, and a chain belongs to whatever is at
-    # the top of it: what a piece changes is always the box, never the piece
+    # Augmentations only: the box this one is slotted under. An augmentation
+    # has one host and no wires — it changes what it is attached to rather
+    # than sitting on a path. They chain, and a chain belongs to whatever is
+    # at the top of it: what one changes is always the box, never the piece
     # above it.
     attached_to: Mapped[Optional[int]] = mapped_column(
         ForeignKey("graph_node.id", ondelete="CASCADE"), index=True

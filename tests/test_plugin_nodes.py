@@ -1,7 +1,7 @@
 """What a plugin puts in the palette: conditions for the app's Filter box.
 
 A plugin has no box of its own. It widens what a Filter can be told: each
-condition it declares is a jigsaw piece that slots under a Filter alongside
+condition it declares is an augmentation that slots under a Filter alongside
 the app's own conditions, so one Filter can ask "longer than ten minutes, and
 not a Short".
 

@@ -147,7 +147,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # takes. Nullable, because every box drawn before them is neither.
     ("graph_node", "repository", "VARCHAR(60)"),
     ("graph_node", "takes", "INTEGER"),
-    # Which box a jigsaw piece is slotted under. Added without the foreign
+    # Which box an augmentation is slotted under. Added without the foreign
     # key an ALTER cannot carry: the constraint is on the table SQLAlchemy
     # creates from scratch, and a column added to an existing one goes in
     # plain. Nothing reads it but the walk up a chain, which checks anyway.
@@ -258,7 +258,7 @@ def _feed_windows_become_pieces() -> None:
                 text("DELETE FROM graph_edge WHERE id = :pk"), {"pk": edge_pk}
             )
     if windows:
-        log.info("turned %d feed window(s) into jigsaw pieces", len(windows))
+        log.info("turned %d feed window(s) into augmentations", len(windows))
 
 
 #: Which condition piece each filter column becomes. The kind the rule turns
@@ -408,7 +408,7 @@ def _rules_become_pieces() -> None:
             )
 
     if made:
-        log.info("turned %d box rule(s) into jigsaw pieces", made)
+        log.info("turned %d box rule(s) into augmentations", made)
 
 
 def _plugin_boxes_become_pieces() -> None:

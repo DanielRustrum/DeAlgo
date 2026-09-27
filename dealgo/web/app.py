@@ -270,6 +270,13 @@ def _clock(value: dt.datetime | None) -> str:
 
 
 TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).label
+# Whether a palette row is for an augmentation — something that slots under a
+# box rather than sitting on a path. A global rather than an argument at each
+# call site, because then the palette and the canvas answer it from the same
+# list instead of the template carrying a second copy of it.
+TEMPLATES.env.globals["is_augmentation"] = (
+    lambda kind: kind in graph_service.AUGMENTATIONS
+)
 TEMPLATES.env.filters["ago"] = _ago
 TEMPLATES.env.filters["until"] = _until
 TEMPLATES.env.filters["spell"] = _spell
@@ -2031,7 +2038,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
     hosts = {
         node.id: graph_service.host_of(nodes, node)
         for node in nodes
-        if node.kind in graph_service.JIGSAW
+        if node.kind in graph_service.AUGMENTATIONS
     }
     return {
         "nodes": [
@@ -2079,7 +2086,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                     if node.kind in graph_service.STAMPS
                     else None
                 ),
-                # A jigsaw piece: what it is slotted under, and what it says.
+                # An augmentation: what it is slotted under, and what it says.
                 # Drawn under its host rather than at its own position, so the
                 # canvas needs to know which box that is.
                 "piece": (
@@ -2093,7 +2100,7 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                         # readily as minutes without anybody counting.
                         "every": _every_words_for(node),
                     }
-                    if node.kind in graph_service.JIGSAW
+                    if node.kind in graph_service.AUGMENTATIONS
                     else None
                 ),
                 # A condition piece: what it narrows by, and how to ask for
@@ -2480,7 +2487,7 @@ def _node_note(
         if box is None:
             return "its plugin is switched off — it narrows nothing"
         return box.blurb or f"from {box.plugin}"
-    if node.kind in graph_service.JIGSAW:
+    if node.kind in graph_service.AUGMENTATIONS:
         if node.attached_to is None:
             return "drop it on a box to slot it in"
         return graph_service.piece_note(node, host)
@@ -2652,7 +2659,7 @@ def graph_add_node(
             graph_service.add_stamp(
                 session, owner, kind=kind, marks=title.strip(), x=x, y=y
             )
-        elif kind in graph_service.JIGSAW:
+        elif kind in graph_service.AUGMENTATIONS:
             # Slotted under whatever it was dropped on. Without a host it is
             # a piece lying on the canvas, which is a thing you can pick up
             # and put somewhere rather than a thing that was refused.
@@ -3325,7 +3332,7 @@ async def graph_save_node(
                 return answer
         elif node.kind == graph_service.RULE:
             await _save_plugin_box(request, node)
-        elif node.kind in graph_service.JIGSAW:
+        elif node.kind in graph_service.AUGMENTATIONS:
             if node.kind == "alive":
                 begins = graph_service.clock_time(alive_from)
                 ends = graph_service.clock_time(alive_to)

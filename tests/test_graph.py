@@ -1504,7 +1504,7 @@ def test_the_palette_folds_away_what_is_optional(canvas):
 
     assert "<summary>Operations</summary>" in body
     assert "<summary>Triggers</summary>" in body
-    # Operations, Jigsaw, Conditions, Triggers, Plugins, Layout. The plugins
+    # Operations, Augmentations, Conditions, Triggers, Plugins, Layout. The plugins
     # one is there because a shipped plugin offers conditions; a plugin
     # offering none adds nothing.
     assert '<summary>Conditions</summary>' in body
@@ -3106,12 +3106,38 @@ def test_a_reset_that_is_not_a_cron_is_refused_with_a_reason(canvas):
     assert answer.json()["error"]
 
 
-def test_the_palette_offers_the_pieces(canvas):
+def test_the_palette_offers_the_augmentations(canvas):
     body = canvas.get("/channels").text
     assert 'data-palette="timer"' in body
     assert 'data-palette="reset"' in body
     assert 'data-palette="alive"' in body
-    assert "<summary>Jigsaw</summary>" in body
+    assert "<summary>Augmentations</summary>" in body
+
+
+def test_every_augmentation_row_is_marked_as_one(canvas):
+    """The one thing about a row worth knowing before you pick it up is
+    whether it goes on a path or slots under a box — and they are mixed in
+    among each other under Conditions and under Plugins.
+
+    Two lists in two languages, held together here: `graph.AUGMENTATIONS` is
+    what the app slots, and the palette is what says so on screen.
+    """
+    import re
+
+    body = canvas.get("/channels").text
+    rows = {}
+    for chunk in body.split('<li class="palette-item"')[1:]:
+        row = chunk.split("</li>", 1)[0]
+        found = re.search(r'data-palette="([a-z-]+)"', row)
+        if found is not None:
+            rows[found.group(1)] = "palette-augment" in row
+
+    marked = {kind for kind, said in rows.items() if said}
+    assert marked == set(rows) & set(graph.AUGMENTATIONS)
+    # Not an empty set agreeing with itself: an augmentation of each sort is
+    # drawn, and the boxes beside them are left unmarked.
+    assert {"timer", "order", "rule"} <= marked
+    assert not marked & {"filter", "sort", "feed", "source", "tag"}
 
 
 def test_an_alive_piece_is_set_from_its_panel(canvas):
@@ -3281,7 +3307,7 @@ def test_deleting_a_box_takes_its_pieces_with_it(db):
         graph.remove(session, feed_pk)
 
     with db.session_scope() as session:
-        left = [one for one in graph.nodes(session) if one.kind in graph.JIGSAW]
+        left = [one for one in graph.nodes(session) if one.kind in graph.AUGMENTATIONS]
         assert left == []
 
 

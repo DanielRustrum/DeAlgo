@@ -99,6 +99,22 @@
           <button class="palette-close" type="button" data-graph-palette-close aria-label="Close">✕</button>
         </div>
 
+{# The mark on a row that is an augmentation: a tab, the shape the piece is
+   drawn with on the canvas. It says "this slots under a box" rather than
+   "this goes on a path", which is the one thing about a row you need to know
+   before you pick it up — and the rows are mixed in among the boxes under
+   Conditions and under Plugins.
+
+   Drawn rather than written, because the same shape is what you then aim at:
+   the notch under the box you are dropping it on. #}
+{% macro augment_mark() -%}
+  <svg class="palette-augment" viewBox="0 0 16 12" aria-hidden="true" focusable="false">
+    <path d="M1 11 L1 4 L5.2 4 A2.8 2.8 0 1 1 10.8 4 L15 4 L15 11"
+          fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+{%- endmacro %}
+
 {% macro node_row(kind, name, blurb) -%}
   <li class="palette-item" data-palette="{{ kind }}" tabindex="0" role="button">
     <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule') else kind }}"></span>
@@ -106,6 +122,11 @@
       <strong>{{ name }}</strong>
       <span class="palette-blurb">{{ blurb }}</span>
     </span>
+    {% if is_augmentation(kind) %}
+      <span class="palette-badge" title="An augmentation: it slots under a box rather than sitting on a path">
+        {{ augment_mark() }}
+      </span>
+    {% endif %}
   </li>
 {%- endmacro %}
 
@@ -122,6 +143,11 @@
       <strong>{{ node.label }}</strong>
       <span class="palette-blurb">{{ node.blurb or 'From ' ~ plugin ~ '.' }}</span>
     </span>
+    {% if is_augmentation(node.palette) %}
+      <span class="palette-badge" title="An augmentation: it slots under a Filter box">
+        {{ augment_mark() }}
+      </span>
+    {% endif %}
   </li>
 {%- endmacro %}
 
@@ -153,10 +179,11 @@
           </ul>
         </details>
 
-        {# Pieces rather than boxes: each slots under something and changes
-           what that something does, instead of sitting on a path. #}
+        {# Augmentations rather than boxes: each slots under something and
+           changes what that something does, instead of sitting on a path.
+           Every row that does is marked, here and wherever else one turns up. #}
         <details class="palette-group">
-          <summary>Jigsaw</summary>
+          <summary>Augmentations</summary>
           <ul class="palette-list">
             {{ node_row('timer', 'Timer', 'How long a feed stays open once you start reading. Drop it on a box.') }}
             {{ node_row('reset', 'Reset', 'When that time comes back — a cron. Drop it on a box.') }}

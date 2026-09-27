@@ -255,7 +255,7 @@
 .graph-node.kind-decay,
 .graph-node.kind-expire { border-left-color: #2ac3de; }
 
-// A jigsaw piece. Drawn under the box it is slotted into and interlocking
+// An augmentation. Drawn under the box it is slotted into and interlocking
 // with it: a tab on the top that sits into the piece above, and a notch cut
 // out of the bottom for the next one down. Painted in the canvas colour
 // rather than cut out, since the canvas behind it is one flat colour.
@@ -288,7 +288,7 @@ $tab: 18px;
 .graph-node.is-piece .graph-node-kind { color: $piece; }
 
 // The tab and the notch are what a free edge looks like. A joined one shows
-// neither: on a real jigsaw the tab is inside the joint, and drawing it at a
+// neither: on a real puzzle the tab is inside the joint, and drawing it at a
 // seam only puts a bump where two things already meet cleanly.
 //
 // So the tab is on a piece nobody has slotted in yet, and the notch is on
@@ -914,6 +914,21 @@ $tab: 18px;
 .palette-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .palette-text strong { font-size: 13px; }
 .palette-blurb { font-size: 11.5px; color: var(--muted); }
+
+// The mark on a row that is an augmentation. Pushed to the far edge and quiet:
+// it answers "does this slot under something?" at a glance, and the rows that
+// are boxes must not look like they are missing something.
+//
+// The tab it draws is the shape the piece itself wears on the canvas, and the
+// shape of the notch you then aim at, so the same green says so in all three
+// places.
+.palette-badge {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  color: $piece;
+}
+.palette-augment { width: 16px; height: 12px; display: block; }
 
 // Follows the pointer between the palette and the canvas.
 .graph-node.is-ghost { opacity: 0.85; z-index: 9; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4); }
