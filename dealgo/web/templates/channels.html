@@ -115,12 +115,30 @@
   </svg>
 {%- endmacro %}
 
+{# Where an augmentation goes, under its description. The badge says it
+   slots under something; this says under what, which is the next thing you
+   would ask and the thing that decides whether this row is any use to you.
+
+   From the same table the drop is checked against, so a row cannot promise
+   somewhere the canvas would then refuse. #}
+{% macro goes_under_line(kind, ref='') -%}
+  {% set where = goes_under(kind, ref) %}
+  {% if where %}
+    <span class="palette-under">
+      Goes under {{ 'an' if where[0] in 'AEIOU' else 'a' }} {{ where }} box
+    </span>
+  {% endif %}
+{%- endmacro %}
+
 {% macro node_row(kind, name, blurb) -%}
-  <li class="palette-item" data-palette="{{ kind }}" tabindex="0" role="button">
+  <li class="palette-item" data-palette="{{ kind }}"
+      {% if is_augmentation(kind) %}data-under="{{ host_kinds(kind) }}"{% endif %}
+      tabindex="0" role="button">
     <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule') else kind }}"></span>
     <span class="palette-text">
       <strong>{{ name }}</strong>
       <span class="palette-blurb">{{ blurb }}</span>
+      {{ goes_under_line(kind) }}
     </span>
     {% if is_augmentation(kind) %}
       <span class="palette-badge" title="An augmentation: it slots under a box rather than sitting on a path">
@@ -136,16 +154,17 @@
 {% macro plugin_row(node, plugin) -%}
   <li class="palette-item" data-palette="{{ node.palette }}"
       {% if node.palette == 'source' %}data-source-kind="{{ node.ref }}"
-      {% else %}data-plugin-node="{{ node.ref }}" data-under="{{ node.under }}"{% endif %}
+      {% else %}data-plugin-node="{{ node.ref }}"
+        data-under="{{ host_kinds(node.palette, node.ref) }}"{% endif %}
       tabindex="0" role="button">
     <span class="palette-swatch kind-{{ node.swatch }}"></span>
     <span class="palette-text">
       <strong>{{ node.label }}</strong>
       <span class="palette-blurb">{{ node.blurb or 'From ' ~ plugin ~ '.' }}</span>
+      {{ goes_under_line(node.palette, node.ref) }}
     </span>
     {% if is_augmentation(node.palette) %}
-      <span class="palette-badge"
-            title="An augmentation: it slots under {{ 'a Sort' if node.under == 'sort' else 'a Filter' }} box">
+      <span class="palette-badge" title="An augmentation: it slots under a box rather than sitting on a path">
         {{ augment_mark() }}
       </span>
     {% endif %}
@@ -191,17 +210,17 @@
         <details class="palette-group">
           <summary>Augmentations</summary>
           <ul class="palette-list">
-            {{ node_row('timer', 'Timer', 'How long a feed stays open once you start reading. Drop it on a box.') }}
-            {{ node_row('reset', 'Reset', 'When that time comes back — a cron. Drop it on a box.') }}
+            {{ node_row('timer', 'Timer', 'How long a feed stays open once you start reading.') }}
+            {{ node_row('reset', 'Reset', 'When that time comes back — a cron.') }}
             {{ node_row('alive', 'Alive', 'Only between two times of day. Narrows whatever else is slotted in.') }}
             {{ node_row('lock', 'Lock', 'Makes the Timer above it one you cannot pause.') }}
-            {{ node_row('has-words', 'Title has', 'Only what matches. Words, or /a regex/. Goes under a Filter.') }}
-            {{ node_row('lacks-words', 'Title lacks', 'Holds anything that matches. Goes under a Filter.') }}
-            {{ node_row('longer-than', 'Longer than', 'Holds anything shorter. Goes under a Filter.') }}
-            {{ node_row('shorter-than', 'Shorter than', 'Holds anything longer. Goes under a Filter.') }}
+            {{ node_row('has-words', 'Title has', 'Only what matches. Words, or /a regex/.') }}
+            {{ node_row('lacks-words', 'Title lacks', 'Holds anything that matches.') }}
+            {{ node_row('longer-than', 'Longer than', 'Holds anything shorter.') }}
+            {{ node_row('shorter-than', 'Shorter than', 'Holds anything longer.') }}
             {{ node_row('carrying', 'Carrying', 'Only what a Tag box earlier put a mark on.') }}
             {{ node_row('at-most', 'At most', 'How many may get through in one run.') }}
-            {{ node_row('order', 'Order', 'What to put the batch in order by. Goes under a Sort.') }}
+            {{ node_row('order', 'Order', 'What to put the batch in order by.') }}
           </ul>
         </details>
 

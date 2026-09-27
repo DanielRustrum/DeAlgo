@@ -88,14 +88,16 @@ async function main() {
   // Which boxes a piece may be slotted under. The same answer the server
   // gives, so a drag only lights up somewhere it can actually land.
   report.slotsFor = {
-    orderUnderSort: context.graphPieceGoesUnder("order", "sort"),
-    orderUnderFilter: context.graphPieceGoesUnder("order", "filter"),
-    wordsUnderFilter: context.graphPieceGoesUnder("has-words", "filter"),
-    wordsUnderFeed: context.graphPieceGoesUnder("has-words", "feed"),
-    ruleUnderFilter: context.graphPieceGoesUnder("rule", "filter"),
-    ruleUnderFeed: context.graphPieceGoesUnder("rule", "feed"),
-    timerUnderFeed: context.graphPieceGoesUnder("timer", "feed"),
-    timerUnderFilter: context.graphPieceGoesUnder("timer", "filter"),
+    orderUnderSort: context.graphPieceGoesUnder("sort", "sort"),
+    orderUnderFilter: context.graphPieceGoesUnder("filter", "sort"),
+    wordsUnderFilter: context.graphPieceGoesUnder("filter", "filter"),
+    wordsUnderFeed: context.graphPieceGoesUnder("feed", "filter"),
+    timerUnderExpire: context.graphPieceGoesUnder("expire", "feed,decay,expire"),
+    timerUnderFilter: context.graphPieceGoesUnder("filter", "feed,decay,expire"),
+    // A piece whose plugin is switched off knows nowhere in particular, and
+    // is allowed anywhere that reads one rather than being stuck fast.
+    unknownUnderFilter: context.graphPieceGoesUnder("filter", ""),
+    unknownUnderSource: context.graphPieceGoesUnder("source", ""),
   };
 
   const curve = context.graphCurve(0, 0, 200, 100);

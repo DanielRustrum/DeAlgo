@@ -2551,14 +2551,14 @@ def test_a_piece_only_lights_up_the_boxes_it_belongs_under(canvas_report):
     assert said["orderUnderFilter"] is False
     assert said["wordsUnderFilter"] is True
     assert said["wordsUnderFeed"] is False
-    # A plugin's condition goes where every other condition goes: there is no
-    # plugin box for it to hang off.
-    assert said["ruleUnderFilter"] is True
-    assert said["ruleUnderFeed"] is False
-    # The four older pieces say something about reading, which is a question
-    # only a feed, a Decay and an Expire box ask.
-    assert said["timerUnderFeed"] is True
+    # A Timer means something different under each of three boxes, and
+    # nothing at all under the rest.
+    assert said["timerUnderExpire"] is True
     assert said["timerUnderFilter"] is False
+    # Nothing known is not nowhere: a piece whose plugin is switched off can
+    # still be picked up and put down somewhere that reads one.
+    assert said["unknownUnderFilter"] is True
+    assert said["unknownUnderSource"] is False
 
 
 @needs_node
@@ -4062,3 +4062,36 @@ def test_a_refused_drop_leaves_nothing_behind(canvas):
     assert refused.status_code == 400
 
     assert boxes(canvas.get("/api/graph").json(), "order") == []
+
+
+def test_every_augmentation_row_says_where_it_goes(canvas):
+    """The badge says a row slots under something; this says under what,
+    which is the next thing you would ask and what decides whether the row is
+    any use to you.
+
+    Held to the table the drop itself is checked against, so a row cannot
+    promise somewhere the canvas would then refuse.
+    """
+    import re
+
+    body = canvas.get("/channels").text
+    for chunk in body.split('<li class="palette-item')[1:]:
+        row = chunk.split("</li>", 1)[0]
+        kind = re.search(r'data-palette="([a-z-]+)"', row)
+        if kind is None or kind.group(1) not in graph.AUGMENTATIONS:
+            assert "palette-under" not in row   # a box goes on a path, not under one
+            continue
+
+        found = re.search(r'data-plugin-node="([^"]+)"', row)
+        ref = found.group(1) if found else ""
+        wanted = graph.hosts_for(kind.group(1), ref)
+        where = graph.goes_under(kind.group(1), ref)
+        article = "an" if where[:1] in "AEIOU" else "a"
+
+        # Once as a sentence for the reader…
+        said = re.search(r'palette-under">\s*(.*?)\s*</span>', row, re.S)
+        assert said is not None, row
+        assert said.group(1) == f"Goes under {article} {where} box"
+        # …and once as the list the canvas lights up while it is dragged.
+        carried = re.search(r'data-under="([a-z,-]*)"', row)
+        assert carried is not None and carried.group(1) == ",".join(wanted)

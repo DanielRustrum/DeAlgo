@@ -204,37 +204,79 @@ AUGMENTATIONS: tuple[str, ...] = (
     ("timer", "reset", "alive", "lock") + CONDITION_KINDS + (RULE,)
 )
 
-#: Which boxes each piece may be slotted under. A condition under a feed
-#: would be a piece nobody ever reads, so it is refused at the drop rather
-#: than discovered later by a box that quietly narrows nothing.
+#: Which boxes each augmentation may be slotted under. An Alive under a
+#: Filter would be a piece nobody ever reads, so it is refused at the drop
+#: rather than discovered later by a box that quietly does nothing.
 #:
-#: The four older pieces are left unrestricted: they were droppable anywhere
-#: before there was anywhere they could not go, and narrowing them now would
-#: unslot pieces somebody has already placed.
+#: This is the one answer: the palette prints it on every row, the canvas
+#: lights up the boxes it names while a piece is dragged, and `attach`
+#: refuses anything else. Three places saying different things is how you
+#: end up able to drop something where it will never be read.
 PIECE_HOSTS: dict[str, tuple[str, ...]] = {
+    # A Timer is an amount of time and means something different in each:
+    # a sitting, how long you get with one item, how long an item stays.
+    "timer": ("feed", "decay", "expire"),
+    # The other three are about reading a feed, and only a feed reads them.
+    "reset": ("feed",),
+    "alive": ("feed",),
+    # And a Lock is about a Decay's Timer being one you cannot pause.
+    "lock": ("decay",),
     **{one.kind: (one.under,) for one in CONDITIONS},
 }
+
+#: What each box is called where one is named out loud.
+BOX_NAMES: dict[str, str] = {
+    "feed": "Feed", "filter": "Filter", "sort": "Sort",
+    "decay": "Decay", "expire": "Expire",
+}
+
+
+def hosts_for(kind: str, ref: str = "") -> tuple[str, ...]:
+    """Which boxes an augmentation of this kind may be slotted under.
+
+    A plugin's is asked of the plugin rather than read off the table: what
+    it goes under is the plugin's to declare, and a Filter and a Sort ask
+    different enough questions that one answering either would do nothing
+    under the other.
+
+    Empty where there is nothing to say — this is not an augmentation, or it
+    is one whose plugin is switched off. An empty answer is not a refusal:
+    see `attach`, which takes it as "no opinion" rather than "nowhere".
+    """
+    if kind != RULE:
+        return PIECE_HOSTS.get(kind, ())
+    from ..plugins import registry
+
+    found = registry.current().augmentation(ref)
+    # Its plugin is switched off or gone. It narrows nothing while that is
+    # true, and refusing to move it as well would be twice the punishment
+    # for something that is not the canvas's fault.
+    return () if found is None else (found.under,)
+
+
+def goes_under(kind: str, ref: str = "") -> str:
+    """Where one goes, said out loud: "a Feed, a Decay or an Expire box".
+
+    "" where there is nothing to say, so a caller can print it or not
+    without asking a second question about which case it is in.
+    """
+    named = [BOX_NAMES.get(one, one.title()) for one in hosts_for(kind, ref)]
+    if not named:
+        return ""
+    if len(named) == 1:
+        return named[0]
+    return ", ".join(named[:-1]) + " or " + named[-1]
 
 
 def piece_hosts(piece: GraphNode) -> tuple[str, ...] | None:
     """Which boxes this particular piece may be slotted under.
 
-    None means anywhere, which is what the four older pieces answer.
-
-    A plugin's augmentation is asked of the plugin rather than read off a
-    table here: what it goes under is the plugin's to declare, and a Filter
-    and a Sort ask different enough questions that a piece answering one
-    would do nothing under the other.
+    None means nothing is known about where it goes, which is not the same
+    as nowhere: a piece whose plugin is switched off would otherwise be
+    unmovable as well as inert.
     """
-    if piece.kind != RULE:
-        return PIECE_HOSTS.get(piece.kind)
-    from ..plugins import registry
-
-    found = registry.current().augmentation(piece.plugin_ref or "")
-    # Its plugin is switched off or gone. It narrows nothing while that is
-    # true, and refusing to move it as well would be twice the punishment
-    # for something that is not the canvas's fault.
-    return None if found is None else (found.under,)
+    found = hosts_for(piece.kind, piece.plugin_ref or "")
+    return found or None
 
 # What a group starts out as, and the least it can be shrunk to.
 GROUP_SIZE = (520, 300)

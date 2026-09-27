@@ -515,17 +515,29 @@ def test_unlink_is_visually_distinct_from_remove(client):
     assert retiring.index("btn-warn") < retiring.index("btn-danger")
 
 
-def test_the_nav_reads_configuration_and_raw(client):
+def test_the_nav_reads_configuration(client):
     body = client.get("/").text
 
     assert ">Configuration</a>" in body
-    assert ">Raw</a>" in body
     assert ">Channels</a>" not in body
-    assert ">Videos</a>" not in body
 
-    # The URLs are unchanged, so links and bookmarks still work.
-    assert 'href="/channels"' in body and 'href="/videos"' in body
+    # The URL is unchanged, so links and bookmarks still work.
+    assert 'href="/channels"' in body
     assert client.get("/channels").status_code == 200
+
+
+def test_the_raw_list_is_reached_from_the_dashboard_not_from_a_tab(client):
+    """It is where you go to answer "what happened to that one", which is a
+    question the numbers on the dashboard raise. A tab of its own put it
+    beside the feed, as though it were another way to read."""
+    body = client.get("/").text
+
+    assert ">Raw</a>" not in body
+    assert '<nav id="site-nav"' in body
+    assert 'href="/videos"' not in body.split('<nav id="site-nav"', 1)[1].split("</nav>", 1)[0]
+
+    # Still linked to, and still there: the dashboard's counts lead into it.
+    assert 'href="/videos?status=' in body
     assert client.get("/videos").status_code == 200
 
 

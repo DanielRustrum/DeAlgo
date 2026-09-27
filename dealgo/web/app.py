@@ -277,6 +277,15 @@ TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).labe
 TEMPLATES.env.globals["is_augmentation"] = (
     lambda kind: kind in graph_service.AUGMENTATIONS
 )
+# And which boxes it goes under, for the row to say so: once as a sentence
+# under the description, once as the list the canvas lights up while it is
+# being dragged. Both from the table the drop itself is checked against.
+TEMPLATES.env.globals["goes_under"] = (
+    lambda kind, ref="": graph_service.goes_under(kind, ref)
+)
+TEMPLATES.env.globals["host_kinds"] = (
+    lambda kind, ref="": ",".join(graph_service.hosts_for(kind, ref))
+)
 TEMPLATES.env.filters["ago"] = _ago
 TEMPLATES.env.filters["until"] = _until
 TEMPLATES.env.filters["spell"] = _spell
@@ -854,9 +863,6 @@ def _palette_plugins() -> list[Context]:
                 "label": node.label,
                 "blurb": node.blurb,
                 "swatch": graph_service.RULE,
-                # Which of the app's boxes it slots under, for the row to say
-                # so: a plugin can add to a Filter or to a Sort.
-                "under": node.under,
             }
         )
     return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
@@ -2102,6 +2108,12 @@ def _graph_payload(session: Session, owner: OwnerId) -> Context:
                         # An amount and a unit, so a Timer can say days as
                         # readily as minutes without anybody counting.
                         "every": _every_words_for(node),
+                        # Which boxes it may be slotted under, so dragging one
+                        # already on the canvas lights up the same places the
+                        # palette promised and the drop will accept.
+                        "hosts": ",".join(
+                            graph_service.hosts_for(node.kind, node.plugin_ref or "")
+                        ),
                     }
                     if node.kind in graph_service.AUGMENTATIONS
                     else None

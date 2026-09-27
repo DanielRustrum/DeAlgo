@@ -417,6 +417,7 @@ function asGraphPiece(value: unknown): GraphPiece | null {
     from: typeof raw["from"] === "string" ? raw["from"] : "",
     to: typeof raw["to"] === "string" ? raw["to"] : "",
     every: asGraphEvery(raw["every"]),
+    hosts: typeof raw["hosts"] === "string" ? raw["hosts"] : "",
   };
 }
 
@@ -759,6 +760,9 @@ interface GraphPiece {
   to: string;
   /** Timer: its amount and unit, and the units it could be said in. */
   every: GraphEvery;
+  /** Which boxes it may be slotted under, comma-separated. Empty where
+   *  nothing is known — a piece whose plugin is switched off. */
+  hosts: string;
 }
 
 /** One condition piece: what it narrows by, and how to ask for it. */
@@ -2509,7 +2513,7 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
   if (drag.kind === "move") {
     const held = state.nodes.find((one): boolean => one.id === drag.nodeId);
     if (held !== undefined && held.piece !== null && held.piece.under === null) {
-      markGraphSlotFor(state, event, held.id, held.kind, held.plugin?.under ?? "");
+      markGraphSlotFor(state, event, held.id, held.piece?.hosts ?? "");
     }
   }
 
@@ -2631,7 +2635,7 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
     // be deleted and dragged out of the palette again.
     const loose = state.nodes.find((one): boolean => one.id === drag.nodeId);
     if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
-      const slot = graphSlotFor(state, event, loose.kind, loose.plugin?.under ?? "");
+      const slot = graphSlotFor(state, event, true, loose.piece?.hosts ?? "");
       if (slot !== null && slot.under !== loose.id) {
         void applyGraph(
           state,
@@ -3603,35 +3607,27 @@ interface GraphSlot {
   width: number;
 }
 
-/** Whether this kind of piece belongs under this kind of box.
+/** Whether a piece belongs under this kind of box.
  *
- *  The same answer the server gives, said here as well so a piece being
- *  dragged only lights up the boxes it can actually go into — a refusal you
- *  can see coming is better than one that arrives after the drop. */
-function graphPieceGoesUnder(
-  piece: GraphNodeKind, box: GraphNodeKind, under = ""
-): boolean {
-  if (piece === "order") return box === "sort";
-  if (graphConditionKinds().indexOf(piece) >= 0) return box === "filter";
-  // A plugin's augmentation goes where that plugin said. Unknown — a piece
-  // whose plugin is switched off — is allowed anywhere it could have gone,
-  // because refusing to move it as well would be twice the punishment for
-  // something that is not the canvas's fault.
-  if (piece === "rule") {
-    if (under === "") return box === "filter" || box === "sort";
-    return box === under;
-  }
-  // A Timer, Reset, Alive or Lock. These say something about reading, which
-  // is a question only these three boxes ask.
-  return box === "feed" || box === "decay" || box === "expire";
+ *  `under` is the list the server sent for this piece — on its palette row
+ *  while it is being dragged out, on the piece itself once it is on the
+ *  canvas. Read rather than worked out again here, because a second copy of
+ *  the rule is how you end up able to drop something where it is never read.
+ *
+ *  An empty list is not "nowhere": it is a piece whose plugin is switched
+ *  off, and refusing to move it as well would be twice the punishment for
+ *  something that is not the canvas's fault. */
+function graphPieceGoesUnder(box: GraphNodeKind, under: string): boolean {
+  if (under === "") return graphTakesPieces(box);
+  return under.split(",").indexOf(box) >= 0;
 }
 
-/** Every place a piece of this kind could be slotted, with where each sits.
+/** Every place a piece could be slotted, with where each one sits.
  *
- *  Null asks for every slot there is, which is what an ordinary drag wants
- *  before anything is known about what is being dragged. */
+ *  `held` false asks for every slot there is, which is what an ordinary drag
+ *  wants before anything is known about what is being dragged. */
 function graphSlots(
-  state: GraphState, held: GraphNodeKind | null = null, under = ""
+  state: GraphState, held = false, under = ""
 ): GraphSlot[] {
   const below = new Map<number, GraphNodeView[]>();
   for (const node of state.nodes) {
@@ -3651,7 +3647,7 @@ function graphSlots(
     // goes: offering a slot under a source box would be an invitation to
     // nothing. The same list the notch is drawn from.
     if (!graphTakesPieces(node.kind)) continue;
-    if (held !== null && !graphPieceGoesUnder(held, node.kind, under)) continue;
+    if (held && !graphPieceGoesUnder(node.kind, under)) continue;
 
     // Walk to the end of whatever is already slotted in, so a second piece
     // lands under the first rather than beside it.
@@ -3675,8 +3671,7 @@ function graphSlots(
 
 /** The slot a piece being dragged would drop into, if any. */
 function graphSlotFor(
-  state: GraphState, event: PointerEvent,
-  held: GraphNodeKind | null = null, under = ""
+  state: GraphState, event: PointerEvent, held = false, under = ""
 ): GraphSlot | null {
   const at = pointInGraph(state, event);
   let nearest: GraphSlot | null = null;
@@ -3700,17 +3695,16 @@ function markGraphSlot(state: GraphState, event: PointerEvent): void {
   const dropping = state.dropping;
   const wanted =
     dropping !== null && graphIsPiece(dropping.kind as GraphNodeKind)
-      ? graphSlotFor(state, event, dropping.kind as GraphNodeKind, dropping.under)
+      ? graphSlotFor(state, event, true, dropping.under)
       : null;
   showGraphSlot(state, wanted);
 }
 
 /** The same, for a piece already on the canvas being dragged onto one. */
 function markGraphSlotFor(
-  state: GraphState, event: PointerEvent, moving: number,
-  held: GraphNodeKind, under = ""
+  state: GraphState, event: PointerEvent, moving: number, under: string
 ): void {
-  const slot = graphSlotFor(state, event, held, under);
+  const slot = graphSlotFor(state, event, true, under);
   showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
 
@@ -3762,9 +3756,7 @@ function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   // landed. Dropped nowhere near one it is simply a piece on the canvas,
   // which can be picked up and put somewhere.
   const onto = graphIsPiece(dropping.kind as GraphNodeKind)
-    ? (graphSlotFor(
-        state, event, dropping.kind as GraphNodeKind, dropping.under,
-      )?.under ?? null)
+    ? (graphSlotFor(state, event, true, dropping.under)?.under ?? null)
     : null;
   void dropGraphNode(
     state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30),
