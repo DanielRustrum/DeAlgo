@@ -97,11 +97,30 @@ def test_video_action_swaps_only_that_row(client, db):
         assert session.scalar(select(Video)).status == "ignored"
 
 
-def test_watched_view_and_dashboard_partial_render(client):
+def test_the_front_door_leads_to_the_feed(client):
+    """There was a dashboard here. Every part of it was a second view of
+    something with a page of its own, and it sat in front of the thing the
+    app is for."""
+    landed = client.get("/", follow_redirects=False)
+
+    assert landed.status_code in (302, 303, 307)
+    assert landed.headers["location"] == "/feed"
+    # And it is not a tab any more.
+    assert ">Dashboard</a>" not in client.get("/feed").text
+
+
+def test_the_counts_are_at_the_top_of_configuration(client):
+    """The first question anybody has on opening it, on the page that can do
+    something about the answer."""
+    body = client.get("/channels").text
+
+    assert 'id="stats"' in body
+    assert "channels watched" in body
+    assert body.index('id="stats"') < body.index("graph-panel")
+
+
+def test_the_watched_view_renders(client):
     assert client.get("/videos?watched=1").status_code == 200
-    body = client.get("/partials/dashboard", headers=HX).text
-    assert "<html" not in body.lower()
-    assert "Status" in body and "Feeds" in body
 
 
 def test_marking_watched_swaps_the_row_and_announces_the_change(client, db):
@@ -237,8 +256,9 @@ def test_a_dead_refresh_grant_is_reported_not_hidden(client, db):
     assert "Token has been expired or revoked." in settings_page
     assert "Reconnect YouTube account" in settings_page
 
-    dashboard = client.get("/").text
-    assert "Google needs you to sign in again." in dashboard
+    # The notice lives on Configuration now: it is the page that can act on
+    # it, and the one somebody is on when they find out.
+    assert "Google needs you to sign in again." in client.get("/channels").text
 
 
 def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkeypatch):
@@ -408,10 +428,17 @@ def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
     """A table too wide for its panel scrolls instead of drawing past the edge."""
     assert '<div class="table-scroll">' in client.get("/videos").text
 
-    # The run log only renders once there has been a run.
+    # The run log is read in a dialog on the canvas now rather than on a page
+    # of its own, and its table only renders for a run that wrote something.
+    from dealgo.services import runlog
+
     with db.session_scope() as session:
-        session.add(SyncRun(ok=True))
-    assert '<div class="table-scroll">' in client.get("/").text
+        run = SyncRun(ok=True)
+        session.add(run)
+        session.flush()
+        runlog.Pen(session, run.id).write("polled something", about="A Channel")
+
+    assert '<div class="table-scroll">' in client.get("/partials/log", headers=HX).text
 
 
 def test_the_letter_colour_is_stable_for_a_channel(db):
@@ -526,17 +553,17 @@ def test_the_nav_reads_configuration(client):
     assert client.get("/channels").status_code == 200
 
 
-def test_the_raw_list_is_reached_from_the_dashboard_not_from_a_tab(client):
+def test_the_raw_list_is_reached_from_the_counts_not_from_a_tab(client):
     """It is where you go to answer "what happened to that one", which is a
-    question the numbers on the dashboard raise. A tab of its own put it
-    beside the feed, as though it were another way to read."""
-    body = client.get("/").text
+    question the counts raise. A tab of its own put it beside the feed, as
+    though it were another way to read."""
+    body = client.get("/channels").text
 
     assert ">Raw</a>" not in body
     assert '<nav id="site-nav"' in body
     assert 'href="/videos"' not in body.split('<nav id="site-nav"', 1)[1].split("</nav>", 1)[0]
 
-    # Still linked to, and still there: the dashboard's counts lead into it.
+    # Still linked to, and still there: the counts lead into it.
     assert 'href="/videos?status=' in body
     assert client.get("/videos").status_code == 200
 
@@ -725,67 +752,6 @@ def test_the_tour_ticks_off_what_is_already_done(client, db):
 def test_an_out_of_range_step_lands_somewhere_sensible(client):
     assert client.get("/tour?step=0").status_code == 200
     assert client.get("/tour?step=99").status_code == 200
-
-
-def test_the_tour_button_can_be_hidden(client, db):
-    from dealgo.models import Settings
-
-    assert ">Tour</a>" in client.get("/").text
-
-    client.post("/settings", data={"hide_tour": "1", "poll_interval_minutes": "30"})
-    with db.session_scope() as session:
-        assert db.get_settings(session).hide_tour is True
-
-    hidden = client.get("/").text
-    assert ">Tour</a>" not in hidden
-    # The tour itself is still reachable for anyone who wants it.
-    assert client.get("/tour").status_code == 200
-
-
-def test_saving_settings_does_not_hide_the_tour_by_accident(client, db):
-    """The checkbox is opt-out: a "show it" box would switch itself off on the
-    first save, because an unticked box sends nothing."""
-    client.post("/settings", data={"poll_interval_minutes": "45"})
-    with db.session_scope() as session:
-        assert db.get_settings(session).hide_tour is False
-    assert ">Tour</a>" in client.get("/").text
-
-
-def test_the_dashboard_speaks_the_same_language_as_the_rest(client):
-    """It still said "Feed target", "Playlists" and "from playlist"."""
-    body = client.get("/").text
-
-    assert "Feed target" not in body
-    assert "from playlist" not in body
-    assert "Mark playlist watched" not in body
-
-    assert "Remove 0 watched from feeds" in body
-    assert "Mark all watched" in body
-
-
-def test_the_dashboard_links_each_feed_to_its_page(client, db):
-    from dealgo.models import Playlist
-    from dealgo.services import playlists as playlist_service
-
-    with db.session_scope() as session:
-        playlist_service.set_tags(session, session.get(Playlist, 1), "news")
-
-    body = client.get("/").text
-    assert 'href="/feeds/1"' in body      # the name is a way in
-    assert "pill-tag" in body             # tags carry through
-    assert "1 channel" in body            # counts read as words, not bare numbers
-
-
-def test_the_dashboard_status_is_grouped_like_everything_else(client):
-    import re
-
-    body = client.get("/").text
-    panel = body.split('id="dashboard-state"', 1)[1]
-
-    labels = re.findall(r'<span class="group-label">([^<]+)</span>', panel)
-    assert labels == ["Account", "Syncing", "Watched", "API quota"]
-
-
 def test_the_channel_page_shows_the_channel_in_its_own_words(client, db):
     from dealgo.models import Channel
 
@@ -840,37 +806,6 @@ def test_a_short_description_of_many_lines_still_folds(client, db):
 
     body = client.get("/channels/1").text
     assert "blurb-folded" in body
-
-
-def test_a_channel_without_a_description_shows_no_empty_space(client, db):
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        session.get(Channel, 1).description = ""
-
-    body = client.get("/channels/1").text
-    assert "blurb" not in body
-
-
-def test_the_reading_time_can_be_set(client, db):
-    from dealgo.models import Settings
-
-    assert 'name="post_seconds"' in client.get("/settings").text
-
-    client.post("/settings", data={"post_seconds": "45"}, follow_redirects=False)
-    with db.session_scope() as session:
-        assert get_settings(session).post_seconds == 45
-
-
-def test_a_reading_time_too_short_to_read_is_refused(client, db):
-    """Zero would flick a post past before anyone could see it."""
-    from dealgo.models import Settings
-
-    client.post("/settings", data={"post_seconds": "0"}, follow_redirects=False)
-    with db.session_scope() as session:
-        assert get_settings(session).post_seconds == 3
-
-
 def test_the_layout_answers_to_a_phone(client):
     """A stylesheet with no narrow rules is a desktop site with a viewport tag."""
     css = squashed(client.get("/static/app.css").text)
@@ -1281,19 +1216,13 @@ def test_every_preference_is_under_a_heading_that_describes_it(client):
     panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
     groups = re.findall(r"<h3>([^<]*)</h3>", panel)
 
-    assert groups == ["Syncing", "Watching", "API quota", "This interface",
-                      "Google API credentials"]
+    assert groups == ["This interface", "Google API credentials"]
 
     # And each field sits under the heading that describes it.
     def group_of(field: str) -> str:
         before = panel.split(f'name="{field}"', 1)[0]
         return re.findall(r"<h3>([^<]*)</h3>", before)[-1]
 
-    assert group_of("auto_sync") == "Syncing"
-    assert group_of("poll_interval_minutes") == "Syncing"
-    assert group_of("initial_backfill") == "Syncing"
-    assert group_of("shorts_max_seconds") == "Syncing"
-    assert group_of("post_seconds") == "Watching"
     assert group_of("hide_tour") == "This interface"
     assert group_of("client_secret") == "Google API credentials"
 
@@ -1306,19 +1235,21 @@ def test_the_preferences_stay_in_one_form(client):
     panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
 
     assert panel.count("<form") == 1
-    for field in ["auto_sync", "poll_interval_minutes", "shorts_max_seconds",
-                  "post_seconds", "hide_tour", "daily_quota", "client_id"]:
+    for field in ["hide_tour", "hide_open_notice", "client_id", "client_secret"]:
         assert f'name="{field}"' in panel
+
+    # And the ones that left are not half-here: a field the form no longer
+    # carries would be reset on every save if the route still read it.
+    for gone in ["auto_sync", "poll_interval_minutes", "initial_backfill",
+                 "shorts_max_seconds", "post_seconds", "daily_quota",
+                 "quota_reserve"]:
+        assert f'name="{gone}"' not in panel
 
 
 def test_saving_one_group_keeps_the_others(client, db):
     """The behaviour that constraint protects."""
-    from dealgo.models import Settings
-
     with db.session_scope() as session:
         settings = get_settings(session)
-        settings.post_seconds = 45
-        settings.daily_quota = 8000
         settings.hide_tour = True
 
     body = client.get("/settings").text
@@ -1326,14 +1257,34 @@ def test_saving_one_group_keeps_the_others(client, db):
 
     # Submit the form exactly as the browser would: every field it contains.
     fields = dict(re.findall(r'name="([a-z_]+)" value="([^"]*)"', body))
-    fields["poll_interval_minutes"] = "12"
+    fields["client_id"] = "changed-id"
     client.post("/settings", data=fields, follow_redirects=False)
 
     with db.session_scope() as session:
         settings = get_settings(session)
-        assert settings.poll_interval_minutes == 12    # what was changed
-        assert settings.post_seconds == 45             # and what was not
+        assert settings.client_id == "changed-id"      # what was changed
+        assert settings.hide_tour is True              # and what was not
+
+
+def test_the_settings_that_left_are_not_reset_by_saving(client, db):
+    """They are no longer read from the form at all. Read and defaulted, an
+    absent field would be reset on every save — and an absent checkbox would
+    switch polling off, which nothing on the page could turn back on."""
+    with db.session_scope() as session:
+        settings = get_settings(session)
+        settings.post_seconds = 45
+        settings.daily_quota = 8000
+        settings.poll_interval_minutes = 12
+        settings.auto_sync = True
+
+    client.post("/settings", data={"hide_tour": "1"}, follow_redirects=False)
+
+    with db.session_scope() as session:
+        settings = get_settings(session)
+        assert settings.post_seconds == 45
         assert settings.daily_quota == 8000
+        assert settings.poll_interval_minutes == 12
+        assert settings.auto_sync is True
 
 
 # -- the standing notices --------------------------------------------------
@@ -1433,3 +1384,14 @@ def test_the_footer_is_only_on_settings(client):
 
     for path in ("/", "/feed", "/channels", "/videos"):
         assert "<footer>" not in client.get(path).text, path
+
+
+def test_the_quota_is_still_readable_somewhere(client, db):
+    """The reading went with the fields that set it. A spent allowance stops
+    writes without anything breaking, which reads exactly like a feed that
+    has gone quiet — so it is said in the panel that explains it."""
+    body = client.get("/settings").text
+    panel = body.split("<h2>How De-Algo spends quota</h2>", 1)[1].split("</section>", 1)[0]
+
+    assert "quota-bar" in panel
+    assert "units today" in panel

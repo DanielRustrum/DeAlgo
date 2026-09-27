@@ -434,24 +434,6 @@ def _stats_context(session: Session, owner: OwnerId = None) -> Context:
     }
 
 
-def _activity_context(session: Session, owner: OwnerId = None) -> Context:
-    return {
-        "recent_runs": list(session.scalars(owned(select(SyncRun), SyncRun, owner).order_by(SyncRun.started_at.desc()).limit(8))),
-        "recent_videos": list(
-            session.scalars(
-                owned(select(Video), Video, owner)
-                .options(
-                    selectinload(Video.channel),
-                    selectinload(Video.placements).selectinload(Placement.playlist),
-                )
-                .where(Video.status.in_(("added", "pending", "failed")))
-                .order_by(Video.discovered_at.desc())
-                .limit(12)
-            )
-        ),
-    }
-
-
 def _matching_channels(channels: Sequence[Channel], query: str) -> list[Channel]:
     """Every word must appear somewhere, in any order — partial words count."""
     terms = query.lower().split()
@@ -635,22 +617,20 @@ def _connection_state(session: Session, owner: OwnerId = None) -> Context:
     }
 
 
-# -- dashboard ------------------------------------------------------------
+# -- the way in ------------------------------------------------------------
 
 
-@app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request) -> HTMLResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        context = {
-            **_stats_context(session, owner),
-            **_activity_context(session, owner),
-            **_quota_context(session),
-            "state": _connection_state(session, owner),
-            "settings": get_settings(session, owner),
-            "next_run": scheduler.next_run_time(),
-        }
-    return render(request, "dashboard.html", context)
+@app.get("/")
+def front_door(request: Request) -> RedirectResponse:
+    """Straight to the feed.
+
+    There was a dashboard here: counts, a list of feeds, a status block and
+    what had turned up lately. Every part of it was a second view of
+    something with a page of its own, and it sat in front of the thing the
+    app is for. The counts moved to Configuration, which is the page that
+    can act on them; the rest was already somewhere.
+    """
+    return redirect("/feed")
 
 
 # There is no "sync everything now" route any more. A run is started from a
@@ -743,28 +723,6 @@ def partial_stats(request: Request) -> HTMLResponse:
     return fragment(request, "_stats.html", context)
 
 
-@app.get("/partials/activity", response_class=HTMLResponse)
-def partial_activity(request: Request) -> HTMLResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        context = _activity_context(session, owner)
-    return fragment(request, "_activity.html", context)
-
-
-@app.get("/partials/dashboard", response_class=HTMLResponse)
-def partial_dashboard(request: Request) -> HTMLResponse:
-    owner = owner_of(request)
-    with session_scope() as session:
-        context = {
-            **_stats_context(session, owner),
-            **_quota_context(session),
-            "state": _connection_state(session, owner),
-            "settings": get_settings(session, owner),
-            "next_run": scheduler.next_run_time(),
-        }
-    return fragment(request, "_dashboard_state.html", context)
-
-
 @app.get("/api/status")
 def api_status(request: Request) -> JSONResponse:
     owner = owner_of(request)
@@ -824,6 +782,10 @@ def channels_page(
         context = {
             **_channel_list_context(session, feed, tracking=track == "1", query=q, owner=owner),
             **_playlist_context(session, creating=new == "1", owner=owner),
+            # What there is, and what is stopping it working. Both used to be
+            # on a page of their own; this is the page that can act on either.
+            **_stats_context(session, owner),
+            "state": _connection_state(session, owner),
             "plugin_nodes": _palette_plugins(),
         }
     return render(request, "channels.html", context)
@@ -1527,40 +1489,27 @@ def settings_page(request: Request) -> HTMLResponse:
 
 @app.post("/settings")
 def save_settings(
-    poll_interval_minutes: str = Form("30"),
-    initial_backfill: str = Form("3"),
-    shorts_max_seconds: str = Form("60"),
-    post_seconds: str = Form("30"),
-    daily_quota: str = Form("10000"),
-    quota_reserve: str = Form("0"),
     hide_tour: str = Form(""),
     hide_open_notice: str = Form(""),
     hide_connect_notice: str = Form(""),
-    auto_sync: str = Form(""),
     client_id: str = Form(""),
     client_secret: str = Form(""),
     api_key: str = Form(""),
 ) -> RedirectResponse:
-    def as_int(raw: str, default: int, minimum: int = 0) -> int:
-        try:
-            return max(minimum, int(raw.strip()))
-        except (ValueError, AttributeError):
-            return default
+    """What is left to set here, which is what the canvas cannot say.
 
+    How often to poll, how far to reach back, what counts as a Short, how
+    long a post is held, and what the day's quota is are all gone from this
+    form. The first two are what a trigger box and a source box say; the
+    rest keep the value they have. Not read from the form at all rather
+    than read and defaulted: an absent field would otherwise reset the
+    setting on every save, and an absent checkbox would switch polling off.
+    """
     with session_scope() as session:
         settings = get_settings(session)
-        settings.poll_interval_minutes = as_int(poll_interval_minutes, 30, minimum=1)
-        settings.initial_backfill = as_int(initial_backfill, 3)
-        settings.shorts_max_seconds = as_int(shorts_max_seconds, 60)
-        # A post that flicks past in a second or two cannot be read, so the
-        # floor is a real one rather than zero.
-        settings.post_seconds = as_int(post_seconds, 30, minimum=3)
-        settings.daily_quota = as_int(daily_quota, 10000)
-        settings.quota_reserve = as_int(quota_reserve, 0)
         settings.hide_tour = bool(hide_tour)
         settings.hide_open_notice = bool(hide_open_notice)
         settings.hide_connect_notice = bool(hide_connect_notice)
-        settings.auto_sync = bool(auto_sync)
         settings.client_id = client_id.strip() or None
         settings.client_secret = client_secret.strip() or None
         settings.api_key = api_key.strip() or None

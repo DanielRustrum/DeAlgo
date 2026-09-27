@@ -266,11 +266,13 @@ def test_the_counts_are_this_accounts_own(two_accounts, db):
         assert watched_service.count_watched(session, sam_pk) == 0
         assert watched_service.count_removable(session, sam_pk) == 0
 
+    # And on the page that shows them, which is Configuration now.
     as_account(client, "sam", "member-password")
-    dashboard = client.get("/").text
-    marked = dashboard.split("WATCHED", 1)[-1] if "WATCHED" in dashboard else dashboard
-    assert ">1</strong> marked" not in marked
-    assert ">0</strong>" in marked or "0 marked" in marked or "nothing" in marked.lower()
+    counts = client.get("/channels").text.split('id="stats"', 1)[1].split("</section>", 1)[0]
+    watched = counts.split('href="/videos?watched=1"', 1)[1].split("</a>", 1)[0]
+
+    assert ">0<" in watched
+    assert ">1<" not in watched
 
 
 def test_a_backup_holds_only_your_own(two_accounts):
@@ -346,17 +348,19 @@ def test_two_accounts_may_track_the_same_channel(db):
 def test_settings_are_each_accounts_own(two_accounts, db):
     client, admin_pk, sam_pk = two_accounts
 
+    def ticked(body: str, field: str) -> bool:
+        """Whether that checkbox is ticked, read off the tag itself."""
+        return "checked" in body.split(f'name="{field}"', 1)[1].split(">", 1)[0]
+
     with db.session_scope() as session:
-        get_settings(session, admin_pk).poll_interval_minutes = 5
-        get_settings(session, sam_pk).poll_interval_minutes = 90
+        get_settings(session, admin_pk).hide_tour = True
+        get_settings(session, sam_pk).hide_tour = False
 
     as_account(client, "sam", "member-password")
-    assert 'value="90"' in client.get("/settings").text
+    assert ticked(client.get("/settings").text, "hide_tour") is False
 
     as_account(client, *ADMIN)
-    assert 'value="5"' in client.get("/settings").text
-
-
+    assert ticked(client.get("/settings").text, "hide_tour") is True
 def test_turning_sign_in_on_hands_the_existing_setup_to_the_admin(db, monkeypatch):
     """Upgrading an instance that already had channels and feeds: they belong
     to the implicit owner, which is nobody once there are accounts. Without

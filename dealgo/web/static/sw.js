@@ -44,7 +44,7 @@ function imageCacheLimit() {
  *
  *  Only what is reachable without signing in. With accounts switched on, a
  *  page like "/" answers a signed-out request with a redirect to the login
- *  page — and precaching that would store the login page under the dashboard's
+ *  page — and precaching that would store the login page under the feed's
  *  address, to be served back the first time someone opened the app offline.
  *  Pages are cached when they are actually visited instead. */
 function shellUrls() {

@@ -6,8 +6,8 @@
 
   {# Not boosted, deliberately. htmx would send this as an XHR, the XHR would
      follow the redirect itself, and htmx would push /login as the address —
-     so the browser would sit at /login showing the dashboard, and show the
-     form again on reload. Signing in is a navigation. #}
+     so the browser would sit at /login showing the feed, and show the form
+     again on reload. Signing in is a navigation. #}
   <form method="post" action="/login" class="stack-form" hx-boost="false">
     <input type="hidden" name="next" value="{{ next }}">
     <div class="field-row">

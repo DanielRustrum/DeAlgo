@@ -2,6 +2,32 @@
 {% block title %}De-Algo — Configuration{% endblock %}
 {% block content %}
 
+{# What there is, before what it is wired into: the counts answer "is this
+   working" and each leads to the list behind it. At the top because it is
+   the first question anybody has on opening this page, and it is the page
+   that can do something about the answer. #}
+{% include "_stats.html" %}
+
+{# Setup that is not drawable. Everything else on this page is a box and a
+   wire; these are the things that have to be true before any of it can
+   reach YouTube, and this is where somebody would be when they find out. #}
+{% if not state.has_client %}
+<div class="banner">
+  <strong>Almost there.</strong> De-Algo can already watch channels, but it needs a Google OAuth client
+  to write to a playlist. <a href="/settings">Set that up in Settings →</a>
+</div>
+{% elif state.needs_reconnect %}
+<div class="banner">
+  <strong>Google needs you to sign in again.</strong> Videos are still being queued, but nothing can
+  reach the playlist until the account is reconnected. <a href="/settings">Reconnect in Settings →</a>
+</div>
+{% elif not state.connected and show_connect_notice %}
+<div class="banner">
+  <strong>Connect your YouTube account</strong> so De-Algo can add videos to a playlist on your behalf.
+  <a href="/settings">Connect in Settings →</a>
+</div>
+{% endif %}
+
 {# The canvas is the configuration — the whole of it. Channels, feeds, the
    filters between them and the triggers that decide when a channel is polled
    are all boxes on it, and each is added by dragging one out of the palette.
