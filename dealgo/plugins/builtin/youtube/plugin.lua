@@ -438,8 +438,8 @@ return {
     },
   },
 
-  -- Conditions for the canvas: pieces that slot under a YouTube box and
-  -- narrow what comes past it. Each judges YouTube's own items and lets
+  -- Conditions for the canvas: augmentations that slot under a Filter box
+  -- and narrow what comes past it. Each judges YouTube's own items and lets
   -- everything else by untouched — a condition asking about view counts must
   -- not swallow a subreddit that has none, and "no likes recorded" is not
   -- "nobody liked it".

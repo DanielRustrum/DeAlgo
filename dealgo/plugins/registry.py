@@ -1,9 +1,11 @@
 """What plugins there are, what each one offers, and what went wrong.
 
-A plugin is one ``.lua`` file in the plugins folder. This reads them all on
-start, judges what each returned, and keeps the ones that make sense — with
-a note against the ones that do not, because a plugin that quietly fails to
-load is worse than one that says why.
+A plugin is a folder of its own — ``<id>/plugin.lua`` — in the shipped
+plugins folder or in the data folder's. This reads them all on start, judges
+what each returned, and keeps the ones that make sense — with a note against
+the ones that do not, because a plugin that quietly fails to load is worse
+than one that says why. Its id is its folder's name, never anything its file
+says about itself.
 
 Nothing is thrown away on a bad plugin. A file that will not parse, or comes
 back without the fields it needs, becomes a row on the Admin page saying so;
@@ -1056,7 +1058,9 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
         return plugin
 
     plugin.box = box
-    plugin.name = str(made.get("name") or path.stem)
+    # Its folder's name when it gives none. Not the file's: every plugin's
+    # file is called plugin.lua, so that would title them all "plugin".
+    plugin.name = str(made.get("name") or plugin.id)
     plugin.version = str(made.get("version") or "")
     plugin.api = int(made.get("api") or 0)
 

@@ -80,7 +80,7 @@ KNOWN: tuple[Permission, ...] = (
         name="manage",
         label="Change what you are watching",
         means=(
-            "Add a source, tag one, or switch one off — for the account it is "
+            "Add a source, or switch one on or off — for the account it is "
             "working for. Anything it adds arrives paused, so it can suggest "
             "and cannot start fetching."
         ),

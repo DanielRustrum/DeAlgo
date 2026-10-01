@@ -3515,7 +3515,9 @@ def test_a_group_is_exported_as_a_file_to_hand_over(canvas):
 
     assert answer.status_code == 200
     assert "de-algo-my-flow.json" in answer.headers["content-disposition"]
-    assert answer.json()["de_algo_group"] == 1
+    # 2, because a group carries augmentations now. A format-1 file still
+    # loads — the test below hands over exactly one.
+    assert answer.json()["de_algo_group"] == 2
 
 
 def test_loading_a_group_adds_it_beside_what_is_already_here(canvas, db):

@@ -2,6 +2,10 @@
 
 APScheduler runs the sync in a worker thread on the interval stored in the
 database, and is re-scheduled whenever that setting changes.
+
+The interval is a heartbeat, not the schedule. Each pass asks the trigger
+boxes on the canvas which sources are due, and polls only those; a source
+with no trigger wired is never polled by it.
 """
 
 from __future__ import annotations

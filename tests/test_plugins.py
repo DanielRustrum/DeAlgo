@@ -453,3 +453,15 @@ def test_each_kind_builds_its_own_address():
 
 def test_a_kind_nobody_provides_has_no_address():
     assert registry.read(SHIPPED).home("gopher", "x") is None
+
+
+def test_a_plugin_with_no_name_is_called_after_its_folder(tmp_path):
+    """Not after its file: every plugin's file is plugin.lua, so that would
+    title every nameless plugin "plugin"."""
+    home = tmp_path / "quiet"
+    home.mkdir()
+    (home / "plugin.lua").write_text("return { api = 1 }", encoding="utf-8")
+
+    found = registry.read(tmp_path)
+
+    assert [one.title for one in found.plugins] == ["quiet"]

@@ -17,8 +17,8 @@ Three rules make it comprehensible:
   Order piece under it. The rules sat in the boxes' own popovers once, which
   meant a canvas of boxes all reading "Filter" and no way to tell them apart
   without opening each one. A condition that is a fact about one service —
-  whether a video is a Short — belongs to the plugin that knows what those
-  words mean, and is a piece under that plugin's box instead.
+  whether a video is a Short — is declared by the plugin that knows what
+  those words mean, and slots under the same Filter as the app's own.
 
 Existing setups are turned into a graph the first time one is asked for, so
 nobody has to build theirs again.
@@ -1707,7 +1707,10 @@ def _paths_into(session: Session, node: GraphNode, owner: OwnerId) -> list[Route
 # -- giving a group to somebody else ---------------------------------------
 
 # Bumped if the shape changes in a way a reader would need to know about.
-GROUP_FORMAT = 1
+# 2 carries augmentations, each with an `under` naming what it is slotted
+# into. A format-1 file has none, and its filter rules are unpacked into
+# conditions on the way in, so one exported before this still loads.
+GROUP_FORMAT = 2
 
 
 def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[str, Any]:
