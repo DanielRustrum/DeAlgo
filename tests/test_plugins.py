@@ -465,3 +465,16 @@ def test_a_plugin_with_no_name_is_called_after_its_folder(tmp_path):
     found = registry.read(tmp_path)
 
     assert [one.title for one in found.plugins] == ["quiet"]
+
+
+def test_what_went_wrong_names_the_plugin_not_its_file(tmp_path):
+    """Every plugin's file is plugin.lua, so a message naming the file names
+    none of them — and a log full of "plugin.lua ran too long" says nothing
+    about which one to look at."""
+    home = tmp_path / "spinner"
+    home.mkdir()
+    (home / "plugin.lua").write_text("while true do end", encoding="utf-8")
+
+    found = registry.read(tmp_path)
+
+    assert found.plugins[0].trouble == "spinner ran too long and was stopped"
