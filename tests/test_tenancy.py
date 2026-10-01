@@ -579,3 +579,23 @@ def test_the_source_picker_only_offers_your_own(two_accounts):
     empty = [node for node in added["nodes"] if node["kind"] == "source"][0]
     refused = client.post(f"/graph/nodes/{empty['id']}", data={"source_pk": "1"})
     assert refused.status_code == 400
+
+
+def test_each_account_reads_its_own_quota_in_settings(two_accounts, db):
+    """Each account keeps its own ledger. Settings once read the default
+    owner's, which showed every signed-in account an untouched day."""
+    from dealgo.services import quota
+
+    client, admin_pk, sam_pk = two_accounts
+    with db.session_scope() as session:
+        quota.meter(session, sam_pk)(250)
+
+    def spent(body: str) -> str:
+        panel = body.split("How De-Algo spends quota", 1)[1]
+        return panel.split("<strong>", 1)[1].split("</strong>", 1)[0]
+
+    as_account(client, "sam", "member-password")
+    assert spent(client.get("/settings").text) == "250"
+
+    as_account(client, *ADMIN)
+    assert spent(client.get("/settings").text) == "0"

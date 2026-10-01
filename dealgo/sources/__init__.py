@@ -29,8 +29,17 @@ from .kinds import (
     suggest_mirror,
 )
 from .syndication import Item, Feed, parse, fetch
+from . import embedded, items, kinds, newsletter, patience, syndication
 
 __all__ = [
+    # The modules themselves, so the reference documents each of them: an
+    # `__all__` that named only what is re-exported here hid every one.
+    "embedded",
+    "items",
+    "kinds",
+    "newsletter",
+    "patience",
+    "syndication",
     "NEWSLETTER",
     "RSS",
     "Resolved",

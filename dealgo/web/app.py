@@ -403,8 +403,10 @@ def _http_client() -> httpx.Client:
     )
 
 
-def _quota_context(session: Session) -> Context:
-    state = quota_service.state(session)
+def _quota_context(session: Session, owner: OwnerId = None) -> Context:
+    """This account's quota. Each account keeps its own ledger, so reading the
+    default owner's here showed every signed-in account an untouched day."""
+    state = quota_service.state(session, owner)
     return {"quota": state, "quota_resets_in": quota_service.describe_reset()}
 
 
@@ -1472,7 +1474,7 @@ def settings_page(request: Request) -> HTMLResponse:
     owner = owner_of(request)
     with session_scope() as session:
         context = {
-            **_quota_context(session),
+            **_quota_context(session, owner),
             "state": _connection_state(session, owner),
             "settings": get_settings(session, owner),
             "env_client_id": bool(CONFIG.client_id),

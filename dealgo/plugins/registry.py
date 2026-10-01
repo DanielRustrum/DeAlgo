@@ -27,11 +27,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from . import permissions
-from .runtime import PluginError, Sandbox, load
-
-#: Re-exported so that a caller handling what a plugin did wrong does not
-#: have to know which module the sentence came from.
-__all__ = ["PluginError", "Plugin", "Registry", "Augmentation", "SourceKind"]
+# Re-exported, so that a caller handling what a plugin did wrong does not have
+# to know which module the sentence came from. Said with `as` rather than with
+# an `__all__`, which would also hide every function here from the reference.
+from .runtime import PluginError as PluginError
+from .runtime import Sandbox, load
 
 log = logging.getLogger(__name__)
 
