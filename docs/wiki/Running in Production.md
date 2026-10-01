@@ -1,0 +1,53 @@
+# Running in Production
+
+## Rules that matter
+
+- **Run exactly one instance.** One SQLite file and an in-process scheduler: a second copy would
+  write everything twice and fight over locks. The compose file pins `replicas: 1` and stops the
+  old container before starting a new one.
+- **Set `DEALGO_PUBLIC_URL` to the public address** (e.g. `https://dealgo.example.com`) and register
+  `<that>/oauth/callback` with Google. De-Algo builds the redirect from this, not from the request.
+- **Use a subdomain, not a subpath.** Pages and assets are served from `/`.
+- **Keep `/data` on local disk.** SQLite over network filesystems corrupts.
+- **Use HTTPS** if you want the [installable app and offline reading](Installing%20as%20an%20App.md).
+
+## Behind a reverse proxy
+
+De-Algo trusts `X-Forwarded-*` headers, so TLS can end at the proxy.
+
+The cluster overlay drops the published port and joins an existing `proxy` network with Traefik
+labels:
+
+```bash
+make up CLUSTER=1
+# or: docker compose -f docker-compose.yml -f compose.cluster.yml up -d
+```
+
+Edit the labels in `compose.cluster.yml` for your proxy. Needs Compose 2.24+; on older versions,
+skip the overlay and set `DEALGO_BIND=127.0.0.1:8080` instead.
+
+## Portainer
+
+`stack.yml` is a self-contained stack using a prebuilt image.
+
+1. **Stacks → Add stack**, then paste `stack.yml` or point at this repository.
+2. Set at least `DEALGO_IMAGE`, `DEALGO_PUBLIC_URL` and the admin variables.
+3. Deploy. Enable **Automatic updates** to follow new images.
+
+## Building and publishing the image
+
+```bash
+make publish                     # build and push for this machine's architecture
+make publish-multiarch           # amd64 + arm64 (needs buildx)
+make publish TAG=v0.2.0          # a release tag
+```
+
+`.gitea/workflows/publish.yml` does this on every push to `main` after the tests pass.
+
+## Container hardening
+
+The container runs as uid 10001 with a read-only root filesystem, no capabilities and
+`no-new-privileges`. `/data` is the only writable path. If you bind-mount a host folder, run
+`chown 10001:10001` on it first.
+
+**Related:** [Environment Variables](Environment%20Variables.md) · [Accounts](Accounts.md)

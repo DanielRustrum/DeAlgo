@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -115,6 +115,19 @@ watch-css: ## Recompile the stylesheet whenever a partial changes
 		inotifywait -qq -e close_write dealgo/web/scss; \
 		$(PY) -m dealgo.web.styles >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
 	done
+
+AUTODOC := docs/internal/autodoc
+
+docs: ## Generate the API reference from code comments into docs/internal/autodoc
+	@# Importing dealgo.config creates its data folder, so point it somewhere disposable.
+	@tmp=$$(mktemp -d); \
+	DEALGO_DATA_DIR=$$tmp DEALGO_DATABASE_URL=sqlite:// \
+		$(PY) -m pdoc dealgo --docformat markdown --no-show-source -o $(AUTODOC)/python; \
+	status=$$?; rm -rf $$tmp; exit $$status
+	npm install --prefix $(AUTODOC) --no-audit --no-fund
+	cd $(AUTODOC) && npx typedoc --options typedoc.browser.json --logLevel Warn
+	cd $(AUTODOC) && npx typedoc --options typedoc.worker.json --logLevel Warn
+	@echo "open $(AUTODOC)/python/index.html, $(AUTODOC)/browser/index.html, $(AUTODOC)/service-worker/index.html"
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
 	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve

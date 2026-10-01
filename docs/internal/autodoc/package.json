@@ -1,0 +1,9 @@
+{
+  "name": "dealgo-autodoc",
+  "private": true,
+  "description": "The toolchain that generates De-Algo's TypeScript reference. Kept apart from the root package.json because typedoc parses with TypeScript 5, while the app itself is compiled with TypeScript 7 — the two cannot share one node_modules.",
+  "devDependencies": {
+    "typedoc": "0.28.20",
+    "typescript": "5.9.3"
+  }
+}

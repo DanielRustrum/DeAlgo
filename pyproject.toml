@@ -23,6 +23,8 @@ dependencies = [
 # it: the compiled stylesheet is committed and ships in the package, so running
 # De-Algo needs no compiler — only restyling it does.
 dev = ["pytest>=8.0", "libsass>=0.22", "mypy>=1.11"]
+# pdoc builds the Python half of docs/internal/autodoc from the docstrings.
+docs = ["pdoc==16.0.0"]
 
 [project.scripts]
 dealgo = "dealgo.__main__:main"

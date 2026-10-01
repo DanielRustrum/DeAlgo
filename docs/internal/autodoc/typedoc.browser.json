@@ -1,0 +1,14 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "De-Algo browser scripts",
+  "tsconfig": "../../../tsconfig.json",
+  "entryPoints": ["../../../dealgo/web/ts/*.ts"],
+  "exclude": ["../../../dealgo/web/ts/sw.ts"],
+  "out": "browser",
+  "readme": "none",
+  "excludeExternals": true,
+  "disableSources": true,
+  "githubPages": false,
+  "hideGenerator": true,
+  "validation": { "notExported": false, "invalidLink": true, "notDocumented": false }
+}

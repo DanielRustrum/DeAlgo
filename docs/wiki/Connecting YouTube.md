@@ -1,0 +1,51 @@
+# Connecting YouTube
+
+Optional. De-Algo reads every source — YouTube included — without any Google account. You only need
+one to **write**: to fill real YouTube playlists, read video lengths and view counts, and look up
+channels by `@handle`.
+
+Each account connects its own Google account.
+
+## Set up a Google OAuth client
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable
+   **YouTube Data API v3**.
+2. Create an OAuth client of type **Web application**.
+3. Add an **Authorized redirect URI**: your `DEALGO_PUBLIC_URL` plus `/oauth/callback`, e.g.
+   `http://localhost:8080/oauth/callback`. It must match character for character. Settings shows
+   the exact string with a copy button.
+4. Put the client id and secret in **Settings → Google API credentials** (or in
+   `DEALGO_CLIENT_ID` / `DEALGO_CLIENT_SECRET`).
+5. Press **Connect YouTube account** in Settings.
+
+The grant is kept, so you do this once.
+
+## Making a feed that writes to YouTube
+
+Feeds you drag onto the canvas live inside De-Algo. To make one backed by a YouTube playlist, use
+**Settings → Feeds on YouTube**: create a new playlist (choose private, unlisted or public) or adopt
+one you already have. See [Feeds](Feeds.md).
+
+## If Google refuses the sign-in
+
+- **`Error 400: redirect_uri_mismatch`** — the redirect URI is missing or differs. Check it is under
+  *Authorized redirect URIs*, not *JavaScript origins*, and the client type is **Web application**.
+- **`Error 403: access_denied`** / "has not completed verification" — the consent screen is in
+  **Testing**, which only admits listed test users. Add your Google account under
+  **OAuth consent screen → Audience → Test users**.
+
+## Weekly reconnects
+
+In **Testing** mode Google expires the grant after seven days. Publish the consent screen to stop
+that. A personal app stays unverified, so Google shows an "unverified app" warning once —
+choose *Advanced → Go to De-Algo*.
+
+When a grant dies, De-Algo says so in Settings and on the Configuration page. Items keep collecting
+inside De-Algo and are written to YouTube after you reconnect.
+
+## Without an account
+
+Everything still works. YouTube-backed feeds are marked *local only* and collect inside De-Algo;
+what they collect is written to the playlist after you connect, as [quota](Quota.md) allows.
+
+**Related:** [Quota](Quota.md) · [Feeds](Feeds.md) · [Settings](Settings.md)
