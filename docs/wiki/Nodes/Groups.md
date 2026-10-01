@@ -27,5 +27,5 @@ No history and no credentials are included. Files from older versions still load
 
 **Find a group** lists every group and jumps to it. Useful because the canvas has no edges.
 
-**Related:** [The Configuration Canvas](The%20Configuration%20Canvas.md) ·
-[Backup and Restore](Backup%20and%20Restore.md)
+**Related:** [The Configuration Canvas](../The%20Configuration%20Canvas.md) ·
+[Backup and Restore](../Backup%20and%20Restore.md)

@@ -1,7 +1,7 @@
 # Decay
 
 A Decay box sets how long you get with each item that passes through it, in
-[Focus Mode](Focus%20Mode.md). It turns nothing away.
+[Focus Mode](../Focus%20Mode.md). It turns nothing away.
 
 ```
 [Source] ──▶ [Decay] ──▶ [Feed]
@@ -20,4 +20,4 @@ countdown cannot be held or paused.
 - If several Decay boxes apply to one item, the **shortest** time wins.
 - The card shows the time, with `· no pause` when locked.
 
-**Related:** [Focus Mode](Focus%20Mode.md) · [Augmentations](Augmentations.md) · [Expire](Expire.md)
+**Related:** [Focus Mode](../Focus%20Mode.md) · [Augmentations](Augmentations.md) · [Expire](Expire.md)

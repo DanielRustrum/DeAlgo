@@ -32,9 +32,9 @@ No credentials are included — no Google grant, no client id or secret.
 
 It predates the canvas. It does **not** include:
 
-- the canvas itself: [triggers](Triggers.md), [filters](Filter.md) and their conditions, [sorts](Sort.md),
-  [tags](Tag.md), [Decay](Decay.md), [Expire](Expire.md), [repositories](Repositories.md),
-  [augmentations](Augmentations.md), [groups](Groups.md) and box positions;
+- the canvas itself: [triggers](Nodes/Triggers.md), [filters](Nodes/Filter.md) and their conditions, [sorts](Nodes/Sort.md),
+  [tags](Nodes/Tag.md), [Decay](Nodes/Decay.md), [Expire](Nodes/Expire.md), [repositories](Nodes/Repositories.md),
+  [augmentations](Nodes/Augmentations.md), [groups](Nodes/Groups.md) and box positions;
 - each source's kind and feed address, so **only YouTube channels restore correctly**;
 - your item history.
 
@@ -47,4 +47,4 @@ runs until you add them again.
 make backup    # writes ./de-algo-backup.json — the same setup file
 ```
 
-**Related:** [Moving an Instance](Moving%20an%20Instance.md) · [Groups](Groups.md)
+**Related:** [Moving an Instance](Moving%20an%20Instance.md) · [Groups](Nodes/Groups.md)

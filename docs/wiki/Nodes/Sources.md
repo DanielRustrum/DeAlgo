@@ -11,13 +11,13 @@ Reading sources is free and needs no account: every one of them is read as the f
 | --- | --- | --- |
 | **Feed address** | The address of any RSS or Atom feed | Built in. The address must be the feed itself. |
 | **Newsletter** | Where a newsletter lives, e.g. `platformer.news` | Built in. Finds the feed for you. See [Newsletters](Newsletters.md). |
-| **YouTube channel** | `@handle`, a channel URL, or a `UC…` id | YouTube plugin. `@handle` and custom URLs need a [connected account](Connecting%20YouTube.md); a `UC…` id or `/channel/` URL does not. |
+| **YouTube channel** | `@handle`, a channel URL, or a `UC…` id | YouTube plugin. `@handle` and custom URLs need a [connected account](../Connecting%20YouTube.md); a `UC…` id or `/channel/` URL does not. |
 | **Subreddit** | `r/python`, a subreddit URL, or just `python` | Reddit plugin. |
 | **Bluesky account** | `@name.bsky.social` or a profile URL | Bluesky plugin. |
 | **Newsletter** *(Substack)* | `name.substack.com` | Substack plugin. Same box name as the built-in one; the built-in Newsletter box also handles Substack. |
 
 Plugin kinds appear under **Plugins** in the palette, grouped by plugin. An admin can add more —
-see [Plugins](Plugins.md).
+see [Plugins](../Plugins.md).
 
 ## Adding one
 
@@ -68,4 +68,4 @@ Remove its box. The source and every item it brought go with it — unless anoth
 stands for it. Re-adding it later starts fresh, so the backfill applies again.
 
 **Related:** [Newsletters](Newsletters.md) · [Triggers](Triggers.md) · [Filter](Filter.md) ·
-[Troubleshooting](Troubleshooting.md)
+[Troubleshooting](../Troubleshooting.md)

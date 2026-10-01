@@ -28,7 +28,7 @@ or after 09:00 — up to 30 minutes late.
 - **Run now** — check what this trigger is wired to, now, whatever its schedule says.
 - **Backfill** — the same, but run through the latest N items of each source (blank: as far back as
   each feed lists). Brings back what an earlier run passed over as too old.
-- **Test** — show what a run would do, without doing it. See [Testing a Flow](Testing%20a%20Flow.md).
+- **Test** — show what a run would do, without doing it. See [Testing a Flow](../Testing%20a%20Flow.md).
 
 A run started from a trigger fills only the paths out of the boxes that trigger is wired to. If one
 source has two boxes with different triggers, each trigger fills only its own box's paths.
@@ -47,4 +47,4 @@ in standard cron.
 | `0 */6 * * *` | Every 6 hours |
 | `0 18 * * 0` | 18:00 on Sundays |
 
-**Related:** [Sources](Sources.md) · [Repositories](Repositories.md) · [The Run Log](The%20Run%20Log.md)
+**Related:** [Sources](Sources.md) · [Repositories](Repositories.md) · [The Run Log](../The%20Run%20Log.md)

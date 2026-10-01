@@ -28,4 +28,4 @@ Each candidate is read and must parse as a feed. At most 10 addresses are tried.
 - `www.example.com` and `example.com` are the same newsletter, so you cannot add it twice.
 - If no feed is found, nothing is added. If you know the feed's address, use a **Feed address** box.
 
-**Related:** [Sources](Sources.md) · [Troubleshooting](Troubleshooting.md)
+**Related:** [Sources](Sources.md) · [Troubleshooting](../Troubleshooting.md)

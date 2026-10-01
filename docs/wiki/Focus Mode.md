@@ -17,7 +17,7 @@ An item that will not play (private, deleted, embedding disabled) is skipped aut
 
 ## Timed items
 
-Nothing is on a clock unless you asked for it. Put a [Decay](Decay.md) box on an item's path and a
+Nothing is on a clock unless you asked for it. Put a [Decay](Nodes/Decay.md) box on an item's path and a
 post or article gets a countdown, and moves on by itself when it runs out. Click the timer to hold it.
 Add a **Lock** under the Decay box and the countdown cannot be held.
 
@@ -28,10 +28,10 @@ Videos are never timed: they always play to the end.
 - Each step asks the server for the next item, so a tab left open overnight never shows something
   you already watched or removed.
 - An item in two feeds is queued once.
-- [Reading windows](Reading%20Windows.md) do **not** apply here yet: a feed the Feed page shows as
+- [Reading windows](Nodes/Reading%20Windows.md) do **not** apply here yet: a feed the Feed page shows as
   shut still plays through Focus.
 - This page loads YouTube's player script to know when a video ends. If it cannot load, the page
   says so and offers **Reload**.
 - The old `/watch` address still redirects here.
 
-**Related:** [The Feed Page](The%20Feed%20Page.md) · [Decay](Decay.md) · [Watched Items](Watched%20Items.md)
+**Related:** [The Feed Page](The%20Feed%20Page.md) · [Decay](Nodes/Decay.md) · [Watched Items](Watched%20Items.md)

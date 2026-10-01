@@ -25,7 +25,7 @@ environment variables are used when these are blank. See
 
 ## Feeds on YouTube
 
-Make a feed backed by a new or existing YouTube playlist. Needs a connected account. See [Feeds](Feeds.md).
+Make a feed backed by a new or existing YouTube playlist. Needs a connected account. See [Feeds](Nodes/Feeds.md).
 
 ## Back up your setup
 
@@ -42,7 +42,7 @@ These used to be settings and now keep their defaults:
 
 | Value | Default |
 | --- | --- |
-| How often De-Algo wakes to check [triggers](Triggers.md) | 30 minutes |
+| How often De-Algo wakes to check [triggers](Nodes/Triggers.md) | 30 minutes |
 | Items taken from a new source when no backfill is given | 3 |
 | Longest video counted as a Short when the feed does not say | 60 seconds |
 | Daily YouTube quota | 10,000 units |

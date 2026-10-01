@@ -23,4 +23,4 @@ The same program runs headless, for cron and shells. In Docker, prefix each comm
 Only `sync` and `serve` know about accounts. The other commands act on the space used when sign-in is
 **off**, which is empty once an admin is set. Use the web app for them instead.
 
-**Related:** [Triggers](Triggers.md) · [Accounts](Accounts.md)
+**Related:** [Triggers](Nodes/Triggers.md) · [Accounts](Accounts.md)

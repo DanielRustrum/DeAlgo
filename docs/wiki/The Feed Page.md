@@ -18,24 +18,24 @@ Each section remembers its own choices:
 
 ## Search
 
-The search box matches feed names and their tags. Set tags on a feed's own page — see [Feeds](Feeds.md).
+The search box matches feed names and their tags. Set tags on a feed's own page — see [Feeds](Nodes/Feeds.md).
 
 ## What a card shows
 
 - **Posts** show their first image, or their opening words if they have none.
 - **Items from other sources** (Reddit, RSS, newsletters) show where they came from instead of a length.
-- **Marks** from the boxes the item passed: its [tags](Tag.md), the time a [Decay](Decay.md) box
-  gave it (`· no pause` if locked), and when an [Expire](Expire.md) box takes it out (`leaves in 2 days`).
+- **Marks** from the boxes the item passed: its [tags](Nodes/Tag.md), the time a [Decay](Nodes/Decay.md) box
+  gave it (`· no pause` if locked), and when an [Expire](Nodes/Expire.md) box takes it out (`leaves in 2 days`).
 
 Hover a card (or tap, on touch screens) for **✓** to mark it watched and **↗** to open it at its source.
 
 ## A shut feed
 
-A feed with [reading windows](Reading%20Windows.md) can be closed. It is shown as shut — never hidden —
+A feed with [reading windows](Nodes/Reading%20Windows.md) can be closed. It is shown as shut — never hidden —
 with the rule you set and when it opens again.
 
 ## Live updates
 
 When a run finishes, the open page refreshes its sections on its own.
 
-**Related:** [Focus Mode](Focus%20Mode.md) · [Watched Items](Watched%20Items.md) · [Feeds](Feeds.md)
+**Related:** [Focus Mode](Focus%20Mode.md) · [Watched Items](Watched%20Items.md) · [Feeds](Nodes/Feeds.md)

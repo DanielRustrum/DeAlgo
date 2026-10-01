@@ -1,0 +1,31 @@
+# Nodes
+
+Everything you can place on the [Configuration Canvas](../The%20Configuration%20Canvas.md).
+**Boxes** are wired together; **pieces** slot under a box and change what it does.
+
+## Boxes, in the order an item meets them
+
+| Node | Does |
+| --- | --- |
+| [Trigger](Triggers.md) | Decides when the sources wired to it are checked |
+| [Source](Sources.md) | Where items come from: YouTube, Reddit, Bluesky, Substack, RSS |
+| [Newsletter](Newsletters.md) | A source found by the newsletter's address |
+| [Filter](Filter.md) | Lets some items through, holds others back |
+| [Sort](Sort.md) | Puts the batch in order |
+| [Tag](Tag.md) | Marks items for a Filter further on |
+| [Decay](Decay.md) | Limits how long you spend on each item |
+| [Expire](Expire.md) | Takes items out of a feed after a while |
+| [Feed](Feeds.md) | Where items end up |
+| [Deposit and Withdraw](Repositories.md) | Hold items now, release them later |
+| [Group](Groups.md) | A background for arranging and sharing boxes |
+
+## Pieces
+
+| Node | Slots under | Does |
+| --- | --- | --- |
+| [Conditions](Augmentations.md) | Filter, Sort | What a Filter narrows by, and what a Sort orders by |
+| [Timer, Reset, Alive](Reading%20Windows.md) | Feed | When a feed can be read |
+| [Timer, Lock](Decay.md) | Decay | Time per item, and whether it can be paused |
+| [Timer](Expire.md) | Expire | How long an item stays |
+
+All pieces are covered in [Augmentations](Augmentations.md).

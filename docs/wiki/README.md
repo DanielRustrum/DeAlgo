@@ -23,21 +23,26 @@ This wiki explains every feature. Each page covers one thing.
 ## Building your setup
 
 - [The Configuration Canvas](The%20Configuration%20Canvas.md) — boxes, wires and the palette.
-- [Sources](Sources.md) — where items come from.
-- [Newsletters](Newsletters.md) — follow a newsletter by its address.
-- [Feeds](Feeds.md) — where items end up.
-- [Triggers](Triggers.md) — when sources are checked.
-- [Filter](Filter.md) — let some items through and hold others back.
-- [Sort](Sort.md) — choose the order items arrive in.
-- [Tag](Tag.md) — mark items for a Filter further on.
-- [Decay](Decay.md) — limit how long you spend on each item.
-- [Expire](Expire.md) — take items out of a feed after a while.
-- [Repositories](Repositories.md) — hold items now, release them later (Deposit and Withdraw).
-- [Augmentations](Augmentations.md) — pieces that slot under a box and change what it does.
-- [Reading Windows](Reading%20Windows.md) — limit when a feed can be read (Timer, Reset, Alive).
-- [Groups](Groups.md) — arrange the canvas and share setups.
 - [Testing a Flow](Testing%20a%20Flow.md) — see what a run would do without doing it.
 - [The Run Log](The%20Run%20Log.md) — what each run did, line by line.
+
+## Nodes
+
+Every box and piece on the canvas. See [Nodes](Nodes/README.md).
+
+- [Triggers](Nodes/Triggers.md) — when sources are checked.
+- [Sources](Nodes/Sources.md) — where items come from.
+- [Newsletters](Nodes/Newsletters.md) — follow a newsletter by its address.
+- [Filter](Nodes/Filter.md) — let some items through and hold others back.
+- [Sort](Nodes/Sort.md) — choose the order items arrive in.
+- [Tag](Nodes/Tag.md) — mark items for a Filter further on.
+- [Decay](Nodes/Decay.md) — limit how long you spend on each item.
+- [Expire](Nodes/Expire.md) — take items out of a feed after a while.
+- [Feeds](Nodes/Feeds.md) — where items end up.
+- [Repositories](Nodes/Repositories.md) — hold items now, release them later (Deposit and Withdraw).
+- [Augmentations](Nodes/Augmentations.md) — pieces that slot under a box and change what it does.
+- [Reading Windows](Nodes/Reading%20Windows.md) — limit when a feed can be read (Timer, Reset, Alive).
+- [Groups](Nodes/Groups.md) — arrange the canvas and share setups.
 
 ## Managing
 

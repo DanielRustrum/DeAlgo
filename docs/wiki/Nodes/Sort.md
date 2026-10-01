@@ -25,6 +25,6 @@ A plugin can offer its own orderings, which slot under a Sort the same way. The 
 
 - With several Sort boxes on one path, the one nearest the feed decides.
 - View and like counts are read with video details, which needs a
-  [connected account](Connecting%20YouTube.md) or an API key. Items without them sort last.
+  [connected account](../Connecting%20YouTube.md) or an API key. Items without them sort last.
 
 **Related:** [Filter](Filter.md) · [Feeds](Feeds.md) · [Augmentations](Augmentations.md)

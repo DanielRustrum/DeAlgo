@@ -29,7 +29,7 @@ start one.
 ## Limits
 
 - Times are **UTC**, not your local time.
-- [Focus Mode](Focus%20Mode.md) does not yet respect reading windows.
+- [Focus Mode](../Focus%20Mode.md) does not yet respect reading windows.
 
-**Related:** [Augmentations](Augmentations.md) · [The Feed Page](The%20Feed%20Page.md) ·
+**Related:** [Augmentations](Augmentations.md) · [The Feed Page](../The%20Feed%20Page.md) ·
 [Triggers](Triggers.md)

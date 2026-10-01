@@ -35,12 +35,12 @@ source's page says how long. For Reddit, set a **Mirror** in the source's panel.
 
 - Its **plugin is switched off** — the piece says so. See [Plugins](Plugins.md).
 - **Length** conditions need video details, which need a connected account or API key.
-- Two conditions of the same kind under one Filter: only the nearest applies. See [Filter](Filter.md).
+- Two conditions of the same kind under one Filter: only the nearest applies. See [Filter](Nodes/Filter.md).
 - It is **loose** — slotted into nothing. Drag it onto a box.
 
 ## A feed is shut
 
-It has [reading windows](Reading%20Windows.md). The Feed page says when it opens. Times are UTC.
+It has [reading windows](Nodes/Reading%20Windows.md). The Feed page says when it opens. Times are UTC.
 
 ## Google sign-in fails
 
@@ -50,4 +50,4 @@ See [Connecting YouTube](Connecting%20YouTube.md#if-google-refuses-the-sign-in).
 
 Change `DEALGO_ADMIN_PASSWORD` and restart. See [Accounts](Accounts.md).
 
-**Related:** [The Run Log](The%20Run%20Log.md) · [Sources](Sources.md) · [Triggers](Triggers.md)
+**Related:** [The Run Log](The%20Run%20Log.md) · [Sources](Nodes/Sources.md) · [Triggers](Nodes/Triggers.md)

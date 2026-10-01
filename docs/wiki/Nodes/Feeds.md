@@ -1,7 +1,7 @@
 # Feeds
 
-A feed is where items end up. You read feeds on [The Feed Page](The%20Feed%20Page.md) and in
-[Focus Mode](Focus%20Mode.md).
+A feed is where items end up. You read feeds on [The Feed Page](../The%20Feed%20Page.md) and in
+[Focus Mode](../Focus%20Mode.md).
 
 ## Two kinds
 
@@ -9,13 +9,13 @@ A feed is where items end up. You read feeds on [The Feed Page](The%20Feed%20Pag
 | --- | --- | --- |
 | Make it | Drag **Feed** from the palette and name it | **Settings → Feeds on YouTube** |
 | Holds | Anything: videos, posts, Reddit, RSS, newsletters | YouTube videos only |
-| Needs | Nothing | A connected Google account and [quota](Quota.md) |
+| Needs | Nothing | A connected Google account and [quota](../Quota.md) |
 
 A YouTube-backed feed can be a new playlist (private, unlisted or public) or one you already have.
 Non-YouTube items reaching it are turned away with a reason.
 
 Without a connected account a YouTube-backed feed is marked *local only* and collects inside De-Algo.
-Its items are written to the playlist after you [connect](Connecting%20YouTube.md).
+Its items are written to the playlist after you [connect](../Connecting%20YouTube.md).
 
 ## Limits
 
@@ -48,5 +48,5 @@ records every placement, so an item is never added to the same feed twice.
 When quota runs short, sources and feeds are served in the order you added them. There is currently
 no control to reorder them.
 
-**Related:** [Sources](Sources.md) · [The Configuration Canvas](The%20Configuration%20Canvas.md) ·
+**Related:** [Sources](Sources.md) · [The Configuration Canvas](../The%20Configuration%20Canvas.md) ·
 [Expire](Expire.md) · [Reading Windows](Reading%20Windows.md)

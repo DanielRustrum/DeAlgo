@@ -39,10 +39,10 @@ python -m venv .venv
 ## First steps
 
 1. Set an admin, or anyone who can reach the address can use De-Algo. See [Accounts](Accounts.md).
-2. Open **Configuration** and build your first flow: a [source](Sources.md) wired to a
-   [feed](Feeds.md), and a [trigger](Triggers.md) wired into the source to say when to check it. See
+2. Open **Configuration** and build your first flow: a [source](Nodes/Sources.md) wired to a
+   [feed](Nodes/Feeds.md), and a [trigger](Nodes/Triggers.md) wired into the source to say when to check it. See
    [The Configuration Canvas](The%20Configuration%20Canvas.md).
-3. [Switch the source on](Sources.md#adding-one) — new sources start paused.
+3. [Switch the source on](Nodes/Sources.md#adding-one) — new sources start paused.
 
 A Google account is optional. You only need one to write into real YouTube playlists — see
 [Connecting YouTube](Connecting%20YouTube.md).

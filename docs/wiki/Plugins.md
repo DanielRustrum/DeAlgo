@@ -1,6 +1,6 @@
 # Plugins
 
-Plugins add kinds of [source](Sources.md) and [conditions](Filter.md) to everyone's palette. They are
+Plugins add kinds of [source](Nodes/Sources.md) and [conditions](Nodes/Filter.md) to everyone's palette. They are
 written in Lua and run inside a sandbox. Managing them is **admin only**: **Admin → Plugins**.
 
 Five ship with De-Algo: **YouTube**, **Reddit**, **Bluesky**, **Substack** and **Shape**.
@@ -67,4 +67,4 @@ is read when De-Algo next starts.
 
 **Writing one:** see [Creating A Plugin](Creating%20A%20Plugin/GETTING%20STARTED.md).
 
-**Related:** [Sources](Sources.md) · [Filter](Filter.md) · [Accounts](Accounts.md)
+**Related:** [Sources](Nodes/Sources.md) · [Filter](Nodes/Filter.md) · [Accounts](Accounts.md)

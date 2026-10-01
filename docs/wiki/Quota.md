@@ -34,4 +34,4 @@ Google's allowance is per **Cloud project**, though. If several accounts use the
 they share one 10,000-unit allowance while De-Algo counts each separately — so Google may refuse
 before De-Algo expects. Give each heavy user their own client in Settings to avoid this.
 
-**Related:** [Connecting YouTube](Connecting%20YouTube.md) · [Feeds](Feeds.md)
+**Related:** [Connecting YouTube](Connecting%20YouTube.md) · [Feeds](Nodes/Feeds.md)

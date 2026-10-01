@@ -33,7 +33,7 @@ text, but characters like `.`, `?`, `(` and `|` are regex syntax — `cats|dogs`
 Videos are matched on their title; posts on their whole text; articles on title and summary.
 
 **Lengths** are known only for YouTube videos, and only after their details are read — which needs a
-[connected account](Connecting%20YouTube.md) or an API key. An item with no known length passes
+[connected account](../Connecting%20YouTube.md) or an API key. An item with no known length passes
 length conditions.
 
 **Carrying** sees tags from a Tag box anywhere on the same path, as well as tags the item already has.
@@ -69,6 +69,6 @@ A view or like count nobody has read yet counts as unknown, and passes.
 ## Seeing what it does
 
 Open a Filter's panel to see recent items it let through and held back, and why. To check a whole
-path, use [Testing a Flow](Testing%20a%20Flow.md).
+path, use [Testing a Flow](../Testing%20a%20Flow.md).
 
 **Related:** [Augmentations](Augmentations.md) · [Tag](Tag.md) · [Sort](Sort.md)

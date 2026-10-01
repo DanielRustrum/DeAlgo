@@ -20,13 +20,13 @@ middle of the view.
 | Section | Contains |
 | --- | --- |
 | *(top)* | **Newsletter**, **Feed address**, **Feed** |
-| Operations | [Filter](Filter.md), [Sort](Sort.md), [Tag](Tag.md), [Decay](Decay.md), [Expire](Expire.md), [Deposit and Withdraw](Repositories.md) |
-| Augmentations | [Timer, Reset, Alive, Lock](Reading%20Windows.md) and the [conditions](Filter.md) |
-| Triggers | [Pulse and Schedule](Triggers.md) |
-| Plugins | Each plugin's [sources](Sources.md) and conditions |
-| Layout | [Group](Groups.md) |
+| Operations | [Filter](Nodes/Filter.md), [Sort](Nodes/Sort.md), [Tag](Nodes/Tag.md), [Decay](Nodes/Decay.md), [Expire](Nodes/Expire.md), [Deposit and Withdraw](Nodes/Repositories.md) |
+| Augmentations | [Timer, Reset, Alive, Lock](Nodes/Reading%20Windows.md) and the [conditions](Nodes/Filter.md) |
+| Triggers | [Pulse and Schedule](Nodes/Triggers.md) |
+| Plugins | Each plugin's [sources](Nodes/Sources.md) and conditions |
+| Layout | [Group](Nodes/Groups.md) |
 
-Rows marked with a green tab are [augmentations](Augmentations.md); the pills under them name the
+Rows marked with a green tab are [augmentations](Nodes/Augmentations.md); the pills under them name the
 boxes they fit.
 
 ## Wiring
@@ -57,7 +57,7 @@ one box, renaming or switching it off renames or pauses the source or feed itsel
 - **Drag empty canvas** to pan. It has no edges.
 - **Scroll** to zoom (30%–250%), keeping the point under the pointer still. Scrolling over a panel
   scrolls the panel instead.
-- **Find a group** jumps to a [group](Groups.md).
+- **Find a group** jumps to a [group](Nodes/Groups.md).
 
 ## Undo
 
@@ -66,8 +66,8 @@ resizing, drawing or removing a wire, or a panel edit. Up to 40 steps. Removing 
 
 ## Other buttons
 
-- **Load a group** — add a [group](Groups.md) somebody sent you.
+- **Load a group** — add a [group](Nodes/Groups.md) somebody sent you.
 - **Run log** — [what runs have been doing](The%20Run%20Log.md).
 
-**Related:** [Sources](Sources.md) · [Feeds](Feeds.md) · [Triggers](Triggers.md) ·
+**Related:** [Sources](Nodes/Sources.md) · [Feeds](Nodes/Feeds.md) · [Triggers](Nodes/Triggers.md) ·
 [Testing a Flow](Testing%20a%20Flow.md)

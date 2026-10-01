@@ -1,7 +1,7 @@
 # Publishing
 
 A plugin can teach De-Algo to write back to its service — for YouTube: look channels up, read video
-details, and fill playlists. This is how YouTube-backed [feeds](../Feeds.md) work.
+details, and fill playlists. This is how YouTube-backed [feeds](../Nodes/Feeds.md) work.
 
 The `publisher` table is consulted only for a plugin with a source kind marked `playlistable = true`.
 Only one plugin publishes; today that is YouTube. Your functions build requests and read answers;

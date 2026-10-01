@@ -28,4 +28,4 @@ same upload in its source's feed and adding it again.
 
 Deleting an item from a YouTube playlist directly on YouTube sticks too, for the same reason.
 
-**Related:** [The Raw List](The%20Raw%20List.md) · [Expire](Expire.md)
+**Related:** [The Raw List](The%20Raw%20List.md) · [Expire](Nodes/Expire.md)

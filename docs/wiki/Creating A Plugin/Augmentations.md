@@ -96,6 +96,6 @@ run on an account's behalf, so [`dealgo`](The%20dealgo%20Object.md) and [`accoun
 
 ## Several on one Filter
 
-All plugin conditions on a path must agree. See the user page [Filter](../Filter.md).
+All plugin conditions on a path must agree. See the user page [Filter](../Nodes/Filter.md).
 
 **Related:** [Sources](Sources.md) · [The Sandbox](The%20Sandbox.md)
