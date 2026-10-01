@@ -3,7 +3,8 @@
 De-Algo follows the sources you choose and fills feeds you own. Nothing is recommended, ranked or
 injected: what you wire up is what you get, in the order you set.
 
-This wiki explains every feature. Each page covers one thing.
+This wiki explains every feature. Each page covers one thing. Every page and section is listed in
+the [Table of Contents](Table%20of%20Contents.md).
 
 ## Getting set up
 

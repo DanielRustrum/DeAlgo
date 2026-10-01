@@ -64,6 +64,7 @@ Full walkthrough: [Installing](docs/wiki/Installing.md).
 | **Writing plugins** — sources, conditions, the Lua API | [Creating A Plugin](docs/wiki/Creating%20A%20Plugin/GETTING%20STARTED.md) |
 | **Working on De-Algo** — architecture, systems, algorithms, decisions | [Internal Documentation](docs/internal/README.md) |
 | **API reference** — generated from the code (`make docs`) | [autodoc](docs/internal/autodoc/README.md) |
+| **Every page, at a glance** | Tables of contents: [wiki](docs/wiki/Table%20of%20Contents.md) · [internal](docs/internal/Table%20of%20Contents.md) |
 | **What's broken or missing** | [Known Issues](docs/internal/Known%20Issues.md) |
 
 ## Built with

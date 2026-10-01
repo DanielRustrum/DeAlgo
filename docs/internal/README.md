@@ -6,6 +6,8 @@ are, and the algorithms they run. For contributors and maintainers.
 Users want the [wiki](../wiki/README.md). Plugin authors want
 [Creating A Plugin](../wiki/Creating%20A%20Plugin/GETTING%20STARTED.md).
 
+Every page and section: [Table of Contents](Table%20of%20Contents.md).
+
 ## Read first
 
 1. [Architecture](Architecture.md) — the whole system on one page

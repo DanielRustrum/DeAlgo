@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs toc dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -128,6 +128,9 @@ docs: ## Generate the API reference from code comments into docs/internal/autodo
 	cd $(AUTODOC) && npx typedoc --options typedoc.browser.json --logLevel Warn
 	cd $(AUTODOC) && npx typedoc --options typedoc.worker.json --logLevel Warn
 	@echo "open $(AUTODOC)/python/index.html, $(AUTODOC)/browser/index.html, $(AUTODOC)/service-worker/index.html"
+
+toc: ## Rebuild the Table of Contents in docs/wiki and docs/internal
+	$(PY) docs/toc.py
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
 	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
