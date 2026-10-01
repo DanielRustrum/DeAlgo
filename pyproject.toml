@@ -48,8 +48,10 @@ dealgo = [
     "web/ts/*.ts",
     # Without this the image ships with no plugins at all, and every kind of
     # source stops being recognised — the app would start and understand
-    # nothing you typed.
-    "plugins/builtin/*.lua",
+    # nothing you typed. Recursive, because a plugin is a folder of its own
+    # and may carry more than one file: the flat `*.lua` this used to be
+    # matched nothing once they moved, and the image shipped without them.
+    "plugins/builtin/**/*",
 ]
 
 [tool.pytest.ini_options]

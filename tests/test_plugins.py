@@ -346,16 +346,39 @@ def test_the_reddit_plugin_offers_a_mirror():
     assert found.mirror("youtube", "UCzzz") is None
 
 
-def test_the_shipped_plugins_are_packaged_with_the_app():
-    """`package-data` globs are not recursive, and a missing one here is not
-    a missing icon: the image would start and understand nothing you typed."""
+def test_every_file_the_app_reads_from_its_own_package_is_shipped():
+    """A missing one here is not a missing icon: the image starts and
+    understands nothing you typed.
+
+    Asked of the files rather than of the config. This used to check that
+    the string "plugins/builtin/*.lua" was in pyproject — which stayed true
+    when the plugins moved into folders of their own and the glob stopped
+    matching any of them, so the suite was green and the image shipped none.
+    Each glob is resolved against the package the way setuptools resolves it,
+    and every file the app reads at runtime has to be matched by one.
+    """
     import tomllib
 
     root = Path(__file__).resolve().parent.parent
+    package = root / "dealgo"
     config = tomllib.loads((root / "pyproject.toml").read_text())
     globs = config["tool"]["setuptools"]["package-data"]["dealgo"]
 
-    assert "plugins/builtin/*.lua" in globs
+    shipped: set[Path] = set()
+    for pattern in globs:
+        shipped |= {one for one in package.glob(pattern) if one.is_file()}
+
+    needed = [
+        one
+        for folder in ("plugins/builtin", "web/templates", "web/static")
+        for one in (package / folder).rglob("*")
+        if one.is_file() and "__pycache__" not in one.parts
+    ]
+    missing = sorted(str(one.relative_to(package)) for one in needed if one not in shipped)
+
+    assert missing == [], f"not matched by any package-data glob: {missing}"
+    # And the thing that went wrong, said directly.
+    assert package / "plugins/builtin/youtube/plugin.lua" in shipped
 
 
 # -- what the plugins that ship in the image start with --------------------
