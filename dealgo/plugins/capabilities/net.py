@@ -11,6 +11,8 @@ from typing import Any, Callable
 
 import httpx
 
+from ..runtime.values import to_lua, to_python
+
 log = logging.getLogger(__name__)
 
 
@@ -71,7 +73,7 @@ class Net:
         """
         from ...sources import embedded as reading
 
-        return self._list(reading.find(_plain(thing), str(key or "")))
+        return self._list(reading.find(to_python(thing), str(key or "")))
 
     def afresh(self) -> None:
         """A new call, a new allowance. The limit is on what one call may do,
@@ -84,25 +86,9 @@ class Net:
         A nested dictionary handed over as a Python object is one a plugin
         cannot index, and what comes out of a page is nested by nature.
         """
-        made = self._lua.table() if self._lua is not None else None
-        if made is None:  # pragma: no cover - only without a runtime to build in
+        if self._lua is None:  # pragma: no cover - only without a runtime to build in
             return None
-        for index, value in enumerate(found, start=1):
-            made[index] = self._table(value)
-        return made
-
-    def _table(self, value: object) -> Any:
-        if isinstance(value, dict):
-            made = self._lua.table()
-            for key, inner in value.items():
-                made[str(key)] = self._table(inner)
-            return made
-        if isinstance(value, list):
-            made = self._lua.table()
-            for index, inner in enumerate(value, start=1):
-                made[index] = self._table(inner)
-            return made
-        return value
+        return to_lua(self._lua, found)
 
     def get(self, url: object, headers: object = None) -> Any:
         """Fetch a page and hand back its text, or nothing if it could not be.
@@ -159,7 +145,7 @@ def _polite(headers: object) -> dict[str, str] | None:
     agent is a real problem for a plugin that has to read a page, so this is
     worth allowing. A `Cookie` is not.
     """
-    given = _plain(headers)
+    given = to_python(headers)
     if not isinstance(given, dict):
         return None
     return {
@@ -167,16 +153,3 @@ def _polite(headers: object) -> dict[str, str] | None:
         for name, value in given.items()
         if str(name).lower() in ASKABLE_HEADERS
     }
-
-
-def _plain(value: object) -> object:
-    """A Lua table as something Python can walk."""
-    import lupa
-
-    if lupa.lua_type(value) != "table":
-        return value
-    table: Any = value
-    keys = list(table.keys())
-    if keys and keys == list(range(1, len(keys) + 1)):
-        return [_plain(table[key]) for key in keys]
-    return {str(key): _plain(table[key]) for key in keys}

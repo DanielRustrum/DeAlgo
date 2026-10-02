@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 
 from ...services.scope import OwnerId
+from ..runtime.values import to_lua, to_python
 from .owner import whose
 
 log = logging.getLogger(__name__)
@@ -146,7 +147,7 @@ class Account:
 
                 headers = {"Authorization": f"Bearer {token}"} if token else {}
                 params = {} if token else {"key": key}
-                sending = _plain(body)
+                sending = to_python(body)
                 response = http.request(
                     how, url, params=params, json=sending, headers=headers
                 )
@@ -170,26 +171,7 @@ class Account:
             log.warning("plugin %s could not send: %s", self._plugin, exc)
             return None
 
-        return self._table(payload)
-
-    def _table(self, value: object) -> Any:
-        """JSON as Lua tables, all the way down.
-
-        A nested dictionary handed across as a Python object is something a
-        plugin cannot index, and the answers here are nested by nature.
-        """
-        if isinstance(value, dict):
-            made = self._lua.table()
-            for key, inner in value.items():
-                made[str(key)] = self._table(inner)
-            return made
-        if isinstance(value, list):
-            made = self._lua.table()
-            for index, inner in enumerate(value, start=1):
-                made[index] = self._table(inner)
-            return made
-        return value
-
+        return to_lua(self._lua, payload)
 
 def _is_signable(url: str) -> bool:
     from urllib.parse import urlparse
@@ -214,19 +196,6 @@ def _charge(cost: object) -> int:
     except (TypeError, ValueError):
         return 1
     return max(1, min(asked, MOST_COST))
-
-
-def _plain(value: object) -> object:
-    """A Lua table as something json can serialise."""
-    import lupa
-
-    if lupa.lua_type(value) != "table":
-        return value
-    table: Any = value
-    keys = list(table.keys())
-    if keys and keys == list(range(1, len(keys) + 1)):
-        return [_plain(table[key]) for key in keys]
-    return {str(key): _plain(table[key]) for key in keys}
 
 
 def _read(response: httpx.Response) -> dict[str, Any]:

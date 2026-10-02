@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from ..runtime.values import to_lua
 from .owner import whose
 from .site_queries import feeds_of, pause_source, sources_of, watch_source
 
@@ -189,13 +190,7 @@ class Site:
 
     def _rows(self, rows: list[dict[str, object]]) -> Any:
         """Python dictionaries as Lua tables, one-based, walkable."""
-        table = self._lua.table()
-        for index, row in enumerate(rows, start=1):
-            made = self._lua.table()
-            for name, value in row.items():
-                made[name] = value
-            table[index] = made
-        return table
+        return to_lua(self._lua, rows)
 
     def _empty(self) -> Any:
         return self._lua.table()
