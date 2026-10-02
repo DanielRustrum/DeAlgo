@@ -13,16 +13,16 @@ import html
 import json
 import logging
 import threading
-from hashlib import sha1
-from contextlib import contextmanager
 from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
+from hashlib import sha1
 
 import httpx
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import selectinload
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from .. import outgoing
 from ..db import get_settings, session_scope
 from ..models import (
     GENERIC_ITEM_PREFIX,
@@ -38,23 +38,18 @@ from ..models import (
     to_naive_utc,
     utcnow,
 )
-from ..sources import items, patience, syndication
 from ..plugins import registry
 from ..plugins.capabilities import acting_for
-from ..plugins.publisher import PublishError, Publisher, VideoDetails, cost_of
-from . import filters
-from . import quota
-from . import runlog
+from ..plugins.publisher import Publisher, PublishError, VideoDetails, cost_of
+from ..sources import items, patience, syndication
+from . import filters, graph, quota, runlog
 from .auth import build_client
-from . import graph
 from .scope import OwnerId, belongs_to, owned
 
 # How many items each playlist or channel has taken so far this run.
 Tally = dict[int, int]
 
 log = logging.getLogger(__name__)
-
-USER_AGENT = "De-Algo/0.1 (personal feed builder)"
 
 # What an item from somewhere other than YouTube is addressed by, so an id
 # from a feed can never be mistaken for a video id.
@@ -68,7 +63,6 @@ WRONG_KIND_OF_FEED = "not a YouTube video, and that feed is a YouTube playlist"
 # Why something the feed still lists was passed over on the first check. Named
 # so that reaching back can find exactly what it set aside and nothing else.
 TOO_OLD = "predates the backfill window"
-HTTP_TIMEOUT = 30.0
 MAX_INSERT_ATTEMPTS = 3
 
 class Busy(RuntimeError):
@@ -260,10 +254,6 @@ def is_running() -> bool:
     return _run_lock.locked()
 
 
-def http_client() -> httpx.Client:
-    return httpx.Client(timeout=HTTP_TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True)
-
-
 def run_sync(
     trigger: str = "manual",
     *,
@@ -317,7 +307,7 @@ def run_sync(
     mine = claim(owner, trigger, fired_by) if token is None else token
     try:
         with playlist_lock():
-            with http_client() as http, session_scope() as session:
+            with outgoing.client() as http, session_scope() as session:
                 return _run(
                     session, http, trigger, force=force, owner=owner, only=only,
                     sources=sources, fired_by=fired_by, reach_back=reach_back,

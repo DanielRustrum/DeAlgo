@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 # Re-exported, so that a caller handling what a plugin did wrong does not have
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
+from ... import outgoing
+from . import storage
 from .decisions import decided
 from .reading import read
-from . import storage
 
 if TYPE_CHECKING:
     from .offers import Registry
@@ -58,7 +59,6 @@ def reload() -> Registry:
 
 def _everything() -> Registry:
     """Both folders, with the switches and the grants applied."""
-    from ...services.sync import http_client
 
     # A plugins folder written by an older version holds loose files. Moved
     # before it is read, so what loads is what will still be there next time.
@@ -66,5 +66,5 @@ def _everything() -> Registry:
     off, granted = decided()
     return read(
         storage.shipped(), storage.folder(),
-        paused=off, granted=granted, trusted=storage.shipped(), http=http_client,
+        paused=off, granted=granted, trusted=storage.shipped(), http=outgoing.client,
     )

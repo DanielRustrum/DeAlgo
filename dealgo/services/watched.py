@@ -13,17 +13,18 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .. import outgoing
 from ..db import session_scope
 from ..models import Placement, Playlist, SyncRun, Video, utcnow
 from ..plugins.publisher import PublishError, cost_of
 from . import quota
 from .auth import build_client
 from .scope import OwnerId, belongs_to, owned
-from .sync import Busy, http_client, playlist_lock
-import httpx
+from .sync import Busy, playlist_lock
 
 log = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def remove_watched(trigger: str = "manual", owner: OwnerId = None) -> RemovalRes
     """Delete every watched video from the playlist. Runs only when asked."""
     try:
         with playlist_lock():
-            with http_client() as http, session_scope() as session:
+            with outgoing.client() as http, session_scope() as session:
                 return _remove(session, http, trigger, owner)
     except Busy:
         return RemovalResult(

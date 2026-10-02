@@ -21,6 +21,7 @@ from typing import Any
 
 import httpx
 
+from ... import outgoing
 from ...services.scope import OwnerId
 from ..runtime.values import to_lua, to_python
 from .owner import whose
@@ -135,10 +136,9 @@ class Account:
         from ...db import session_scope
         from ...services.auth import api_key, valid_access_token
         from ...services.quota import meter
-        from ...services.sync import http_client
 
         try:
-            with session_scope() as session, http_client() as http:
+            with session_scope() as session, outgoing.client() as http:
                 token = valid_access_token(session, http, owner)
                 key = api_key(session, owner) if not token else None
                 if not token and not key:

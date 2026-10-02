@@ -12,26 +12,23 @@ import logging
 import sys
 from pathlib import Path
 
-import httpx
+from sqlalchemy import select
 
-from . import __version__
+from . import __version__, outgoing
 from .config import CONFIG
 from .db import get_settings, init_db, session_scope
-from .services import channels as channel_service
+from .models import Video
 from .services import backup as backup_service
+from .services import channels as channel_service
 from .services import playlists as playlist_service
 from .services import quota as quota_service
 from .services import watched as watched_service
 from .services.sync import (
-    HTTP_TIMEOUT,
-    USER_AGENT,
     SyncResult,
     owners_with_channels,
     run_for_everyone,
     run_sync,
 )
-from .models import Video
-from sqlalchemy import select
 
 
 def _configure_logging() -> None:
@@ -101,7 +98,7 @@ def cmd_add(args: argparse.Namespace) -> int:
     _configure_logging()
     init_db()
     with session_scope() as session:
-        with httpx.Client(timeout=HTTP_TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True) as http:
+        with outgoing.client() as http:
             try:
                 channel = channel_service.add_source(session, args.reference, http)
             except channel_service.ChannelError as exc:

@@ -21,10 +21,10 @@ import tarfile
 import httpx
 import pytest
 
-from tests.test_plugin_page import admin  # noqa: F401
-
+from dealgo import outgoing
 from dealgo.plugins import fetching, registry
 from dealgo.plugins.runtime import PluginError
+from tests.test_plugin_page import admin  # noqa: F401
 
 GOOD = """return {
   api = 1, name = "Letterboxd",
@@ -486,7 +486,6 @@ def test_nothing_but_a_plugin_id_can_be_taken_from_staging(here, plugin_id):
 def serving(monkeypatch):
     """A git host, in place of the real one, for the route to reach."""
     host = Host({})
-    from dealgo.services import sync as sync_service
 
     class Held:
         def __enter__(self_inner):
@@ -495,7 +494,7 @@ def serving(monkeypatch):
         def __exit__(self_inner, *_):
             return False
 
-    monkeypatch.setattr(sync_service, "http_client", lambda: Held())
+    monkeypatch.setattr(outgoing, "client", lambda: Held())
     return host
 
 

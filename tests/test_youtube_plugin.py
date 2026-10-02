@@ -17,6 +17,7 @@ import json
 import httpx
 import pytest
 
+from dealgo import outgoing
 from dealgo.models import OAuthToken, User, utcnow
 from dealgo.plugins import registry
 from dealgo.plugins.capabilities import acting_for
@@ -66,9 +67,8 @@ def google(monkeypatch):
         def __exit__(self, *_):
             return False
 
-    from dealgo.services import sync as sync_service
 
-    monkeypatch.setattr(sync_service, "http_client", lambda: Client())
+    monkeypatch.setattr(outgoing, "client", lambda: Client())
     # Read again with the stub in place: a plugin's `net` is handed the
     # client to use when it loads, so a registry built before this is a
     # registry holding the real one.

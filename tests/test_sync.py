@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
+from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry, wire
 from sqlalchemy import select
 
+from dealgo import outgoing
 from dealgo.models import Channel, Video
+from dealgo.plugins.publisher import VideoDetails
 from dealgo.services import sync as sync_service
 from dealgo.sources import items
-from dealgo.plugins.publisher import VideoDetails
-from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry, unwire, wire
+
 
 def statuses(db) -> dict[str, str]:
     with db.session_scope() as session:
@@ -519,7 +520,7 @@ def test_three_quick_presses_make_one_request_not_three(world, db, monkeypatch):
         session.flush()
         only = {source.id}
 
-    monkeypatch.setattr(sync_service, "http_client", lambda: _Client(serve))
+    monkeypatch.setattr(outgoing, "client", lambda: _Client(serve))
 
     try:
         for _ in range(3):
@@ -670,7 +671,8 @@ def test_a_second_reading_does_not_discover_it_twice(world, db, monkeypatch):
 
 
 def stored_link(db, *, body, thumbnail=None, images=None):
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
         source = ChannelModel(
@@ -763,7 +765,8 @@ def test_the_repair_converges(world, db):
 def test_a_youtube_video_is_left_entirely_alone(world, db):
     """Its thumbnail comes from the feed's own field and its body is a
     community post's writing. Neither is this repair's business."""
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -786,7 +789,9 @@ def test_a_youtube_video_is_left_entirely_alone(world, db):
 def stranded_reddit(db, *, playlist_id="generic:reading"):
     """A Reddit source whose items were refused for having nowhere to go, and
     a feed on the end of its wire."""
-    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Playlist as PlaylistModel
+    from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
         source = ChannelModel(
@@ -913,7 +918,7 @@ def test_a_mirror_is_read_when_the_source_refuses(world, db, monkeypatch):
         "https://www.reddit.com/r/python/.rss": (403, ""),
         "https://openrss.org/reddit.com/r/python": (200, REDDIT),
     })
-    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+    monkeypatch.setattr(outgoing, "client", lambda: client)
 
     try:
         sync_service.run_sync("manual", force=True, only=only)
@@ -940,7 +945,7 @@ def test_the_source_is_always_tried_first(world, db, monkeypatch):
         "https://www.reddit.com/r/python/.rss": (200, REDDIT),
         "https://openrss.org/reddit.com/r/python": (200, REDDIT),
     })
-    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+    monkeypatch.setattr(outgoing, "client", lambda: client)
 
     try:
         sync_service.run_sync("manual", force=True, only=only)
@@ -963,7 +968,7 @@ def test_a_feed_that_is_gone_does_not_fall_through_to_the_mirror(world, db, monk
         "https://www.reddit.com/r/python/.rss": (404, ""),
         "https://openrss.org/reddit.com/r/python": (200, REDDIT),
     })
-    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+    monkeypatch.setattr(outgoing, "client", lambda: client)
 
     try:
         sync_service.run_sync("manual", force=True, only=only)
@@ -988,7 +993,7 @@ def test_a_mirror_that_also_fails_reports_the_original_refusal(world, db, monkey
         "https://www.reddit.com/r/python/.rss": (429, ""),
         "https://openrss.org/reddit.com/r/python": (503, ""),  # as it happens, today
     })
-    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+    monkeypatch.setattr(outgoing, "client", lambda: client)
 
     try:
         sync_service.run_sync("manual", force=True, only=only)
@@ -1008,7 +1013,7 @@ def test_a_source_with_no_mirror_just_reports_the_refusal(world, db, monkeypatch
     patience.forget()
     only = {with_mirror(db, mirror=None)}
     asked, client = serving(world, monkeypatch, {"https://www.reddit.com/r/python/.rss": (403, "")})
-    monkeypatch.setattr(sync_service, "http_client", lambda: client)
+    monkeypatch.setattr(outgoing, "client", lambda: client)
 
     try:
         sync_service.run_sync("manual", force=True, only=only)
@@ -1027,7 +1032,8 @@ def test_a_source_with_no_mirror_just_reports_the_refusal(world, db, monkeypatch
 def test_reaching_back_revives_what_was_too_old(world, db):
     """The first check sets aside anything outside the backfill window. Asking
     for a backfill is asking for exactly those."""
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1051,7 +1057,8 @@ def test_reaching_back_leaves_a_filters_judgement_alone(world, db):
     """"Before your time" is the one judgement being revisited. Something a
     filter turned away was a decision about the thing itself, and reaching
     further back is no argument against it."""
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1069,7 +1076,8 @@ def test_reaching_back_leaves_a_filters_judgement_alone(world, db):
 
 
 def test_an_ordinary_run_leaves_what_was_too_old_where_it_is(world, db):
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1089,7 +1097,9 @@ def test_reaching_back_takes_only_as_many_as_were_asked_for(world, db):
     """"The latest 2" means the latest 2, on the backlog as well as the feed."""
     import datetime as dt
 
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel, utcnow
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
+    from dealgo.models import utcnow
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1115,7 +1125,8 @@ def test_reaching_back_takes_only_as_many_as_were_asked_for(world, db):
 def test_reaching_back_takes_the_whole_feed_on_a_first_check(world, db, monkeypatch):
     """A source added with a tight backfill window would file most of its feed
     as too old. Reaching back the first time takes all of it instead."""
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
 
     add_rss_source(db, monkeypatch, REDDIT)
     with db.session_scope() as session:
@@ -1191,7 +1202,8 @@ def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, mon
 
     channel_pk = add_rss_source(db, monkeypatch, REDDIT)
     with db.session_scope() as session:
-        from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
+        from dealgo.models import Channel as ChannelModel
+        from dealgo.models import Playlist as PlaylistModel
 
         channel = session.get(ChannelModel, channel_pk)
         # The fixture's feed is a real YouTube playlist.
@@ -1208,7 +1220,7 @@ def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, mon
 
 
 def test_an_item_from_elsewhere_fills_a_generic_feed(world, db, monkeypatch):
-    from dealgo.models import Playlist as PlaylistModel, Video as VideoModel
+    from dealgo.models import Video as VideoModel
     from dealgo.services import playlists as playlist_service
 
     channel_pk = add_rss_source(db, monkeypatch, REDDIT)
@@ -1229,7 +1241,8 @@ def test_an_item_from_elsewhere_fills_a_generic_feed(world, db, monkeypatch):
 def test_a_feed_items_words_are_what_a_filter_reads(world, db, monkeypatch):
     """It has no duration and is neither a Short nor a broadcast, so its title
     and its body are all there is to go on."""
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
+    from dealgo.models import Channel as ChannelModel
+    from dealgo.models import Video as VideoModel
     from dealgo.services import playlists as playlist_service
 
     channel_pk = add_rss_source(db, monkeypatch, REDDIT)

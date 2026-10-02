@@ -7,56 +7,48 @@ in any browser, which is the only GUI that makes sense inside Docker.
 from __future__ import annotations
 
 import datetime as dt
-import logging
 import json
+import logging
 import re
 import secrets
 import threading
 import time
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote, urlencode
 
-import httpx
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import selectinload
-
-from .. import __version__, scheduler
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.sql.elements import ColumnElement
 from starlette.concurrency import run_in_threadpool
 
+from .. import __version__, outgoing, scheduler, sources
 from ..config import CONFIG
 from ..db import get_settings, get_token, init_db, session_scope
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from typing import Any
-from sqlalchemy.orm import Session
-from sqlalchemy.sql.elements import ColumnElement
-
 from ..models import (
     GENERIC_PLAYLIST_PREFIX,
-    GraphNode,
-    User,
     Channel,
+    GraphNode,
     Placement,
     Playlist,
     SyncRun,
+    User,
     Video,
     channel_playlist,
     utcnow,
 )
-from .. import sources
 from ..plugins import fetching, permissions, registry
-from ..services import accounts
-from ..services.scope import OwnerId, belongs_to, owned
+from ..plugins.publisher import PlaylistInfo, PublishError
+from ..services import accounts, migration, oauth, runlog
 from ..services import backup as backup_service
-from ..services import graph as graph_service
-from ..services import runlog
-from ..services import migration
 from ..services import channels as channel_service
-from ..services import ordering as ordering_service
+from ..services import graph as graph_service
 from ..services import playlists as playlist_service
 from ..services import quota as quota_service
 from ..services import sync as sync_service
@@ -69,8 +61,7 @@ from ..services.auth import (
     store_token,
 )
 from ..services.filters import format_duration
-from ..plugins.publisher import PlaylistInfo, PublishError
-from ..services import oauth
+from ..services.scope import OwnerId, belongs_to, owned
 from . import guard
 
 log = logging.getLogger(__name__)
@@ -395,14 +386,6 @@ def redirect(path: str, *, ok: str | None = None, err: str | None = None) -> Red
     return RedirectResponse(url, status_code=303)
 
 
-def _http_client() -> httpx.Client:
-    return httpx.Client(
-        timeout=sync_service.HTTP_TIMEOUT,
-        headers={"User-Agent": sync_service.USER_AGENT},
-        follow_redirects=True,
-    )
-
-
 def _quota_context(session: Session, owner: OwnerId = None) -> Context:
     """This account's quota. Each account keeps its own ledger, so reading the
     default owner's here showed every signed-in account an untouched day."""
@@ -541,7 +524,7 @@ def _account_playlists(
 
     items: list[PlaylistInfo] = []
     error: str | None = None
-    with _http_client() as http:
+    with outgoing.client() as http:
         client = build_client(session, http, owner)
         if client.has_write_access:
             try:
@@ -1546,7 +1529,7 @@ def create_feed(
 ) -> Response:
     """Set up a feed in one step: the playlist, then what fills it."""
     owner = owner_of(request)
-    with session_scope() as session, _http_client() as http:
+    with session_scope() as session, outgoing.client() as http:
         try:
             playlist, linked = playlist_service.set_up_feed(
                 session,
@@ -1672,7 +1655,7 @@ def rename_playlist(
     request: Request, playlist_pk: int, title: str = Form(""), back: str = Form("")
 ) -> Response:
     """Retitle a feed, and the playlist behind it where there is one."""
-    with session_scope() as session, _http_client() as http:
+    with session_scope() as session, outgoing.client() as http:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
             return _playlists_response(request, err="That feed is no longer a target.", back=back)
@@ -1808,7 +1791,7 @@ def oauth_callback(
     if issued is None or now - issued > 600:
         return redirect("/settings", err="That sign-in link expired. Try connecting again.")
 
-    with session_scope() as session, _http_client() as http:
+    with session_scope() as session, outgoing.client() as http:
         client_id, client_secret = client_credentials(session)
         try:
             token = oauth.exchange_code(
@@ -1834,7 +1817,7 @@ def oauth_callback(
 
 @app.post("/oauth/disconnect")
 def oauth_disconnect() -> RedirectResponse:
-    with session_scope() as session, _http_client() as http:
+    with session_scope() as session, outgoing.client() as http:
         disconnect(session, http)
     return redirect("/settings", ok="Google account disconnected.")
 
@@ -3397,7 +3380,7 @@ def _attach_channel(
         graph_service.attach_channel(session, node, already, owner)
         return None
 
-    with sync_service.http_client() as http:
+    with outgoing.client() as http:
         try:
             # Within the kind this box was dragged out as, so what is typed
             # is read the way somebody typing into that box meant it: "python"
@@ -3855,7 +3838,7 @@ def fetch_plugin(request: Request, url: str = Form(""), ref: str = Form("")) -> 
         return redirect("/admin/plugins", err="That is not a branch or tag name.")
 
     try:
-        with sync_service.http_client() as http:
+        with outgoing.client() as http:
             got = fetching.fetch(url, http, ref=wanted)
     except registry.PluginError as exc:
         return redirect("/admin/plugins", err=str(exc))

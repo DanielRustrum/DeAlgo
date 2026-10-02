@@ -14,6 +14,7 @@ import tempfile
 import httpx
 import pytest
 
+from dealgo import outgoing
 from dealgo.models import OAuthToken, User, utcnow
 from dealgo.plugins import registry
 from dealgo.plugins.capabilities import account, acting_for
@@ -75,9 +76,8 @@ def sent(monkeypatch):
         def __exit__(self, *_):
             return False
 
-    from dealgo.services import sync as sync_service
 
-    monkeypatch.setattr(sync_service, "http_client", lambda: Client())
+    monkeypatch.setattr(outgoing, "client", lambda: Client())
     return made
 
 

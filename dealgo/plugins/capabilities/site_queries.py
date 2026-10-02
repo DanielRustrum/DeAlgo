@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from ... import outgoing
 from ...services.scope import OwnerId
 
 log = logging.getLogger(__name__)
@@ -66,11 +67,10 @@ def pause_source(session: Any, owner: OwnerId, key: str, on: bool) -> bool:
 
 def watch_source(session: Any, owner: OwnerId, reference: str) -> str | None:
     from ...services import channels as channel_service
-    from ...services import sync as sync_service
 
     if not reference:
         return None
-    with sync_service.http_client() as http:
+    with outgoing.client() as http:
         try:
             channel = channel_service.add_source(session, reference, http, owner=owner)
         except channel_service.ChannelError as exc:
