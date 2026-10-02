@@ -5,7 +5,8 @@
 // server. So the other half of the job is here — say plainly when the network
 // is gone, and stop offering the buttons that cannot work without it.
 //
-// Top-level `function` declarations only: see the note in dialog.ts.
+// Top-level `function` declarations only, and one entry call at the end: see
+// tests/test_scripts.py, which says why and holds every script to it.
 
 /** Registered with the asset version, so a deploy installs a new worker and
  *  retires the old caches. */

@@ -1,0 +1,331 @@
+// Reading what the server said: a checked shape for everything the canvas draws.
+//
+// The server's JSON is the one thing nothing can check at compile time, so it is
+// read here, once, into types — and the only casts in the canvas are in this file.
+//
+// Part of the Configuration canvas; see main.ts.
+
+function asGraphRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asGraphNodeKind(value: unknown): GraphNodeKind | null {
+  if (
+    value === "trigger" ||
+    value === "source" ||
+    value === "filter" ||
+    value === "sort" ||
+    value === "feed" ||
+    value === "group" ||
+    value === "deposit" ||
+    value === "withdraw" ||
+    value === "timer" ||
+    value === "reset" ||
+    value === "alive" ||
+    value === "lock" ||
+    value === "decay" ||
+    value === "expire" ||
+    value === "tag" ||
+    value === "has-words" ||
+    value === "lacks-words" ||
+    value === "longer-than" ||
+    value === "shorter-than" ||
+    value === "carrying" ||
+    value === "at-most" ||
+    value === "order" ||
+    value === "rule"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function asGraphNode(value: unknown): GraphNodeView | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const kind = asGraphNodeKind(raw["kind"]);
+  const id = raw["id"];
+  if (kind === null || typeof id !== "number") return null;
+  const detail = raw["detail"];
+  const polled = raw["polled"];
+  return {
+    id,
+    kind,
+    title: typeof raw["title"] === "string" ? raw["title"] : "",
+    x: typeof raw["x"] === "number" ? raw["x"] : 0,
+    y: typeof raw["y"] === "number" ? raw["y"] : 0,
+    detail: typeof detail === "string" ? detail : null,
+    note: typeof raw["note"] === "string" ? raw["note"] : "",
+    enabled: raw["enabled"] !== false,
+    polled: typeof polled === "string" ? polled : null,
+    trigger: asGraphTrigger(raw["trigger"]),
+    sort: asGraphSort(raw["sort"]),
+    size: asGraphSize(raw["size"]),
+    channel: asGraphChannel(raw["channel"]),
+    asks: asGraphAsks(raw["asks"]),
+    store: asGraphStore(raw["store"]),
+    stamp: asGraphStamp(raw["stamp"]),
+    piece: asGraphPiece(raw["piece"]),
+    condition: asGraphCondition(raw["condition"]),
+    plugin: asGraphPlugin(raw["plugin"]),
+    feed: asGraphFeed(raw["feed"]),
+  };
+}
+
+function asGraphAsks(value: unknown): GraphAsks | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    kind: typeof raw["kind"] === "string" ? raw["kind"] : "",
+    label: typeof raw["label"] === "string" ? raw["label"] : "",
+    source: typeof raw["source"] === "string" ? raw["source"] : "",
+    example: typeof raw["example"] === "string" ? raw["example"] : "",
+    known: raw["known"] === true,
+  };
+}
+
+function asGraphPiece(value: unknown): GraphPiece | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const under = raw["under"];
+  return {
+    under: typeof under === "number" ? under : null,
+    minutes: typeof raw["minutes"] === "number" ? raw["minutes"] : 30,
+    cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
+    from: typeof raw["from"] === "string" ? raw["from"] : "",
+    to: typeof raw["to"] === "string" ? raw["to"] : "",
+    every: asGraphEvery(raw["every"]),
+    hosts: typeof raw["hosts"] === "string" ? raw["hosts"] : "",
+  };
+}
+
+function asGraphCondition(value: unknown): GraphCondition | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const units = raw["units"];
+  const field = raw["field"];
+  return {
+    label: typeof raw["label"] === "string" ? raw["label"] : "",
+    blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
+    field:
+      field === "duration" || field === "number" || field === "order"
+        ? field
+        : "text",
+    asks: typeof raw["asks"] === "string" ? raw["asks"] : "",
+    under: raw["under"] === "sort" ? "sort" : "filter",
+    value: typeof raw["value"] === "string" ? raw["value"] : "",
+    unit: typeof raw["unit"] === "string" ? raw["unit"] : "minutes",
+    units: Array.isArray(units)
+      ? units.filter((one): one is string => typeof one === "string")
+      : [],
+    says: typeof raw["says"] === "string" ? raw["says"] : "",
+  };
+}
+
+function asGraphStamp(value: unknown): GraphStamp | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
+}
+
+function asGraphStore(value: unknown): GraphStore | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    name: typeof raw["name"] === "string" ? raw["name"] : "",
+    waiting: typeof raw["waiting"] === "number" ? raw["waiting"] : 0,
+    takes: typeof raw["takes"] === "number" ? raw["takes"] : 0,
+    pulls: raw["pulls"] === true,
+  };
+}
+
+function asGraphFeed(value: unknown): GraphFeed | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const windows = raw["windows"];
+  return {
+    windows: Array.isArray(windows)
+      ? windows.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    open: raw["open"] !== false,
+    maxItems: typeof raw["max_items"] === "number" ? raw["max_items"] : 0,
+    maxPerRun: typeof raw["max_per_run"] === "number" ? raw["max_per_run"] : 0,
+    generic: raw["generic"] === true,
+  };
+}
+
+function asGraphChannel(value: unknown): GraphChannel | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+
+  const takes: Record<string, boolean> = {};
+  const given = asGraphRecord(raw["takes"]) ?? {};
+  for (const key of Object.keys(given)) takes[key] = given[key] === true;
+
+  const checked = raw["checked"];
+  return {
+    source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
+    // Absent means YouTube: everything on a canvas drawn before there was
+    // anywhere else to draw is one.
+    youtube: raw["youtube"] !== false,
+    feedUrl: typeof raw["feed_url"] === "string" ? raw["feed_url"] : "",
+    mirror: typeof raw["mirror"] === "string" ? raw["mirror"] : null,
+    mirrorHint: typeof raw["mirror_hint"] === "string" ? raw["mirror_hint"] : null,
+    takes,
+    checked: typeof checked === "string" ? checked : null,
+    placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
+    pending: typeof raw["pending"] === "number" ? raw["pending"] : 0,
+  };
+}
+
+function asGraphSize(value: unknown): { width: number; height: number } | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    width: typeof raw["width"] === "number" ? raw["width"] : 520,
+    height: typeof raw["height"] === "number" ? raw["height"] : 300,
+  };
+}
+
+function asGraphPlugin(value: unknown): GraphPlugin | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const missing = raw["missing"];
+  const fields: GraphPluginField[] = [];
+  for (const entry of Array.isArray(raw["fields"]) ? raw["fields"] : []) {
+    const one = asGraphRecord(entry);
+    if (one === null) continue;
+    fields.push({
+      name: typeof one["name"] === "string" ? one["name"] : "",
+      label: typeof one["label"] === "string" ? one["label"] : "",
+      type: one["type"] === "number" ? "number" : "text",
+      value: typeof one["value"] === "string" ? one["value"] : "",
+      placeholder: typeof one["placeholder"] === "string" ? one["placeholder"] : "",
+    });
+  }
+  return {
+    ref: typeof raw["ref"] === "string" ? raw["ref"] : "",
+    missing: typeof missing === "string" ? missing : null,
+    plugin: typeof raw["plugin"] === "string" ? raw["plugin"] : "",
+    blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
+    under: raw["under"] === "sort" ? "sort" : "filter",
+    fields: fields.filter((one): boolean => one.name !== ""),
+  };
+}
+
+function asGraphSort(value: unknown): GraphSort | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+
+  const keys: GraphSortKey[] = [];
+  const offered = raw["keys"];
+  if (Array.isArray(offered)) {
+    for (const entry of offered) {
+      const key = asGraphRecord(entry);
+      if (key === null || typeof key["name"] !== "string") continue;
+      keys.push({
+        name: key["name"],
+        label: typeof key["label"] === "string" ? key["label"] : key["name"],
+        first: typeof key["first"] === "string" ? key["first"] : "Most first",
+        last: typeof key["last"] === "string" ? key["last"] : "Least first",
+      });
+    }
+  }
+  return {
+    by: typeof raw["by"] === "string" ? raw["by"] : "published",
+    desc: raw["desc"] !== false,
+    keys,
+  };
+}
+
+function asGraphEvery(value: unknown): GraphEvery {
+  const raw = asGraphRecord(value);
+  const units: { name: string; label: string }[] = [];
+  const offered = raw === null ? null : raw["units"];
+  if (Array.isArray(offered)) {
+    for (const entry of offered) {
+      const unit = asGraphRecord(entry);
+      if (unit === null || typeof unit["name"] !== "string") continue;
+      units.push({
+        name: unit["name"],
+        label: typeof unit["label"] === "string" ? unit["label"] : unit["name"],
+      });
+    }
+  }
+  return {
+    amount: typeof raw?.["amount"] === "number" ? raw["amount"] : 60,
+    unit: typeof raw?.["unit"] === "string" ? raw["unit"] : "minutes",
+    units,
+  };
+}
+
+function asGraphTrigger(value: unknown): GraphTrigger | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const every = raw["every_minutes"];
+  const cron = raw["cron"];
+  const next = raw["next"];
+  const fired = raw["last_fired"];
+  return {
+    kind: raw["kind"] === "schedule" ? "schedule" : "pulse",
+    everyMinutes: typeof every === "number" ? every : null,
+    every: asGraphEvery(raw["every"]),
+    cron: typeof cron === "string" ? cron : null,
+    duration: typeof raw["duration"] === "number" ? raw["duration"] : null,
+    opens: raw["opens"] === true,
+    next: typeof next === "string" ? next : null,
+    lastFired: typeof fired === "string" ? fired : null,
+  };
+}
+
+function asGraphWire(value: unknown): GraphWireView | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const id = raw["id"];
+  const from = raw["from"];
+  const to = raw["to"];
+  if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number") return null;
+  return { id, from, to, kind: "edge" };
+}
+
+/** The graph, or null if this is not one — an error body, say. */
+function asGraph(value: unknown): GraphView | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const nodes = raw["nodes"];
+  const wires = raw["wires"];
+  if (!Array.isArray(nodes) || !Array.isArray(wires)) return null;
+
+  const readNodes: GraphNodeView[] = [];
+  for (const entry of nodes) {
+    const node = asGraphNode(entry);
+    if (node !== null) readNodes.push(node);
+  }
+  const readWires: GraphWireView[] = [];
+  for (const entry of wires) {
+    const wire = asGraphWire(entry);
+    if (wire !== null) readWires.push(wire);
+  }
+  const watched: { id: number; title: string; kind: string }[] = [];
+  const offered = raw["sources"];
+  if (Array.isArray(offered)) {
+    for (const entry of offered) {
+      const source = asGraphRecord(entry);
+      if (source === null || typeof source["id"] !== "number") continue;
+      watched.push({
+        id: source["id"],
+        title: typeof source["title"] === "string" ? source["title"] : "",
+        kind: typeof source["kind"] === "string" ? source["kind"] : "",
+      });
+    }
+  }
+  return { nodes: readNodes, wires: readWires, sources: watched };
+}
+
+function asGraphError(value: unknown): string | null {
+  const raw = asGraphRecord(value);
+  const message = raw === null ? null : raw["error"];
+  return typeof message === "string" ? message : null;
+}

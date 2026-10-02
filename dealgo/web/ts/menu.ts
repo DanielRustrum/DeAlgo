@@ -5,7 +5,8 @@
 // do: telling assistive technology whether the drawer is open, closing it on
 // Escape, and stopping the page behind it scrolling while it is.
 //
-// Top-level `function` declarations only: see the note in dialog.ts.
+// Top-level `function` declarations only, and one entry call at the end: see
+// tests/test_scripts.py, which says why and holds every script to it.
 
 /** The checkbox that is the drawer's open/closed state. */
 function menuCheckbox(): HTMLInputElement | null {

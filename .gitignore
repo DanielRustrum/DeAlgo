@@ -18,3 +18,7 @@ package-lock.json
 docs/internal/autodoc/python/
 docs/internal/autodoc/browser/
 docs/internal/autodoc/service-worker/
+docs/internal/autodoc/canvas/
+
+# Where the canvas's parts are compiled before they are joined into graph.js.
+build/

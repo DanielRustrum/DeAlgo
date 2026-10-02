@@ -27,23 +27,42 @@ needs_tsc = pytest.mark.skipif(not TSC.exists(), reason="TypeScript is not insta
 
 
 def sources() -> list[pathlib.Path]:
-    return sorted(p for p in TS_DIR.glob("*.ts") if not p.name.endswith(".d.ts"))
+    """Every TypeScript file, including the parts of a script written as a folder."""
+    return sorted(p for p in TS_DIR.rglob("*.ts") if not p.name.endswith(".d.ts"))
+
+
+def scripts() -> dict[str, list[pathlib.Path]]:
+    """Each script the page loads, and the files it is written in.
+
+    Most are one file. The canvas is a folder of parts, joined into one
+    graph.js by dealgo/web/scripts.py — so what it calls and what it declares
+    is a question about the whole folder, not any one part of it.
+    """
+    found = {p.stem: [p] for p in TS_DIR.glob("*.ts") if not p.name.endswith(".d.ts")}
+    for folder in sorted(p for p in TS_DIR.iterdir() if p.is_dir()):
+        found[folder.name] = sorted(folder.glob("*.ts"))
+    return found
+
+
+def script_text(name: str) -> str:
+    return "\n".join(p.read_text() for p in scripts()[name])
 
 
 def test_every_script_has_a_typescript_source():
     """A .js in static/ with no .ts behind it is one nobody can safely edit."""
-    generated = {p.stem for p in sources()}
+    generated = set(scripts())
     shipped = {p.stem for p in STATIC.glob("*.js")} - {"htmx.min"}
     assert shipped == generated
 
 
 @needs_tsc
-@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json"])
+@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json", "tsconfig.graph.json"])
 def test_the_committed_javascript_matches_its_sources(tmp_path, config):
     """Compile afresh and compare: `make js` has been run, or it has not.
 
-    Two configs, because the service worker has no DOM and the page scripts
-    have no worker globals; one program cannot hold both.
+    Three configs, because the service worker has no DOM and the page scripts
+    have no worker globals, and the canvas is compiled from its parts and
+    joined — exactly as `make js` does it.
     """
     subprocess.run(
         [str(TSC), "-p", config, "--outDir", str(tmp_path)],
@@ -51,6 +70,13 @@ def test_the_committed_javascript_matches_its_sources(tmp_path, config):
         check=True,
         capture_output=True,
     )
+    if config == "tsconfig.graph.json":
+        from dealgo.web.scripts import join
+
+        assert (STATIC / "graph.js").read_text() == join(tmp_path), (
+            "static/graph.js is out of date with web/ts/graph/ — run `make js`."
+        )
+        return
     for built in sorted(tmp_path.glob("*.js")):
         committed = STATIC / built.name
         assert committed.exists(), f"{built.name} has never been built — run `make js`."
@@ -60,7 +86,7 @@ def test_the_committed_javascript_matches_its_sources(tmp_path, config):
 
 
 @needs_tsc
-@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json"])
+@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json", "tsconfig.graph.json"])
 def test_the_sources_typecheck_strictly(config):
     """The point of the exercise, enforced rather than assumed."""
     result = subprocess.run(
@@ -90,8 +116,8 @@ def test_the_typescript_config_is_valid_json():
 def test_typescript_is_not_needed_to_run_the_app():
     """The compiled scripts are committed, which is what keeps Node out of the
     container and out of a plain `pip install`."""
-    for source in sources():
-        assert (STATIC / f"{source.stem}.js").exists()
+    for name in scripts():
+        assert (STATIC / f"{name}.js").exists()
 
 
 # -- how the sources are put together --------------------------------------
@@ -121,9 +147,10 @@ def test_no_state_sits_at_the_top_level():
             )
 
 
-def test_every_file_ends_with_one_named_entry_point():
+def test_every_script_ends_with_one_named_entry_point():
     """One call, at the bottom, by name: the only statement that is not a
-    declaration."""
+    declaration. A script written as parts has it once, in main.ts, which is
+    joined in last."""
     entries = {
         "sections": "initSections();",
         "focus": "initFocusMode();",
@@ -135,9 +162,16 @@ def test_every_file_ends_with_one_named_entry_point():
         # equivalent, and it is a named function like every other entry.
         "sw": "listenForWorkerEvents();",
     }
-    for source in sources():
-        calls = [line for line in top_level_lines(source) if line.rstrip().endswith(");")]
-        assert calls == [entries[source.stem]], f"{source.name} has stray top-level statements"
+    for name, files in scripts().items():
+        calls = [
+            line for source in files for line in top_level_lines(source)
+            if line.rstrip().endswith(");")
+        ]
+        assert calls == [entries[name]], f"{name} has stray top-level statements"
+        if len(files) > 1:
+            assert entries[name] in (TS_DIR / name / "main.ts").read_text(), (
+                f"{name}'s entry call belongs in main.ts, which runs last"
+            )
 
 
 def test_the_logic_is_all_in_functions():
@@ -194,14 +228,8 @@ def test_everything_that_covers_the_page_holds_it_still():
     """A modal makes the page inert, which stops it being clicked but not
     necessarily scrolled — and where showModal is missing, neither. Anything
     that opens over the page has to say so."""
-    holders = [
-        source for source in sources() if 'classList.toggle("page-held"' in source.read_text()
-    ]
-    assert {source.stem for source in holders} == {"menu", "graph"}
-
-
-def defined_functions(source: pathlib.Path) -> list[str]:
-    return re.findall(r"^(?:async )?function (\w+)\(", source.read_text(), re.M)
+    holders = {name for name in scripts() if 'classList.toggle("page-held"' in script_text(name)}
+    assert holders == {"menu", "graph"}
 
 
 def test_no_script_carries_a_function_nobody_calls():
@@ -213,8 +241,8 @@ def test_no_script_carries_a_function_nobody_calls():
     once where something uses it. An entry point counts, since it is called
     at the bottom of its own file.
     """
-    for source in sources():
-        text = source.read_text()
-        for name in defined_functions(source):
+    for script in scripts():
+        text = script_text(script)
+        for name in re.findall(r"^(?:async )?function (\w+)\(", text, re.M):
             uses = len(re.findall(rf"\b{name}\b", text))
-            assert uses > 1, f"{source.name}: {name}() is defined and never called"
+            assert uses > 1, f"{script}: {name}() is defined and never called"

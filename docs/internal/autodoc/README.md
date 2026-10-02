@@ -13,6 +13,7 @@ Then open:
 | --- | --- | --- |
 | Python — every module under `dealgo/` | `python/index.html` | [pdoc](https://pdoc.dev) 16, Markdown docstrings |
 | Browser scripts — `dealgo/web/ts/*.ts` | `browser/index.html` | [TypeDoc](https://typedoc.org) 0.28 |
+| The canvas — `dealgo/web/ts/graph/*.ts` | `canvas/index.html` | TypeDoc, `tsconfig.graph.json` |
 | Service worker — `dealgo/web/ts/sw.ts` | `service-worker/index.html` | TypeDoc, worker `tsconfig` |
 
 ## How it is set up
@@ -21,9 +22,10 @@ Then open:
   creates the data folder, so `make docs` points `DEALGO_DATA_DIR` at a temporary folder and uses an
   in-memory database.
 - **TypeScript:** this folder has its own `package.json` pinning `typedoc` and TypeScript 5.9,
-  because the app compiles with TypeScript 7, which TypeDoc cannot read yet. Two configs:
-  `typedoc.browser.json` (page scripts, root `tsconfig.json`) and `typedoc.worker.json`
-  (`sw.ts`, `tsconfig.sw.json`).
+  because the app compiles with TypeScript 7, which TypeDoc cannot read yet. Three configs:
+  `typedoc.browser.json` (page scripts, root `tsconfig.json`), `typedoc.canvas.json` (the
+  canvas's parts, `tsconfig.graph.json`) and `typedoc.worker.json` (`sw.ts`,
+  `tsconfig.sw.json`).
 
 ## Writing for it
 

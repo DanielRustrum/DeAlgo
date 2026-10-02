@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "dealgo/web/ts/graph",
+    "outDir": "build/scripts/graph"
+  },
+  "include": [
+    "dealgo/web/ts/graph/*.ts",
+    "dealgo/web/ts/globals.d.ts"
+  ],
+  "exclude": []
+}

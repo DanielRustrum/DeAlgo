@@ -1,0 +1,515 @@
+// Drawing the boxes, the pieces slotted under them, and the wires between.
+//
+// Part of the Configuration canvas; see main.ts.
+
+function graphElement(tag: string, className: string, text?: string): HTMLElement {
+  const made = document.createElement(tag);
+  made.className = className;
+  if (text !== undefined) made.textContent = text;
+  return made;
+}
+
+function graphKindLabel(kind: GraphNodeKind): string {
+  if (kind === "source") return "Source";
+  if (kind === "deposit") return "Deposit";
+  if (kind === "withdraw") return "Withdraw";
+  if (kind === "timer") return "Timer";
+  if (kind === "reset") return "Reset";
+  if (kind === "alive") return "Alive";
+  if (kind === "lock") return "Lock";
+  if (kind === "decay") return "Decay";
+  if (kind === "expire") return "Expire";
+  if (kind === "tag") return "Tag";
+  if (kind === "feed") return "Feed";
+  if (kind === "sort") return "Sort";
+  if (kind === "group") return "Group";
+  if (kind === "rule") return "Rule";
+  if (kind === "has-words") return "Title has";
+  if (kind === "lacks-words") return "Title lacks";
+  if (kind === "longer-than") return "Longer than";
+  if (kind === "shorter-than") return "Shorter than";
+  if (kind === "carrying") return "Carrying";
+  if (kind === "at-most") return "At most";
+  if (kind === "order") return "Order";
+  return kind === "trigger" ? "Trigger" : "Filter";
+}
+
+/** What an empty source box is waiting to be told. */
+interface GraphAsks {
+  /** The kind it was dragged out as. "" for a box made before kinds. */
+  kind: string;
+  /** What that kind's box is called: "Subreddit". */
+  label: string;
+  /** The short name of the kind — "Reddit" — for the word above the title. */
+  source: string;
+  /** What to type, said the way somebody would say it. */
+  example: string;
+  /** Whether anything still provides this kind. False when its plugin is
+   *  switched off, which is worth saying rather than silently refusing
+   *  everything typed into it. */
+  known: boolean;
+}
+
+/** An augmentation: what it is slotted under, and what it carries. */
+interface GraphPiece {
+  /** The box or piece it sits under. Null while it is loose on the canvas. */
+  under: number | null;
+  /** Timer: how long the sitting lasts. */
+  minutes: number;
+  /** Reset: the cron that gives you another. */
+  cron: string;
+  /** Alive: the two ends of the stretch of day it allows, as "HH:MM". */
+  from: string;
+  to: string;
+  /** Timer: its amount and unit, and the units it could be said in. */
+  every: GraphEvery;
+  /** Which boxes it may be slotted under, comma-separated. Empty where
+   *  nothing is known — a piece whose plugin is switched off. */
+  hosts: string;
+}
+
+/** One condition piece: what it narrows by, and how to ask for it. */
+interface GraphCondition {
+  label: string;
+  blurb: string;
+  /** How the panel asks: a line of text, a number, a length, or the two
+   *  selects that say what to order a batch by. */
+  field: "text" | "number" | "duration" | "order";
+  asks: string;
+  /** Which box it belongs under, for saying so when it is loose. */
+  under: "filter" | "sort";
+  /** What it is set to. A length arrives already split into this and a unit. */
+  value: string;
+  unit: string;
+  units: string[];
+  /** What it says on the canvas, for the panel to repeat back. */
+  says: string;
+}
+
+/** What a marking box carries. */
+interface GraphStamp {
+  /** Tag boxes: what it marks whatever passes with. */
+  marks: string;
+}
+
+/** What a Deposit or Withdraw box is about. */
+interface GraphStore {
+  /** The repository it names, as it is filed: trimmed and lowercased. */
+  name: string;
+  /** How many items are waiting in it right now. */
+  waiting: number;
+  /** Withdraw boxes: how many to take each pull. 0 means everything. */
+  takes: number;
+  /** True for a Withdraw box, false for a Deposit. */
+  pulls: boolean;
+}
+
+/** What travels down a wire: a nudge to run, or the things being collected. */
+type GraphCarries = "signal" | "content";
+
+function graphPort(where: "in" | "out", carries: GraphCarries, says: string): HTMLElement {
+  const dot = graphElement("span", `graph-port port-${where} carries-${carries}`);
+  dot.dataset["port"] = where;
+  dot.title = says;
+  dot.appendChild(graphPortIcon(carries));
+  return dot;
+}
+
+/** The mark inside a port. Drawn rather than written: at this size a letter
+ *  is a smudge, and a shape is still a shape. */
+function graphPortIcon(carries: GraphCarries): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "graph-port-icon");
+  svg.setAttribute("viewBox", "0 0 10 10");
+  svg.setAttribute("aria-hidden", "true");
+
+  const mark = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  mark.setAttribute(
+    "d",
+    carries === "signal"
+      // A bolt: something setting the channel off.
+      ? "M6.2 0.6 L2.2 5.6 H4.5 L3.8 9.4 L7.8 4.4 H5.5 Z"
+      // A play mark: the videos and posts being carried along.
+      : "M2.6 1.2 L8.2 5 L2.6 8.8 Z",
+  );
+  svg.appendChild(mark);
+  return svg;
+}
+
+/** Whether a wheel was meant for a panel rather than for the canvas.
+ *
+ *  The palette, the finder, the run log and a box's own panel all sit inside
+ *  the canvas, so that they travel with it and stay put over it. Which means
+ *  a wheel over any of them bubbles to the canvas, and the canvas zooms —
+ *  when what you meant was to get further down the list you were reading.
+ *
+ *  Asked of the elements themselves rather than of a list of which ones they
+ *  are: anything laid over the canvas that scrolls wants its own wheel, and a
+ *  list kept by hand is a list that goes stale the next time one is added. */
+function graphWheelBelongsToAPanel(target: EventTarget | null, canvas: Element): boolean {
+  let walk = target instanceof Element ? target : null;
+  while (walk !== null && walk !== canvas) {
+    const said = window.getComputedStyle(walk).overflowY;
+    if (said === "auto" || said === "scroll") return true;
+    walk = walk.parentElement;
+  }
+  return false;
+}
+
+/** What each side of a box takes in or gives out, in a sentence. */
+function graphPortWords(kind: GraphNodeKind, where: "in" | "out"): string {
+  if (kind === "trigger") return "Gives out a signal: wire it to a channel to say when to poll it.";
+  if (kind === "source") {
+    return where === "in"
+      ? "Takes a signal: a trigger wired here says when this channel is polled."
+      : "Gives out what it collects — videos and posts — to whatever is wired on.";
+  }
+  if (kind === "filter") {
+    return where === "in"
+      ? "Takes what arrives, and judges it."
+      : "Gives out only what got through.";
+  }
+  if (kind === "deposit") {
+    return "Takes what is wired in and holds it. Nothing comes out until a Withdraw pulls.";
+  }
+  if (kind === "withdraw") {
+    return where === "in"
+      ? "Takes a signal: a trigger wired here says when to pull from the repository."
+      : "Gives out what it pulled, to whatever is wired on.";
+  }
+  return "Takes what is wired in. This is where things end up.";
+}
+
+function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
+  const frame = graphElement("div", "graph-group-box");
+  frame.dataset["node"] = String(node.id);
+  frame.style.left = `${node.x}px`;
+  frame.style.top = `${node.y}px`;
+  frame.style.width = `${node.size?.width ?? 520}px`;
+  frame.style.height = `${node.size?.height ?? 300}px`;
+  frame.tabIndex = 0;
+  frame.setAttribute("role", "button");
+  frame.setAttribute("aria-label", `Group: ${node.title}`);
+  if (state.picked.has(node.id)) frame.classList.add("is-picked");
+  if (!node.enabled) frame.classList.add("is-off");
+
+  const name = graphElement("span", "graph-group-name", node.title);
+  frame.appendChild(name);
+
+  // Bottom-right, where a resize handle is looked for.
+  const grip = graphElement("span", "graph-group-grip");
+  grip.dataset["grip"] = String(node.id);
+  grip.title = "Drag to resize";
+  frame.appendChild(grip);
+  return frame;
+}
+
+function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
+  const box = graphElement("div", `graph-node kind-${node.kind}`);
+  box.dataset["node"] = String(node.id);
+  box.style.left = `${node.x}px`;
+  box.style.top = `${node.y}px`;
+  box.tabIndex = 0;
+  box.setAttribute("role", "button");
+  box.setAttribute("aria-label", `${graphTriggerLabel(node)}: ${node.title}`);
+  if (state.picked.has(node.id)) box.classList.add("is-picked");
+  if (!node.enabled) box.classList.add("is-off");
+
+  if (node.piece !== null) {
+    // A piece is slotted, not wired: nothing runs into or out of one, so it
+    // has no ports at all.
+    box.classList.add("is-piece");
+    // A piece nobody has slotted in yet is the only one that shows its tab:
+    // a joined edge has the tab inside the joint, not drawn on top of it.
+    if (node.piece.under === null) box.classList.add("is-loose");
+    box.appendChild(graphElement("span", "graph-node-kind", graphKindLabel(node.kind)));
+    box.appendChild(graphElement("strong", "graph-node-title", node.note));
+    return box;
+  }
+  if (node.kind !== "trigger") {
+    // A channel and a withdraw are set off by a signal; everything else is
+    // fed content.
+    const takes: GraphCarries =
+      node.kind === "source" || node.kind === "withdraw" ? "signal" : "content";
+    box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
+  }
+  box.appendChild(graphElement("span", "graph-node-kind", graphTriggerLabel(node)));
+  box.appendChild(graphElement("strong", "graph-node-title", node.title));
+  box.appendChild(graphElement("span", "graph-node-note", node.note));
+  if (node.trigger !== null) box.appendChild(graphFireButton(node));
+  // A feed and a deposit are both ends of a path: nothing leaves either.
+  if (node.kind !== "feed" && node.kind !== "deposit") {
+    const gives: GraphCarries = node.kind === "trigger" ? "signal" : "content";
+    box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
+  }
+  return box;
+}
+
+/** A trigger says which of the two it is, since they behave nothing alike. */
+function graphTriggerLabel(node: GraphNodeView): string {
+  if (node.trigger !== null) return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+  // A source box says where it watches rather than that it is a source box.
+  // Which of the two it is, is the thing somebody chose when they dragged it
+  // out; "Channel" said the same for a subreddit and a YouTube channel and
+  // so said nothing at all.
+  if (node.kind === "source") return graphSourceLabel(node);
+  // A plugin's augmentation is its plugin's, and saying so is more use than the word
+  // "plugin" over a name that is already the box's own.
+  if (node.plugin !== null && node.plugin.plugin !== "") return node.plugin.plugin;
+  return graphKindLabel(node.kind);
+}
+
+/** Where a source box watches: "Reddit", "YouTube". Filled boxes read it off
+ *  the channel behind them, empty ones off the kind they were dragged out as,
+ *  and a box whose plugin has gone falls back to the plain word. */
+function graphSourceLabel(node: GraphNodeView): string {
+  if (node.channel !== null && node.channel.source !== "") return node.channel.source;
+  if (node.asks !== null && node.asks.source !== "") return node.asks.source;
+  return "Source";
+}
+
+function graphFireButton(node: GraphNodeView): HTMLElement {
+  const buttons = graphElement("div", "graph-fire");
+
+  const run = graphElement("button", "btn btn-quiet", "Run now");
+  run.setAttribute("type", "button");
+  run.title = "Poll what this is wired to, now, whatever its gap says";
+  // Both reach the server, so both go quiet when the connection does.
+  run.dataset["needsNetwork"] = "";
+  run.dataset["fire"] = String(node.id);
+  buttons.appendChild(run);
+
+  // The same poll, reaching as far back as the feeds still go.
+  const back = graphElement("button", "btn btn-quiet", "Backfill");
+  back.setAttribute("type", "button");
+  back.title = "Take everything these feeds still list, not only what is new";
+  back.dataset["needsNetwork"] = "";
+  back.dataset["backfill"] = String(node.id);
+  buttons.appendChild(back);
+
+  // Beside it, because it is the same act with the consequences taken out.
+  const test = graphElement("button", "btn btn-quiet", "Test");
+  test.setAttribute("type", "button");
+  test.title = "Say where everything would land, without landing it anywhere";
+  test.dataset["test"] = String(node.id);
+  buttons.appendChild(test);
+
+  return buttons;
+}
+
+function drawGraphNodes(state: GraphState): void {
+  state.parts.layer.textContent = "";
+  state.parts.groups.textContent = "";
+  state.boxes.clear();
+  // Groups into their own layer, under the wires: a group is a background,
+  // and a rectangle over what it surrounds would be in the way of all of it —
+  // including the wires crossing it, which would stop being clickable.
+  for (const node of state.nodes) {
+    if (node.kind !== "group") continue;
+    const frame = drawGraphGroup(state, node);
+    state.boxes.set(node.id, frame);
+    state.parts.groups.appendChild(frame);
+  }
+  for (const node of state.nodes) {
+    if (node.kind === "group") continue;
+    const box = drawGraphNode(state, node);
+    state.boxes.set(node.id, box);
+    state.parts.layer.appendChild(box);
+  }
+  placeGraphPieces(state);
+}
+
+/** Stack each slotted piece under whatever it is slotted into.
+ *
+ *  Measured rather than guessed: a box is as tall as its own contents, and a
+ *  piece has to sit against the bottom of it however tall that turned out.
+ *  Done after everything is in the document, which is the first moment there
+ *  is a height to read. */
+function placeGraphPieces(state: GraphState): void {
+  const under = new Map<number, GraphNodeView[]>();
+  for (const node of state.nodes) {
+    const host = node.piece?.under;
+    if (host === undefined || host === null) continue;
+    const kept = under.get(host);
+    if (kept === undefined) under.set(host, [node]);
+    else kept.push(node);
+  }
+  if (under.size === 0) return;
+
+  // From the model's own coordinates, which is what every other box is drawn
+  // from. `offsetTop` is measured against whichever ancestor happens to be
+  // positioned, so a piece placed from it lands wherever that ancestor is
+  // rather than under its host.
+  const place = (hostId: number, left: number, top: number, depth: number): void => {
+    if (depth > 12) return;  // a ring built before they were refused
+    for (const piece of under.get(hostId) ?? []) {
+      const box = state.boxes.get(piece.id);
+      if (box === undefined) continue;
+      box.style.left = `${left}px`;
+      box.style.top = `${top}px`;
+      // Kept on the node as well, so anything that reads a position — a
+      // group working out what it surrounds, a drag starting from here —
+      // sees where the piece actually is.
+      piece.x = left;
+      piece.y = top;
+      const next = top + box.offsetHeight;
+      place(piece.id, left, next, depth + 1);
+      top = next;
+    }
+  };
+
+  // A box with something slotted into it gets the notch the tab sits in.
+  for (const [hostId] of under) {
+    state.boxes.get(hostId)?.classList.add("has-piece");
+  }
+
+  for (const node of state.nodes) {
+    if (node.piece !== null) continue;  // a chain belongs to the box at its top
+    const box = state.boxes.get(node.id);
+    if (box === undefined || !under.has(node.id)) continue;
+    place(node.id, node.x, node.y + box.offsetHeight, 0);
+  }
+}
+
+/** Where a wire leaves a box, and where it arrives — measured, not guessed. */
+function graphPortPoint(
+  state: GraphState,
+  nodeId: number,
+  where: "in" | "out",
+): { x: number; y: number } | null {
+  const box = state.boxes.get(nodeId);
+  const node = state.nodes.find((entry): boolean => entry.id === nodeId);
+  if (box === undefined || node === undefined) return null;
+
+  return {
+    x: where === "out" ? node.x + box.offsetWidth : node.x,
+    y: node.y + box.offsetHeight / 2,
+  };
+}
+
+function graphCurve(x1: number, y1: number, x2: number, y2: number): string {
+  const reach = Math.max(40, Math.abs(x2 - x1) * 0.5);
+  return `M ${x1} ${y1} C ${x1 + reach} ${y1}, ${x2 - reach} ${y2}, ${x2} ${y2}`;
+}
+
+function graphSvgPath(className: string, d: string): SVGPathElement {
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("class", className);
+  path.setAttribute("d", d);
+  return path;
+}
+
+function drawGraphWires(state: GraphState): void {
+  state.parts.wires.textContent = "";
+  // The ✕ belongs to a wire but lives among the boxes, so it is cleared here
+  // rather than with them — a drag redraws the wires many times over.
+  state.parts.layer.querySelectorAll(".graph-cut").forEach((button): void => button.remove());
+  for (const wire of state.wires) {
+    const from = graphPortPoint(state, wire.from, "out");
+    const to = graphPortPoint(state, wire.to, "in");
+    if (from === null || to === null) continue;
+
+    const d = graphCurve(from.x, from.y, to.x, to.y);
+    let classes = `graph-wire wire-${wire.kind}`;
+    if (wire.id === state.selectedWire) classes += " is-picked";
+
+    // A two-pixel line is impossible to click. The fat one is invisible and
+    // takes the pointer; the thin one is what is actually seen.
+    const hit = graphSvgPath("graph-wire-hit", d);
+    hit.setAttribute("data-wire", wire.id);
+    state.parts.wires.appendChild(hit);
+
+    const line = graphSvgPath(classes, d);
+    // Named rather than found by where it sits: the run lights these, and a
+    // lookup that depended on the order they were appended in would stop
+    // working the day something else is appended between them.
+    line.setAttribute("data-line", wire.id);
+    state.parts.wires.appendChild(line);
+
+    if (wire.id === state.selectedWire) {
+      state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));
+    }
+  }
+}
+
+/** The ✕ on a picked wire. Two clicks to remove a wire, never one by accident. */
+function graphCutButton(wireId: string, x: number, y: number): HTMLElement {
+  const button = graphElement("button", "graph-cut", "✕");
+  button.setAttribute("type", "button");
+  button.setAttribute("aria-label", "Take out this wire");
+  button.dataset["cut"] = wireId;
+  button.style.left = `${x}px`;
+  button.style.top = `${y}px`;
+  return button;
+}
+
+/** Grow the drawing area to hold the boxes, so the canvas can be scrolled. */
+/** How far in and out the canvas will go. Past these it stops being useful. */
+function graphZoomLimits(): { least: number; most: number } {
+  return { least: 0.3, most: 2.5 };
+}
+
+/** Move the whole drawing under the window. The canvas has no edges. */
+function panGraph(state: GraphState, x: number, y: number): void {
+  state.panX = x;
+  state.panY = y;
+  showGraphView(state);
+}
+
+function showGraphView(state: GraphState): void {
+  const { panX, panY, zoom } = state;
+  state.parts.scene.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  state.parts.scene.style.transformOrigin = "0 0";
+  // The grid moves and scales with it, or the drawing looks like it is
+  // sliding over a pattern that is nailed down.
+  const grid = 26 * zoom;
+  state.parts.canvas.style.backgroundSize = `${grid}px ${grid}px`;
+  state.parts.canvas.style.backgroundPosition = `${panX}px ${panY}px`;
+
+  const reading = state.parts.canvas.querySelector<HTMLElement>("[data-graph-zoom]");
+  if (reading !== null) reading.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+/** Zoom about a point on screen, so whatever is under the pointer stays put.
+ *
+ *  Zooming about the corner instead would send the thing being looked at off
+ *  the edge, which is the difference between a zoom and a surprise. */
+function zoomGraph(state: GraphState, factor: number, clientX: number, clientY: number): void {
+  const limits = graphZoomLimits();
+  const next = Math.min(limits.most, Math.max(limits.least, state.zoom * factor));
+  if (next === state.zoom) return;
+
+  const at = pointInGraph(state, { clientX, clientY });
+  const frame = state.parts.canvas.getBoundingClientRect();
+  state.zoom = next;
+  state.panX = clientX - frame.left - at.x * next;
+  state.panY = clientY - frame.top - at.y * next;
+  showGraphView(state);
+}
+
+function renderGraph(state: GraphState): void {
+  drawGraphNodes(state);
+  drawGraphWires(state);
+  renderGraphPopover(state);
+  renderGraphFinder(state);
+  // The boxes were just rebuilt from scratch, so whatever the run had marked
+  // on them has to go back on.
+  paintGraphRun(state);
+  // The canvas itself is never hidden: the palette lives inside it, so an
+  // account with nothing on it would have nothing to add anything with.
+  if (state.parts.empty !== null) state.parts.empty.hidden = state.nodes.length > 0;
+}
+
+function showGraphError(state: GraphState, message: string | null): void {
+  const box = state.parts.error;
+  if (box === null) return;
+  box.textContent = message ?? "";
+  box.hidden = message === null;
+}
+
+function showGraphVerdict(state: GraphState, message: string | null): void {
+  const box = state.parts.verdict;
+  if (box === null) return;
+  box.textContent = message ?? "";
+  box.hidden = message === null;
+}

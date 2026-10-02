@@ -5,7 +5,8 @@
 // while you are part-way through one should not fold it shut underneath you.
 // Nothing is stored beyond this page view, so a fresh load starts collapsed.
 //
-// Top-level `function` declarations only: see the note in dialog.ts.
+// Top-level `function` declarations only, and one entry call at the end: see
+// tests/test_scripts.py, which says why and holds every script to it.
 /** Note what is open now, and watch each section for later changes. */
 function rememberSections(open, root) {
     root.querySelectorAll("details[id]").forEach((details) => {
