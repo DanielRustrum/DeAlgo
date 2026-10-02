@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from .... import sources
 from ....db import session_scope
@@ -16,7 +17,7 @@ from ....models import (
 from ....plugins import registry
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
-from ....services.scope import owned
+from ....services.scope import OwnerId, owned
 from ...responses import owner_of
 
 if TYPE_CHECKING:
@@ -107,22 +108,11 @@ def graph_add_node(
     """
     owner = owner_of(request)
     with session_scope() as session:
+        refused: JSONResponse | None = None
         if kind == "source":
-            wanted = source_kind.strip()
-            if not wanted or wanted not in {known.name for known in sources.all_kinds()}:
-                return JSONResponse(
-                    {"error": "There is no source of that kind. Its plugin may be off."},
-                    status_code=400,
-                )
-            graph_service.add_source(session, owner, source_kind=wanted, x=x, y=y)
+            refused = _add_source_box(session, owner, source_kind, x=x, y=y)
         elif kind == "feed":
-            try:
-                playlist = playlist_service.create_generic(
-                    session, title.strip() or "New feed", owner
-                )
-            except playlist_service.PlaylistError as exc:
-                return JSONResponse({"error": str(exc)}, status_code=400)
-            graph_service.add_feed(session, playlist, owner, x=x, y=y)
+            refused = _add_feed_box(session, owner, title, x=x, y=y)
         elif kind == "filter":
             graph_service.add_filter(session, owner, label=title.strip() or "Filter", x=x, y=y)
         elif kind == "sort":
@@ -132,36 +122,7 @@ def graph_add_node(
                 session, owner, kind=kind, marks=title.strip(), x=x, y=y
             )
         elif kind in graph_service.AUGMENTATIONS:
-            # Slotted under whatever it was dropped on. Without a host it is
-            # a piece lying on the canvas, which is a thing you can pick up
-            # and put somewhere rather than a thing that was refused.
-            host = (
-                session.scalar(
-                    owned(select(GraphNode), GraphNode, owner).where(
-                        GraphNode.id == int(attach_to)
-                    )
-                )
-                if attach_to.strip().isdigit()
-                else None
-            )
-            asked: dict[str, str] = {}
-            ref = ""
-            if kind == graph_service.RULE:
-                box = registry.current().augmentation(plugin_node.strip())
-                if box is None:
-                    return JSONResponse(
-                        {"error": "That condition's plugin is not loaded."},
-                        status_code=400,
-                    )
-                ref = box.ref
-                asked = {one.name: one.default for one in box.fields if one.default}
-            try:
-                graph_service.add_piece(
-                    session, owner, kind=kind, host=host, ref=ref,
-                    settings=asked, x=x, y=y,
-                )
-            except graph_service.GraphError as exc:
-                return JSONResponse({"error": str(exc)}, status_code=400)
+            refused = _add_piece_box(session, owner, kind, plugin_node, attach_to, x=x, y=y)
         elif kind in ("deposit", "withdraw"):
             graph_service.add_store(
                 session, owner, kind=kind, repository=title.strip(), x=x, y=y
@@ -174,7 +135,77 @@ def graph_add_node(
             )
         else:
             return JSONResponse({"error": f"There is no {kind} node."}, status_code=400)
+        if refused is not None:
+            return refused
         return JSONResponse(graph_payload(session, owner))
+
+
+def _add_source_box(
+    session: Session, owner: OwnerId, source_kind: str, *, x: int, y: int
+) -> JSONResponse | None:
+    """An empty source box of one kind, told which source it is afterwards."""
+    wanted = source_kind.strip()
+    if not wanted or wanted not in {known.name for known in sources.all_kinds()}:
+        return JSONResponse(
+            {"error": "There is no source of that kind. Its plugin may be off."},
+            status_code=400,
+        )
+    graph_service.add_source(session, owner, source_kind=wanted, x=x, y=y)
+    return None
+
+
+def _add_feed_box(
+    session: Session, owner: OwnerId, title: str, *, x: int, y: int
+) -> JSONResponse | None:
+    """A feed box makes its feed at once, since a name is all one needs."""
+    try:
+        playlist = playlist_service.create_generic(session, title.strip() or "New feed", owner)
+    except playlist_service.PlaylistError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    graph_service.add_feed(session, playlist, owner, x=x, y=y)
+    return None
+
+
+def _add_piece_box(
+    session: Session,
+    owner: OwnerId,
+    kind: str,
+    plugin_node: str,
+    attach_to: str,
+    *,
+    x: int,
+    y: int,
+) -> JSONResponse | None:
+    """A piece, slotted under whatever it was dropped on.
+
+    Without a host it is a piece lying on the canvas, which is a thing you can
+    pick up and put somewhere rather than a thing that was refused.
+    """
+    host = (
+        session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == int(attach_to))
+        )
+        if attach_to.strip().isdigit()
+        else None
+    )
+    asked: dict[str, str] = {}
+    ref = ""
+    if kind == graph_service.RULE:
+        box = registry.current().augmentation(plugin_node.strip())
+        if box is None:
+            return JSONResponse(
+                {"error": "That condition's plugin is not loaded."},
+                status_code=400,
+            )
+        ref = box.ref
+        asked = {one.name: one.default for one in box.fields if one.default}
+    try:
+        graph_service.add_piece(
+            session, owner, kind=kind, host=host, ref=ref, settings=asked, x=x, y=y,
+        )
+    except graph_service.GraphError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return None
 
 
 @router.post("/graph/nodes/{node_pk}/attach")
