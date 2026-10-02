@@ -46,14 +46,14 @@ dealgo/web/scss/           Stylesheet sources; graph/ is the canvas, one partial
 dealgo/web/ts/             Browser scripts; graph/ and focus/ are scripts written as parts
 dealgo/web/static/         Compiled app.css and *.js (committed), icons, htmx
 dealgo/plugins/builtin/    Shipped plugins: youtube, reddit, bluesky, substack, shape
-ops/                       DevOps scripts: build CSS, join scripts, docs TOC, publish the wiki
+ops/                       DevOps scripts: build CSS, join scripts, docs TOC, publish the wiki and releases
 tests/                     pytest suite, fakes.py, and Node harnesses for the scripts
 docs/wiki/                 User wiki (Nodes/ and Creating A Plugin/ inside)
 docs/internal/             These pages, and autodoc/ for the generated reference
 Makefile                   Every task: make help
 tsconfig*.json             Page scripts, the service worker, and scripts written as parts
 Dockerfile, *compose*.yml  The image and how to run it
-.gitea/workflows/          CI: test then publish the image; publish the wiki
+.gitea/workflows/          CI: test then attach the image to a tag's release; publish the wiki
 ```
 
 ## Generated files

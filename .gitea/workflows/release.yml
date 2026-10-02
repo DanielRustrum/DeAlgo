@@ -1,0 +1,92 @@
+# Publish a release: push a version tag (v1.2.3) and this builds the Docker
+# image and attaches it to that tag's page under the repository's Releases.
+#
+# The image is a file, not a registry push: one dealgo-<tag>-<arch>.tar.gz per
+# platform (amd64 and arm64), loaded with `gunzip -c … | docker load`, and a
+# SHA256SUMS.txt beside them. ops/publish_release.py does the work; the tag has
+# to match the version in pyproject.toml and dealgo/__init__.py, and nothing is
+# built unless the tests pass.
+#
+# Attaching needs a token that may write to the repository. Set the secret
+# RELEASE_TOKEN to an access token with the write:repository scope; without
+# it, the job's own token is used.
+
+name: publish release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to publish again, e.g. v0.2.0 (it must exist)"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: The tag matches the code
+        run: python ops/publish_release.py check "$TAG"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest mypy libsass
+
+      - name: Types (Python)
+        run: python -m mypy
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install TypeScript
+        run: npm install
+
+      - name: Types (TypeScript)
+        run: |
+          npx tsc --noEmit
+          npx tsc -p tsconfig.sw.json --noEmit
+          npx tsc -p tsconfig.parts.json --noEmit
+
+      - name: Test
+        run: python -m pytest -q
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # arm64 is built under emulation, and exporting an image to a file needs
+      # a docker-container builder, which this makes the default.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the images
+        run: python ops/publish_release.py build "$TAG" build/release
+
+      - name: Attach them to the release
+        env:
+          FORGE_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: python ops/publish_release.py publish "$TAG" build/release

@@ -35,17 +35,31 @@ published port and joins a shared reverse-proxy network (`make … CLUSTER=1`).
 | `make build` / `make up` | Build; start and wait for healthy |
 | `make logs` / `make shell` / `make restart` / `make down` | Operate |
 | `make publish` / `make publish-multiarch` | Push to `$(REGISTRY)/rusty/dealgo` |
+| `make release-image RELEASE=vX.Y.Z` | Build the release files into `build/release`, as CI does |
 | `make clean` | Delete the data volume (asks first) |
 
-## CI — `.gitea/workflows/publish.yml`
+## Releases — `.gitea/workflows/release.yml`
 
-On push to `main`, tags `v*`, or manual dispatch:
+On a pushed tag `v*`, or by hand with a tag name:
 
-1. **test** — Python 3.12, `mypy`, Node 22, `tsc` (pages, worker, parts), `pytest -q`.
-2. **publish** — buildx for `linux/amd64` and `linux/arm64`; tags `latest` (default branch),
-   short SHA, and semver from tags; push to the Gitea registry; optional Portainer webhook.
+1. **test** — `ops/publish_release.py check` (the tag must equal `version` in `pyproject.toml`
+   and `__version__` in `dealgo/__init__.py`), then Python 3.12, `mypy`, Node 22, `tsc` (pages,
+   worker, parts), `pytest -q`.
+2. **release** — `ops/publish_release.py build` exports the image with buildx for `linux/amd64`
+   and `linux/arm64` (arm64 under QEMU, so slowly) as `dealgo-<tag>-<arch>.tar.gz`, plus
+   `SHA256SUMS.txt`; `publish` creates the tag's release on the Releases page, if missing, and
+   attaches the files, replacing any of the same name. A tag with a suffix (`v1.2.0-rc.1`) is a
+   pre-release.
 
-GitHub Actions syntax, so it moves to `.github/workflows/` unchanged.
+The image is not pushed to a registry; whoever installs it downloads a file and runs
+`gunzip -c dealgo-<tag>-amd64.tar.gz | docker load`, which gives `dealgo:<version>`. The release
+notes say so, with the links.
+
+The token: the secret `RELEASE_TOKEN` (an access token with `write:repository`), else the job's
+own token. A reverse proxy in front of Forgejo must accept uploads of about 80 MB.
+`RELEASE_PLATFORMS=linux/amd64` narrows a local build.
+
+GitHub Actions syntax, except the release API calls, which are Forgejo's.
 
 ## The wiki — `.gitea/workflows/wiki.yml`
 
@@ -69,7 +83,8 @@ token. `make wiki` builds the pages into `build/wiki` to look at before pushing.
 
 1. `make assets && make test && make typecheck`.
 2. Bump `__version__` in `dealgo/__init__.py` and `version` in `pyproject.toml`.
-3. Tag `vX.Y.Z` and push; CI builds and pushes the semver tags.
+3. Commit, tag `vX.Y.Z` and push the tag (`git push origin vX.Y.Z`); CI tests, builds and
+   attaches the image to the release.
 
 ## Packaging pitfall
 

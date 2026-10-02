@@ -61,7 +61,9 @@ Keep the data on a local disk. SQLite over NFS or CIFS corrupts.
 git pull && make build && make up
 ```
 
-Or, with a registry image: `docker compose pull && docker compose up -d`.
+Or, with a release image: download the new file from the repository's Releases page, `docker load`
+it as in [Running in Production](Running%20in%20Production.md#a-release-image), point `DEALGO_IMAGE`
+at the new version and `docker compose up -d`.
 
 **Related:** [Environment Variables](Environment%20Variables.md) ·
 [Running in Production](Running%20in%20Production.md)

@@ -34,15 +34,27 @@ skip the overlay and set `DEALGO_BIND=127.0.0.1:8080` instead.
 2. Set at least `DEALGO_IMAGE`, `DEALGO_PUBLIC_URL` and the admin variables.
 3. Deploy. Enable **Automatic updates** to follow new images.
 
-## Building and publishing the image
+## A release image
+
+Every version tag has a page under the repository's **Releases**, with the image attached as a
+file for each platform (`amd64`, `arm64`) and a `SHA256SUMS.txt`. No build is needed:
+
+```bash
+curl -LO <release page>/download/v0.2.0/dealgo-v0.2.0-amd64.tar.gz
+curl -LO <release page>/download/v0.2.0/SHA256SUMS.txt
+sha256sum --check --ignore-missing SHA256SUMS.txt
+gunzip -c dealgo-v0.2.0-amd64.tar.gz | docker load      # gives dealgo:0.2.0
+```
+
+Then set `DEALGO_IMAGE=dealgo:0.2.0` and start it. Each release's notes have the exact links.
+
+## Pushing the image to a registry
 
 ```bash
 make publish                     # build and push for this machine's architecture
 make publish-multiarch           # amd64 + arm64 (needs buildx)
 make publish TAG=v0.2.0          # a release tag
 ```
-
-`.gitea/workflows/publish.yml` does this on every push to `main` after the tests pass.
 
 ## Container hardening
 

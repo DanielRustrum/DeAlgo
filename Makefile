@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs toc wiki dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs toc wiki release-image dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -139,6 +139,11 @@ toc: ## Rebuild the Table of Contents in docs/wiki and docs/internal
 wiki: ## Build the Forgejo wiki pages from docs/wiki into build/wiki, to preview (CI publishes them)
 	@rm -rf build/wiki
 	$(PY) ops/publish_wiki.py build build/wiki
+
+release-image: ## Build the release image files into build/release, as CI does (RELEASE=vX.Y.Z)
+	@test -n "$(RELEASE)" || { echo "usage: make release-image RELEASE=v1.2.3"; exit 1; }
+	@rm -rf build/release
+	$(PY) ops/publish_release.py build $(RELEASE) build/release
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
 	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
