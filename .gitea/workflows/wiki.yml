@@ -1,0 +1,41 @@
+# Publish docs/wiki to this repository's wiki whenever it changes on main.
+#
+# docs/wiki is the source and the wiki is a copy. docs/publish_wiki.py
+# flattens its folders into wiki pages (Nodes/Filter.md becomes Nodes-Filter),
+# rewrites the links between them, adds a sidebar and a footer, and replaces
+# the wiki's whole content — so an edit made in the wiki's own editor is
+# overwritten by the next publish. It creates the wiki if it does not exist.
+#
+# Pushing needs a token that may write to the repository. Set the secret
+# WIKI_TOKEN to an access token with the write:repository scope; without it,
+# the job's own token is used.
+
+name: publish wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/wiki/**"
+      - "docs/publish_wiki.py"
+      - ".gitea/workflows/wiki.yml"
+  workflow_dispatch:
+
+jobs:
+  wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Publish docs/wiki
+        env:
+          FORGE_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN || secrets.GITHUB_TOKEN }}
+          SOURCE_REF: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: python docs/publish_wiki.py publish

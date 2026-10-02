@@ -49,10 +49,11 @@ dealgo/plugins/builtin/    Shipped plugins: youtube, reddit, bluesky, substack, 
 tests/                     pytest suite, fakes.py, and Node harnesses for the scripts
 docs/wiki/                 User wiki (Nodes/ and Creating A Plugin/ inside)
 docs/internal/             These pages, and autodoc/ for the generated reference
+docs/publish_wiki.py       Publishes docs/wiki to the Forgejo wiki (CI, or make wiki to preview)
 Makefile                   Every task: make help
 tsconfig*.json             Page scripts, the service worker, and scripts written as parts
 Dockerfile, *compose*.yml  The image and how to run it
-.gitea/workflows/          CI: test, then publish the image
+.gitea/workflows/          CI: test then publish the image; publish the wiki
 ```
 
 ## Generated files

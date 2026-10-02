@@ -47,6 +47,24 @@ On push to `main`, tags `v*`, or manual dispatch:
 
 GitHub Actions syntax, so it moves to `.github/workflows/` unchanged.
 
+## The wiki — `.gitea/workflows/wiki.yml`
+
+On a push to `main` that touches `docs/wiki/`, or by hand, `docs/publish_wiki.py publish` makes the
+repository's Forgejo wiki a copy of `docs/wiki`:
+
+- A Forgejo wiki is one flat folder of pages named with dashes, and pages in subfolders are not
+  served, so the tree is flattened: `README.md` → `Home`, `Nodes/Filter.md` → `Nodes-Filter`, a
+  folder's `README.md` or `GETTING STARTED.md` → the folder's name.
+- Every link between pages is rewritten to its new page; a link to any other file in the repository
+  becomes a link to that file. A sidebar (the home page's index) and a footer are added.
+- The wiki's whole content is replaced, so edits made in the wiki itself are lost on the next
+  publish — the footer says where to edit.
+- A push cannot create a wiki that has never had a page, so the script adds one through the API
+  first when needed.
+
+The token: the secret `WIKI_TOKEN` (an access token with `write:repository`), else the job's own
+token. `make wiki` builds the pages into `build/wiki` to look at before pushing.
+
 ## Releasing
 
 1. `make assets && make test && make typecheck`.

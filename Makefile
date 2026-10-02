@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs toc dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs toc wiki dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -135,6 +135,10 @@ docs: ## Generate the API reference from code comments into docs/internal/autodo
 
 toc: ## Rebuild the Table of Contents in docs/wiki and docs/internal
 	$(PY) docs/toc.py
+
+wiki: ## Build the Forgejo wiki pages from docs/wiki into build/wiki, to preview (CI publishes them)
+	@rm -rf build/wiki
+	$(PY) docs/publish_wiki.py build build/wiki
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
 	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
