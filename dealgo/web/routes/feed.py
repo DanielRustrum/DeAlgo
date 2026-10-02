@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ...db import session_scope
 from ...models import (
+    GraphNode,
     Placement,
     Playlist,
     Video,
@@ -54,78 +56,11 @@ def _feed_context(
         playlists = [p for p in playlists if all(term in p.searchable for term in terms)]
     windows = graph_service.consumption(session, owner)
     now = utcnow()
-
-    sections = []
-    for target in playlists:
-        if wanted and target.id != wanted:
-            continue
-
-        # A feed with a Reset slotted under it is only read while that window
-        # is open. Shown as shut rather than hidden: a feed that vanished
-        # would read as a feed that had gone.
-        opens = windows.get(target.id, [])
-        if opens:
-            state = graph_service.window_state(opens, now)
-            if not state.open:
-                sections.append(
-                    {
-                        "playlist": target,
-                        "videos": [],
-                        "total": 0,
-                        "shut": feed_window_words(opens),
-                        "opens_at": state.opens_at,
-                        "expiring": {},
-                    }
-                )
-                continue
-            if sitting:
-                graph_service.begin_sitting(session, state, now)
-        # Not `query`: that name is the search text on this function.
-        statement = (
-            owned(select(Video), Video, owner)
-            .join(Placement, Placement.video_pk == Video.id)
-            .options(selectinload(Video.channel))
-            .where(Placement.playlist_pk == target.id, Placement.playlist_item_id.is_not(None))
-        )
-        if target.view_show != "all":
-            statement = statement.where(Video.watched_at.is_(None))
-        direction = (
-            Video.published_at.desc() if target.view_order == "newest"
-            else Video.published_at.asc()
-        )
-        videos = list(session.scalars(statement.order_by(direction, Video.id.asc())))
-
-        total = (
-            session.scalar(
-                select(func.count(Placement.id)).where(
-                    Placement.playlist_pk == target.id, Placement.playlist_item_id.is_not(None)
-                )
-            )
-            or 0
-        )
-        # When an Expire box takes each of these out of *this* feed. Per
-        # section rather than per item: the same video in two feeds may have
-        # two different answers, and the one that matters here is this one's.
-        expiring = {
-            video_pk: when
-            for video_pk, when in session.execute(
-                select(Placement.video_pk, Placement.expires_at).where(
-                    Placement.playlist_pk == target.id,
-                    Placement.expires_at.is_not(None),
-                    Placement.removed_at.is_(None),
-                )
-            )
-        }
-        sections.append(
-            {
-                "playlist": target,
-                "videos": videos,
-                "total": total,
-                "shut": [],
-                "opens_at": None,
-                "expiring": expiring,
-            }
-        )
+    sections = [
+        _section(session, target, owner, windows.get(target.id, []), now=now, sitting=sitting)
+        for target in playlists
+        if not wanted or target.id == wanted
+    ]
 
     return {
         "sections": sections,
@@ -137,6 +72,89 @@ def _feed_context(
         "query": query,
         "all_playlists": playlist_service.list_playlists(session, owner),
         "feed_query": urlencode({"playlist": playlist or "", "q": query or ""}),
+    }
+
+
+def _section(
+    session: Session,
+    target: Playlist,
+    owner: OwnerId,
+    opens: list[GraphNode],
+    *,
+    now: dt.datetime,
+    sitting: bool,
+) -> Context:
+    """One feed's part of the page: what is in it, or why it is shut."""
+    # A feed with a Reset slotted under it is only read while that window is
+    # open. Shown as shut rather than hidden: a feed that vanished would read
+    # as a feed that had gone.
+    if opens:
+        state = graph_service.window_state(opens, now)
+        if not state.open:
+            return {
+                "playlist": target,
+                "videos": [],
+                "total": 0,
+                "shut": feed_window_words(opens),
+                "opens_at": state.opens_at,
+                "expiring": {},
+            }
+        if sitting:
+            graph_service.begin_sitting(session, state, now)
+    return {
+        "playlist": target,
+        "videos": _shown(session, target, owner),
+        "total": _held(session, target),
+        "shut": [],
+        "opens_at": None,
+        "expiring": _expiring(session, target),
+    }
+
+
+def _shown(session: Session, target: Playlist, owner: OwnerId) -> list[Video]:
+    """What the feed shows, in the order it asks for."""
+    statement = (
+        owned(select(Video), Video, owner)
+        .join(Placement, Placement.video_pk == Video.id)
+        .options(selectinload(Video.channel))
+        .where(Placement.playlist_pk == target.id, Placement.playlist_item_id.is_not(None))
+    )
+    if target.view_show != "all":
+        statement = statement.where(Video.watched_at.is_(None))
+    direction = (
+        Video.published_at.desc() if target.view_order == "newest"
+        else Video.published_at.asc()
+    )
+    return list(session.scalars(statement.order_by(direction, Video.id.asc())))
+
+
+def _held(session: Session, target: Playlist) -> int:
+    """How many the feed holds, watched or not."""
+    return (
+        session.scalar(
+            select(func.count(Placement.id)).where(
+                Placement.playlist_pk == target.id, Placement.playlist_item_id.is_not(None)
+            )
+        )
+        or 0
+    )
+
+
+def _expiring(session: Session, target: Playlist) -> dict[int, dt.datetime]:
+    """When an Expire box takes each item out of *this* feed.
+
+    Per feed rather than per item: the same video in two feeds may have two
+    different answers, and the one that matters here is this one's.
+    """
+    return {
+        video_pk: when
+        for video_pk, when in session.execute(
+            select(Placement.video_pk, Placement.expires_at).where(
+                Placement.playlist_pk == target.id,
+                Placement.expires_at.is_not(None),
+                Placement.removed_at.is_(None),
+            )
+        )
     }
 
 
