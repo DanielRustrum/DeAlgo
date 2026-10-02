@@ -2,6 +2,7 @@
 // The panel's fields for feeds, triggers, groups, sorts and filters.
 //
 // Part of the Configuration canvas; see main.ts.
+/** A feed's reading windows in its panel, and whether it is open now. */
 function graphFeedWindows(form, feed) {
     if (feed.windows.length === 0)
         return;
@@ -13,6 +14,7 @@ function graphFeedWindows(form, feed) {
     group.appendChild(graphElement("span", feed.open ? "graph-group-note is-open" : "graph-group-note is-shut", feed.open ? "Open now." : "Shut now."));
     form.appendChild(group);
 }
+/** A feed's panel fields: its size cap and per-run cap. */
 function graphFeedFields(form, node) {
     const feed = node.feed;
     if (feed === null) {
@@ -47,6 +49,7 @@ function graphFeedFields(form, node) {
     graphFeedWindows(form, feed);
     form.appendChild(graphElement("p", "hint", `${node.note}. Everything wired in ends up here.`));
 }
+/** A trigger's panel fields: its gap or schedule, and its window when it opens one. */
 function graphTriggerFields(form, node) {
     var _a, _b, _c;
     var _d, _e, _f, _g;
@@ -250,6 +253,7 @@ function askHowFarBack(state, nodeId) {
     openGraphCatch(dialog);
     (_a = dialog.querySelector("[data-graph-reach-count]")) === null || _a === void 0 ? void 0 : _a.select();
 }
+/** The dialog that asks how far back to reach. */
 function graphReachDialog(state) {
     var _a;
     var _b;
@@ -262,6 +266,7 @@ function listenForGraphReach(state, panel) {
     const dialog = panel.querySelector("[data-graph-reach]");
     if (dialog === null)
         return;
+    // Closed by its buttons, or by a click on the backdrop.
     dialog.querySelectorAll("[data-graph-reach-close]").forEach((shut) => {
         shut.addEventListener("click", () => dialog.close());
     });
@@ -270,6 +275,7 @@ function listenForGraphReach(state, panel) {
             dialog.close();
     });
     dialog.addEventListener("close", () => holdPageForGraph(false));
+    // Submitted: check the count, then fire the trigger reaching that far back.
     (_a = dialog.querySelector("[data-graph-reach-form]")) === null || _a === void 0 ? void 0 : _a.addEventListener("submit", (event) => {
         var _a;
         event.preventDefault();
@@ -288,6 +294,7 @@ function listenForGraphReach(state, panel) {
         void fireGraphPulse(state, nodeId, wanted);
     });
 }
+/** Show why reaching back failed, or clear it with null. */
 function graphReachTrouble(dialog, message) {
     const said = dialog.querySelector("[data-graph-reach-error]");
     if (said === null)
@@ -430,10 +437,12 @@ function graphGrab(state, event) {
 function graphMovedFar(drag, event) {
     return Math.abs(event.clientX - drag.fromX) > 3 || Math.abs(event.clientY - drag.fromY) > 3;
 }
+/** Start panning the canvas from where the pointer went down. */
 function beginGraphPan(state, event) {
     state.drag = graphGrab(state, event);
     state.parts.canvas.classList.add("is-panning");
 }
+/** Start drawing a wire from a box's out port, with a ghost following the pointer. */
 function beginGraphWire(state, event, nodeId) {
     state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "wire", nodeId });
     const from = graphPortPoint(state, nodeId, "out");
@@ -442,6 +451,7 @@ function beginGraphWire(state, event, nodeId) {
     state.ghost = graphSvgPath("graph-wire wire-ghost", graphCurve(from.x, from.y, from.x, from.y));
     state.parts.wires.appendChild(state.ghost);
 }
+/** Start moving a box, remembering where on it the pointer grabbed. */
 function beginGraphMove(state, event, node, pressed) {
     var _a;
     const at = pointInGraph(state, event);
@@ -495,11 +505,13 @@ function beginGraphPick(state, event) {
 function graphMarquee(state) {
     return state.parts.layer.querySelector(".graph-marquee");
 }
+/** Start resizing a group from its current size. */
 function beginGraphResize(state, event, node) {
     var _a, _b;
     var _c, _d;
     state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "resize", nodeId: node.id, grabX: (_c = (_a = node.size) === null || _a === void 0 ? void 0 : _a.width) !== null && _c !== void 0 ? _c : 520, grabY: (_d = (_b = node.size) === null || _b === void 0 ? void 0 : _b.height) !== null && _d !== void 0 ? _d : 300 });
 }
+/** Decide what a press on the canvas starts: a wire, a move, a resize, a marquee or a pan. */
 function onGraphPointerDown(state, event) {
     if (event.button !== 0)
         return;
@@ -577,6 +589,7 @@ function onGraphPointerDown(state, event) {
     state.parts.canvas.setPointerCapture(event.pointerId);
     event.preventDefault();
 }
+/** Carry on whatever the press started, following the pointer. */
 function onGraphPointerMove(state, event) {
     var _a;
     var _b;
@@ -656,10 +669,12 @@ function onGraphPointerMove(state, event) {
         state.ghost.setAttribute("d", graphCurve(from.x, from.y, at.x, at.y));
     }
 }
+/** The box under the pointer, if any. */
 function graphDropTarget(event) {
     const under = document.elementFromPoint(event.clientX, event.clientY);
     return graphNodeIdFrom(under);
 }
+/** Finish what the press started: save a move, draw a wire, or pick. */
 function onGraphPointerUp(state, event) {
     var _a, _b, _c;
     var _d;
@@ -779,12 +794,14 @@ function pickGraphInside(state, fromX, fromY, toX, toY) {
     const right = Math.max(fromX, toX);
     const top = Math.min(fromY, toY);
     const bottom = Math.max(fromY, toY);
+    // Every box whose corner falls inside the marquee; one picked opens its panel.
     state.picked = new Set(state.nodes
         .filter((node) => node.x >= left && node.x <= right && node.y >= top && node.y <= bottom)
         .map((node) => node.id));
     state.selectedNode = state.picked.size === 1 ? (_a = [...state.picked][0]) !== null && _a !== void 0 ? _a : null : null;
     renderGraph(state);
 }
+/** Save a box's new position; a group moves with everything in it. */
 async function saveGraphMove(state, nodeId) {
     const node = state.nodes.find((entry) => entry.id === nodeId);
     if (node === undefined)
@@ -802,10 +819,12 @@ async function saveGraphMove(state, nodeId) {
         showGraphError(state, "That node moved on screen, but the position was not saved.");
     }
 }
+/** Whether this node is a group. */
 function graphIsGroup(state, nodeId) {
     var _a;
     return ((_a = state.nodes.find((entry) => entry.id === nodeId)) === null || _a === void 0 ? void 0 : _a.kind) === "group";
 }
+/** Save a group's new size. */
 async function saveGraphSize(state, nodeId) {
     const node = state.nodes.find((entry) => entry.id === nodeId);
     if (node === undefined || node.size === null)
@@ -825,6 +844,7 @@ async function saveGraphSize(state, nodeId) {
 // Drawing the boxes, the pieces slotted under them, and the wires between.
 //
 // Part of the Configuration canvas; see main.ts.
+/** A new element with a class, and its text if given. */
 function graphElement(tag, className, text) {
     const made = document.createElement(tag);
     made.className = className;
@@ -832,6 +852,7 @@ function graphElement(tag, className, text) {
         made.textContent = text;
     return made;
 }
+/** A kind's name as the canvas shows it. */
 function graphKindLabel(kind) {
     if (kind === "source")
         return "Source";
@@ -877,6 +898,7 @@ function graphKindLabel(kind) {
         return "Order";
     return kind === "trigger" ? "Trigger" : "Filter";
 }
+/** A port dot on a box's edge: where wires leave or arrive. */
 function graphPort(where, carries, says) {
     const dot = graphElement("span", `graph-port port-${where} carries-${carries}`);
     dot.dataset["port"] = where;
@@ -944,6 +966,7 @@ function graphPortWords(kind, where) {
     }
     return "Takes what is wired in. This is where things end up.";
 }
+/** A group's background frame, with its name and resize handle. */
 function drawGraphGroup(state, node) {
     var _a, _b;
     var _c, _d;
@@ -969,6 +992,7 @@ function drawGraphGroup(state, node) {
     frame.appendChild(grip);
     return frame;
 }
+/** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
     const box = graphElement("div", `graph-node kind-${node.kind}`);
     box.dataset["node"] = String(node.id);
@@ -1037,6 +1061,7 @@ function graphSourceLabel(node) {
         return node.asks.source;
     return "Source";
 }
+/** A trigger's Run now and Backfill buttons. */
 function graphFireButton(node) {
     const buttons = graphElement("div", "graph-fire");
     const run = graphElement("button", "btn btn-quiet", "Run now");
@@ -1061,6 +1086,7 @@ function graphFireButton(node) {
     buttons.appendChild(test);
     return buttons;
 }
+/** Every box and piece, drawn afresh; groups first, under everything else. */
 function drawGraphNodes(state) {
     state.parts.layer.textContent = "";
     state.parts.groups.textContent = "";
@@ -1153,16 +1179,19 @@ function graphPortPoint(state, nodeId, where) {
         y: node.y + box.offsetHeight / 2,
     };
 }
+/** The SVG path of a wire: a gentle S from one port to another. */
 function graphCurve(x1, y1, x2, y2) {
     const reach = Math.max(40, Math.abs(x2 - x1) * 0.5);
     return `M ${x1} ${y1} C ${x1 + reach} ${y1}, ${x2 - reach} ${y2}, ${x2} ${y2}`;
 }
+/** An SVG path element with a class. */
 function graphSvgPath(className, d) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("class", className);
     path.setAttribute("d", d);
     return path;
 }
+/** Every wire, drawn afresh, each with an invisible fat path for the pointer. */
 function drawGraphWires(state) {
     state.parts.wires.textContent = "";
     // The ✕ belongs to a wire but lives among the boxes, so it is cleared here
@@ -1214,6 +1243,7 @@ function panGraph(state, x, y) {
     state.panY = y;
     showGraphView(state);
 }
+/** Apply the pan and zoom to the drawing and its grid. */
 function showGraphView(state) {
     const { panX, panY, zoom } = state;
     state.parts.scene.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
@@ -1243,6 +1273,7 @@ function zoomGraph(state, factor, clientX, clientY) {
     state.panY = clientY - frame.top - at.y * next;
     showGraphView(state);
 }
+/** Redraw everything from the state: boxes, wires, panel, finder, run marks. */
 function renderGraph(state) {
     drawGraphNodes(state);
     drawGraphWires(state);
@@ -1256,6 +1287,7 @@ function renderGraph(state) {
     if (state.parts.empty !== null)
         state.parts.empty.hidden = state.nodes.length > 0;
 }
+/** Show a refusal over the canvas, or clear it with null. */
 function showGraphError(state, message) {
     const box = state.parts.error;
     if (box === null)
@@ -1263,6 +1295,7 @@ function showGraphError(state, message) {
     box.textContent = message !== null && message !== void 0 ? message : "";
     box.hidden = message === null;
 }
+/** Show a test's verdict over the canvas, or clear it with null. */
 function showGraphVerdict(state, message) {
     const box = state.parts.verdict;
     if (box === null)
@@ -1275,6 +1308,7 @@ function showGraphVerdict(state, message) {
 // What a Filter is doing: what it let through, and what it held and why.
 //
 // Part of the Configuration canvas; see main.ts.
+/** Verdicts from the server, checked one by one. */
 function asGraphJudged(value) {
     if (!Array.isArray(value))
         return [];
@@ -1313,6 +1347,7 @@ async function showGraphFiltered(state, nodeId) {
         showGraphError(state, "No connection, so there is nothing to show.");
     }
 }
+/** Fill the Filter dialog with what got through and what was held, and why. */
 function drawGraphFiltered(state, name, through, held) {
     var _a;
     const dialog = graphCatchDialog(state);
@@ -1328,6 +1363,7 @@ function drawGraphFiltered(state, name, through, held) {
     body.appendChild(graphJudgedList("Failed", held, "held"));
     openGraphCatch(dialog);
 }
+/** The dialog that shows what a Filter is holding. */
 function graphCatchDialog(state) {
     var _a;
     var _b;
@@ -1348,12 +1384,14 @@ function graphCatchDialog(state) {
  *  the same courtesy the backfill box gets. */
 function askGraphSure(state, question) {
     const dialog = graphSureDialog(state);
+    // Without the dialog on the page, the browser's own confirm will do.
     if (dialog === null)
         return Promise.resolve(window.confirm(question));
     const said = dialog.querySelector("[data-graph-sure-what]");
     if (said !== null)
         said.textContent = question;
     return new Promise((answer) => {
+        // Answered once: yes, no, or closing the dialog, which is a no.
         let done = false;
         const finish = (yes) => {
             if (done)
@@ -1376,12 +1414,14 @@ function askGraphSure(state, question) {
         openGraphCatch(dialog);
     });
 }
+/** The dialog that asks before removing something. */
 function graphSureDialog(state) {
     var _a;
     var _b;
     return ((_b = (_a = state.parts.canvas
         .closest(".graph-panel")) === null || _a === void 0 ? void 0 : _a.querySelector("[data-graph-sure]")) !== null && _b !== void 0 ? _b : null);
 }
+/** Close the confirmation dialog and let the page move again. */
 function shutGraphSure(dialog) {
     if (dialog.open) {
         if (typeof dialog.close === "function")
@@ -1391,6 +1431,7 @@ function shutGraphSure(dialog) {
     }
     holdPageForGraph(false);
 }
+/** Open a dialog modally, holding the page still behind it. */
 function openGraphCatch(dialog) {
     if (dialog.open)
         return;
@@ -1469,12 +1510,14 @@ function renderGraphFinder(state) {
         list.appendChild(row);
     }
 }
+/** One part of the finder, by selector. */
 function graphFinderPart(state, selector) {
     var _a;
     var _b;
     return ((_b = (_a = state.parts.canvas
         .closest(".graph-panel")) === null || _a === void 0 ? void 0 : _a.querySelector(selector)) !== null && _b !== void 0 ? _b : null);
 }
+/** Open or close the finder; opening it closes the palette. */
 function toggleGraphFinder(state, open) {
     var _a;
     const drawer = graphFinderPart(state, "[data-graph-finder]");
@@ -1501,6 +1544,7 @@ function centreGraphOn(state, node) {
     state.selectedNode = null;
     renderGraph(state);
 }
+/** Wire up the finder's toggle and its list of groups. */
 function listenForGraphFinder(state, panel) {
     var _a, _b, _c;
     (_a = panel.querySelector("[data-graph-find]")) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => {
@@ -1549,6 +1593,7 @@ function graphTakesPieces(kind) {
 // The palette: dragging a new box out, and where a piece would slot.
 //
 // Part of the Configuration canvas; see main.ts.
+/** Open or close the palette; opening it closes the finder. */
 function toggleGraphPalette(state, open) {
     var _a, _b;
     const drawer = state.parts.drawer;
@@ -1573,6 +1618,7 @@ function beginGraphDrop(state, event, kind, which = "", named = "", under = "") 
     document.body.appendChild(ghost);
     state.dropping = { kind, which, under, pointerId: event.pointerId, ghost };
 }
+/** Keep the dragged palette row under the pointer. */
 function moveGraphGhost(ghost, event) {
     ghost.style.left = `${event.clientX - 40}px`;
     ghost.style.top = `${event.clientY - 18}px`;
@@ -1583,6 +1629,7 @@ function graphPaletteKind(kind) {
         return "trigger";
     return kind;
 }
+/** The name a palette row's box gets on the canvas. */
 function graphPaletteName(kind) {
     if (kind === "source")
         return "Source";
@@ -1710,6 +1757,7 @@ function markGraphSlotFor(state, event, moving, under) {
     const slot = graphSlotFor(state, event, true, under);
     showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
+/** Show where a dragged piece would slot in, or hide the marker with null. */
 function showGraphSlot(state, wanted) {
     const marker = graphSlotMarker(state);
     if (marker === null)
@@ -1734,11 +1782,13 @@ function graphSlotMarker(state) {
     }
     return marker;
 }
+/** Hide the slot marker. */
 function hideGraphSlot(state) {
     const marker = state.parts.layer.querySelector(".graph-slot");
     if (marker !== null)
         marker.hidden = true;
 }
+/** Drop a palette row: a new box where it landed, or a piece into its slot. */
 function finishGraphDrop(state, event) {
     var _a;
     var _b;
@@ -1786,6 +1836,7 @@ async function dropGraphNode(state, kind, x, y, which = "", onto = null) {
         await applyGraph(state, `/graph/nodes/${fresh}/delete`, new URLSearchParams());
     });
 }
+/** Wire up the palette: its toggle, its close button, and dragging each row out. */
 function listenToPalette(state, panel) {
     var _a, _b;
     (_a = panel.querySelector("[data-graph-palette]")) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => {
@@ -1829,6 +1880,7 @@ function listenToPalette(state, panel) {
 // The panel beside a picked box: its tabs, its form, and removing it.
 //
 // Part of the Configuration canvas; see main.ts.
+/** A form field with its label. */
 function graphLabelled(name, control) {
     const row = graphElement("label", "graph-field");
     row.appendChild(graphElement("span", "graph-field-name", name));
@@ -2179,6 +2231,7 @@ function graphMatches(name, query) {
 // Picking boxes and wires, and what follows from it: keys, clicks and removing.
 //
 // Part of the Configuration canvas; see main.ts.
+/** Pick one box and open its panel; null picks nothing. */
 function pickGraphNode(state, nodeId) {
     if (nodeId !== state.selectedNode)
         state.tab = "settings";
@@ -2202,11 +2255,13 @@ function alsoPickGraphNode(state, nodeId) {
     state.selectedWire = null;
     renderGraph(state);
 }
+/** Pick a wire, so it can be cut. */
 function pickGraphWire(state, wireId) {
     state.selectedWire = wireId;
     state.selectedNode = null;
     renderGraph(state);
 }
+/** Pick nothing, closing any panel. */
 function clearGraphPick(state) {
     if (state.selectedNode === null && state.selectedWire === null && state.picked.size === 0) {
         return;
@@ -2216,6 +2271,7 @@ function clearGraphPick(state) {
     state.selectedWire = null;
     renderGraph(state);
 }
+/** Handle a click on the canvas: cut a wire, run a trigger, open a box or a wire. */
 function onGraphClick(state, event) {
     var _a, _b;
     const target = event.target;
@@ -2320,6 +2376,7 @@ async function fireGraphPulse(state, nodeId, reachBack) {
     state.busy = true;
     try {
         const asking = new URLSearchParams();
+        // Run now, or reach back through `count` posts (all of them for 0).
         const where = reachBack === null ? "fire" : "backfill";
         if (reachBack !== null && reachBack > 0)
             asking.set("count", String(reachBack));
@@ -2335,6 +2392,7 @@ async function fireGraphPulse(state, nodeId, reachBack) {
         showGraphError(state, null);
         showGraphVerdict(state, graphSaid(answer));
         renderGraph(state);
+        // Then watch the run light the boxes as it goes.
         void followGraphRun(state);
     }
     catch (_b) {
@@ -2357,6 +2415,7 @@ async function removeGraphNode(state, nodeId, warning) {
     state.selectedNode = null;
     await applyGraph(state, `/graph/nodes/${nodeId}/delete`, new URLSearchParams());
 }
+/** Keys on the canvas: Escape picks nothing, Delete removes, Enter opens. */
 function onGraphKeyDown(state, event) {
     if (event.key === "Escape") {
         clearGraphPick(state);
@@ -2377,6 +2436,7 @@ function onGraphKeyDown(state, event) {
     event.preventDefault();
     pickGraphNode(state, nodeId);
 }
+/** Save a box's panel, remembering how it was so the change can be undone. */
 async function onGraphSubmit(state, event) {
     const form = event.target;
     if (!(form instanceof HTMLFormElement))
@@ -2570,11 +2630,13 @@ function graphStoreFields(form, store) {
 // read here, once, into types — and the only casts in the canvas are in this file.
 //
 // Part of the Configuration canvas; see main.ts.
+/** A plain JSON object, or null for anything else. */
 function asGraphRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value)
         ? value
         : null;
 }
+/** A kind the canvas knows how to draw, or null. */
 function asGraphNodeKind(value) {
     if (value === "trigger" ||
         value === "source" ||
@@ -2603,6 +2665,7 @@ function asGraphNodeKind(value) {
     }
     return null;
 }
+/** One box or piece from the server, checked field by field; null if it has no id or kind. */
 function asGraphNode(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2636,6 +2699,7 @@ function asGraphNode(value) {
         feed: asGraphFeed(raw["feed"]),
     };
 }
+/** What an empty source box asks to be told. */
 function asGraphAsks(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2648,6 +2712,7 @@ function asGraphAsks(value) {
         known: raw["known"] === true,
     };
 }
+/** A piece's slot and settings. */
 function asGraphPiece(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2663,6 +2728,7 @@ function asGraphPiece(value) {
         hosts: typeof raw["hosts"] === "string" ? raw["hosts"] : "",
     };
 }
+/** A condition piece's value and how its field is asked for. */
 function asGraphCondition(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2685,12 +2751,14 @@ function asGraphCondition(value) {
         says: typeof raw["says"] === "string" ? raw["says"] : "",
     };
 }
+/** What a Tag box marks items with. */
 function asGraphStamp(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
         return null;
     return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
 }
+/** A repository end's name, how much it holds, and how much it takes. */
 function asGraphStore(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2702,6 +2770,7 @@ function asGraphStore(value) {
         pulls: raw["pulls"] === true,
     };
 }
+/** A feed box's reading windows and caps. */
 function asGraphFeed(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2717,6 +2786,7 @@ function asGraphFeed(value) {
         generic: raw["generic"] === true,
     };
 }
+/** What a source box shows about its source. */
 function asGraphChannel(value) {
     var _a;
     const raw = asGraphRecord(value);
@@ -2741,6 +2811,7 @@ function asGraphChannel(value) {
         pending: typeof raw["pending"] === "number" ? raw["pending"] : 0,
     };
 }
+/** A group's size, defaulting to the server's default. */
 function asGraphSize(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2750,6 +2821,7 @@ function asGraphSize(value) {
         height: typeof raw["height"] === "number" ? raw["height"] : 300,
     };
 }
+/** A plugin piece: which plugin, where it slots, and its settings fields. */
 function asGraphPlugin(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2777,6 +2849,7 @@ function asGraphPlugin(value) {
         fields: fields.filter((one) => one.name !== ""),
     };
 }
+/** What a Sort orders by, and the keys it offers. */
 function asGraphSort(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2802,6 +2875,7 @@ function asGraphSort(value) {
         keys,
     };
 }
+/** An amount of time as an amount, a unit, and the units on offer. */
 function asGraphEvery(value) {
     const raw = asGraphRecord(value);
     const units = [];
@@ -2823,6 +2897,7 @@ function asGraphEvery(value) {
         units,
     };
 }
+/** A trigger's schedule, window and last firing. */
 function asGraphTrigger(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2842,6 +2917,7 @@ function asGraphTrigger(value) {
         lastFired: typeof fired === "string" ? fired : null,
     };
 }
+/** One wire; null if any end is missing. */
 function asGraphWire(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2890,6 +2966,7 @@ function asGraph(value) {
     }
     return { nodes: readNodes, wires: readWires, sources: watched };
 }
+/** The error message in a refusal, or null. */
 function asGraphError(value) {
     const raw = asGraphRecord(value);
     const message = raw === null ? null : raw["error"];
@@ -2904,6 +2981,7 @@ function asGraphError(value) {
 // boxes as the work reaches them.
 //
 // Part of the Configuration canvas; see main.ts.
+/** The run state from the server, checked. */
 function asGraphRun(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -2956,6 +3034,7 @@ async function followGraphRun(state) {
         await applyGraph(state, "/api/graph", null);
     }
 }
+/** A promise that resolves after `milliseconds`. */
 function graphPause(milliseconds) {
     return new Promise((wake) => {
         window.setTimeout(wake, milliseconds);
@@ -3010,6 +3089,7 @@ function graphTally(box, mark) {
     if (showing === null)
         box.appendChild(tally);
 }
+/** What a box's mark says: what it brought, held, or why it could not. */
 function graphTallyWords(mark) {
     // It went and could not get in. Said in its own words, because "stops here"
     // sent people looking for a wiring fault when the feed was simply refusing
@@ -3077,6 +3157,7 @@ function graphPartsIn(canvas) {
 // Talking to the server: every change is a POST answered with the whole graph.
 //
 // Part of the Configuration canvas; see main.ts.
+/** GET (no body) or POST a form to the server, and read the JSON it answers with. */
 async function askGraph(url, body) {
     const init = body === null
         ? { headers: { Accept: "application/json" } }
@@ -3087,6 +3168,7 @@ async function askGraph(url, body) {
 /** Send a change, take the graph that comes back, redraw. */
 async function applyGraph(state, url, body) {
     var _a;
+    // One change at a time: a second click while one is in flight is ignored.
     if (state.busy)
         return false;
     state.busy = true;
@@ -3097,6 +3179,7 @@ async function applyGraph(state, url, body) {
             showGraphError(state, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That change did not go through.");
             return false;
         }
+        // The server's answer is the new truth; redraw from it.
         state.nodes = view.nodes;
         state.wires = view.wires;
         state.sources = view.sources;
@@ -3127,6 +3210,7 @@ function forgetMissingGraph(state) {
 // The panel's fields for a source: what it takes, its mirror, its counts.
 //
 // Part of the Configuration canvas; see main.ts.
+/** A source box's panel: what to watch when empty, or its source's settings. */
 function graphChannelFields(state, form, node) {
     if (node.detail === null) {
         // An empty box: these are the fields that decide what it stands for. It
@@ -3422,6 +3506,7 @@ function asGraphHeld(value) {
 function graphUndoDepth() {
     return 40;
 }
+/** Remember how to put something back, keeping only the latest few. */
 function rememberGraphUndo(state, says, run) {
     state.undo.push({ says, run });
     if (state.undo.length > graphUndoDepth())
@@ -3480,6 +3565,7 @@ function graphWireAdded(before, after) {
 //
 // Top-level `function` declarations only, and no statement but the one entry
 // call at the end of main.ts: see tests/test_scripts.py.
+/** Wire up one canvas: pointer, clicks, keys, forms, and its drawers and dialogs. */
 function listenToGraph(state) {
     var _a, _b;
     const { canvas } = state.parts;
@@ -3553,6 +3639,7 @@ function listenToGraph(state) {
     // Boxes are measured to place the wires, so a resize moves them.
     window.addEventListener("resize", () => drawGraphWires(state));
 }
+/** Start one canvas, once: build its state and load the graph from the server. */
 function startGraph(canvas) {
     if (canvas.dataset["ready"] === "1")
         return;
@@ -3593,9 +3680,11 @@ async function openGraph(state) {
     if (run !== null && run.running)
         void followGraphRun(state);
 }
+/** Start every canvas under `root`. */
 function findGraphs(root) {
     root.querySelectorAll("[data-graph]").forEach(startGraph);
 }
+/** The canvas's entry point: start canvases now, on load, and after every htmx swap. */
 function initGraph() {
     document.addEventListener("DOMContentLoaded", () => findGraphs(document));
     document.body.addEventListener("htmx:afterSwap", () => findGraphs(document));

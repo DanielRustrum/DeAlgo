@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** A source box's panel: what to watch when empty, or its source's settings. */
 function graphChannelFields(
   state: GraphState,
   form: HTMLElement,

@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** A feed's reading windows in its panel, and whether it is open now. */
 function graphFeedWindows(form: HTMLElement, feed: GraphFeed): void {
   if (feed.windows.length === 0) return;
   const group = graphElement("div", "graph-group");
@@ -19,6 +20,7 @@ function graphFeedWindows(form: HTMLElement, feed: GraphFeed): void {
   form.appendChild(group);
 }
 
+/** A feed's panel fields: its size cap and per-run cap. */
 function graphFeedFields(form: HTMLElement, node: GraphNodeView): void {
   const feed = node.feed;
   if (feed === null) {
@@ -57,6 +59,7 @@ function graphFeedFields(form: HTMLElement, node: GraphNodeView): void {
   form.appendChild(graphElement("p", "hint", `${node.note}. Everything wired in ends up here.`));
 }
 
+/** A trigger's panel fields: its gap or schedule, and its window when it opens one. */
 function graphTriggerFields(form: HTMLElement, node: GraphNodeView): void {
   // Wired to a feed, it opens a window rather than setting something off, and
   // the one thing it needs that it does not otherwise is how long.

@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** GET (no body) or POST a form to the server, and read the JSON it answers with. */
 async function askGraph(url: string, body: URLSearchParams | null): Promise<unknown> {
   const init: RequestInit =
     body === null
@@ -13,6 +14,7 @@ async function askGraph(url: string, body: URLSearchParams | null): Promise<unkn
 
 /** Send a change, take the graph that comes back, redraw. */
 async function applyGraph(state: GraphState, url: string, body: URLSearchParams | null): Promise<boolean> {
+  // One change at a time: a second click while one is in flight is ignored.
   if (state.busy) return false;
   state.busy = true;
   try {
@@ -22,6 +24,7 @@ async function applyGraph(state: GraphState, url: string, body: URLSearchParams 
       showGraphError(state, asGraphError(answer) ?? "That change did not go through.");
       return false;
     }
+    // The server's answer is the new truth; redraw from it.
     state.nodes = view.nodes;
     state.wires = view.wires;
     state.sources = view.sources;

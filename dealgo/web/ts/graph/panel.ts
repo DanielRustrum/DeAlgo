@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** A form field with its label. */
 function graphLabelled(name: string, control: HTMLElement): HTMLElement {
   const row = graphElement("label", "graph-field");
   row.appendChild(graphElement("span", "graph-field-name", name));

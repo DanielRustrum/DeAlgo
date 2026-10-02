@@ -2,6 +2,7 @@
 //
 // Part of Focus mode; see main.ts.
 
+/** Draw the seconds left and the bar. */
 function paintFocusTimer(sitting: FocusSitting): void {
   const seconds = Math.max(0, Math.ceil(sitting.msLeft / 1000));
   sitting.elements.timerCount.textContent = sitting.held ? "held" : `${seconds}s`;
@@ -9,11 +10,13 @@ function paintFocusTimer(sitting: FocusSitting): void {
   sitting.elements.timerFill.style.width = `${share}%`;
 }
 
+/** Stop the countdown. */
 function stopFocusTimer(sitting: FocusSitting): void {
   if (sitting.timerId !== null) window.clearInterval(sitting.timerId);
   sitting.timerId = null;
 }
 
+/** Start counting down an item's time: its Decay time, or the account's default. */
 function startFocusTimer(sitting: FocusSitting, item?: FocusItem): void {
   stopFocusTimer(sitting);
   sitting.held = false;
@@ -29,6 +32,7 @@ function startFocusTimer(sitting: FocusSitting, item?: FocusItem): void {
   sitting.timerId = window.setInterval((): void => tickFocusTimer(sitting), 100);
 }
 
+/** One tenth of a second off; moves on when the time is up, unless paused. */
 function tickFocusTimer(sitting: FocusSitting): void {
   if (sitting.held) return;
   sitting.msLeft -= 100;

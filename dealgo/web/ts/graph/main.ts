@@ -15,6 +15,7 @@
 // Top-level `function` declarations only, and no statement but the one entry
 // call at the end of main.ts: see tests/test_scripts.py.
 
+/** Wire up one canvas: pointer, clicks, keys, forms, and its drawers and dialogs. */
 function listenToGraph(state: GraphState): void {
   const { canvas } = state.parts;
   const panel = canvas.closest<HTMLElement>(".graph-panel");
@@ -95,6 +96,7 @@ function listenToGraph(state: GraphState): void {
   window.addEventListener("resize", (): void => drawGraphWires(state));
 }
 
+/** Start one canvas, once: build its state and load the graph from the server. */
 function startGraph(canvas: HTMLElement): void {
   if (canvas.dataset["ready"] === "1") return;
   const parts = graphPartsIn(canvas);
@@ -135,10 +137,12 @@ async function openGraph(state: GraphState): Promise<void> {
   if (run !== null && run.running) void followGraphRun(state);
 }
 
+/** Start every canvas under `root`. */
 function findGraphs(root: ParentNode): void {
   root.querySelectorAll<HTMLElement>("[data-graph]").forEach(startGraph);
 }
 
+/** The canvas's entry point: start canvases now, on load, and after every htmx swap. */
 function initGraph(): void {
   document.addEventListener("DOMContentLoaded", (): void => findGraphs(document));
   document.body.addEventListener("htmx:afterSwap", (): void => findGraphs(document));

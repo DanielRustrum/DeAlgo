@@ -8,6 +8,7 @@ function graphUndoDepth(): number {
   return 40;
 }
 
+/** Remember how to put something back, keeping only the latest few. */
 function rememberGraphUndo(state: GraphState, says: string, run: () => Promise<void>): void {
   state.undo.push({ says, run });
   if (state.undo.length > graphUndoDepth()) state.undo.shift();

@@ -19,12 +19,14 @@ interface GraphMark {
   trouble: string | null;
 }
 
+/** Where a run has got to: whether it is going, its stage, and each box's mark. */
 interface GraphRunState {
   running: boolean;
   stage: string | null;
   nodes: Map<number, GraphMark>;
 }
 
+/** The run state from the server, checked. */
 function asGraphRun(value: unknown): GraphRunState | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -74,6 +76,7 @@ async function followGraphRun(state: GraphState): Promise<void> {
   }
 }
 
+/** A promise that resolves after `milliseconds`. */
 function graphPause(milliseconds: number): Promise<void> {
   return new Promise((wake): void => {
     window.setTimeout(wake, milliseconds);
@@ -128,6 +131,7 @@ function graphTally(box: HTMLElement, mark: GraphMark | undefined): void {
   if (showing === null) box.appendChild(tally);
 }
 
+/** What a box's mark says: what it brought, held, or why it could not. */
 function graphTallyWords(mark: GraphMark): string {
   // It went and could not get in. Said in its own words, because "stops here"
   // sent people looking for a wiring fault when the feed was simply refusing

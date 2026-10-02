@@ -17,6 +17,7 @@ function rememberSections(open, root) {
         details.addEventListener("toggle", () => noteSection(open, details));
     });
 }
+/** Remember whether one section is open. */
 function noteSection(open, details) {
     if (details.open)
         open.add(details.id);
@@ -35,6 +36,7 @@ function restoreSections(open, root) {
 function swappedSectionRoot(event) {
     return event.target instanceof Element ? event.target : document;
 }
+/** Keep collapsible sections open across htmx swaps. */
 function initSections() {
     // Scoped to this call rather than to the file: nothing else needs it, and a
     // top-level binding could not survive the script being run twice.

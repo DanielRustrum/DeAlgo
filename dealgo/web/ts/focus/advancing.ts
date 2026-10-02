@@ -2,6 +2,7 @@
 //
 // Part of Focus mode; see main.ts.
 
+/** Nothing left: stop the timer and the player and say so. */
 function finishFocusSitting(sitting: FocusSitting): void {
   stopFocusTimer(sitting);
   paintFocusQueue(sitting, []);
@@ -17,6 +18,7 @@ function finishFocusSitting(sitting: FocusSitting): void {
   if (sitting.player) sitting.player.stopVideo();
 }
 
+/** The form the server is asked for the next item with. */
 function focusAdvanceBody(sitting: FocusSitting, markWatched: boolean): string {
   const body = new URLSearchParams();
   body.set("order", sitting.order);
@@ -34,10 +36,12 @@ function advanceFocus(sitting: FocusSitting, markWatched: boolean): void {
   stopFocusTimer(sitting);
   setFocusStatus(sitting, markWatched ? "marking done…" : "skipping…");
 
+  // A skipped item is remembered, so the server does not offer it again this sitting.
   if (!markWatched && !sitting.passedOver.includes(sitting.current.id)) {
     sitting.passedOver.push(sitting.current.id);
   }
 
+  // The server says what comes next, so a queue left open cannot bring back something already done.
   fetch(`/focus/${sitting.current.id}/finished`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -57,6 +61,7 @@ function advanceFocus(sitting: FocusSitting, markWatched: boolean): void {
       showFocusItem(sitting, data.next, data.remaining);
       paintFocusQueue(sitting, data.upcoming);
     })
+    // Nothing advanced: say so, and give a timed item its time back.
     .catch((): void => {
       sitting.advancing = false;
       setFocusStatus(sitting, "could not advance — check the connection");

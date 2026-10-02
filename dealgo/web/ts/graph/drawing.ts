@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** A new element with a class, and its text if given. */
 function graphElement(tag: string, className: string, text?: string): HTMLElement {
   const made = document.createElement(tag);
   made.className = className;
@@ -9,6 +10,7 @@ function graphElement(tag: string, className: string, text?: string): HTMLElemen
   return made;
 }
 
+/** A kind's name as the canvas shows it. */
 function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "source") return "Source";
   if (kind === "deposit") return "Deposit";
@@ -107,6 +109,7 @@ interface GraphStore {
 /** What travels down a wire: a nudge to run, or the things being collected. */
 type GraphCarries = "signal" | "content";
 
+/** A port dot on a box's edge: where wires leave or arrive. */
 function graphPort(where: "in" | "out", carries: GraphCarries, says: string): HTMLElement {
   const dot = graphElement("span", `graph-port port-${where} carries-${carries}`);
   dot.dataset["port"] = where;
@@ -180,6 +183,7 @@ function graphPortWords(kind: GraphNodeKind, where: "in" | "out"): string {
   return "Takes what is wired in. This is where things end up.";
 }
 
+/** A group's background frame, with its name and resize handle. */
 function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
   const frame = graphElement("div", "graph-group-box");
   frame.dataset["node"] = String(node.id);
@@ -204,6 +208,7 @@ function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
   return frame;
 }
 
+/** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   const box = graphElement("div", `graph-node kind-${node.kind}`);
   box.dataset["node"] = String(node.id);
@@ -268,6 +273,7 @@ function graphSourceLabel(node: GraphNodeView): string {
   return "Source";
 }
 
+/** A trigger's Run now and Backfill buttons. */
 function graphFireButton(node: GraphNodeView): HTMLElement {
   const buttons = graphElement("div", "graph-fire");
 
@@ -297,6 +303,7 @@ function graphFireButton(node: GraphNodeView): HTMLElement {
   return buttons;
 }
 
+/** Every box and piece, drawn afresh; groups first, under everything else. */
 function drawGraphNodes(state: GraphState): void {
   state.parts.layer.textContent = "";
   state.parts.groups.textContent = "";
@@ -387,11 +394,13 @@ function graphPortPoint(
   };
 }
 
+/** The SVG path of a wire: a gentle S from one port to another. */
 function graphCurve(x1: number, y1: number, x2: number, y2: number): string {
   const reach = Math.max(40, Math.abs(x2 - x1) * 0.5);
   return `M ${x1} ${y1} C ${x1 + reach} ${y1}, ${x2 - reach} ${y2}, ${x2} ${y2}`;
 }
 
+/** An SVG path element with a class. */
 function graphSvgPath(className: string, d: string): SVGPathElement {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("class", className);
@@ -399,6 +408,7 @@ function graphSvgPath(className: string, d: string): SVGPathElement {
   return path;
 }
 
+/** Every wire, drawn afresh, each with an invisible fat path for the pointer. */
 function drawGraphWires(state: GraphState): void {
   state.parts.wires.textContent = "";
   // The ✕ belongs to a wire but lives among the boxes, so it is cleared here
@@ -456,6 +466,7 @@ function panGraph(state: GraphState, x: number, y: number): void {
   showGraphView(state);
 }
 
+/** Apply the pan and zoom to the drawing and its grid. */
 function showGraphView(state: GraphState): void {
   const { panX, panY, zoom } = state;
   state.parts.scene.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
@@ -487,6 +498,7 @@ function zoomGraph(state: GraphState, factor: number, clientX: number, clientY: 
   showGraphView(state);
 }
 
+/** Redraw everything from the state: boxes, wires, panel, finder, run marks. */
 function renderGraph(state: GraphState): void {
   drawGraphNodes(state);
   drawGraphWires(state);
@@ -500,6 +512,7 @@ function renderGraph(state: GraphState): void {
   if (state.parts.empty !== null) state.parts.empty.hidden = state.nodes.length > 0;
 }
 
+/** Show a refusal over the canvas, or clear it with null. */
 function showGraphError(state: GraphState, message: string | null): void {
   const box = state.parts.error;
   if (box === null) return;
@@ -507,6 +520,7 @@ function showGraphError(state: GraphState, message: string | null): void {
   box.hidden = message === null;
 }
 
+/** Show a test's verdict over the canvas, or clear it with null. */
 function showGraphVerdict(state: GraphState, message: string | null): void {
   const box = state.parts.verdict;
   if (box === null) return;

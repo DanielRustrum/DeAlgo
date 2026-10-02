@@ -60,11 +60,13 @@ function graphMovedFar(drag: GraphDrag, event: PointerEvent): boolean {
   return Math.abs(event.clientX - drag.fromX) > 3 || Math.abs(event.clientY - drag.fromY) > 3;
 }
 
+/** Start panning the canvas from where the pointer went down. */
 function beginGraphPan(state: GraphState, event: PointerEvent): void {
   state.drag = graphGrab(state, event);
   state.parts.canvas.classList.add("is-panning");
 }
 
+/** Start drawing a wire from a box's out port, with a ghost following the pointer. */
 function beginGraphWire(state: GraphState, event: PointerEvent, nodeId: number): void {
   state.drag = { ...graphGrab(state, event), kind: "wire", nodeId };
   const from = graphPortPoint(state, nodeId, "out");
@@ -73,6 +75,7 @@ function beginGraphWire(state: GraphState, event: PointerEvent, nodeId: number):
   state.parts.wires.appendChild(state.ghost);
 }
 
+/** Start moving a box, remembering where on it the pointer grabbed. */
 function beginGraphMove(
   state: GraphState,
   event: PointerEvent,
@@ -147,6 +150,7 @@ function graphMarquee(state: GraphState): HTMLElement | null {
   return state.parts.layer.querySelector<HTMLElement>(".graph-marquee");
 }
 
+/** Start resizing a group from its current size. */
 function beginGraphResize(state: GraphState, event: PointerEvent, node: GraphNodeView): void {
   state.drag = {
     ...graphGrab(state, event),
@@ -157,6 +161,7 @@ function beginGraphResize(state: GraphState, event: PointerEvent, node: GraphNod
   };
 }
 
+/** Decide what a press on the canvas starts: a wire, a move, a resize, a marquee or a pan. */
 function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   if (event.button !== 0) return;
   const target = event.target;
@@ -230,6 +235,7 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   event.preventDefault();
 }
 
+/** Carry on whatever the press started, following the pointer. */
 function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
   const drag = state.drag;
   if (drag === null || drag.pointerId !== event.pointerId) return;
@@ -314,11 +320,13 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
   }
 }
 
+/** The box under the pointer, if any. */
 function graphDropTarget(event: PointerEvent): number | null {
   const under = document.elementFromPoint(event.clientX, event.clientY);
   return graphNodeIdFrom(under);
 }
 
+/** Finish what the press started: save a move, draw a wire, or pick. */
 function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
   const drag = state.drag;
   if (drag === null || drag.pointerId !== event.pointerId) return;
@@ -451,6 +459,7 @@ function pickGraphInside(
   const top = Math.min(fromY, toY);
   const bottom = Math.max(fromY, toY);
 
+  // Every box whose corner falls inside the marquee; one picked opens its panel.
   state.picked = new Set<number>(
     state.nodes
       .filter(
@@ -463,6 +472,7 @@ function pickGraphInside(
   renderGraph(state);
 }
 
+/** Save a box's new position; a group moves with everything in it. */
 async function saveGraphMove(state: GraphState, nodeId: number): Promise<void> {
   const node = state.nodes.find((entry): boolean => entry.id === nodeId);
   if (node === undefined) return;
@@ -482,10 +492,12 @@ async function saveGraphMove(state: GraphState, nodeId: number): Promise<void> {
   }
 }
 
+/** Whether this node is a group. */
 function graphIsGroup(state: GraphState, nodeId: number): boolean {
   return state.nodes.find((entry): boolean => entry.id === nodeId)?.kind === "group";
 }
 
+/** Save a group's new size. */
 async function saveGraphSize(state: GraphState, nodeId: number): Promise<void> {
   const node = state.nodes.find((entry): boolean => entry.id === nodeId);
   if (node === undefined || node.size === null) return;

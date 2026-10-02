@@ -5,12 +5,14 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** A plain JSON object, or null for anything else. */
 function asGraphRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
 
+/** A kind the canvas knows how to draw, or null. */
 function asGraphNodeKind(value: unknown): GraphNodeKind | null {
   if (
     value === "trigger" ||
@@ -42,6 +44,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
   return null;
 }
 
+/** One box or piece from the server, checked field by field; null if it has no id or kind. */
 function asGraphNode(value: unknown): GraphNodeView | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -74,6 +77,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
   };
 }
 
+/** What an empty source box asks to be told. */
 function asGraphAsks(value: unknown): GraphAsks | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -86,6 +90,7 @@ function asGraphAsks(value: unknown): GraphAsks | null {
   };
 }
 
+/** A piece's slot and settings. */
 function asGraphPiece(value: unknown): GraphPiece | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -101,6 +106,7 @@ function asGraphPiece(value: unknown): GraphPiece | null {
   };
 }
 
+/** A condition piece's value and how its field is asked for. */
 function asGraphCondition(value: unknown): GraphCondition | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -124,12 +130,14 @@ function asGraphCondition(value: unknown): GraphCondition | null {
   };
 }
 
+/** What a Tag box marks items with. */
 function asGraphStamp(value: unknown): GraphStamp | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
   return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
 }
 
+/** A repository end's name, how much it holds, and how much it takes. */
 function asGraphStore(value: unknown): GraphStore | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -141,6 +149,7 @@ function asGraphStore(value: unknown): GraphStore | null {
   };
 }
 
+/** A feed box's reading windows and caps. */
 function asGraphFeed(value: unknown): GraphFeed | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -156,6 +165,7 @@ function asGraphFeed(value: unknown): GraphFeed | null {
   };
 }
 
+/** What a source box shows about its source. */
 function asGraphChannel(value: unknown): GraphChannel | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -180,6 +190,7 @@ function asGraphChannel(value: unknown): GraphChannel | null {
   };
 }
 
+/** A group's size, defaulting to the server's default. */
 function asGraphSize(value: unknown): { width: number; height: number } | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -189,6 +200,7 @@ function asGraphSize(value: unknown): { width: number; height: number } | null {
   };
 }
 
+/** A plugin piece: which plugin, where it slots, and its settings fields. */
 function asGraphPlugin(value: unknown): GraphPlugin | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -215,6 +227,7 @@ function asGraphPlugin(value: unknown): GraphPlugin | null {
   };
 }
 
+/** What a Sort orders by, and the keys it offers. */
 function asGraphSort(value: unknown): GraphSort | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -240,6 +253,7 @@ function asGraphSort(value: unknown): GraphSort | null {
   };
 }
 
+/** An amount of time as an amount, a unit, and the units on offer. */
 function asGraphEvery(value: unknown): GraphEvery {
   const raw = asGraphRecord(value);
   const units: { name: string; label: string }[] = [];
@@ -261,6 +275,7 @@ function asGraphEvery(value: unknown): GraphEvery {
   };
 }
 
+/** A trigger's schedule, window and last firing. */
 function asGraphTrigger(value: unknown): GraphTrigger | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -280,6 +295,7 @@ function asGraphTrigger(value: unknown): GraphTrigger | null {
   };
 }
 
+/** One wire; null if any end is missing. */
 function asGraphWire(value: unknown): GraphWireView | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -324,6 +340,7 @@ function asGraph(value: unknown): GraphView | null {
   return { nodes: readNodes, wires: readWires, sources: watched };
 }
 
+/** The error message in a refusal, or null. */
 function asGraphError(value: unknown): string | null {
   const raw = asGraphRecord(value);
   const message = raw === null ? null : raw["error"];

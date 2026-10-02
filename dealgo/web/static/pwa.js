@@ -16,6 +16,7 @@ function serviceWorkerUrl() {
     const version = (_a = marker === null || marker === void 0 ? void 0 : marker.content) !== null && _a !== void 0 ? _a : "dev";
     return `/sw.js?v=${encodeURIComponent(version)}`;
 }
+/** Register the service worker, quietly doing without it if it fails. */
 function registerServiceWorker() {
     if (!("serviceWorker" in navigator))
         return;
@@ -27,6 +28,7 @@ function registerServiceWorker() {
 function networkOnlyControls() {
     return Array.from(document.querySelectorAll("[data-needs-network]"));
 }
+/** Mark the page offline or online, disabling what needs the server. */
 function showOfflineState(offline) {
     document.body.classList.toggle("is-offline", offline);
     const banner = document.getElementById("offline-banner");
@@ -38,6 +40,7 @@ function showOfflineState(offline) {
             control.title = "Offline — this needs the server";
     });
 }
+/** Follow the browser's online and offline events. */
 function watchConnection() {
     window.addEventListener("online", () => showOfflineState(false));
     window.addEventListener("offline", () => showOfflineState(true));
@@ -78,11 +81,13 @@ function markUnrefreshed(event) {
     event.preventDefault(); // do not swap the failure in
     target.classList.add("is-unrefreshed");
 }
+/** A panel that has just been swapped in is current again. */
 function clearUnrefreshed(event) {
     const target = htmxTarget(event);
     if (target)
         target.classList.remove("is-unrefreshed");
 }
+/** Mark a panel as stale when its refresh failed, and clear it when one lands. */
 function watchFragments() {
     // No network at all, and a request that came back an error: the same thing
     // as far as the panel is concerned.
@@ -99,6 +104,7 @@ function showStoredCopyNotice() {
     if (notice)
         notice.hidden = false;
 }
+/** The app shell's entry point: worker, connection, swaps and stale panels. */
 function initPwa() {
     registerServiceWorker();
     watchConnection();

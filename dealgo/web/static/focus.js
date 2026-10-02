@@ -2,6 +2,7 @@
 // Moving on: saying the item is finished, and showing the next.
 //
 // Part of Focus mode; see main.ts.
+/** Nothing left: stop the timer and the player and say so. */
 function finishFocusSitting(sitting) {
     stopFocusTimer(sitting);
     paintFocusQueue(sitting, []);
@@ -17,6 +18,7 @@ function finishFocusSitting(sitting) {
     if (sitting.player)
         sitting.player.stopVideo();
 }
+/** The form the server is asked for the next item with. */
 function focusAdvanceBody(sitting, markWatched) {
     const body = new URLSearchParams();
     body.set("order", sitting.order);
@@ -33,9 +35,11 @@ function advanceFocus(sitting, markWatched) {
     sitting.advancing = true;
     stopFocusTimer(sitting);
     setFocusStatus(sitting, markWatched ? "marking done…" : "skipping…");
+    // A skipped item is remembered, so the server does not offer it again this sitting.
     if (!markWatched && !sitting.passedOver.includes(sitting.current.id)) {
         sitting.passedOver.push(sitting.current.id);
     }
+    // The server says what comes next, so a queue left open cannot bring back something already done.
     fetch(`/focus/${sitting.current.id}/finished`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -56,6 +60,7 @@ function advanceFocus(sitting, markWatched) {
         showFocusItem(sitting, data.next, data.remaining);
         paintFocusQueue(sitting, data.upcoming);
     })
+        // Nothing advanced: say so, and give a timed item its time back.
         .catch(() => {
         sitting.advancing = false;
         setFocusStatus(sitting, "could not advance — check the connection");
@@ -86,6 +91,7 @@ function focusElement(id) {
 function optionalFocusElement(id) {
     return document.getElementById(id);
 }
+/** Every element Focus mode updates, found once. */
 function collectFocusElements(root) {
     return {
         root,
@@ -119,6 +125,7 @@ function readFocusQueue() {
         return [];
     return JSON.parse((_a = script.textContent) !== null && _a !== void 0 ? _a : "[]");
 }
+/** Say something after the title, or clear it with an empty string. */
 function setFocusStatus(sitting, message) {
     sitting.elements.status.textContent = message ? ` · ${message}` : "";
 }
@@ -127,6 +134,7 @@ function setFocusStatus(sitting, message) {
 // The YouTube player, and waiting for its API.
 //
 // Part of Focus mode; see main.ts.
+/** Attach YouTube's player to the existing iframe, once, when the API is here. */
 function buildFocusPlayer(sitting) {
     const api = window.YT;
     if (sitting.player || !sitting.elements.frame || !api || !api.Player)
@@ -157,18 +165,22 @@ function buildFocusPlayer(sitting) {
         },
     });
 }
-// Getting hold of the API is the fiddly part, because this page is usually
-// reached through an hx-boost swap rather than a page load:
-//
-//   * a script htmx inserts does not honour `defer`, so load order is not
-//     guaranteed and the API can run before the callback below exists;
-//   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
-//     second visit within the same document it never fires at all.
-//
-// Either way the player would stay null, the queue would stop advancing, and
-// the video on screen would simply keep playing. So: take the API if it is
-// already here, ask to be told if it is not, and poll as well, since neither
-// signal is reliable on its own.
+/**
+ * Attach the player once YouTube's API is here, however it arrives.
+ *
+ * Getting hold of the API is the fiddly part, because this page is usually
+ * reached through an hx-boost swap rather than a page load:
+ *
+ *   * a script htmx inserts does not honour `defer`, so load order is not
+ *     guaranteed and the API can run before the callback below exists;
+ *   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
+ *     second visit within the same document it never fires at all.
+ *
+ * Either way the player would stay null, the queue would stop advancing, and
+ * the video on screen would simply keep playing. So: take the API if it is
+ * already here, ask to be told if it is not, and poll as well, since neither
+ * signal is reliable on its own.
+ */
 function awaitYouTubeApi(sitting) {
     if (!sitting.elements.frame)
         return;
@@ -199,6 +211,7 @@ function awaitYouTubeApi(sitting) {
 // The up-next list.
 //
 // Part of Focus mode; see main.ts.
+/** One row of the up-next list. */
 function buildQueueRow(item) {
     const row = document.createElement("li");
     row.dataset["video"] = String(item.id);
@@ -219,6 +232,7 @@ function buildQueueRow(item) {
     row.appendChild(meta);
     return row;
 }
+/** The line under a queue row's title: source, feed, and length for a video. */
 function queueRowMeta(item) {
     let line = item.channel;
     if (item.playlist)
@@ -249,10 +263,12 @@ function paintFocusQueue(sitting, items) {
 // Showing one item: a video in the player, or a post on its own.
 //
 // Part of Focus mode; see main.ts.
+/** The privacy-enhanced embed address for a video, set to autoplay. */
 function focusEmbedUrl(videoId) {
     const origin = encodeURIComponent(window.location.origin);
     return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&rel=0&origin=${origin}`;
 }
+/** One picture from a post, linking to itself. */
 function buildFocusTile(url) {
     const link = document.createElement("a");
     link.className = "focus-tile";
@@ -281,6 +297,7 @@ function focusIsRead(item) {
 function focusIsTimed(item) {
     return item !== null && item.seconds !== null;
 }
+/** Show a post: its pictures and words, with its timer if it has one. */
 function showFocusPost(sitting, item) {
     const elements = sitting.elements;
     elements.tiles.textContent = "";
@@ -300,6 +317,7 @@ function showFocusPost(sitting, item) {
     else
         stopFocusTimer(sitting);
 }
+/** Show a video in the player, or reload the iframe if the API never came. */
 function showFocusVideo(sitting, item) {
     stopFocusTimer(sitting);
     const elements = sitting.elements;
@@ -316,6 +334,7 @@ function showFocusVideo(sitting, item) {
     if (elements.frame)
         elements.frame.src = focusEmbedUrl(item.video_id);
 }
+/** Show the next item, of whichever kind, and update the counts and links. */
 function showFocusItem(sitting, item, remaining) {
     const elements = sitting.elements;
     sitting.current = item;
@@ -339,17 +358,20 @@ function showFocusItem(sitting, item, remaining) {
 // The reading timer: how long you get with one item.
 //
 // Part of Focus mode; see main.ts.
+/** Draw the seconds left and the bar. */
 function paintFocusTimer(sitting) {
     const seconds = Math.max(0, Math.ceil(sitting.msLeft / 1000));
     sitting.elements.timerCount.textContent = sitting.held ? "held" : `${seconds}s`;
     const share = (sitting.msLeft / (sitting.allowed * 1000)) * 100;
     sitting.elements.timerFill.style.width = `${share}%`;
 }
+/** Stop the countdown. */
 function stopFocusTimer(sitting) {
     if (sitting.timerId !== null)
         window.clearInterval(sitting.timerId);
     sitting.timerId = null;
 }
+/** Start counting down an item's time: its Decay time, or the account's default. */
 function startFocusTimer(sitting, item) {
     var _a;
     stopFocusTimer(sitting);
@@ -365,6 +387,7 @@ function startFocusTimer(sitting, item) {
     paintFocusTimer(sitting);
     sitting.timerId = window.setInterval(() => tickFocusTimer(sitting), 100);
 }
+/** One tenth of a second off; moves on when the time is up, unless paused. */
 function tickFocusTimer(sitting) {
     if (sitting.held)
         return;
@@ -411,6 +434,7 @@ function toggleFocusTimer(sitting) {
 // each time it swaps the Focus page in, and a top-level `const` or `class` would throw "already declared"
 // on the second visit. Everything a sitting needs to remember therefore lives
 // in one FocusSitting object, passed explicitly rather than captured.
+/** Load the first video, with the origin the page is actually served from. */
 function pointFrameAtFirstVideo(sitting) {
     var _a;
     const frame = sitting.elements.frame;
@@ -421,6 +445,7 @@ function pointFrameAtFirstVideo(sitting) {
     const source = (_a = frame.dataset["src"]) !== null && _a !== void 0 ? _a : "";
     frame.src = `${source}&origin=${encodeURIComponent(window.location.origin)}`;
 }
+/** Wire up Next, Skip and the timer's pause button. */
 function bindFocusControls(sitting) {
     sitting.elements.next.addEventListener("click", () => advanceFocus(sitting, true));
     sitting.elements.skip.addEventListener("click", () => advanceFocus(sitting, false));
@@ -437,6 +462,7 @@ function warnIfPlayerNeverWakes(sitting) {
             : "auto-advance is unavailable — Done · next still works");
     }, 8000);
 }
+/** A fresh sitting on the page, opening on its first item. */
 function newFocusSitting(root, opening) {
     var _a, _b, _c, _d;
     return {
@@ -456,6 +482,7 @@ function newFocusSitting(root, opening) {
         held: false,
     };
 }
+/** Focus mode's entry point: start a sitting if this is the Focus page and there is a queue. */
 function initFocusMode() {
     const root = document.getElementById("focus");
     if (!root)

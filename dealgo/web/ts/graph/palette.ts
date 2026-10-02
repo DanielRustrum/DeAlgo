@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** Open or close the palette; opening it closes the finder. */
 function toggleGraphPalette(state: GraphState, open: boolean): void {
   const drawer = state.parts.drawer;
   if (drawer === null) return;
@@ -37,6 +38,7 @@ function beginGraphDrop(
   state.dropping = { kind, which, under, pointerId: event.pointerId, ghost };
 }
 
+/** Keep the dragged palette row under the pointer. */
 function moveGraphGhost(ghost: HTMLElement, event: PointerEvent): void {
   ghost.style.left = `${event.clientX - 40}px`;
   ghost.style.top = `${event.clientY - 18}px`;
@@ -48,6 +50,7 @@ function graphPaletteKind(kind: string): string {
   return kind;
 }
 
+/** The name a palette row's box gets on the canvas. */
 function graphPaletteName(kind: string): string {
   if (kind === "source") return "Source";
   if (kind === "plugin") return "Plugin";
@@ -186,6 +189,7 @@ function markGraphSlotFor(
   showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
 
+/** Show where a dragged piece would slot in, or hide the marker with null. */
 function showGraphSlot(state: GraphState, wanted: GraphSlot | null): void {
   const marker = graphSlotMarker(state);
   if (marker === null) return;
@@ -211,11 +215,13 @@ function graphSlotMarker(state: GraphState): HTMLElement | null {
   return marker;
 }
 
+/** Hide the slot marker. */
 function hideGraphSlot(state: GraphState): void {
   const marker = state.parts.layer.querySelector<HTMLElement>(".graph-slot");
   if (marker !== null) marker.hidden = true;
 }
 
+/** Drop a palette row: a new box where it landed, or a piece into its slot. */
 function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   const dropping = state.dropping;
   if (dropping === null || dropping.pointerId !== event.pointerId) return;
@@ -271,6 +277,7 @@ async function dropGraphNode(
   });
 }
 
+/** Wire up the palette: its toggle, its close button, and dragging each row out. */
 function listenToPalette(state: GraphState, panel: HTMLElement): void {
   panel.querySelector<HTMLElement>("[data-graph-palette]")?.addEventListener("click", (): void => {
     toggleGraphPalette(state, state.parts.drawer?.hidden === true);

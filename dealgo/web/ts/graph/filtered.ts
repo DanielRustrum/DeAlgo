@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** One item's verdict at a box: what it is, why it was held, what it would carry. */
 interface GraphJudged {
   id: number;
   title: string;
@@ -12,6 +13,7 @@ interface GraphJudged {
   marks: string[];
 }
 
+/** Verdicts from the server, checked one by one. */
 function asGraphJudged(value: unknown): GraphJudged[] {
   if (!Array.isArray(value)) return [];
   const read: GraphJudged[] = [];
@@ -53,6 +55,7 @@ async function showGraphFiltered(state: GraphState, nodeId: string): Promise<voi
   }
 }
 
+/** Fill the Filter dialog with what got through and what was held, and why. */
 function drawGraphFiltered(
   state: GraphState,
   name: string,
@@ -74,6 +77,7 @@ function drawGraphFiltered(
   openGraphCatch(dialog);
 }
 
+/** The dialog that shows what a Filter is holding. */
 function graphCatchDialog(state: GraphState): HTMLDialogElement | null {
   return (
     state.parts.canvas
@@ -96,12 +100,14 @@ function graphCatchDialog(state: GraphState): HTMLDialogElement | null {
  *  the same courtesy the backfill box gets. */
 function askGraphSure(state: GraphState, question: string): Promise<boolean> {
   const dialog = graphSureDialog(state);
+  // Without the dialog on the page, the browser's own confirm will do.
   if (dialog === null) return Promise.resolve(window.confirm(question));
 
   const said = dialog.querySelector<HTMLElement>("[data-graph-sure-what]");
   if (said !== null) said.textContent = question;
 
   return new Promise<boolean>((answer): void => {
+    // Answered once: yes, no, or closing the dialog, which is a no.
     let done = false;
     const finish = (yes: boolean): void => {
       if (done) return;
@@ -124,6 +130,7 @@ function askGraphSure(state: GraphState, question: string): Promise<boolean> {
   });
 }
 
+/** The dialog that asks before removing something. */
 function graphSureDialog(state: GraphState): HTMLDialogElement | null {
   return (
     state.parts.canvas
@@ -132,6 +139,7 @@ function graphSureDialog(state: GraphState): HTMLDialogElement | null {
   );
 }
 
+/** Close the confirmation dialog and let the page move again. */
 function shutGraphSure(dialog: HTMLDialogElement): void {
   if (dialog.open) {
     if (typeof dialog.close === "function") dialog.close();
@@ -140,6 +148,7 @@ function shutGraphSure(dialog: HTMLDialogElement): void {
   holdPageForGraph(false);
 }
 
+/** Open a dialog modally, holding the page still behind it. */
 function openGraphCatch(dialog: HTMLDialogElement): void {
   if (dialog.open) return;
   if (typeof dialog.showModal === "function") dialog.showModal();

@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** Pick one box and open its panel; null picks nothing. */
 function pickGraphNode(state: GraphState, nodeId: number | null): void {
   if (nodeId !== state.selectedNode) state.tab = "settings";
   state.selectedNode = nodeId;
@@ -24,12 +25,14 @@ function alsoPickGraphNode(state: GraphState, nodeId: number): void {
   renderGraph(state);
 }
 
+/** Pick a wire, so it can be cut. */
 function pickGraphWire(state: GraphState, wireId: string): void {
   state.selectedWire = wireId;
   state.selectedNode = null;
   renderGraph(state);
 }
 
+/** Pick nothing, closing any panel. */
 function clearGraphPick(state: GraphState): void {
   if (state.selectedNode === null && state.selectedWire === null && state.picked.size === 0) {
     return;
@@ -40,6 +43,7 @@ function clearGraphPick(state: GraphState): void {
   renderGraph(state);
 }
 
+/** Handle a click on the canvas: cut a wire, run a trigger, open a box or a wire. */
 function onGraphClick(state: GraphState, event: MouseEvent): void {
   const target = event.target;
   if (!(target instanceof Element)) return;
@@ -160,6 +164,7 @@ async function fireGraphPulse(
   state.busy = true;
   try {
     const asking = new URLSearchParams();
+    // Run now, or reach back through `count` posts (all of them for 0).
     const where = reachBack === null ? "fire" : "backfill";
     if (reachBack !== null && reachBack > 0) asking.set("count", String(reachBack));
     const answer = await askGraph(`/graph/nodes/${nodeId}/${where}`, asking);
@@ -174,6 +179,7 @@ async function fireGraphPulse(
     showGraphError(state, null);
     showGraphVerdict(state, graphSaid(answer));
     renderGraph(state);
+    // Then watch the run light the boxes as it goes.
     void followGraphRun(state);
   } catch {
     showGraphError(state, "No connection, so nothing was polled.");
@@ -200,6 +206,7 @@ async function removeGraphNode(
   await applyGraph(state, `/graph/nodes/${nodeId}/delete`, new URLSearchParams());
 }
 
+/** Keys on the canvas: Escape picks nothing, Delete removes, Enter opens. */
 function onGraphKeyDown(state: GraphState, event: KeyboardEvent): void {
   if (event.key === "Escape") {
     clearGraphPick(state);
@@ -218,6 +225,7 @@ function onGraphKeyDown(state: GraphState, event: KeyboardEvent): void {
   pickGraphNode(state, nodeId);
 }
 
+/** Save a box's panel, remembering how it was so the change can be undone. */
 async function onGraphSubmit(state: GraphState, event: SubmitEvent): Promise<void> {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;

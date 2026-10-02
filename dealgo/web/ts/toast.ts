@@ -37,6 +37,7 @@ function toastMemory(): Storage | null {
   }
 }
 
+/** Whether this toast was dismissed before. */
 function toastWasDismissed(name: string): boolean {
   try {
     return toastMemory()?.getItem(`toast:${name}`) === "gone";
@@ -45,6 +46,7 @@ function toastWasDismissed(name: string): boolean {
   }
 }
 
+/** Remember that this toast was dismissed, so it stays gone. */
 function rememberToastDismissed(name: string): void {
   try {
     toastMemory()?.setItem(`toast:${name}`, "gone");
@@ -59,6 +61,7 @@ function hideToast(toast: HTMLElement): void {
   window.setTimeout((): void => toast.remove(), 200);
 }
 
+/** Add a close button to a toast, once. */
 function giveToastACloseButton(toast: HTMLElement): void {
   if (toast.querySelector(".toast-close") !== null) return;
 
@@ -106,6 +109,7 @@ function watchForNewToasts(): void {
   document.body.addEventListener("htmx:oobAfterSwap", (): void => dressToasts());
 }
 
+/** Toasts' entry point: dress the ones on the page and any that arrive later. */
 function initToasts(): void {
   dressToasts();
   watchForNewToasts();

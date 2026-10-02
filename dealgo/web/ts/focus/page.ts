@@ -15,6 +15,7 @@ function optionalFocusElement<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
 }
 
+/** Every element Focus mode updates, found once. */
 function collectFocusElements(root: HTMLElement): FocusElements {
   return {
     root,
@@ -48,6 +49,7 @@ function readFocusQueue(): FocusItem[] {
   return JSON.parse(script.textContent ?? "[]") as FocusItem[];
 }
 
+/** Say something after the title, or clear it with an empty string. */
 function setFocusStatus(sitting: FocusSitting, message: string): void {
   sitting.elements.status.textContent = message ? ` · ${message}` : "";
 }

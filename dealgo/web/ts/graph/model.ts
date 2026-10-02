@@ -2,6 +2,7 @@
 //
 // Part of the Configuration canvas; see main.ts.
 
+/** Every kind of box and piece the canvas draws. */
 type GraphNodeKind =
   | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
   // The two ends of a named repository. A deposit ends a path the way a feed
@@ -62,6 +63,7 @@ function graphTakesPieces(kind: GraphNodeKind): boolean {
  *  wires. Every wire is an edge now. */
 type GraphWireKind = "edge";
 
+/** One box or piece as the server sent it. */
 interface GraphNodeView {
   id: number;
   kind: GraphNodeKind;
@@ -100,6 +102,7 @@ interface GraphNodeView {
   feed: GraphFeed | null;
 }
 
+/** A feed box's reading windows and caps. */
 interface GraphFeed {
   /** When it may be read. Empty means always. */
   windows: string[];
@@ -109,6 +112,7 @@ interface GraphFeed {
   generic: boolean;
 }
 
+/** What a source box knows about its source. */
 interface GraphChannel {
   /** What kind of somewhere it is, said the way a person would: "Reddit". */
   source: string;
@@ -129,6 +133,7 @@ interface GraphChannel {
   pending: number;
 }
 
+/** One setting a plugin piece asks for. */
 interface GraphPluginField {
   name: string;
   label: string;
@@ -137,6 +142,7 @@ interface GraphPluginField {
   placeholder: string;
 }
 
+/** A plugin piece: the plugin, where it slots, and its settings. */
 interface GraphPlugin {
   ref: string;
   /** The plugin this box needs, when it is not loaded. Null while it is. */
@@ -149,6 +155,7 @@ interface GraphPlugin {
   fields: GraphPluginField[];
 }
 
+/** A Sort box's key and direction, and the keys it could use. */
 interface GraphSort {
   by: string;
   /** Biggest, longest or newest first. */
@@ -171,6 +178,7 @@ interface GraphEvery {
   units: { name: string; label: string }[];
 }
 
+/** A trigger box's schedule, window and last firing. */
 interface GraphTrigger {
   kind: "schedule" | "pulse";
   /** A pulse's gap, in minutes, and the same gap said in a larger unit. */
@@ -187,6 +195,7 @@ interface GraphTrigger {
   lastFired: string | null;
 }
 
+/** One wire between two boxes. */
 interface GraphWireView {
   id: string;
   from: number;
@@ -194,6 +203,7 @@ interface GraphWireView {
   kind: GraphWireKind;
 }
 
+/** The whole canvas as the server sent it. */
 interface GraphView {
   nodes: GraphNodeView[];
   wires: GraphWireView[];
@@ -227,6 +237,7 @@ interface GraphDrag {
   carried: { node: GraphNodeView; x: number; y: number }[];
 }
 
+/** The page elements the canvas draws into. */
 interface GraphParts {
   canvas: HTMLElement;
   /** Everything drawn, moved as one when the canvas is panned. */
@@ -241,6 +252,7 @@ interface GraphParts {
   empty: HTMLElement | null;
 }
 
+/** Everything one canvas remembers between redraws: the graph, the selection, any drag. */
 interface GraphState {
   parts: GraphParts;
   nodes: GraphNodeView[];

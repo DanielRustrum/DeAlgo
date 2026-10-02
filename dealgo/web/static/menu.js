@@ -12,6 +12,7 @@
 function menuCheckbox() {
     return document.getElementById("menu-toggle");
 }
+/** The button that opens the menu. */
 function menuButton() {
     return document.querySelector(".menu-button");
 }
@@ -34,6 +35,7 @@ function describeMenu(open) {
 function holdPageStill(open) {
     document.body.classList.toggle("page-held", open);
 }
+/** Open or close the menu, and hold the page still while it is open. */
 function setMenu(open) {
     const checkbox = menuCheckbox();
     if (checkbox)
@@ -41,9 +43,11 @@ function setMenu(open) {
     describeMenu(open);
     holdPageStill(open);
 }
+/** Close the menu. */
 function closeMenu() {
     setMenu(false);
 }
+/** Follow the menu checkbox when it is toggled. */
 function onMenuChange() {
     var _a;
     const checkbox = menuCheckbox();
@@ -73,6 +77,7 @@ function closeOnNavigation() {
             closeMenu();
     });
 }
+/** The menu's entry point: wire up the drawer, Escape, and closing on navigation. */
 function initMenu() {
     const checkbox = menuCheckbox();
     if (!checkbox)

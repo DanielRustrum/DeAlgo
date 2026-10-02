@@ -31,6 +31,10 @@ Then open:
 - Python: a module docstring saying what the module is for and why; docstrings on public functions
   and classes. Markdown works. `#:` comments above attributes become their docs.
 - TypeScript: `/** … */` above functions and interfaces.
+- Every class and function has one. Names starting with `_` are private: the reference leaves them
+  out, but their docstrings are there for whoever reads the source.
+- Inline `#` / `//` comments go above a step whose purpose is not obvious from the code — not on
+  every line.
 - Explain *why*. The *what* is in the signature.
 
 The narrative internals are one level up, in [Internal Documentation](../README.md).

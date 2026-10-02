@@ -20,10 +20,12 @@ interface YouTubePlayer {
   stopVideo(): void;
 }
 
+/** What the player's events carry: its state. */
 interface YouTubePlayerEvent {
   data: number;
 }
 
+/** The events De-Algo listens to on the player. */
 interface YouTubePlayerOptions {
   events: {
     onReady?: () => void;
@@ -32,11 +34,13 @@ interface YouTubePlayerOptions {
   };
 }
 
+/** The part of YouTube's IFrame API De-Algo uses. */
 interface YouTubeApi {
   Player: new (elementId: string, options: YouTubePlayerOptions) => YouTubePlayer;
   PlayerState: { ENDED: number };
 }
 
+/** What the page's scripts find on `window`: htmx, and YouTube's API. */
 interface Window {
   htmx?: Htmx;
   YT?: YouTubeApi;

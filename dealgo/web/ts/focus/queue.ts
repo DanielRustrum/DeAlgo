@@ -2,6 +2,7 @@
 //
 // Part of Focus mode; see main.ts.
 
+/** One row of the up-next list. */
 function buildQueueRow(item: FocusItem): HTMLLIElement {
   const row = document.createElement("li");
   row.dataset["video"] = String(item.id);
@@ -26,6 +27,7 @@ function buildQueueRow(item: FocusItem): HTMLLIElement {
   return row;
 }
 
+/** The line under a queue row's title: source, feed, and length for a video. */
 function queueRowMeta(item: FocusItem): string {
   let line = item.channel;
   if (item.playlist) line += ` · ${item.playlist}`;

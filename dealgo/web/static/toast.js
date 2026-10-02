@@ -36,6 +36,7 @@ function toastMemory() {
         return null;
     }
 }
+/** Whether this toast was dismissed before. */
 function toastWasDismissed(name) {
     var _a;
     try {
@@ -45,6 +46,7 @@ function toastWasDismissed(name) {
         return false;
     }
 }
+/** Remember that this toast was dismissed, so it stays gone. */
 function rememberToastDismissed(name) {
     var _a;
     try {
@@ -59,6 +61,7 @@ function hideToast(toast) {
     toast.classList.add("is-going");
     window.setTimeout(() => toast.remove(), 200);
 }
+/** Add a close button to a toast, once. */
 function giveToastACloseButton(toast) {
     if (toast.querySelector(".toast-close") !== null)
         return;
@@ -102,6 +105,7 @@ function watchForNewToasts() {
     document.body.addEventListener("htmx:afterSwap", () => dressToasts());
     document.body.addEventListener("htmx:oobAfterSwap", () => dressToasts());
 }
+/** Toasts' entry point: dress the ones on the page and any that arrive later. */
 function initToasts() {
     dressToasts();
     watchForNewToasts();

@@ -20,6 +20,7 @@ function rememberSections(open: OpenSections, root: ParentNode): void {
   });
 }
 
+/** Remember whether one section is open. */
 function noteSection(open: OpenSections, details: HTMLDetailsElement): void {
   if (details.open) open.add(details.id);
   else open.delete(details.id);
@@ -38,6 +39,7 @@ function swappedSectionRoot(event: Event): ParentNode {
   return event.target instanceof Element ? event.target : document;
 }
 
+/** Keep collapsible sections open across htmx swaps. */
 function initSections(): void {
   // Scoped to this call rather than to the file: nothing else needs it, and a
   // top-level binding could not survive the script being run twice.

@@ -77,6 +77,7 @@ function isRemoteImage(url: URL): boolean {
   );
 }
 
+/** Whether a URL is one of the app's own static files. */
 function isStaticAsset(url: URL): boolean {
   return url.pathname.startsWith("/static/");
 }
@@ -87,6 +88,7 @@ function isLiveState(url: URL): boolean {
   return url.pathname === "/healthz" || url.pathname.startsWith("/api/");
 }
 
+/** Cache the app shell, file by file, so one missing file does not fail the install. */
 async function precache(): Promise<void> {
   const cache = await caches.open(cacheName());
   // One missing file should not fail the whole install, so they go in
@@ -102,6 +104,7 @@ async function precache(): Promise<void> {
   );
 }
 
+/** Delete caches from earlier versions of the worker. */
 async function dropOldCaches(): Promise<void> {
   const keep = [cacheName(), imageCacheName()];
   const names = await caches.keys();
@@ -163,6 +166,7 @@ async function offlinePageFor(request: Request, cache: Cache): Promise<Response 
   );
 }
 
+/** Text made safe to put inside HTML. */
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -263,6 +267,7 @@ async function freshOrCached(request: Request): Promise<Response> {
   }
 }
 
+/** How to answer a GET: from the network, the cache, or not at all (null). */
 function routeRequest(request: Request): Promise<Response> | null {
   const url = new URL(request.url);
 
@@ -274,16 +279,19 @@ function routeRequest(request: Request): Promise<Response> | null {
   return freshOrCached(request);
 }
 
+/** Install: cache the shell and take over at once. */
 function onInstall(event: ExtendableEvent): void {
   // The new worker takes over at once; caches are versioned, so there is no
   // half-updated state to be careful about.
   event.waitUntil(precache().then((): Promise<void> => worker().skipWaiting()));
 }
 
+/** Activate: drop old caches and take control of open pages. */
 function onActivate(event: ExtendableEvent): void {
   event.waitUntil(dropOldCaches().then((): Promise<void> => worker().clients.claim()));
 }
 
+/** Answer GETs this worker handles; let everything else through untouched. */
 function onFetch(event: FetchEvent): void {
   // Writes are the server's business. Letting them through untouched is what
   // makes them fail honestly when there is no network.
@@ -293,6 +301,7 @@ function onFetch(event: FetchEvent): void {
   if (handled) event.respondWith(handled);
 }
 
+/** The worker's entry point: listen for install, activate and fetch. */
 function listenForWorkerEvents(): void {
   worker().addEventListener("install", onInstall);
   worker().addEventListener("activate", onActivate);

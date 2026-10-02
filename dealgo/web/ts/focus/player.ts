@@ -2,6 +2,7 @@
 //
 // Part of Focus mode; see main.ts.
 
+/** Attach YouTube's player to the existing iframe, once, when the API is here. */
 function buildFocusPlayer(sitting: FocusSitting): void {
   const api = window.YT;
   if (sitting.player || !sitting.elements.frame || !api || !api.Player) return;
@@ -31,18 +32,22 @@ function buildFocusPlayer(sitting: FocusSitting): void {
   });
 }
 
-// Getting hold of the API is the fiddly part, because this page is usually
-// reached through an hx-boost swap rather than a page load:
-//
-//   * a script htmx inserts does not honour `defer`, so load order is not
-//     guaranteed and the API can run before the callback below exists;
-//   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
-//     second visit within the same document it never fires at all.
-//
-// Either way the player would stay null, the queue would stop advancing, and
-// the video on screen would simply keep playing. So: take the API if it is
-// already here, ask to be told if it is not, and poll as well, since neither
-// signal is reliable on its own.
+/**
+ * Attach the player once YouTube's API is here, however it arrives.
+ *
+ * Getting hold of the API is the fiddly part, because this page is usually
+ * reached through an hx-boost swap rather than a page load:
+ *
+ *   * a script htmx inserts does not honour `defer`, so load order is not
+ *     guaranteed and the API can run before the callback below exists;
+ *   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
+ *     second visit within the same document it never fires at all.
+ *
+ * Either way the player would stay null, the queue would stop advancing, and
+ * the video on screen would simply keep playing. So: take the API if it is
+ * already here, ask to be told if it is not, and poll as well, since neither
+ * signal is reliable on its own.
+ */
 function awaitYouTubeApi(sitting: FocusSitting): void {
   if (!sitting.elements.frame) return;
 

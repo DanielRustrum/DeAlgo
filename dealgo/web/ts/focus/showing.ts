@@ -2,11 +2,13 @@
 //
 // Part of Focus mode; see main.ts.
 
+/** The privacy-enhanced embed address for a video, set to autoplay. */
 function focusEmbedUrl(videoId: string): string {
   const origin = encodeURIComponent(window.location.origin);
   return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&rel=0&origin=${origin}`;
 }
 
+/** One picture from a post, linking to itself. */
 function buildFocusTile(url: string): HTMLAnchorElement {
   const link = document.createElement("a");
   link.className = "focus-tile";
@@ -39,6 +41,7 @@ function focusIsTimed(item: FocusItem | null): boolean {
   return item !== null && item.seconds !== null;
 }
 
+/** Show a post: its pictures and words, with its timer if it has one. */
 function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   const elements = sitting.elements;
   elements.tiles.textContent = "";
@@ -56,6 +59,7 @@ function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   else stopFocusTimer(sitting);
 }
 
+/** Show a video in the player, or reload the iframe if the API never came. */
 function showFocusVideo(sitting: FocusSitting, item: FocusItem): void {
   stopFocusTimer(sitting);
   const elements = sitting.elements;
@@ -73,6 +77,7 @@ function showFocusVideo(sitting: FocusSitting, item: FocusItem): void {
   if (elements.frame) elements.frame.src = focusEmbedUrl(item.video_id);
 }
 
+/** Show the next item, of whichever kind, and update the counts and links. */
 function showFocusItem(sitting: FocusSitting, item: FocusItem, remaining: number): void {
   const elements = sitting.elements;
   sitting.current = item;

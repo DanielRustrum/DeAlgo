@@ -27,6 +27,7 @@ function renderGraphFinder(state: GraphState): void {
   }
 }
 
+/** One part of the finder, by selector. */
 function graphFinderPart(state: GraphState, selector: string): HTMLElement | null {
   return (
     state.parts.canvas
@@ -35,6 +36,7 @@ function graphFinderPart(state: GraphState, selector: string): HTMLElement | nul
   );
 }
 
+/** Open or close the finder; opening it closes the palette. */
 function toggleGraphFinder(state: GraphState, open: boolean): void {
   const drawer = graphFinderPart(state, "[data-graph-finder]");
   if (drawer === null) return;
@@ -67,6 +69,7 @@ function centreGraphOn(state: GraphState, node: GraphNodeView): void {
   renderGraph(state);
 }
 
+/** Wire up the finder's toggle and its list of groups. */
 function listenForGraphFinder(state: GraphState, panel: HTMLElement): void {
   panel.querySelector<HTMLElement>("[data-graph-find]")?.addEventListener("click", (): void => {
     const drawer = graphFinderPart(state, "[data-graph-finder]");

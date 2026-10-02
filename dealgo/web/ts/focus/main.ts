@@ -17,6 +17,7 @@
 // on the second visit. Everything a sitting needs to remember therefore lives
 // in one FocusSitting object, passed explicitly rather than captured.
 
+/** Load the first video, with the origin the page is actually served from. */
 function pointFrameAtFirstVideo(sitting: FocusSitting): void {
   const frame = sitting.elements.frame;
   if (!frame) return;
@@ -26,6 +27,7 @@ function pointFrameAtFirstVideo(sitting: FocusSitting): void {
   frame.src = `${source}&origin=${encodeURIComponent(window.location.origin)}`;
 }
 
+/** Wire up Next, Skip and the timer's pause button. */
 function bindFocusControls(sitting: FocusSitting): void {
   sitting.elements.next.addEventListener("click", (): void => advanceFocus(sitting, true));
   sitting.elements.skip.addEventListener("click", (): void => advanceFocus(sitting, false));
@@ -46,6 +48,7 @@ function warnIfPlayerNeverWakes(sitting: FocusSitting): void {
   }, 8000);
 }
 
+/** A fresh sitting on the page, opening on its first item. */
 function newFocusSitting(root: HTMLElement, opening: FocusItem): FocusSitting {
   return {
     elements: collectFocusElements(root),
@@ -65,6 +68,7 @@ function newFocusSitting(root: HTMLElement, opening: FocusItem): FocusSitting {
   };
 }
 
+/** Focus mode's entry point: start a sitting if this is the Focus page and there is a queue. */
 function initFocusMode(): void {
   const root = document.getElementById("focus");
   if (!root) return; // every other page

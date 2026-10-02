@@ -69,6 +69,7 @@ function askHowFarBack(state: GraphState, nodeId: string): void {
   dialog.querySelector<HTMLInputElement>("[data-graph-reach-count]")?.select();
 }
 
+/** The dialog that asks how far back to reach. */
 function graphReachDialog(state: GraphState): HTMLDialogElement | null {
   return (
     state.parts.canvas
@@ -82,6 +83,7 @@ function listenForGraphReach(state: GraphState, panel: HTMLElement): void {
   const dialog = panel.querySelector<HTMLDialogElement>("[data-graph-reach]");
   if (dialog === null) return;
 
+  // Closed by its buttons, or by a click on the backdrop.
   dialog.querySelectorAll<HTMLElement>("[data-graph-reach-close]").forEach((shut): void => {
     shut.addEventListener("click", (): void => dialog.close());
   });
@@ -90,6 +92,7 @@ function listenForGraphReach(state: GraphState, panel: HTMLElement): void {
   });
   dialog.addEventListener("close", (): void => holdPageForGraph(false));
 
+  // Submitted: check the count, then fire the trigger reaching that far back.
   dialog.querySelector<HTMLFormElement>("[data-graph-reach-form]")?.addEventListener(
     "submit",
     (event: SubmitEvent): void => {
@@ -111,6 +114,7 @@ function listenForGraphReach(state: GraphState, panel: HTMLElement): void {
   );
 }
 
+/** Show why reaching back failed, or clear it with null. */
 function graphReachTrouble(dialog: HTMLDialogElement, message: string | null): void {
   const said = dialog.querySelector<HTMLElement>("[data-graph-reach-error]");
   if (said === null) return;
