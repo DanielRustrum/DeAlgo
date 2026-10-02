@@ -198,3 +198,17 @@ def unwire(session, channel):
             session.delete(edge)
     channel.playlists = []
     session.flush()
+
+
+def use_config(monkeypatch, config):
+    """Run the app under another configuration, everywhere it reads one.
+
+    Every module that imported CONFIG holds its own reference to it, so each
+    loaded one is pointed at the new configuration — the web app is many
+    modules, and patching a hand-picked few would leave the rest signed out.
+    """
+    import sys
+
+    for name, module in list(sys.modules.items()):
+        if (name == "dealgo" or name.startswith("dealgo.")) and hasattr(module, "CONFIG"):
+            monkeypatch.setattr(module, "CONFIG", config)

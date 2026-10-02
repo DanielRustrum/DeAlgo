@@ -20,6 +20,8 @@ from sqlalchemy import select
 from dealgo.models import Channel, GraphEdge, GraphNode, Playlist
 from fakes import unwire, wire
 from dealgo.services import graph
+from dealgo.web.routes.canvas import running as canvas_running
+from dealgo.web.routes.canvas import saving as canvas_saving
 
 
 def build(db, channels=("UCone",), feeds=("PLone",)):
@@ -1446,7 +1448,7 @@ def test_pressing_a_pulse_polls_what_it_is_wired_to(canvas, db, monkeypatch):
         def start(self):
             asked["started"] = True
 
-    monkeypatch.setattr(web_app.threading, "Thread", Recorder)
+    monkeypatch.setattr(canvas_running.threading, "Thread", Recorder)
 
     added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
     trigger, source = only(added, "trigger"), only(added, "source")
@@ -2357,7 +2359,7 @@ def test_a_channel_with_nothing_new_leaves_its_feed_alone(world, db):
     from dealgo.web import app as web_app
 
     with db.session_scope() as session:
-        marks = web_app._run_marks(session, state, None)
+        marks = canvas_running._run_marks(session, state, None)
     assert marks[str(source_pk)] == {"state": "done", "count": 0, "stopped": 0, "ends": False, "trouble": None}
     assert str(feed_pk) not in marks
 
@@ -2384,7 +2386,7 @@ def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
 
     state = sync_service.progress()
     with db.session_scope() as session:
-        marks = web_app._run_marks(session, state, None)
+        marks = canvas_running._run_marks(session, state, None)
 
     assert marks[str(source_pk)]["count"] == 0
     assert marks[str(source_pk)]["stopped"] == 1
@@ -2475,7 +2477,7 @@ def test_pressing_a_pulse_tells_the_run_which_box_did_it(canvas, monkeypatch):
         def start(self) -> None:
             pass
 
-    monkeypatch.setattr(web_app.threading, "Thread", Recorder)
+    monkeypatch.setattr(canvas_running.threading, "Thread", Recorder)
 
     added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
     trigger, source = only(added, "trigger"), only(added, "source")
@@ -3832,7 +3834,7 @@ def test_a_channel_nodes_switch_still_pauses_the_channel(db):
     build(db)
     with db.session_scope() as session:
         source = node_for(session, "source", "UCone")
-        web_app._switch(session, source, on=False)
+        canvas_saving._switch(session, source, on=False)
         session.flush()
         assert source.enabled is False
         assert session.scalars(select(ChannelModel)).one().enabled is False

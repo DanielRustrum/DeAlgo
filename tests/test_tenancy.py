@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 import pytest
 
+from fakes import use_config
 from dealgo.models import Base
 
 # The shape De-Algo had before ownership: `video` carrying a table-level
@@ -182,8 +183,7 @@ def two_accounts(db, monkeypatch):
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
     )
-    for module in (config, web_app, accounts_module):
-        monkeypatch.setattr(module, "CONFIG", secured)
+    use_config(monkeypatch, secured)
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
     monkeypatch.setattr(scheduler, "next_run_time", lambda: None)

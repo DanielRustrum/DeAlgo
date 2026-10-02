@@ -739,7 +739,7 @@ def test_the_count_is_rounded_the_way_a_countdown_reads(client, db):
     nobody asked for."""
     import datetime as dt
 
-    from dealgo.web.app import _until
+    from dealgo.web.templates import until as _until
 
     now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     said = {

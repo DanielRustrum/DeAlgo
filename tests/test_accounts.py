@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from fakes import use_config
 from dealgo.services import accounts
 from dealgo.web import guard
 
@@ -28,8 +29,7 @@ def secured(db, monkeypatch):
     secured_config = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
     )
-    for module in (config, web_app, accounts_module):
-        monkeypatch.setattr(module, "CONFIG", secured_config)
+    use_config(monkeypatch, secured_config)
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)

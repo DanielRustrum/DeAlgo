@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from dealgo.db import get_settings
 from dealgo.models import Channel, Placement, Playlist, SyncRun, Video
+from dealgo.web import contexts as web_contexts
 from fakes import unwire, wire
 
 HX = {"HX-Request": "true"}
@@ -279,8 +280,8 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
             calls.append(1)
             return []
 
-    monkeypatch.setattr(web_app, "build_client", lambda session, http, owner=None: FakeClient())
-    web_app._forget_account_playlists()
+    monkeypatch.setattr(web_contexts, "build_client", lambda session, http, owner=None: FakeClient())
+    web_contexts.forget_account_playlists()
 
     client.get("/channels")
     client.get("/channels")
@@ -288,7 +289,7 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
     assert len(calls) == 1
 
     # Adding a target must not leave a stale list behind.
-    web_app._forget_account_playlists()
+    web_contexts.forget_account_playlists()
     client.get("/channels")
     assert len(calls) == 2
 

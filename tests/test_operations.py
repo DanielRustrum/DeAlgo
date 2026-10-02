@@ -196,7 +196,7 @@ def test_the_shorter_of_two_decays_wins(world, db):
 def test_what_a_decay_box_said_reaches_the_page(world, db):
     """Focus reads it off the queue it is handed, so that is where it has
     to be for the countdown to know about it at all."""
-    from dealgo.web.app import _focus_item
+    from dealgo.web.routes.focus import _focus_item
 
     wire(db, decay(minutes=2, lock=True))
     uploads(world, 1)
