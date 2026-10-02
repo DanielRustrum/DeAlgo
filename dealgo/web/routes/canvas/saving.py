@@ -83,15 +83,9 @@ async def graph_save_node(
         if node is None:
             return JSONResponse({"error": "That node is not here."}, status_code=404)
 
-        if node.kind == "source" and source_pk.strip().isdigit():
-            # Pointed at something already watched, rather than told again.
-            answer = _attach_watched(session, node, int(source_pk), owner)
-            if answer is not None:
-                return answer
-        elif node.kind == "source" and handle.strip():
-            answer = _attach_channel(session, node, handle.strip(), backfill, owner)
-            if answer is not None:
-                return answer
+        answer = _point_source(session, node, source_pk, handle, backfill, owner)
+        if answer is not None:
+            return answer
 
         graph_service.rename(session, node.id, label, owner)
 
@@ -127,38 +121,14 @@ async def graph_save_node(
             if orders(node):
                 node.sort_dir = "asc" if sort_dir == "asc" else "desc"
         elif node.kind in graph_service.AUGMENTATIONS:
-            if node.kind == "alive":
-                begins = graph_service.clock_time(alive_from)
-                ends = graph_service.clock_time(alive_to)
-                if (alive_from.strip() and not begins) or (alive_to.strip() and not ends):
-                    return JSONResponse(
-                        {"error": "Write the times as HH:MM, on a 24-hour clock."},
-                        status_code=400,
-                    )
-                node.alive_from, node.alive_to = begins or None, ends or None
-            elif node.kind == "timer":
-                wanted = duration_minutes.strip()
-                node.duration_minutes = (
-                    graph_service.every_minutes_from(int(wanted), every_unit or "minutes")
-                    if wanted.isdigit() and int(wanted) > 0
-                    else None
-                )
-            else:
-                try:
-                    graph_service.cron_trigger(cron.strip() or graph_service.DEFAULT_CRON)
-                except graph_service.GraphError as exc:
-                    return JSONResponse({"error": str(exc)}, status_code=400)
-                node.cron = cron.strip() or graph_service.DEFAULT_CRON
+            answer = _save_piece(
+                node, alive_from=alive_from, alive_to=alive_to,
+                duration_minutes=duration_minutes, every_unit=every_unit, cron=cron,
+            )
+            if answer is not None:
+                return answer
         elif node.kind in ("deposit", "withdraw"):
-            # The name is what joins the two ends. Filed the way the walk
-            # files it, so a name typed two ways is still one repository.
-            node.repository = graph_service.store_name(repository) or None
-            if node.kind == "withdraw":
-                wanted = takes_how_many.strip()
-                # Empty, or nothing that reads as a number, means everything
-                # waiting — which is what the field says it means and the
-                # least surprising answer to an unreadable one.
-                node.takes = int(wanted) if wanted.isdigit() and int(wanted) > 0 else None
+            _save_store(node, repository=repository, takes_how_many=takes_how_many)
         elif node.kind == "trigger":
             answer = _save_trigger(node, every_minutes, every_unit, cron, duration_minutes)
             if answer is not None:
@@ -166,6 +136,68 @@ async def graph_save_node(
 
         session.flush()
         return JSONResponse(graph_payload(session, owner))
+
+
+def _point_source(
+    session: Session, node: GraphNode, source_pk: str, handle: str, backfill: str, owner: OwnerId
+) -> JSONResponse | None:
+    """Point a source box at a source: one already watched, or a new one typed in."""
+    if node.kind != "source":
+        return None
+    if source_pk.strip().isdigit():
+        # Pointed at something already watched, rather than told again.
+        return _attach_watched(session, node, int(source_pk), owner)
+    if handle.strip():
+        return _attach_channel(session, node, handle.strip(), backfill, owner)
+    return None
+
+
+def _save_piece(
+    node: GraphNode,
+    *,
+    alive_from: str,
+    alive_to: str,
+    duration_minutes: str,
+    every_unit: str,
+    cron: str,
+) -> JSONResponse | None:
+    """An Alive's hours, a Timer's length, or a Reset's schedule."""
+    if node.kind == "alive":
+        begins = graph_service.clock_time(alive_from)
+        ends = graph_service.clock_time(alive_to)
+        if (alive_from.strip() and not begins) or (alive_to.strip() and not ends):
+            return JSONResponse(
+                {"error": "Write the times as HH:MM, on a 24-hour clock."},
+                status_code=400,
+            )
+        node.alive_from, node.alive_to = begins or None, ends or None
+    elif node.kind == "timer":
+        wanted = duration_minutes.strip()
+        node.duration_minutes = (
+            graph_service.every_minutes_from(int(wanted), every_unit or "minutes")
+            if wanted.isdigit() and int(wanted) > 0
+            else None
+        )
+    else:
+        try:
+            graph_service.cron_trigger(cron.strip() or graph_service.DEFAULT_CRON)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        node.cron = cron.strip() or graph_service.DEFAULT_CRON
+    return None
+
+
+def _save_store(node: GraphNode, *, repository: str, takes_how_many: str) -> None:
+    """Which repository a Deposit or Withdraw box is an end of, and how much a pull takes."""
+    # The name is what joins the two ends. Filed the way the walk files it,
+    # so a name typed two ways is still one repository.
+    node.repository = graph_service.store_name(repository) or None
+    if node.kind == "withdraw":
+        wanted = takes_how_many.strip()
+        # Empty, or nothing that reads as a number, means everything waiting
+        # — which is what the field says it means and the least surprising
+        # answer to an unreadable one.
+        node.takes = int(wanted) if wanted.isdigit() and int(wanted) > 0 else None
 
 
 def _attach_channel(
