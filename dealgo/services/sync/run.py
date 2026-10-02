@@ -14,10 +14,11 @@ from ...db import get_settings, session_scope
 from ...models import (
     Channel,
     Playlist,
+    Settings,
     SyncRun,
     utcnow,
 )
-from ...plugins.publisher import cost_of
+from ...plugins.publisher import Publisher, cost_of
 from .. import quota, runlog
 from ..auth import build_client
 from ..scope import OwnerId, owned
@@ -172,8 +173,43 @@ def _run(
     session.commit()
     note(stage="filling")
     pen.at("filling")
-    pen.at("filling")
+    _fill(session, client, settings, result, owner, pen, sources)
+    _keep_feeds_current(session, client, result, owner, pen, withdrawals)
+    session.commit()
 
+    note(stage="done", finished=True, channel_pk=None)
+    pen.at("done")
+    pen.write(
+        f"Finished: looked at {result.channels_checked}, found {result.discovered}, "
+        f"added {result.added}, held back {result.skipped}, failed {result.failed}."
+    )
+    runlog.prune(session, owner)
+    _record(run, result, quota_spent=max(0, quota.state(session, owner).used - quota_before))
+    session.commit()
+
+    log.info(
+        "sync (%s): %d channels (%d waiting), %d new, %d added, %d skipped, %d failed",
+        trigger,
+        result.channels_checked,
+        result.channels_waiting,
+        result.discovered,
+        result.added,
+        result.skipped,
+        result.failed,
+    )
+    return result
+
+
+def _fill(
+    session: Session,
+    client: Publisher,
+    settings: Settings,
+    result: SyncResult,
+    owner: OwnerId,
+    pen: runlog.Pen,
+    sources: Collection[int] | None,
+) -> None:
+    """File what is waiting into the feeds — as much of it as can be, today."""
     playlists = list(
         session.scalars(
             owned(select(Playlist), Playlist, owner)
@@ -212,6 +248,16 @@ def _run(
         session.commit()
         prune(session, client, playlists, result, owner)
 
+
+def _keep_feeds_current(
+    session: Session,
+    client: Publisher,
+    result: SyncResult,
+    owner: OwnerId,
+    pen: runlog.Pen,
+    withdrawals: Collection[int] | None,
+) -> None:
+    """What has had its time goes; what a repository is due to release comes out."""
     # An Expire box wired up says something about the feed, not only about
     # what turns up next, so anything already in one gets its end worked out
     # before the sweep rather than waiting to be read first.
@@ -231,15 +277,10 @@ def _run(
         session, result, owner, pen=pen,
         only=frozenset(withdrawals) if withdrawals is not None else None,
     )
-    session.commit()
 
-    note(stage="done", finished=True, channel_pk=None)
-    pen.at("done")
-    pen.write(
-        f"Finished: looked at {result.channels_checked}, found {result.discovered}, "
-        f"added {result.added}, held back {result.skipped}, failed {result.failed}."
-    )
-    runlog.prune(session, owner)
+
+def _record(run: SyncRun, result: SyncResult, *, quota_spent: int) -> None:
+    """Write what the run came to onto its row, and onto the result."""
     run.finished_at = utcnow()
     run.ok = result.failed == 0 and all("failed" not in m.lower() for m in result.messages)
     run.channels_checked = result.channels_checked
@@ -248,21 +289,8 @@ def _run(
     run.skipped = result.skipped
     run.failed = result.failed
     run.pruned = result.pruned
-    run.quota_spent = max(0, quota.state(session, owner).used - quota_before)
+    run.quota_spent = quota_spent
     run.stopped_on_quota = result.stopped_on_quota
     result.quota_spent = run.quota_spent
     run.message = result.message or None
     result.ok = run.ok
-    session.commit()
-
-    log.info(
-        "sync (%s): %d channels (%d waiting), %d new, %d added, %d skipped, %d failed",
-        trigger,
-        result.channels_checked,
-        result.channels_waiting,
-        result.discovered,
-        result.added,
-        result.skipped,
-        result.failed,
-    )
-    return result
