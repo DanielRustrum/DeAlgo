@@ -25,17 +25,16 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ...services.scope import OwnerId
 from .owner import whose
+from .site_queries import feeds_of, pause_source, sources_of, watch_source
 
 log = logging.getLogger(__name__)
+
 
 #: Most rows one call may hand back. A plugin wanting the shape of a setup
 #: needs tens; a plugin wanting thousands is reading a database it was given
 #: no permission to read.
 MOST_ROWS = 500
-
-
 
 
 class Site:
@@ -120,14 +119,14 @@ class Site:
         """
         if not self._may("read", self._reading):
             return self._empty()
-        rows = self._look(lambda session, owner: _sources(session, owner))
+        rows = self._look(sources_of)
         return self._rows(rows)
 
     def feeds(self) -> Any:
         """The feeds this account keeps, and how much is in each."""
         if not self._may("read", self._reading):
             return self._empty()
-        rows = self._look(lambda session, owner: _feeds(session, owner))
+        rows = self._look(feeds_of)
         return self._rows(rows)
 
     # -- changing ----------------------------------------------------------
@@ -137,7 +136,7 @@ class Site:
         if not self._may("manage", self._managing):
             return False
         wanted = on is not False
-        return bool(self._change(lambda s, o: _pause(s, o, str(key or ""), wanted)))
+        return bool(self._change(lambda s, o: pause_source(s, o, str(key or ""), wanted)))
 
     def watch(self, reference: object) -> Any:
         """Start watching somewhere, the way the Sources page would.
@@ -149,7 +148,7 @@ class Site:
         """
         if not self._may("manage", self._managing):
             return None
-        return self._change(lambda s, o: _watch(s, o, str(reference or "")))
+        return self._change(lambda s, o: watch_source(s, o, str(reference or "")))
 
     # -- the plumbing ------------------------------------------------------
 
@@ -212,71 +211,3 @@ def _known_names() -> frozenset[str]:
     from .. import permissions
 
     return frozenset(permissions.BY_NAME)
-
-
-# -- what each question actually asks --------------------------------------
-
-
-def _sources(session: Any, owner: OwnerId) -> list[dict[str, object]]:
-    from ...services import channels as channel_service
-
-    return [
-        {
-            "key": channel.channel_id,
-            "title": channel.title or channel.channel_id,
-            "kind": channel.source_kind,
-            "enabled": channel.enabled,
-        }
-        for channel in channel_service.list_channels(session, owner)
-    ]
-
-
-def _feeds(session: Any, owner: OwnerId) -> list[dict[str, object]]:
-    from ...services import playlists as playlist_service
-
-    return [
-        {
-            "title": playlist.title,
-            "generic": playlist.is_generic,
-            "enabled": playlist.enabled,
-            "sources": len(playlist.channels),
-        }
-        for playlist in playlist_service.list_playlists(session, owner)
-    ]
-
-
-def _find(session: Any, owner: OwnerId, key: str) -> Any:
-    from sqlalchemy import select
-
-    from ...models import Channel
-    from ...services.scope import owned
-
-    if not key:
-        return None
-    return session.scalar(
-        owned(select(Channel), Channel, owner).where(Channel.channel_id == key)
-    )
-
-
-def _pause(session: Any, owner: OwnerId, key: str, on: bool) -> bool:
-    channel = _find(session, owner, key)
-    if channel is None:
-        return False
-    channel.enabled = on
-    session.flush()
-    return True
-
-
-def _watch(session: Any, owner: OwnerId, reference: str) -> str | None:
-    from ...services import channels as channel_service
-    from ...services import sync as sync_service
-
-    if not reference:
-        return None
-    with sync_service.http_client() as http:
-        try:
-            channel = channel_service.add_source(session, reference, http, owner=owner)
-        except channel_service.ChannelError as exc:
-            log.info("a plugin could not watch %r: %s", reference, exc)
-            return None
-    return channel.channel_id

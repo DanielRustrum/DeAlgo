@@ -3713,7 +3713,7 @@ def plugins_page(request: Request) -> HTMLResponse:
 def _plugins_view(request: Request, pending: Context | None = None) -> HTMLResponse:
     """The page, optionally with a plugin waiting to be agreed to."""
     found = registry.current()
-    mine = registry.folder()
+    mine = registry.storage.folder()
     leaning = _sources_per_kind()
     came_from = registry.origins()
     return render(

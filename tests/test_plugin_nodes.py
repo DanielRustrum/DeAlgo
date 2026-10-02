@@ -66,7 +66,7 @@ def a_known_registry():
 def here(tmp_path, monkeypatch):
     folder = tmp_path / "plugins"
     folder.mkdir()
-    monkeypatch.setattr(registry, "folder", lambda: folder)
+    monkeypatch.setattr(registry.storage, "folder", lambda: folder)
     registry.reload()
     return folder
 
@@ -146,7 +146,7 @@ def test_a_plugin_with_no_boxes_is_not_mentioned(canvas, here):
 
 
 def test_with_no_plugin_offering_a_box_there_is_no_plugins_fold(canvas, here, monkeypatch):
-    monkeypatch.setattr(registry, "shipped", lambda: here)   # nothing shipped either
+    monkeypatch.setattr(registry.storage, "shipped", lambda: here)   # nothing shipped either
     registry.reload()
 
     body = canvas.get("/channels").text

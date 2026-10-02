@@ -29,7 +29,7 @@ def here(tmp_path, monkeypatch):
     """A plugins folder of its own, so a test never writes into the real one."""
     folder = tmp_path / "plugins"
     folder.mkdir()
-    monkeypatch.setattr(registry, "folder", lambda: folder)
+    monkeypatch.setattr(registry.storage, "folder", lambda: folder)
     registry.reload()
     yield folder
     registry.reload()
