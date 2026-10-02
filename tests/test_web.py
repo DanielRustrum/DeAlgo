@@ -465,7 +465,7 @@ def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, m
             made["title"], made["privacy"] = title, privacy
             return PlaylistInfo(playlist_id="PL_new", title=title, item_count=0, privacy_status=privacy)
 
-    monkeypatch.setattr(playlist_service, "build_client", lambda session, http, owner=None: FakeClient())
+    monkeypatch.setattr(playlist_service.creating, "build_client", lambda session, http, owner=None: FakeClient())
 
     with db.session_scope() as session:
         session.get(Channel, 1).playlists = []  # unlinked, so it is paused

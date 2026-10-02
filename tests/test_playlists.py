@@ -233,7 +233,7 @@ def test_renaming_a_feed_renames_the_playlist_too(world, db, monkeypatch):
             renamed[playlist_id] = title
 
     client = Renaming()
-    monkeypatch.setattr(playlist_service, "build_client", lambda session, http, owner=None: client)
+    monkeypatch.setattr(playlist_service.editing, "build_client", lambda session, http, owner=None: client)
 
     with db.session_scope() as session, httpx.Client() as http:
         feed = session.scalar(select(Playlist))
@@ -255,7 +255,7 @@ def test_a_rename_youtube_refuses_still_lands_locally(world, db, monkeypatch):
         def rename_playlist(self, playlist_id, title):
             raise PublishError("nope", status=403, reason="forbidden")
 
-    monkeypatch.setattr(playlist_service, "build_client", lambda session, http, owner=None: Refusing())
+    monkeypatch.setattr(playlist_service.editing, "build_client", lambda session, http, owner=None: Refusing())
 
     with db.session_scope() as session, httpx.Client() as http:
         feed = session.scalar(select(Playlist))

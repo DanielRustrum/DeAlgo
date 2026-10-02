@@ -167,18 +167,13 @@ def test_the_environment_wins_back_a_changed_admin_password(secured, db):
         assert accounts.verify_password(ADMIN[1], admin.password_hash)
 
 
-def test_a_former_admin_loses_the_powers(secured, db):
+def test_a_former_admin_loses_the_powers(secured, db, monkeypatch):
     """Point the variable at a different name and the old one is a member."""
     from dealgo import config
-    from dealgo.services import accounts as accounts_module
 
     with db.session_scope() as session:
-        moved = config.Config(**{**accounts_module.CONFIG.__dict__, "admin_user": "someone-else"})
-        accounts_module.CONFIG = moved
-        try:
-            accounts.ensure_admin(session)
-        finally:
-            accounts_module.CONFIG = config.CONFIG
+        use_config(monkeypatch, config.Config(**{**config.CONFIG.__dict__, "admin_user": "someone-else"}))
+        accounts.ensure_admin(session)
 
         assert accounts.find(session, ADMIN[0]).is_admin is False
         assert accounts.find(session, "someone-else").is_admin is True

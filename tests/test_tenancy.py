@@ -377,7 +377,7 @@ def test_turning_sign_in_on_hands_the_existing_setup_to_the_admin(db, monkeypatc
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": "admin", "admin_password": "admin"}
     )
-    monkeypatch.setattr(accounts_module, "CONFIG", secured)
+    use_config(monkeypatch, secured)
 
     with db.session_scope() as session:
         admin = accounts.ensure_admin(session)
@@ -402,7 +402,7 @@ def test_adoption_leaves_other_accounts_alone(db, monkeypatch):
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": "admin", "admin_password": "admin"}
     )
-    monkeypatch.setattr(accounts_module, "CONFIG", secured)
+    use_config(monkeypatch, secured)
 
     with db.session_scope() as session:
         accounts.ensure_admin(session)
