@@ -469,15 +469,20 @@ def test_the_old_theater_address_still_works(client, db):
 
 
 # These read the TypeScript, not the compiled JavaScript: the source is what
-# anyone edits, and the compiler decides how the output reads.
-FOCUS_TS = pathlib.Path("dealgo/web/ts/focus.ts")
+# anyone edits, and the compiler decides how the output reads. Focus mode is a
+# folder of parts, read here as the one script they are joined into.
+FOCUS_PARTS = pathlib.Path("dealgo/web/ts/focus")
+
+
+def focus_source() -> str:
+    return "\n".join(part.read_text() for part in sorted(FOCUS_PARTS.glob("*.ts")))
 
 
 def test_advancing_works_without_the_iframe_api():
     """The reported failure: the button posted, the title changed, and the
     video carried on playing, because the player was never attached and
     loadVideoById had nothing to call. Advancing must not depend on it."""
-    body = FOCUS_TS.read_text().split("function showFocusVideo", 1)[1].split("\n}", 1)[0]
+    body = focus_source().split("function showFocusVideo", 1)[1].split("\n}", 1)[0]
 
     # With no player, the iframe itself is pointed at the next video.
     assert "elements.frame.src = focusEmbedUrl(item.video_id)" in body
@@ -486,7 +491,7 @@ def test_advancing_works_without_the_iframe_api():
 def test_the_player_is_built_however_the_api_turns_up():
     """YT calls onYouTubeIframeAPIReady once per document, so a second boosted
     visit never gets that callback at all."""
-    script = FOCUS_TS.read_text()
+    script = focus_source()
 
     assert "function buildFocusPlayer" in script
     assert "if (sitting.player || !sitting.elements.frame || !api || !api.Player) return;" in script
