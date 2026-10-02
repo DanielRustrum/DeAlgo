@@ -168,17 +168,11 @@ def discover(
     reach_back: int | None = None,
     pen: runlog.Pen | None = None,
 ) -> None:
+    """Poll every source that is due, and keep what is new in each."""
     say = pen or runlog.Quiet()
-    channels = list(
-        session.scalars(
-            owned(select(Channel), Channel, owner)
-            .where(Channel.enabled.is_(True))
-            .order_by(Channel.priority, Channel.id)
-        )
-    )
     plan = graph.polling_plan(session, owner)
     now = utcnow()
-    for channel in channels:
+    for channel in _enabled(session, owner):
         if only is not None and channel.id not in only:
             continue
         if not force and not _channel_due(channel, plan, now):
@@ -194,131 +188,188 @@ def discover(
             )
             continue
         note(channel_pk=channel.id)
-        try:
-            feed = _poll(channel, http)
-        except patience.RateLimited as held:
-            # Not an error and not a failure: a host asked us to wait and we
-            # did. Said out loud, because a source that quietly does nothing
-            # for a minute is indistinguishable from one that is broken.
-            why = f"waiting {round(held.seconds)}s — {held.host} limits how often it is asked"
-            # On the channel too, so its page answers "why is this quiet?".
-            # Cleared by the next poll that gets through, like any other.
-            channel.last_error = why
-            result.messages.append(f"{channel.title}: {why}.")
-            note_unreachable(channel.id, why)
-            say.warn(why, about=channel.title)
+        feed = _read_or_say_why(channel, http, result, say)
+        if feed is None:
             continue
-        except httpx.HTTPError as exc:
-            why = _why_unreachable(exc)
-            channel.last_error = f"{why}: {exc}"
-            result.messages.append(f"{channel.title}: {why}.")
-            note_unreachable(channel.id, why)
-            say.bad(f"{why} ({channel.feed_url})", about=channel.title)
-            log.warning("feed fetch failed for %s: %s", channel.channel_id, exc)
-            continue
-        except Exception as exc:  # malformed XML, etc.
-            channel.last_error = f"feed unreadable: {exc}"
-            result.messages.append(f"{channel.title}: feed unreadable.")
-            note_unreachable(channel.id, "feed unreadable")
-            say.bad(f"what came back was not a feed: {exc}", about=channel.title)
-            log.warning("feed parse failed for %s: %s", channel.channel_id, exc)
-            continue
+        _take_in(
+            session, channel, feed, result, say,
+            owner=owner, backfill=backfill, reach_back=reach_back, now=now,
+        )
 
-        if reach_back is not None:
-            # What was passed over as too old is exactly what is being asked
-            # for, so that many of them come back.
-            revived = _unignore(session, channel, owner, limit=reach_back)
-            result.discovered += revived
-            if revived:
-                say.write(
-                    f"brought back {revived} that an earlier run thought too old",
-                    about=channel.title,
-                )
 
-        first_check = channel.last_checked_at is None
-        # The rows themselves rather than their ids: an entry we have seen
-        # before may still be carrying something we did not know how to read
-        # when we first stored it.
-        already = {
-            video.video_id: video
-            for video in session.scalars(
-                owned(select(Video), Video, owner).where(
-                    Video.video_id.in_([e.id for e in feed.entries] or [""])
-                )
+def _enabled(session: Session, owner: OwnerId) -> list[Channel]:
+    return list(
+        session.scalars(
+            owned(select(Channel), Channel, owner)
+            .where(Channel.enabled.is_(True))
+            .order_by(Channel.priority, Channel.id)
+        )
+    )
+
+
+def _read_or_say_why(
+    channel: Channel, http: httpx.Client, result: SyncResult, say: runlog.Pen | runlog.Quiet
+) -> items.Batch | None:
+    """The source's feed, or nothing — with why said on the source and in the log."""
+    try:
+        return _poll(channel, http)
+    except patience.RateLimited as held:
+        # Not an error and not a failure: a host asked us to wait and we
+        # did. Said out loud, because a source that quietly does nothing
+        # for a minute is indistinguishable from one that is broken.
+        why = f"waiting {round(held.seconds)}s — {held.host} limits how often it is asked"
+        # On the channel too, so its page answers "why is this quiet?".
+        # Cleared by the next poll that gets through, like any other.
+        channel.last_error = why
+        result.messages.append(f"{channel.title}: {why}.")
+        note_unreachable(channel.id, why)
+        say.warn(why, about=channel.title)
+    except httpx.HTTPError as exc:
+        why = _why_unreachable(exc)
+        channel.last_error = f"{why}: {exc}"
+        result.messages.append(f"{channel.title}: {why}.")
+        note_unreachable(channel.id, why)
+        say.bad(f"{why} ({channel.feed_url})", about=channel.title)
+        log.warning("feed fetch failed for %s: %s", channel.channel_id, exc)
+    except Exception as exc:  # malformed XML, etc.
+        channel.last_error = f"feed unreadable: {exc}"
+        result.messages.append(f"{channel.title}: feed unreadable.")
+        note_unreachable(channel.id, "feed unreadable")
+        say.bad(f"what came back was not a feed: {exc}", about=channel.title)
+        log.warning("feed parse failed for %s: %s", channel.channel_id, exc)
+    return None
+
+
+def _take_in(
+    session: Session,
+    channel: Channel,
+    feed: items.Batch,
+    result: SyncResult,
+    say: runlog.Pen | runlog.Quiet,
+    *,
+    owner: OwnerId,
+    backfill: int,
+    reach_back: int | None,
+    now: dt.datetime,
+) -> None:
+    """Everything one feed's reading leads to, and the source marked as checked."""
+    if reach_back is not None:
+        # What was passed over as too old is exactly what is being asked
+        # for, so that many of them come back.
+        revived = _unignore(session, channel, owner, limit=reach_back)
+        result.discovered += revived
+        if revived:
+            say.write(
+                f"brought back {revived} that an earlier run thought too old",
+                about=channel.title,
             )
-        }
 
+    first_check = channel.last_checked_at is None
+    cutoff = None
+    if reach_back is not None:
+        # Age stops deciding: how many were asked for is what decides.
+        first_check = True
+        backfill = reach_back or len(feed.entries)
+    elif first_check and channel.backfill_days is not None:
         # A channel can ask for a window of history instead of a count. The
         # feed only lists the newest ~15 uploads either way, so a long window
         # reaches as far as that and no further.
-        cutoff = None
-        if reach_back is not None:
-            # Age stops deciding: how many were asked for is what decides.
-            first_check = True
-            backfill = reach_back or len(feed.entries)
-        elif first_check and channel.backfill_days is not None:
-            cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
+        cutoff = now - dt.timedelta(days=max(0, channel.backfill_days))
 
-        found = 0
-        filled = 0
-        for index, entry in enumerate(feed.entries):
-            seen = already.get(entry.id)
-            if seen is not None:
-                filled += _freshen(seen, entry)
-                continue
-            if cutoff is not None:
-                published = to_naive_utc(entry.published_at)
-                beyond_backfill = published is None or published < cutoff
-            else:
-                beyond_backfill = first_check and index >= max(0, backfill)
-            session.add(
-                Video(
-                    owner_pk=owner,
-                    video_id=entry.id,
-                    channel_pk=channel.id,
-                    title=entry.title,
-                    published_at=to_naive_utc(entry.published_at),
-                    thumbnail_url=entry.thumbnail_url,
-                    is_short=entry.is_short,
-                    kind=entry.kind,
-                    link=entry.link,
-                    body=entry.summary,
-                    images=json.dumps(list(entry.images)) if entry.images else None,
-                    status="ignored" if beyond_backfill else "pending",
-                    reason=TOO_OLD if beyond_backfill else None,
-                    processed_at=utcnow() if beyond_backfill else None,
-                )
-            )
-            if not beyond_backfill:
-                result.discovered += 1
-                found += 1
+    found, filled = _keep_what_is_new(
+        session, channel, feed, owner,
+        first_check=first_check, backfill=backfill, cutoff=cutoff,
+    )
+    result.discovered += found
 
-        # Some sources keep things their feed does not carry — YouTube's
-        # community posts are the one shipped example. Whether this is such
-        # a source is the plugin's to say, not a name checked here.
-        if not channel.skip_posts and registry.current().has_extras(channel.source_kind):
-            discover_posts(
-                session, channel, result,
-                first_check=first_check, backfill=backfill, owner=owner,
-            )
-
-        if filled:
-            say.write(
-                f"filled in a picture for {filled} already here", about=channel.title
-            )
-        if not channel.title and feed.title:
-            channel.title = feed.title
-        say.write(
-            f"read {len(feed.entries)} from the feed; {found} of them new"
-            if found
-            else f"read {len(feed.entries)} from the feed; nothing new",
-            about=channel.title,
+    # Some sources keep things their feed does not carry — YouTube's
+    # community posts are the one shipped example. Whether this is such
+    # a source is the plugin's to say, not a name checked here.
+    if not channel.skip_posts and registry.current().has_extras(channel.source_kind):
+        discover_posts(
+            session, channel, result,
+            first_check=first_check, backfill=backfill, owner=owner,
         )
-        channel.last_checked_at = utcnow()
-        channel.last_error = None
-        result.channels_checked += 1
-        note_polled(channel.id, found)
-        session.flush()
+
+    if filled:
+        say.write(
+            f"filled in a picture for {filled} already here", about=channel.title
+        )
+    if not channel.title and feed.title:
+        channel.title = feed.title
+    say.write(
+        f"read {len(feed.entries)} from the feed; {found} of them new"
+        if found
+        else f"read {len(feed.entries)} from the feed; nothing new",
+        about=channel.title,
+    )
+    channel.last_checked_at = utcnow()
+    channel.last_error = None
+    result.channels_checked += 1
+    note_polled(channel.id, found)
+    session.flush()
+
+
+def _keep_what_is_new(
+    session: Session,
+    channel: Channel,
+    feed: items.Batch,
+    owner: OwnerId,
+    *,
+    first_check: bool,
+    backfill: int,
+    cutoff: dt.datetime | None,
+) -> tuple[int, int]:
+    """Store each entry not seen before; refresh the ones that were.
+
+    Returns how many were new and inside the backfill, and how many already
+    here had something filled in.
+    """
+    # The rows themselves rather than their ids: an entry we have seen
+    # before may still be carrying something we did not know how to read
+    # when we first stored it.
+    already = {
+        video.video_id: video
+        for video in session.scalars(
+            owned(select(Video), Video, owner).where(
+                Video.video_id.in_([e.id for e in feed.entries] or [""])
+            )
+        )
+    }
+
+    found = 0
+    filled = 0
+    for index, entry in enumerate(feed.entries):
+        seen = already.get(entry.id)
+        if seen is not None:
+            filled += _freshen(seen, entry)
+            continue
+        if cutoff is not None:
+            published = to_naive_utc(entry.published_at)
+            beyond_backfill = published is None or published < cutoff
+        else:
+            beyond_backfill = first_check and index >= max(0, backfill)
+        session.add(
+            Video(
+                owner_pk=owner,
+                video_id=entry.id,
+                channel_pk=channel.id,
+                title=entry.title,
+                published_at=to_naive_utc(entry.published_at),
+                thumbnail_url=entry.thumbnail_url,
+                is_short=entry.is_short,
+                kind=entry.kind,
+                link=entry.link,
+                body=entry.summary,
+                images=json.dumps(list(entry.images)) if entry.images else None,
+                status="ignored" if beyond_backfill else "pending",
+                reason=TOO_OLD if beyond_backfill else None,
+                processed_at=utcnow() if beyond_backfill else None,
+            )
+        )
+        if not beyond_backfill:
+            found += 1
+    return found, filled
 
 
 def _why_unreachable(exc: httpx.HTTPError) -> str:
