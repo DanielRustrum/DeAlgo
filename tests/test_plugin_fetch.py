@@ -292,7 +292,7 @@ def test_only_what_a_plugin_is_made_of_is_kept():
 
 
 def test_an_archive_that_is_too_big_to_download_is_stopped_partway(monkeypatch):
-    monkeypatch.setattr(fetching, "MOST_ARCHIVE_BYTES", 64)
+    monkeypatch.setattr(fetching.download, "MOST_ARCHIVE_BYTES", 64)
     host = Host({
         "https://codeload.github.com/one/two/tar.gz/main": tarball(
             {"plugin.lua": GOOD, "big.md": "x" * 100_000}
@@ -308,7 +308,7 @@ def test_an_archive_that_is_too_big_to_download_is_stopped_partway(monkeypatch):
 def test_an_archive_that_unpacks_to_far_more_than_it_downloads_is_refused(monkeypatch):
     """Compressing well is not the same as being small, and reading it into
     memory is how that becomes our problem."""
-    monkeypatch.setattr(fetching, "MOST_UNPACKED_BYTES", 1024)
+    monkeypatch.setattr(fetching.archive, "MOST_UNPACKED_BYTES", 1024)
     host = Host({
         "https://codeload.github.com/one/two/tar.gz/main": tarball(
             {"plugin.lua": GOOD, "big.md": "x" * 500_000}
@@ -322,7 +322,7 @@ def test_an_archive_that_unpacks_to_far_more_than_it_downloads_is_refused(monkey
 
 
 def test_a_repository_with_far_too_many_files_is_refused(monkeypatch):
-    monkeypatch.setattr(fetching, "MOST_FILES", 5)
+    monkeypatch.setattr(fetching.archive, "MOST_FILES", 5)
     host = Host({
         "https://codeload.github.com/one/two/tar.gz/main": tarball(
             {"plugin.lua": GOOD, **{f"f{n}.md": "x" for n in range(20)}}
