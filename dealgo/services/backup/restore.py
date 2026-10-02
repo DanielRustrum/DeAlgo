@@ -58,6 +58,16 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
     rather than replacing it — and the OAuth grant is never touched, because a
     backup never carries one.
     """
+    _check(payload)
+    summary = RestoreSummary()
+    _restore_settings(session, payload)
+    playlists = _restore_feeds(session, payload, owner, summary)
+    channels = _restore_channels(session, payload, owner, playlists, summary)
+    _restore_videos(session, payload, owner, channels, playlists, summary)
+    return summary
+
+
+def _check(payload: Any) -> None:
     if not isinstance(payload, dict) or "de_algo_backup" not in payload:
         raise RestoreError("That is not a De-Algo backup file.")
     version = payload.get("de_algo_backup")
@@ -66,9 +76,8 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
             f"This backup is format {version}, but this version of De-Algo reads {FORMAT_VERSION}."
         )
 
-    summary = RestoreSummary()
-    from ...services import ordering  # local import: ordering imports models only
 
+def _restore_settings(session: Session, payload: dict[str, Any]) -> None:
     settings = get_settings(session)
     for key, value in (payload.get("settings") or {}).items():
         if hasattr(settings, key) and key not in ("id", "updated_at"):
@@ -77,6 +86,13 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
     for key, value in (payload.get("credentials") or {}).items():
         if key in ("client_id", "client_secret", "api_key") and value:
             setattr(settings, key, value)
+
+
+def _restore_feeds(
+    session: Session, payload: dict[str, Any], owner: OwnerId, summary: RestoreSummary
+) -> dict[str, Playlist]:
+    """Every feed the file names, made or brought up to date, by playlist id."""
+    from ...services import ordering  # local import: ordering imports models only
 
     playlists: dict[str, Playlist] = {}
     for entry in payload.get("feeds") or []:
@@ -99,13 +115,26 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
         playlists[playlist_id] = playlist
         summary.feeds += 1
     session.flush()
+    return playlists
 
+
+#: The source fields a backup carries as they are.
+_CHANNEL_FIELDS = (
+    "title", "handle", "enabled", "priority", "min_pull_minutes", "max_per_run",
+    "skip_videos", "skip_shorts", "skip_live", "title_include", "title_exclude",
+    "min_duration_sec", "max_duration_sec",
+)
+
+
+def _restore_channels(
+    session: Session,
+    payload: dict[str, Any],
+    owner: OwnerId,
+    playlists: dict[str, Playlist],
+    summary: RestoreSummary,
+) -> dict[str, Channel]:
+    """Every source the file names, and the feeds it fills, by channel id."""
     channels: dict[str, Channel] = {}
-    simple = (
-        "title", "handle", "enabled", "priority", "min_pull_minutes", "max_per_run",
-        "skip_videos", "skip_shorts", "skip_live", "title_include", "title_exclude",
-        "min_duration_sec", "max_duration_sec",
-    )
     for entry in payload.get("channels") or []:
         channel_id = entry.get("channel_id")
         if not channel_id:
@@ -117,7 +146,7 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
             channel = Channel(owner_pk=owner, channel_id=channel_id, title=entry.get("title") or channel_id)
             session.add(channel)
             session.flush()
-        for key in simple:
+        for key in _CHANNEL_FIELDS:
             if key in entry:
                 setattr(channel, key, entry[key])
         # Only trust a last-checked time when the file also carries the videos
@@ -134,7 +163,18 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
         channels[channel_id] = channel
         summary.channels += 1
     session.flush()
+    return channels
 
+
+def _restore_videos(
+    session: Session,
+    payload: dict[str, Any],
+    owner: OwnerId,
+    channels: dict[str, Channel],
+    playlists: dict[str, Playlist],
+    summary: RestoreSummary,
+) -> None:
+    """The items an older file carries, and where each was placed."""
     for entry in payload.get("videos") or []:
         video_id = entry.get("video_id")
         channel = channels.get(entry.get("channel_id"))
@@ -160,22 +200,30 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
         video.watched_at = _parse_stamp(entry.get("watched_at"))
         summary.videos += 1
 
-        for slot in entry.get("placements") or []:
-            playlist = playlists.get(slot.get("playlist_id"))
-            if playlist is None:
-                continue
-            placement = session.scalar(
-                select(Placement).where(
-                    Placement.video_pk == video.id, Placement.playlist_pk == playlist.id
-                )
-            )
-            if placement is None:
-                placement = Placement(video_pk=video.id, playlist_pk=playlist.id)
-                session.add(placement)
-            placement.playlist_item_id = slot.get("playlist_item_id")
-            placement.added_at = _parse_stamp(slot.get("added_at"))
-            placement.removed_at = _parse_stamp(slot.get("removed_at"))
-            summary.placements += 1
+        _restore_placements(session, video, entry.get("placements") or [], playlists, summary)
         session.flush()
 
-    return summary
+
+def _restore_placements(
+    session: Session,
+    video: Video,
+    slots: list[Any],
+    playlists: dict[str, Playlist],
+    summary: RestoreSummary,
+) -> None:
+    for slot in slots:
+        playlist = playlists.get(slot.get("playlist_id"))
+        if playlist is None:
+            continue
+        placement = session.scalar(
+            select(Placement).where(
+                Placement.video_pk == video.id, Placement.playlist_pk == playlist.id
+            )
+        )
+        if placement is None:
+            placement = Placement(video_pk=video.id, playlist_pk=playlist.id)
+            session.add(placement)
+        placement.playlist_item_id = slot.get("playlist_item_id")
+        placement.added_at = _parse_stamp(slot.get("added_at"))
+        placement.removed_at = _parse_stamp(slot.get("removed_at"))
+        summary.placements += 1
