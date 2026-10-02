@@ -1,8 +1,12 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "name": "De-Algo browser scripts",
-  "tsconfig": "../../../tsconfig.json",
-  "entryPoints": ["../../../dealgo/web/ts/*.ts"],
+  "tsconfig": "./tsconfig.json",
+  "entryPoints": [
+    "../../../dealgo/web/ts/*.ts",
+    "../../../dealgo/web/ts/graph/*.ts",
+    "../../../dealgo/web/ts/focus/*.ts"
+  ],
   "exclude": ["../../../dealgo/web/ts/sw.ts"],
   "out": "browser",
   "readme": "none",

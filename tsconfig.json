@@ -23,5 +23,5 @@
     "sourceMap": false
   },
   "include": ["dealgo/web/ts/**/*.ts"],
-  "exclude": ["dealgo/web/ts/sw.ts", "dealgo/web/ts/graph/**"]
+  "exclude": ["dealgo/web/ts/sw.ts", "dealgo/web/ts/graph/**", "dealgo/web/ts/focus/**"]
 }

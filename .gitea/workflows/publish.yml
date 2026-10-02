@@ -48,7 +48,7 @@ jobs:
         run: |
           npx tsc --noEmit
           npx tsc -p tsconfig.sw.json --noEmit
-          npx tsc -p tsconfig.graph.json --noEmit
+          npx tsc -p tsconfig.parts.json --noEmit
 
       - name: Test
         run: python -m pytest -q

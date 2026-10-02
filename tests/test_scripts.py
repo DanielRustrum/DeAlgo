@@ -34,9 +34,9 @@ def sources() -> list[pathlib.Path]:
 def scripts() -> dict[str, list[pathlib.Path]]:
     """Each script the page loads, and the files it is written in.
 
-    Most are one file. The canvas is a folder of parts, joined into one
-    graph.js by dealgo/web/scripts.py — so what it calls and what it declares
-    is a question about the whole folder, not any one part of it.
+    Most are one file. The canvas and Focus mode are folders of parts, each
+    joined into one script by dealgo/web/scripts.py — so what one calls and
+    declares is a question about the whole folder, not any one part of it.
     """
     found = {p.stem: [p] for p in TS_DIR.glob("*.ts") if not p.name.endswith(".d.ts")}
     for folder in sorted(p for p in TS_DIR.iterdir() if p.is_dir()):
@@ -56,13 +56,13 @@ def test_every_script_has_a_typescript_source():
 
 
 @needs_tsc
-@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json", "tsconfig.graph.json"])
+@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json", "tsconfig.parts.json"])
 def test_the_committed_javascript_matches_its_sources(tmp_path, config):
     """Compile afresh and compare: `make js` has been run, or it has not.
 
     Three configs, because the service worker has no DOM and the page scripts
-    have no worker globals, and the canvas is compiled from its parts and
-    joined — exactly as `make js` does it.
+    have no worker globals, and the scripts written as parts are compiled
+    together and joined — exactly as `make js` does it.
     """
     subprocess.run(
         [str(TSC), "-p", config, "--outDir", str(tmp_path)],
@@ -70,12 +70,13 @@ def test_the_committed_javascript_matches_its_sources(tmp_path, config):
         check=True,
         capture_output=True,
     )
-    if config == "tsconfig.graph.json":
-        from dealgo.web.scripts import join
+    if config == "tsconfig.parts.json":
+        from dealgo.web.scripts import JOINED, join
 
-        assert (STATIC / "graph.js").read_text() == join(tmp_path), (
-            "static/graph.js is out of date with web/ts/graph/ — run `make js`."
-        )
+        for name in JOINED:
+            assert (STATIC / f"{name}.js").read_text() == join(tmp_path / name), (
+                f"static/{name}.js is out of date with web/ts/{name}/ — run `make js`."
+            )
         return
     for built in sorted(tmp_path.glob("*.js")):
         committed = STATIC / built.name
@@ -86,7 +87,7 @@ def test_the_committed_javascript_matches_its_sources(tmp_path, config):
 
 
 @needs_tsc
-@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json", "tsconfig.graph.json"])
+@pytest.mark.parametrize("config", ["tsconfig.json", "tsconfig.sw.json", "tsconfig.parts.json"])
 def test_the_sources_typecheck_strictly(config):
     """The point of the exercise, enforced rather than assumed."""
     result = subprocess.run(

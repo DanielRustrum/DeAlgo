@@ -1,10 +1,10 @@
 """Join a script written as several files into the one file the page loads.
 
-The canvas is too large to read as one file, so it is written as a folder of
-parts (web/ts/graph/) and compiled on its own (tsconfig.graph.json). The page
-still loads a single graph.js: plain scripts that htmx re-inserts are not
-guaranteed to run in order, and one file is the only order that cannot be
-lost. The parts share one scope either way, as every plain script does.
+The canvas and Focus mode are too large to read as one file each, so each is
+written as a folder of parts (web/ts/graph/, web/ts/focus/), compiled on their
+own (tsconfig.parts.json). Each page still loads a single script: plain
+scripts that htmx re-inserts are not guaranteed to run in order, and one file
+is the only order that cannot be lost. The parts share one scope either way, as every plain script does.
 
 Every part only declares; main.ts holds the one call that starts it all, so
 it goes last. Like the stylesheet, the result is committed — running De-Algo
@@ -20,7 +20,8 @@ ROOT = WEB.parent.parent
 
 #: Each script written as a folder: where tsc puts its parts, and where the
 #: joined script goes.
-JOINED = {"graph": ROOT / "build" / "scripts" / "graph"}
+BUILT = ROOT / "build" / "scripts"
+JOINED = {"graph": BUILT / "graph", "focus": BUILT / "focus"}
 
 #: The part holding the entry call, which has to run after every declaration.
 LAST = "main.js"
@@ -30,7 +31,7 @@ def join(parts: Path) -> str:
     """The parts in one script: every declaration, then the entry call."""
     files = sorted(parts.glob("*.js"), key=lambda path: (path.name == LAST, path.name))
     if not files or files[-1].name != LAST:
-        raise SystemExit(f"{parts} has no {LAST} — run tsc -p tsconfig.graph.json first")
+        raise SystemExit(f"{parts} has no {LAST} — run tsc -p tsconfig.parts.json first")
     return "\n".join(path.read_text() for path in files)
 
 

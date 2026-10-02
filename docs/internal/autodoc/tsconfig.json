@@ -1,0 +1,13 @@
+{
+  "//": "Every page script in one program, single files and folders of parts alike, for TypeDoc.",
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "../../../dealgo/web/ts/**/*.ts"
+  ],
+  "exclude": [
+    "../../../dealgo/web/ts/sw.ts"
+  ]
+}

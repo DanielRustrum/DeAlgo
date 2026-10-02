@@ -95,7 +95,7 @@ typecheck: ## Check the types, both languages (mypy --strict, tsc --noEmit)
 	$(PY) -m mypy
 	npx tsc --noEmit
 	npx tsc -p tsconfig.sw.json --noEmit
-	npx tsc -p tsconfig.graph.json --noEmit
+	npx tsc -p tsconfig.parts.json --noEmit
 
 css: ## Compile web/scss into the stylesheet the app serves
 	$(PY) -m dealgo.web.styles
@@ -103,11 +103,11 @@ css: ## Compile web/scss into the stylesheet the app serves
 js: ## Compile web/ts into the scripts the app serves
 	npx tsc
 	npx tsc -p tsconfig.sw.json
-	@# The canvas is a folder of parts, compiled apart and joined into graph.js.
-	npx tsc -p tsconfig.graph.json
+	@# The canvas and Focus mode are folders of parts, compiled apart and joined.
+	npx tsc -p tsconfig.parts.json
 	$(PY) -m dealgo.web.scripts
 
-watch-js: ## Recompile the page scripts on save (the worker and the canvas need `make js`)
+watch-js: ## Recompile the page scripts on save (the worker and the scripts written as parts need `make js`)
 	npx tsc --watch
 
 assets: css js ## Rebuild both the stylesheet and the scripts
@@ -131,8 +131,7 @@ docs: ## Generate the API reference from code comments into docs/internal/autodo
 	npm install --prefix $(AUTODOC) --no-audit --no-fund
 	cd $(AUTODOC) && npx typedoc --options typedoc.browser.json --logLevel Warn
 	cd $(AUTODOC) && npx typedoc --options typedoc.worker.json --logLevel Warn
-	cd $(AUTODOC) && npx typedoc --options typedoc.canvas.json --logLevel Warn
-	@echo "open index.html in $(AUTODOC)/python, browser, canvas and service-worker"
+	@echo "open index.html in $(AUTODOC)/python, browser and service-worker"
 
 toc: ## Rebuild the Table of Contents in docs/wiki and docs/internal
 	$(PY) docs/toc.py

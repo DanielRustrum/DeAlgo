@@ -1,22 +1,79 @@
 "use strict";
-// Focus mode: go through the queue, marking each item done as it finishes.
+// Moving on: saying the item is finished, and showing the next.
 //
-// Two sorts of thing arrive in the same queue. A video finishes on its own and
-// the player says so. Everything else — a community post, an item from a feed
-// somewhere else — is read, and has no end of its own, so reading time is the
-// only thing that can advance it: hence the timer, and hence the pause, since
-// something you are still reading should not slide out from under you.
+// Part of Focus mode; see main.ts.
+function finishFocusSitting(sitting) {
+    stopFocusTimer(sitting);
+    paintFocusQueue(sitting, []);
+    const elements = sitting.elements;
+    elements.root.classList.add("focus-done");
+    elements.post.hidden = true;
+    elements.timer.hidden = true;
+    elements.title.textContent = "All caught up";
+    elements.channel.textContent = "Nothing left unwatched";
+    elements.remaining.textContent = "0";
+    elements.count.textContent = "0";
+    setFocusStatus(sitting, "");
+    if (sitting.player)
+        sitting.player.stopVideo();
+}
+function focusAdvanceBody(sitting, markWatched) {
+    const body = new URLSearchParams();
+    body.set("order", sitting.order);
+    body.set("playlist", sitting.playlist);
+    body.set("watched", markWatched ? "1" : "0");
+    body.set("skipped", sitting.passedOver.join(","));
+    return body.toString();
+}
+/** markWatched=false means "skip": it stays unwatched but sits out this
+ *  sitting. */
+function advanceFocus(sitting, markWatched) {
+    if (sitting.advancing)
+        return;
+    sitting.advancing = true;
+    stopFocusTimer(sitting);
+    setFocusStatus(sitting, markWatched ? "marking done…" : "skipping…");
+    if (!markWatched && !sitting.passedOver.includes(sitting.current.id)) {
+        sitting.passedOver.push(sitting.current.id);
+    }
+    fetch(`/focus/${sitting.current.id}/finished`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: focusAdvanceBody(sitting, markWatched),
+    })
+        .then((response) => {
+        if (!response.ok)
+            throw new Error(`HTTP ${response.status}`);
+        return response.json();
+    })
+        .then((data) => {
+        sitting.advancing = false;
+        setFocusStatus(sitting, "");
+        if (!data.next) {
+            finishFocusSitting(sitting);
+            return;
+        }
+        showFocusItem(sitting, data.next, data.remaining);
+        paintFocusQueue(sitting, data.upcoming);
+    })
+        .catch(() => {
+        sitting.advancing = false;
+        setFocusStatus(sitting, "could not advance — check the connection");
+        if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
+            startFocusTimer(sitting, sitting.current);
+        }
+    });
+}
+
+"use strict";
+// What Focus mode works with: an item, a sitting, and the page it runs in.
 //
-// Advancing asks the server for the next item rather than walking the list it
-// was given, so a queue left open overnight cannot resurrect something watched
-// or removed in the meantime. The embedded list is only a preview.
+// Part of Focus mode; see main.ts.
+
+"use strict";
+// Finding the page's parts, and the status line under the player.
 //
-// Structure: top-level `function` declarations, and one call at the bottom.
-// This file is a plain script that htmx re-runs each time it swaps the Focus
-// page in, and a top-level `const` or `class` would throw "already declared"
-// on the second visit. Everything a sitting needs to remember therefore lives
-// in one FocusSitting object, passed explicitly rather than captured.
-// -- finding the page ------------------------------------------------------
+// Part of Focus mode; see main.ts.
 /** An element the template always renders. Missing means the template
  *  changed, which is worth saying by name rather than half-wiring the page. */
 function focusElement(id) {
@@ -62,64 +119,136 @@ function readFocusQueue() {
         return [];
     return JSON.parse((_a = script.textContent) !== null && _a !== void 0 ? _a : "[]");
 }
-// -- the status line -------------------------------------------------------
 function setFocusStatus(sitting, message) {
     sitting.elements.status.textContent = message ? ` · ${message}` : "";
 }
-// -- the reading timer -----------------------------------------------------
-function paintFocusTimer(sitting) {
-    const seconds = Math.max(0, Math.ceil(sitting.msLeft / 1000));
-    sitting.elements.timerCount.textContent = sitting.held ? "held" : `${seconds}s`;
-    const share = (sitting.msLeft / (sitting.allowed * 1000)) * 100;
-    sitting.elements.timerFill.style.width = `${share}%`;
-}
-function stopFocusTimer(sitting) {
-    if (sitting.timerId !== null)
-        window.clearInterval(sitting.timerId);
-    sitting.timerId = null;
-}
-function startFocusTimer(sitting, item) {
-    var _a;
-    stopFocusTimer(sitting);
-    sitting.held = false;
-    // What a Decay box gave you with this one, if anything did. The account's
-    // own setting is what everything else gets.
-    sitting.allowed = (_a = item === null || item === void 0 ? void 0 : item.seconds) !== null && _a !== void 0 ? _a : sitting.postSeconds;
-    sitting.locked = (item === null || item === void 0 ? void 0 : item.locked) === true;
-    sitting.msLeft = sitting.allowed * 1000;
-    sitting.elements.timerWord.textContent = sitting.locked
-        ? "until the next one — cannot be paused"
-        : "until the next one";
-    paintFocusTimer(sitting);
-    sitting.timerId = window.setInterval(() => tickFocusTimer(sitting), 100);
-}
-function tickFocusTimer(sitting) {
-    if (sitting.held)
+
+"use strict";
+// The YouTube player, and waiting for its API.
+//
+// Part of Focus mode; see main.ts.
+function buildFocusPlayer(sitting) {
+    const api = window.YT;
+    if (sitting.player || !sitting.elements.frame || !api || !api.Player)
         return;
-    sitting.msLeft -= 100;
-    paintFocusTimer(sitting);
-    if (sitting.msLeft > 0)
-        return;
-    stopFocusTimer(sitting);
-    advanceFocus(sitting, true);
+    // Attaching to the existing iframe keeps our allow list. Letting the API
+    // build its own would re-add the pop-out button over fullscreen.
+    sitting.player = new api.Player("focus-player", {
+        events: {
+            onReady: () => {
+                sitting.ready = true;
+                setFocusStatus(sitting, "");
+                // Opened on a post: the player is loaded but must stay quiet.
+                if (focusIsRead(sitting.current) && sitting.player)
+                    sitting.player.pauseVideo();
+            },
+            onStateChange: (event) => {
+                if (event.data === api.PlayerState.ENDED && sitting.current.kind === "video") {
+                    advanceFocus(sitting, true);
+                }
+            },
+            onError: () => {
+                // Private, deleted or not embeddable: do not strand the queue on it.
+                if (sitting.current.kind !== "video")
+                    return;
+                setFocusStatus(sitting, "this one would not play — skipping");
+                advanceFocus(sitting, false);
+            },
+        },
+    });
 }
-/** Hold the timer where it is, for a post still being read.
- *
- *  Unless a Lock piece said otherwise. The point of a locked stretch is one
- *  that runs whether you are looking or not, so it refuses rather than
- *  quietly doing nothing. */
-function toggleFocusTimer(sitting) {
-    if (sitting.locked) {
-        setFocusStatus(sitting, "this one cannot be paused");
+// Getting hold of the API is the fiddly part, because this page is usually
+// reached through an hx-boost swap rather than a page load:
+//
+//   * a script htmx inserts does not honour `defer`, so load order is not
+//     guaranteed and the API can run before the callback below exists;
+//   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
+//     second visit within the same document it never fires at all.
+//
+// Either way the player would stay null, the queue would stop advancing, and
+// the video on screen would simply keep playing. So: take the API if it is
+// already here, ask to be told if it is not, and poll as well, since neither
+// signal is reliable on its own.
+function awaitYouTubeApi(sitting) {
+    if (!sitting.elements.frame)
+        return;
+    let waited = 0;
+    const waiting = window.setInterval(() => {
+        buildFocusPlayer(sitting);
+        waited += 200;
+        if (sitting.player || waited > 15000)
+            window.clearInterval(waiting);
+    }, 200);
+    const earlier = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+        if (typeof earlier === "function")
+            earlier();
+        buildFocusPlayer(sitting);
+    };
+    // Load the API ourselves, after the callback exists. Adding it twice is
+    // harmless: the browser reuses the script it already has.
+    if (!window.YT) {
+        const script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(script);
+    }
+    buildFocusPlayer(sitting);
+}
+
+"use strict";
+// The up-next list.
+//
+// Part of Focus mode; see main.ts.
+function buildQueueRow(item) {
+    const row = document.createElement("li");
+    row.dataset["video"] = String(item.id);
+    const title = document.createElement("span");
+    title.className = "queue-title";
+    if (focusIsRead(item)) {
+        const tag = document.createElement("span");
+        tag.className = "pill pill-post";
+        tag.textContent = item.kind === "post" ? "post" : item.source.toLowerCase();
+        title.appendChild(tag);
+        title.appendChild(document.createTextNode(" "));
+    }
+    title.appendChild(document.createTextNode(item.title));
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = queueRowMeta(item);
+    row.appendChild(title);
+    row.appendChild(meta);
+    return row;
+}
+function queueRowMeta(item) {
+    let line = item.channel;
+    if (item.playlist)
+        line += ` · ${item.playlist}`;
+    if (item.kind === "video" && item.duration && item.duration !== "—") {
+        line += ` · ${item.duration}`;
+    }
+    return line;
+}
+/** Rebuilt from the server's own queue rather than by deleting rows, so the
+ *  list cannot drift away from what actually plays next. */
+function paintFocusQueue(sitting, items) {
+    const list = sitting.elements.list;
+    list.textContent = "";
+    if (items.length === 0) {
+        const none = document.createElement("li");
+        none.className = "empty";
+        none.textContent = "Nothing after this one.";
+        list.appendChild(none);
         return;
     }
-    sitting.held = !sitting.held;
-    sitting.elements.timerWord.textContent = sitting.held
-        ? "paused — click to resume"
-        : "until the next one";
-    paintFocusTimer(sitting);
+    items.forEach((item) => {
+        list.appendChild(buildQueueRow(item));
+    });
 }
-// -- showing one item ------------------------------------------------------
+
+"use strict";
+// Showing one item: a video in the player, or a post on its own.
+//
+// Part of Focus mode; see main.ts.
 function focusEmbedUrl(videoId) {
     const origin = encodeURIComponent(window.location.origin);
     return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&rel=0&origin=${origin}`;
@@ -205,184 +334,83 @@ function showFocusItem(sitting, item, remaining) {
     else
         showFocusVideo(sitting, item);
 }
-// -- the up-next list ------------------------------------------------------
-function buildQueueRow(item) {
-    const row = document.createElement("li");
-    row.dataset["video"] = String(item.id);
-    const title = document.createElement("span");
-    title.className = "queue-title";
-    if (focusIsRead(item)) {
-        const tag = document.createElement("span");
-        tag.className = "pill pill-post";
-        tag.textContent = item.kind === "post" ? "post" : item.source.toLowerCase();
-        title.appendChild(tag);
-        title.appendChild(document.createTextNode(" "));
-    }
-    title.appendChild(document.createTextNode(item.title));
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    meta.textContent = queueRowMeta(item);
-    row.appendChild(title);
-    row.appendChild(meta);
-    return row;
-}
-function queueRowMeta(item) {
-    let line = item.channel;
-    if (item.playlist)
-        line += ` · ${item.playlist}`;
-    if (item.kind === "video" && item.duration && item.duration !== "—") {
-        line += ` · ${item.duration}`;
-    }
-    return line;
-}
-/** Rebuilt from the server's own queue rather than by deleting rows, so the
- *  list cannot drift away from what actually plays next. */
-function paintFocusQueue(sitting, items) {
-    const list = sitting.elements.list;
-    list.textContent = "";
-    if (items.length === 0) {
-        const none = document.createElement("li");
-        none.className = "empty";
-        none.textContent = "Nothing after this one.";
-        list.appendChild(none);
-        return;
-    }
-    items.forEach((item) => {
-        list.appendChild(buildQueueRow(item));
-    });
-}
-// -- advancing -------------------------------------------------------------
-function finishFocusSitting(sitting) {
-    stopFocusTimer(sitting);
-    paintFocusQueue(sitting, []);
-    const elements = sitting.elements;
-    elements.root.classList.add("focus-done");
-    elements.post.hidden = true;
-    elements.timer.hidden = true;
-    elements.title.textContent = "All caught up";
-    elements.channel.textContent = "Nothing left unwatched";
-    elements.remaining.textContent = "0";
-    elements.count.textContent = "0";
-    setFocusStatus(sitting, "");
-    if (sitting.player)
-        sitting.player.stopVideo();
-}
-function focusAdvanceBody(sitting, markWatched) {
-    const body = new URLSearchParams();
-    body.set("order", sitting.order);
-    body.set("playlist", sitting.playlist);
-    body.set("watched", markWatched ? "1" : "0");
-    body.set("skipped", sitting.passedOver.join(","));
-    return body.toString();
-}
-/** markWatched=false means "skip": it stays unwatched but sits out this
- *  sitting. */
-function advanceFocus(sitting, markWatched) {
-    if (sitting.advancing)
-        return;
-    sitting.advancing = true;
-    stopFocusTimer(sitting);
-    setFocusStatus(sitting, markWatched ? "marking done…" : "skipping…");
-    if (!markWatched && !sitting.passedOver.includes(sitting.current.id)) {
-        sitting.passedOver.push(sitting.current.id);
-    }
-    fetch(`/focus/${sitting.current.id}/finished`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: focusAdvanceBody(sitting, markWatched),
-    })
-        .then((response) => {
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        return response.json();
-    })
-        .then((data) => {
-        sitting.advancing = false;
-        setFocusStatus(sitting, "");
-        if (!data.next) {
-            finishFocusSitting(sitting);
-            return;
-        }
-        showFocusItem(sitting, data.next, data.remaining);
-        paintFocusQueue(sitting, data.upcoming);
-    })
-        .catch(() => {
-        sitting.advancing = false;
-        setFocusStatus(sitting, "could not advance — check the connection");
-        if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
-            startFocusTimer(sitting, sitting.current);
-        }
-    });
-}
-// -- the YouTube player ----------------------------------------------------
-function buildFocusPlayer(sitting) {
-    const api = window.YT;
-    if (sitting.player || !sitting.elements.frame || !api || !api.Player)
-        return;
-    // Attaching to the existing iframe keeps our allow list. Letting the API
-    // build its own would re-add the pop-out button over fullscreen.
-    sitting.player = new api.Player("focus-player", {
-        events: {
-            onReady: () => {
-                sitting.ready = true;
-                setFocusStatus(sitting, "");
-                // Opened on a post: the player is loaded but must stay quiet.
-                if (focusIsRead(sitting.current) && sitting.player)
-                    sitting.player.pauseVideo();
-            },
-            onStateChange: (event) => {
-                if (event.data === api.PlayerState.ENDED && sitting.current.kind === "video") {
-                    advanceFocus(sitting, true);
-                }
-            },
-            onError: () => {
-                // Private, deleted or not embeddable: do not strand the queue on it.
-                if (sitting.current.kind !== "video")
-                    return;
-                setFocusStatus(sitting, "this one would not play — skipping");
-                advanceFocus(sitting, false);
-            },
-        },
-    });
-}
-// Getting hold of the API is the fiddly part, because this page is usually
-// reached through an hx-boost swap rather than a page load:
+
+"use strict";
+// The reading timer: how long you get with one item.
 //
-//   * a script htmx inserts does not honour `defer`, so load order is not
-//     guaranteed and the API can run before the callback below exists;
-//   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
-//     second visit within the same document it never fires at all.
-//
-// Either way the player would stay null, the queue would stop advancing, and
-// the video on screen would simply keep playing. So: take the API if it is
-// already here, ask to be told if it is not, and poll as well, since neither
-// signal is reliable on its own.
-function awaitYouTubeApi(sitting) {
-    if (!sitting.elements.frame)
-        return;
-    let waited = 0;
-    const waiting = window.setInterval(() => {
-        buildFocusPlayer(sitting);
-        waited += 200;
-        if (sitting.player || waited > 15000)
-            window.clearInterval(waiting);
-    }, 200);
-    const earlier = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-        if (typeof earlier === "function")
-            earlier();
-        buildFocusPlayer(sitting);
-    };
-    // Load the API ourselves, after the callback exists. Adding it twice is
-    // harmless: the browser reuses the script it already has.
-    if (!window.YT) {
-        const script = document.createElement("script");
-        script.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(script);
-    }
-    buildFocusPlayer(sitting);
+// Part of Focus mode; see main.ts.
+function paintFocusTimer(sitting) {
+    const seconds = Math.max(0, Math.ceil(sitting.msLeft / 1000));
+    sitting.elements.timerCount.textContent = sitting.held ? "held" : `${seconds}s`;
+    const share = (sitting.msLeft / (sitting.allowed * 1000)) * 100;
+    sitting.elements.timerFill.style.width = `${share}%`;
 }
-// -- starting up -----------------------------------------------------------
+function stopFocusTimer(sitting) {
+    if (sitting.timerId !== null)
+        window.clearInterval(sitting.timerId);
+    sitting.timerId = null;
+}
+function startFocusTimer(sitting, item) {
+    var _a;
+    stopFocusTimer(sitting);
+    sitting.held = false;
+    // What a Decay box gave you with this one, if anything did. The account's
+    // own setting is what everything else gets.
+    sitting.allowed = (_a = item === null || item === void 0 ? void 0 : item.seconds) !== null && _a !== void 0 ? _a : sitting.postSeconds;
+    sitting.locked = (item === null || item === void 0 ? void 0 : item.locked) === true;
+    sitting.msLeft = sitting.allowed * 1000;
+    sitting.elements.timerWord.textContent = sitting.locked
+        ? "until the next one — cannot be paused"
+        : "until the next one";
+    paintFocusTimer(sitting);
+    sitting.timerId = window.setInterval(() => tickFocusTimer(sitting), 100);
+}
+function tickFocusTimer(sitting) {
+    if (sitting.held)
+        return;
+    sitting.msLeft -= 100;
+    paintFocusTimer(sitting);
+    if (sitting.msLeft > 0)
+        return;
+    stopFocusTimer(sitting);
+    advanceFocus(sitting, true);
+}
+/** Hold the timer where it is, for a post still being read.
+ *
+ *  Unless a Lock piece said otherwise. The point of a locked stretch is one
+ *  that runs whether you are looking or not, so it refuses rather than
+ *  quietly doing nothing. */
+function toggleFocusTimer(sitting) {
+    if (sitting.locked) {
+        setFocusStatus(sitting, "this one cannot be paused");
+        return;
+    }
+    sitting.held = !sitting.held;
+    sitting.elements.timerWord.textContent = sitting.held
+        ? "paused — click to resume"
+        : "until the next one";
+    paintFocusTimer(sitting);
+}
+
+"use strict";
+// Focus mode: go through the queue, marking each item done as it finishes.
+//
+// Two sorts of thing arrive in the same queue. A video finishes on its own and
+// the player says so. Everything else — a community post, an item from a feed
+// somewhere else — is read, and has no end of its own, so reading time is the
+// only thing that can advance it: hence the timer, and hence the pause, since
+// something you are still reading should not slide out from under you.
+//
+// Advancing asks the server for the next item rather than walking the list it
+// was given, so a queue left open overnight cannot resurrect something watched
+// or removed in the meantime. The embedded list is only a preview.
+//
+// Structure: top-level `function` declarations, and one call at the bottom of
+// this file. The parts in this folder are joined into the one focus.js the page
+// loads (`make js`, dealgo/web/scripts.py), a plain script that htmx re-runs
+// each time it swaps the Focus page in, and a top-level `const` or `class` would throw "already declared"
+// on the second visit. Everything a sitting needs to remember therefore lives
+// in one FocusSitting object, passed explicitly rather than captured.
 function pointFrameAtFirstVideo(sitting) {
     var _a;
     const frame = sitting.elements.frame;
