@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-WEB = Path(__file__).resolve().parent
-ROOT = WEB.parent.parent
+ROOT = Path(__file__).resolve().parent.parent
+WEB = ROOT / "dealgo" / "web"
 
 #: Each script written as a folder: where tsc puts its parts, and where the
 #: joined script goes.
@@ -45,6 +45,6 @@ def build() -> list[Path]:
     return written
 
 
-if __name__ == "__main__":  # `python -m dealgo.web.scripts`, after tsc
+if __name__ == "__main__":  # `python ops/join_scripts.py`, after tsc; `make js` runs both
     for path in build():
         print(path)

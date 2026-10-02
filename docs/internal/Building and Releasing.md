@@ -49,7 +49,7 @@ GitHub Actions syntax, so it moves to `.github/workflows/` unchanged.
 
 ## The wiki — `.gitea/workflows/wiki.yml`
 
-On a push to `main` that touches `docs/wiki/`, or by hand, `docs/publish_wiki.py publish` makes the
+On a push to `main` that touches `docs/wiki/`, or by hand, `ops/publish_wiki.py publish` makes the
 repository's Forgejo wiki a copy of `docs/wiki`:
 
 - A Forgejo wiki is one flat folder of pages named with dashes, and pages in subfolders are not

@@ -17,7 +17,7 @@ from collections import deque
 from pathlib import Path
 from urllib.parse import quote, unquote
 
-DOCS = Path(__file__).resolve().parent
+DOCS = Path(__file__).resolve().parent.parent / "docs"
 OUT = "Table of Contents.md"
 BOOKS = {
     DOCS / "wiki": "De-Algo User Wiki",

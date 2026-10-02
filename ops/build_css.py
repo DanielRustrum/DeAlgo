@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-WEB = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
+WEB = ROOT / "dealgo" / "web"
 SOURCE = WEB / "scss" / "app.scss"
 TARGET = WEB / "static" / "app.css"
 
@@ -48,5 +49,5 @@ def build() -> Path:
     return TARGET
 
 
-if __name__ == "__main__":  # `python -m dealgo.web.styles`
+if __name__ == "__main__":  # `python ops/build_css.py`, which `make css` runs
     print(build())

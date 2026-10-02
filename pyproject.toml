@@ -73,7 +73,7 @@ filterwarnings = [
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["dealgo"]
+files = ["dealgo", "ops"]
 # Point at the real line rather than the top of the file.
 pretty = true
 show_error_codes = true

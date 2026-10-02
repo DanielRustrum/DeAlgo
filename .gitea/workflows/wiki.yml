@@ -1,6 +1,6 @@
 # Publish docs/wiki to this repository's wiki whenever it changes on main.
 #
-# docs/wiki is the source and the wiki is a copy. docs/publish_wiki.py
+# docs/wiki is the source and the wiki is a copy. ops/publish_wiki.py
 # flattens its folders into wiki pages (Nodes/Filter.md becomes Nodes-Filter),
 # rewrites the links between them, adds a sidebar and a footer, and replaces
 # the wiki's whole content — so an edit made in the wiki's own editor is
@@ -17,7 +17,7 @@ on:
     branches: [main]
     paths:
       - "docs/wiki/**"
-      - "docs/publish_wiki.py"
+      - "ops/publish_wiki.py"
       - ".gitea/workflows/wiki.yml"
   workflow_dispatch:
 
@@ -38,4 +38,4 @@ jobs:
           WIKI_TOKEN: ${{ secrets.WIKI_TOKEN || secrets.GITHUB_TOKEN }}
           SOURCE_REF: ${{ github.ref_name }}
           SOURCE_SHA: ${{ github.sha }}
-        run: python docs/publish_wiki.py publish
+        run: python ops/publish_wiki.py publish

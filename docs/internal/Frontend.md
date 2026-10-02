@@ -17,12 +17,12 @@ No framework, no bundler, no Node at runtime.
 | `web/ts/sw.ts` | `static/sw.js` | Service worker (separate `tsconfig.sw.json`, WebWorker lib) |
 | — | `static/htmx.min.js` | htmx, vendored |
 
-Build: `make css` (libsass via `python -m dealgo.web.styles`), `make js`, `make assets` (both). Tests
+Build: `make css` (libsass via `ops/build_css.py`), `make js`, `make assets` (both). Tests
 fail if committed output differs from sources (`test_styles.py`, `test_scripts.py`).
 
 `make js` runs three TypeScript programs: the single-file page scripts (`tsconfig.json`), the
 service worker (`tsconfig.sw.json`), and the scripts written as a folder of parts
-(`tsconfig.parts.json`, into `build/scripts/`). `python -m dealgo.web.scripts` then joins each
+(`tsconfig.parts.json`, into `build/scripts/`). `ops/join_scripts.py` then joins each
 folder's parts into the one file its page loads, `main.js` last.
 
 ## Scripts written as parts
@@ -35,7 +35,7 @@ calls another's functions with no import.
 They are **joined, not loaded separately**: htmx re-inserts a swapped page's scripts, and
 re-inserted external scripts are not guaranteed to run in order. One file is the one order that
 cannot be lost. To add a script written as parts, add its folder to `tsconfig.parts.json` and to
-`JOINED` in `dealgo/web/scripts.py`.
+`JOINED` in `ops/join_scripts.py`.
 
 ## Script rules (enforced by `tests/test_scripts.py`)
 

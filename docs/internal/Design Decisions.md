@@ -91,7 +91,7 @@ bounded.
 
 ## Large scripts written as parts, shipped as one
 **Chosen:** The canvas and Focus mode are folders of TypeScript parts, compiled together and joined
-into one script each (`dealgo/web/scripts.py`).
+into one script each (`ops/join_scripts.py`).
 **Why:** Readable parts for whoever edits them; one file for the browser, because htmx re-inserts a
 page's scripts and does not promise to run several in order.
 **Cost:** A join step in `make js`, which a test keeps honest.

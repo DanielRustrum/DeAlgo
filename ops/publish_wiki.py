@@ -41,7 +41,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-WIKI = Path(__file__).resolve().parent / "wiki"
+WIKI = Path(__file__).resolve().parent.parent / "docs" / "wiki"
 REPO_ROOT = WIKI.parent.parent
 
 #: What makes a file a folder's entry page, in order of preference.
@@ -195,7 +195,7 @@ def ensure_wiki(api: str, token: str) -> None:
     if found in (401, 403):
         raise SystemExit(f"the forge refused the token (HTTP {found}); check WIKI_TOKEN")
     placeholder = base64.b64encode(b"Being published from docs/wiki.").decode()
-    first = {"title": "Home", "content_base64": placeholder}
+    first: dict[str, object] = {"title": "Home", "content_base64": placeholder}
     status = _api("POST", f"{api}/wiki/new", token, first)
     if status not in (200, 201):
         raise SystemExit(f"could not create the wiki (HTTP {status}); is the wiki enabled?")

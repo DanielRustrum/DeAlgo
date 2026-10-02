@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from dealgo.web import styles
+from ops import build_css as styles
 
 sass = pytest.importorskip("sass", reason="libsass is a build-time dependency")
 

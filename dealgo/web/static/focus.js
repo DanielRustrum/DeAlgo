@@ -430,7 +430,7 @@ function toggleFocusTimer(sitting) {
 //
 // Structure: top-level `function` declarations, and one call at the bottom of
 // this file. The parts in this folder are joined into the one focus.js the page
-// loads (`make js`, dealgo/web/scripts.py), a plain script that htmx re-runs
+// loads (`make js`, ops/join_scripts.py), a plain script that htmx re-runs
 // each time it swaps the Focus page in, and a top-level `const` or `class` would throw "already declared"
 // on the second visit. Everything a sitting needs to remember therefore lives
 // in one FocusSitting object, passed explicitly rather than captured.

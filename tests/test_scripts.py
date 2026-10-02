@@ -35,7 +35,7 @@ def scripts() -> dict[str, list[pathlib.Path]]:
     """Each script the page loads, and the files it is written in.
 
     Most are one file. The canvas and Focus mode are folders of parts, each
-    joined into one script by dealgo/web/scripts.py — so what one calls and
+    joined into one script by ops/join_scripts.py — so what one calls and
     declares is a question about the whole folder, not any one part of it.
     """
     found = {p.stem: [p] for p in TS_DIR.glob("*.ts") if not p.name.endswith(".d.ts")}
@@ -71,7 +71,7 @@ def test_the_committed_javascript_matches_its_sources(tmp_path, config):
         capture_output=True,
     )
     if config == "tsconfig.parts.json":
-        from dealgo.web.scripts import JOINED, join
+        from ops.join_scripts import JOINED, join
 
         for name in JOINED:
             assert (STATIC / f"{name}.js").read_text() == join(tmp_path / name), (

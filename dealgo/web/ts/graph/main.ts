@@ -9,7 +9,7 @@
 // position is saved on release, because a round trip per pixel is absurd.
 //
 // Written as several files, one per part of the canvas, and joined into the
-// one graph.js the page loads (`make js`, dealgo/web/scripts.py). They share
+// one graph.js the page loads (`make js`, ops/join_scripts.py). They share
 // one scope, as every plain script on a page does.
 //
 // Top-level `function` declarations only, and no statement but the one entry

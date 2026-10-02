@@ -98,14 +98,14 @@ typecheck: ## Check the types, both languages (mypy --strict, tsc --noEmit)
 	npx tsc -p tsconfig.parts.json --noEmit
 
 css: ## Compile web/scss into the stylesheet the app serves
-	$(PY) -m dealgo.web.styles
+	$(PY) ops/build_css.py
 
 js: ## Compile web/ts into the scripts the app serves
 	npx tsc
 	npx tsc -p tsconfig.sw.json
 	@# The canvas and Focus mode are folders of parts, compiled apart and joined.
 	npx tsc -p tsconfig.parts.json
-	$(PY) -m dealgo.web.scripts
+	$(PY) ops/join_scripts.py
 
 watch-js: ## Recompile the page scripts on save (the worker and the scripts written as parts need `make js`)
 	npx tsc --watch
@@ -117,7 +117,7 @@ watch-css: ## Recompile the stylesheet whenever a partial changes
 	@echo "watching dealgo/web/scss — ctrl-c to stop"
 	@while true; do \
 		inotifywait -qq -r -e close_write dealgo/web/scss; \
-		$(PY) -m dealgo.web.styles >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
+		$(PY) ops/build_css.py >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
 	done
 
 AUTODOC := docs/internal/autodoc
@@ -134,11 +134,11 @@ docs: ## Generate the API reference from code comments into docs/internal/autodo
 	@echo "open index.html in $(AUTODOC)/python, browser and service-worker"
 
 toc: ## Rebuild the Table of Contents in docs/wiki and docs/internal
-	$(PY) docs/toc.py
+	$(PY) ops/build_toc.py
 
 wiki: ## Build the Forgejo wiki pages from docs/wiki into build/wiki, to preview (CI publishes them)
 	@rm -rf build/wiki
-	$(PY) docs/publish_wiki.py build build/wiki
+	$(PY) ops/publish_wiki.py build build/wiki
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
 	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
