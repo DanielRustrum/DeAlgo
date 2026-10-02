@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sqlalchemy import (
     DateTime,
@@ -15,10 +15,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, owner_column
+from .item import Video
 from .times import utcnow
-
-if TYPE_CHECKING:
-    from .item import Video
 
 
 class RepositoryItem(Base):

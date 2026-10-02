@@ -7,7 +7,6 @@ import json
 import logging
 from collections.abc import Collection
 from hashlib import sha1
-from typing import TYPE_CHECKING
 
 import httpx
 from sqlalchemy import select
@@ -26,9 +25,7 @@ from ..scope import OwnerId, owned
 from .posts import discover_posts
 from .progress import note, note_polled, note_unreachable
 from .reasons import TOO_OLD
-
-if TYPE_CHECKING:
-    from .result import SyncResult
+from .result import SyncResult
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -17,11 +17,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, owned_unique, owner_column
+from .placement import Placement
+from .source import Channel
 from .times import utcnow
-
-if TYPE_CHECKING:
-    from .placement import Placement
-    from .source import Channel
 
 
 class Video(Base):

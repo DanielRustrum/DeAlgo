@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import Request
 from fastapi.responses import Response
@@ -32,10 +32,8 @@ from ..services.auth import (
     has_client_credentials,
 )
 from ..services.scope import OwnerId, belongs_to, owned
-from .responses import owner_of, redirect
-
-if TYPE_CHECKING:
-    from .templates import Context
+from .responses import redirect
+from .templates import Context
 
 
 def quota_context(session: Session, owner: OwnerId = None) -> Context:
@@ -245,7 +243,6 @@ def channel_list_response(
     query: str = "",
 ) -> Response:
     """Every channel mutation answers with the whole list, freshly counted."""
-    owner = owner_of(request)
     if back:
         # A channel's own page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)

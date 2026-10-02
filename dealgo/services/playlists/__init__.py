@@ -1,5 +1,4 @@
-"""Managing the set of playlists De-Algo keeps filled.
-"""
+"""Managing the set of playlists De-Algo keeps filled."""
 
 from __future__ import annotations
 
@@ -9,10 +8,10 @@ from .listing import PlaylistError, item_counts, list_playlists
 from .membership import set_membership
 
 __all__ = [
-    "PlaylistError",
     "create_generic",
     "item_counts",
     "list_playlists",
+    "PlaylistError",
     "remove",
     "rename",
     "set_enabled",

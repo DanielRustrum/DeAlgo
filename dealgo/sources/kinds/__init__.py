@@ -29,16 +29,16 @@ from .resolving import resolve
 from .vocabulary import NEWSLETTER, RSS, Resolved, SourceKind, UnknownSource, all_kinds, describe
 
 __all__ = [
-    "NEWSLETTER",
-    "RSS",
-    "Resolved",
-    "SourceKind",
-    "UnknownSource",
     "all_kinds",
     "describe",
     "feed_url",
     "home_url",
     "item_url",
+    "NEWSLETTER",
     "resolve",
+    "Resolved",
+    "RSS",
+    "SourceKind",
     "suggest_mirror",
+    "UnknownSource",
 ]

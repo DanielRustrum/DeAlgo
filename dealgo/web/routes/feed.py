@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
@@ -22,11 +21,9 @@ from ...models import (
 from ...services import graph as graph_service
 from ...services import playlists as playlist_service
 from ...services.scope import OwnerId, owned
-from ..responses import fragment, is_htmx, owner_of, redirect, render
-
-if TYPE_CHECKING:
-    from ..templates import Context
 from ..contexts import feed_window_words
+from ..responses import fragment, is_htmx, owner_of, redirect, render
+from ..templates import Context
 
 router = APIRouter()
 

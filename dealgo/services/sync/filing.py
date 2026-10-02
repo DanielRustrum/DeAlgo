@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Collection
-from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -18,12 +17,9 @@ from ...plugins.publisher import Publisher, PublishError, VideoDetails
 from .. import graph, quota, runlog
 from ..scope import OwnerId, owned
 from .ordering import reorder
-
-if TYPE_CHECKING:
-    from .result import SyncResult
-
 from .owed import reconsider_routing, retry_deferred
 from .placing import Placing
+from .result import SyncResult
 
 log = logging.getLogger(__name__)
 

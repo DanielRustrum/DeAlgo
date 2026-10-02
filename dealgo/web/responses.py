@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from fastapi import Request
@@ -22,10 +21,7 @@ from ..models import (
 from ..services import sync as sync_service
 from ..services import watched as watched_service
 from ..services.scope import OwnerId, owned
-from .templates import ASSET_VERSION, TEMPLATES
-
-if TYPE_CHECKING:
-    from .templates import Context
+from .templates import ASSET_VERSION, TEMPLATES, Context
 
 
 def newest_run_id() -> int:

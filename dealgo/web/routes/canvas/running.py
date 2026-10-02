@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
@@ -19,9 +18,7 @@ from ....services import graph as graph_service
 from ....services import sync as sync_service
 from ....services.scope import OwnerId, owned
 from ...responses import owner_of
-
-if TYPE_CHECKING:
-    from ...templates import Context
+from ...templates import Context
 from .payload import graph_payload
 
 router = APIRouter()

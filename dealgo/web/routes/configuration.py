@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from ...db import session_scope
 from ...plugins import registry
 from ...services import graph as graph_service
-from ..responses import owner_of, render
-
-if TYPE_CHECKING:
-    from ..templates import Context
 from ..contexts import channel_list_context, connection_state, playlist_context, stats_context
+from ..responses import owner_of, render
+from ..templates import Context
 
 router = APIRouter()
 

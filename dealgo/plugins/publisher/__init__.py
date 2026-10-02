@@ -23,10 +23,10 @@ from .client import Publisher, cost_of
 
 __all__ = [
     "ChannelInfo",
+    "cost_of",
     "PlaylistInfo",
     "PlaylistItem",
-    "PublishError",
     "Publisher",
+    "PublishError",
     "VideoDetails",
-    "cost_of",
 ]

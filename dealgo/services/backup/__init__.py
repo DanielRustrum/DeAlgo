@@ -19,10 +19,10 @@ from .export import FORMAT_VERSION, _stamp, build_export, filename
 from .restore import RestoreError, restore
 
 __all__ = [
-    "FORMAT_VERSION",
-    "RestoreError",
     "_stamp",
     "build_export",
     "filename",
+    "FORMAT_VERSION",
     "restore",
+    "RestoreError",
 ]

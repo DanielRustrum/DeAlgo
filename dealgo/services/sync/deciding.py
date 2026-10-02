@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
 
 from ...models import (
     GraphNode,
@@ -17,9 +16,7 @@ from ...plugins.publisher import VideoDetails
 from .. import filters, graph
 from .progress import note_filtered
 from .reasons import WRONG_KIND_OF_FEED
-
-if TYPE_CHECKING:
-    from .result import SyncResult
+from .result import SyncResult
 
 
 def plugin_refusal(

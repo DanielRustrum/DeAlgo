@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from .... import sources
 from ....models import (
     GraphNode,
 )
 from ....plugins import registry
 from ....services import graph as graph_service
-
-if TYPE_CHECKING:
-    from ...templates import Context
+from ...templates import Context
 from .facts import orders
 
 

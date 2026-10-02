@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,9 +16,7 @@ from ...models import (
 from ...plugins.publisher import Publisher, PublishError, cost_of
 from .. import quota
 from ..scope import OwnerId
-
-if TYPE_CHECKING:
-    from .result import SyncResult
+from .result import SyncResult
 
 
 def _prune_generic(session: Session, playlist: Playlist, limit: int, result: SyncResult) -> None:

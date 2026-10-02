@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -19,9 +17,7 @@ from ....services import graph as graph_service
 from ....services import runlog
 from ....services.scope import OwnerId, owned
 from ...responses import owner_of
-
-if TYPE_CHECKING:
-    from ...templates import Context
+from ...templates import Context
 from .running import mark_box
 
 router = APIRouter()

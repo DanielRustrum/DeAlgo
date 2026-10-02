@@ -23,11 +23,11 @@ from .site import Site
 
 __all__ = [
     "Account",
+    "acting_for",
     "Clock",
+    "granted_to",
     "Log",
     "Net",
     "Site",
-    "acting_for",
-    "granted_to",
     "whose",
 ]

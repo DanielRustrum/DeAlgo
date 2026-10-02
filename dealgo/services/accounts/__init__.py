@@ -40,9 +40,6 @@ from .users import (
 
 __all__ = [
     "AccountError",
-    "Identity",
-    "MIN_PASSWORD_LENGTH",
-    "SESSION_COOKIE",
     "authenticate",
     "clear_expired",
     "create_user",
@@ -52,9 +49,12 @@ __all__ = [
     "find",
     "hash_password",
     "identify",
+    "Identity",
     "list_users",
+    "MIN_PASSWORD_LENGTH",
     "normalize_username",
     "revoke_all",
+    "SESSION_COOKIE",
     "set_enabled",
     "set_password",
     "start_session",

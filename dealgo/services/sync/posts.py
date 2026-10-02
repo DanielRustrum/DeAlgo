@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,9 +20,7 @@ from ...plugins.capabilities import acting_for
 from ...sources import items
 from ..scope import OwnerId, owned
 from .reasons import TOO_OLD
-
-if TYPE_CHECKING:
-    from .result import SyncResult
+from .result import SyncResult
 
 log = logging.getLogger(__name__)
 

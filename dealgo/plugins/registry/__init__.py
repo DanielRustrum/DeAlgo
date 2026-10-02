@@ -37,10 +37,6 @@ from .storage import (
 )
 
 __all__ = [
-    "PLAIN",
-    "PluginError",
-    "Registry",
-    "STAGING",
     "current",
     "discard",
     "forget",
@@ -50,12 +46,17 @@ __all__ = [
     "keep",
     "origins",
     "paused_ids",
+    "PLAIN",
+    "PluginError",
     "read",
+    "Registry",
     "reload",
     "set_granted",
     "set_origin",
     "set_paused",
     "settle",
     "stage",
+    "STAGING",
+    "storage",
     "take_staged",
 ]

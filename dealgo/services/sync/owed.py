@@ -7,7 +7,6 @@ until a wire was drawn or a feed changed underneath one.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -23,13 +22,10 @@ from ...models import (
 from ...plugins.publisher import Publisher, PublishError, cost_of
 from .. import graph, quota
 from ..scope import OwnerId, belongs_to, owned
+from .placements import MAX_INSERT_ATTEMPTS, local_item_id
 from .progress import note_placed
 from .reasons import WRONG_KIND_OF_FEED
-
-if TYPE_CHECKING:
-    from .result import SyncResult, Tally
-
-from .placements import MAX_INSERT_ATTEMPTS, local_item_id
+from .result import SyncResult, Tally
 
 log = logging.getLogger(__name__)
 

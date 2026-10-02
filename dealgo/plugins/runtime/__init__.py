@@ -32,8 +32,8 @@ from .errors import PluginError, PluginStopped
 from .sandbox import Sandbox, load
 
 __all__ = [
+    "load",
     "PluginError",
     "PluginStopped",
     "Sandbox",
-    "load",
 ]

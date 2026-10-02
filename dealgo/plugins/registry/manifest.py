@@ -6,17 +6,14 @@ raises a PluginError saying what is wrong, in words for the plugin's author.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 # Re-exported, so that a caller handling what a plugin did wrong does not have
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import PluginError
-from .plugin import AUGMENTS, Asked, Augmentation, Field, SourceKind
+from .plugin import AUGMENTS, Asked, Augmentation, Field, Plugin, SourceKind
 from .storage import PLAIN
-
-if TYPE_CHECKING:
-    from .plugin import Plugin
 
 
 def wants_in(given: object) -> list[Asked]:

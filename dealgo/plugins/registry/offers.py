@@ -9,16 +9,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 # Re-exported, so that a caller handling what a plugin did wrong does not have
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import PluginError, Sandbox
-from .plugin import MOST_POSTS, Recognised
-
-if TYPE_CHECKING:
-    from .plugin import Augmentation, Plugin, SourceKind
+from .plugin import MOST_POSTS, Augmentation, Plugin, Recognised, SourceKind
 
 log = logging.getLogger(__name__)
 

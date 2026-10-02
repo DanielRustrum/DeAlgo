@@ -12,10 +12,10 @@ from .feed import fetch, parse
 from .pictures import declared_width, pictures_in
 
 __all__ = [
-    "Feed",
-    "Item",
     "declared_width",
+    "Feed",
     "fetch",
+    "Item",
     "parse",
     "pictures_in",
 ]

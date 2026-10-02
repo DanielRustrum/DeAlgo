@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
@@ -16,9 +15,7 @@ from ...models import (
 )
 from ...plugins import fetching, permissions, registry
 from ..responses import redirect, render
-
-if TYPE_CHECKING:
-    from ..templates import Context
+from ..templates import Context
 
 router = APIRouter()
 

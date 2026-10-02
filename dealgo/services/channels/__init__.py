@@ -11,13 +11,13 @@ from .listing import ChannelError, delete_channel, list_channels
 from .switches import POST_REASON, set_live, set_posts, set_shorts, set_videos
 
 __all__ = [
+    "add_source",
     "BACKFILL_CHOICES",
     "ChannelError",
-    "POST_REASON",
-    "add_source",
     "delete_channel",
     "list_channels",
     "parse_backfill",
+    "POST_REASON",
     "set_live",
     "set_posts",
     "set_shorts",

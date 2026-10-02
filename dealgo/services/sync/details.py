@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -14,9 +13,7 @@ from ...models import (
 from ...plugins.publisher import Publisher
 from .. import quota
 from ..scope import OwnerId, owned
-
-if TYPE_CHECKING:
-    from .result import SyncResult
+from .result import SyncResult
 
 log = logging.getLogger(__name__)
 

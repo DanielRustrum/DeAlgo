@@ -22,8 +22,8 @@ from .addresses import USUAL_REFS, archives, repository_name
 from .download import fetch
 
 __all__ = [
-    "USUAL_REFS",
     "archives",
     "fetch",
     "repository_name",
+    "USUAL_REFS",
 ]

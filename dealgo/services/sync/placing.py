@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
@@ -22,14 +21,11 @@ from .. import graph, quota, runlog
 from ..scope import OwnerId
 from .deciding import attribute, decide, reject
 from .expiry import stamp_expiry
+from .placements import MAX_INSERT_ATTEMPTS, defer, local_item_id, still_queued
 from .progress import note_left
 from .repositories import deposit
+from .result import SyncResult, Tally
 from .stamps import apply_stamps
-
-if TYPE_CHECKING:
-    from .result import SyncResult, Tally
-
-from .placements import MAX_INSERT_ATTEMPTS, defer, local_item_id, still_queued
 
 log = logging.getLogger(__name__)
 

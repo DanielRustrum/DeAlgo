@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -19,9 +18,7 @@ from ...models import (
 from ...plugins.publisher import Publisher, PublishError, cost_of
 from .. import graph, quota, runlog
 from ..scope import OwnerId, belongs_to
-
-if TYPE_CHECKING:
-    from .result import SyncResult
+from .result import SyncResult
 
 log = logging.getLogger(__name__)
 

@@ -37,7 +37,6 @@ def _playlists_response(
     creating: bool = False,
     back: str = "",
 ) -> Response:
-    owner = owner_of(request)
     if back:
         # The detail page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)

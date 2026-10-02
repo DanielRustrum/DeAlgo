@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ...services.scope import OwnerId
 from .. import registry
 from ..capabilities import acting_for
-from .answers import PublishError
+from .answers import ChannelInfo, PlaylistInfo, PlaylistItem, PublishError, VideoDetails
 from .reading import (
     channel_from,
     details_from,
@@ -17,10 +17,6 @@ from .reading import (
     rows_in,
     text_or_none,
 )
-
-if TYPE_CHECKING:
-    from .answers import ChannelInfo, PlaylistInfo, PlaylistItem, VideoDetails
-
 
 #: What a call costs when its plugin does not say. One, because the cheap
 #: calls are the common ones and guessing high would stop work that would

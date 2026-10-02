@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -17,11 +17,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, owner_column
-
-if TYPE_CHECKING:
-    from .feed import Playlist
-    from .source import Channel
-
+from .feed import Playlist
+from .source import Channel
 
 #: What each condition piece is called. Here rather than in the graph
 #: service because a box has to be able to say what it is without anything

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
 
 # Re-exported, so that a caller handling what a plugin did wrong does not have
 # to know which module the sentence came from. Said with `as` rather than with
@@ -11,11 +10,8 @@ from typing import TYPE_CHECKING
 from ... import outgoing
 from . import storage
 from .decisions import decided
+from .offers import Registry
 from .reading import read
-
-if TYPE_CHECKING:
-    from .offers import Registry
-
 
 _lock = threading.Lock()
 

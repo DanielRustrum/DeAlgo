@@ -138,8 +138,6 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
     about anybody — the capabilities that actually do something arrive on the
     second pass, once there is a manifest to weigh them against.
     """
-    path = plugin.path
-
     def nothing_yet(lua: Any) -> dict[str, object]:
         return {**given, **capabilities.granted_to(plugin.id, frozenset(), None, lua)}
 

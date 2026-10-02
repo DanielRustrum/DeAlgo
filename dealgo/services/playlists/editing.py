@@ -40,7 +40,7 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
     client = build_client(session, http, playlist.owner_pk)
     if not client.has_write_access:
         raise PlaylistError(
-            f"Renamed here, but not on YouTube: no account is connected."
+            "Renamed here, but not on YouTube: no account is connected."
         )
     if not quota.can_afford(session, cost_of("add"), use_reserve=True):
         raise PlaylistError(

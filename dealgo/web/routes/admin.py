@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
@@ -16,10 +15,8 @@ from ...models import (
 )
 from ...plugins import registry
 from ...services import accounts, migration
-from ..responses import owner_of, redirect, render
-
-if TYPE_CHECKING:
-    from ..templates import Context
+from ..responses import redirect, render
+from ..templates import Context
 
 log = logging.getLogger(__name__)
 
@@ -144,7 +141,6 @@ def download_site_backup(request: Request, passphrase: str = Form("")) -> Respon
     file holding every account's credentials should not be one click from a
     bookmark.
     """
-    owner = owner_of(request)
     try:
         migration.check_passphrase(passphrase)
         with session_scope() as session:
@@ -163,7 +159,6 @@ def download_site_backup(request: Request, passphrase: str = Form("")) -> Respon
 def restore_site_backup(
     request: Request, passphrase: str = Form(""), backup_file: UploadFile = File(...)
 ) -> Response:
-    owner = owner_of(request)
     blob = backup_file.file.read()
     if not blob:
         return redirect("/admin", err="Choose a site backup to load.")

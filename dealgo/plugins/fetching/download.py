@@ -3,17 +3,12 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING
 
 import httpx
 
 from ..runtime import PluginError
 from .addresses import USUAL_REFS, archives, repository_name
-from .archive import unpack
-
-if TYPE_CHECKING:
-    from .archive import Fetched
-
+from .archive import Fetched, unpack
 
 #: How much of an archive is worth downloading. A plugin is a Lua file and
 #: whatever small things sit beside it; anything approaching this is not one.

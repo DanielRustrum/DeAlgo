@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,10 +19,8 @@ from ....plugins import registry
 from ....services import graph as graph_service
 from ....services import sync as sync_service
 from ....services.scope import OwnerId, owned
-
-if TYPE_CHECKING:
-    from ...templates import Context
 from ...contexts import feed_window_words
+from ...templates import Context
 
 
 def box_title(node: GraphNode, asks: Context | None) -> str:
