@@ -115,6 +115,68 @@ def test_max_per_run_defers_the_rest_to_the_next_pass(world):
     assert sorted(world["client"].inserted_into()) == ["v0", "v1", "v2"]
 
 
+def _three_waiting_and_a_feed_that_takes_two(world, playlist_id=None):
+    from dealgo.models import Playlist
+
+    with world["db"].session_scope() as session:
+        world["db"].get_settings(session).initial_backfill = 10
+        feed = session.scalar(select(Playlist))
+        feed.max_per_run = 2
+        if playlist_id is not None:
+            feed.playlist_id = playlist_id
+    world["entries"] = [entry(f"v{i}", i) for i in range(3)]
+    world["client"].details = {
+        f"v{i}": VideoDetails(f"v{i}", f"Video v{i}", 600, "none", "public") for i in range(3)
+    }
+
+
+def _owed(db) -> int:
+    from dealgo.models import Placement
+
+    with db.session_scope() as session:
+        return len(session.scalars(select(Placement).where(Placement.playlist_item_id.is_(None))).all())
+
+
+def test_a_feed_takes_no_more_than_its_cap_and_owes_the_rest(world):
+    """What a feed cannot take this run is owed to it, and the next run pays."""
+    _three_waiting_and_a_feed_that_takes_two(world)
+
+    assert sync_service.run_sync().added == 2
+    assert _owed(world["db"]) == 1
+
+    sync_service.run_sync()
+    assert _owed(world["db"]) == 0
+    assert sorted(world["client"].inserted_into()) == ["v0", "v1", "v2"]
+
+
+def test_a_feed_that_lives_here_keeps_to_its_cap_too(world):
+    """No API call to make and no quota to spend, and still no more than it takes."""
+    _three_waiting_and_a_feed_that_takes_two(world, playlist_id="generic:here")
+
+    assert sync_service.run_sync().added == 2
+    assert _owed(world["db"]) == 1
+    assert world["client"].inserted_into() == []
+
+
+def test_running_out_of_quota_stops_the_filing_and_says_so_once(world):
+    """The rest wait for the reset, owed rather than tried one by one."""
+    with world["db"].session_scope() as session:
+        settings = world["db"].get_settings(session)
+        settings.initial_backfill = 10
+        settings.daily_quota = 60  # the reads, one insert, and no more
+    world["entries"] = [entry(f"v{i}", i) for i in range(3)]
+    world["client"].details = {
+        f"v{i}": VideoDetails(f"v{i}", f"Video v{i}", 600, "none", "public") for i in range(3)
+    }
+
+    result = sync_service.run_sync()
+
+    assert result.added == 1
+    assert result.stopped_on_quota
+    assert sum("quota is spent" in message for message in result.messages) == 1
+    assert len(world["client"].inserted_into()) == 1
+
+
 def test_pruning_trims_the_oldest_entries(world):
     from dealgo.models import Playlist
 

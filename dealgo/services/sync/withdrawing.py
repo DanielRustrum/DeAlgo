@@ -18,7 +18,7 @@ from ...models import (
 from .. import graph, runlog
 from ..scope import OwnerId, owned
 from .deciding import decide
-from .filing import place_locally
+from .placing import place_locally
 from .repositories import waiting_in
 from .result import SyncResult
 

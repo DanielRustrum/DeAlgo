@@ -9,7 +9,7 @@ added twice.
 from __future__ import annotations
 
 from .deciding import decide, plugin_refusal, plugin_settings
-from .filing import MAX_INSERT_ATTEMPTS
+from .placements import MAX_INSERT_ATTEMPTS
 from .lock import Busy, is_running, playlist_lock
 from .ordering import ordering_value
 from .pictures import repair_stored_pictures, repair_stored_pictures_now
