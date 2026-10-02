@@ -390,6 +390,7 @@ async def _save_plugin_box(request: Request, node: GraphNode) -> None:
 def _save_trigger(
     node: GraphNode, every_minutes: str, every_unit: str, cron: str, duration: str
 ) -> JSONResponse | None:
+    """A trigger's gap or schedule, and its window; an error response if invalid."""
     wanted_window = duration.strip()
     if wanted_window.isdigit() and int(wanted_window) > 0:
         node.duration_minutes = int(wanted_window)

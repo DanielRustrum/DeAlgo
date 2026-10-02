@@ -198,6 +198,7 @@ def begin_sitting(session: Session, state: Window, now: dt.datetime) -> None:
 
 
 def _next_firing(node: GraphNode, now: dt.datetime) -> dt.datetime | None:
+    """When a Reset's cron next comes round after `now`, or None."""
     try:
         trigger = cron_trigger(node.cron or DEFAULT_CRON)
     except GraphError:

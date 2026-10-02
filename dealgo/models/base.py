@@ -13,6 +13,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
+    """The declarative base every table derives from."""
+
     pass
 
 
@@ -24,6 +26,7 @@ class Base(DeclarativeBase):
 # Channels, feeds and videos each carry it. Placements inherit it through both
 # ends, which are always the same owner's.
 def owner_column() -> Mapped[Optional[int]]:
+    """The `owner_pk` column: the account a row belongs to, NULL for the implicit owner."""
     return mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True, nullable=True)
 
 

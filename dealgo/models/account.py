@@ -75,4 +75,5 @@ class LoginSession(Base):
 
     @property
     def expired(self) -> bool:
+        """Whether this session has passed its expiry."""
         return utcnow() >= to_naive_utc(self.expires_at)

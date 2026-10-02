@@ -99,6 +99,7 @@ def partial_sync_status(request: Request, seen: int = 0) -> HTMLResponse:
 
 @router.get("/partials/stats", response_class=HTMLResponse)
 def partial_stats(request: Request) -> HTMLResponse:
+    """The counts row, redrawn after a run."""
     owner = owner_of(request)
     with session_scope() as session:
         context = stats_context(session, owner)
@@ -107,6 +108,7 @@ def partial_stats(request: Request) -> HTMLResponse:
 
 @router.get("/api/status")
 def api_status(request: Request) -> JSONResponse:
+    """The account's latest run and item counts, as JSON."""
     owner = owner_of(request)
     with session_scope() as session:
         run = session.scalar(

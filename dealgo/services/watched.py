@@ -31,6 +31,8 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class RemovalResult:
+    """What a removal of watched items did, counted, and what to tell the person."""
+
     ok: bool = False
     started: bool = True
     removed: int = 0
@@ -41,10 +43,12 @@ class RemovalResult:
 
     @property
     def message(self) -> str:
+        """Every message, as one line."""
         return " ".join(self.messages)
 
 
 def count_watched(session: Session, owner: OwnerId = None) -> int:
+    """How many items the owner has marked watched."""
     return (
         session.scalar(
             owned(select(func.count(Video.id)), Video, owner).where(
@@ -73,6 +77,7 @@ def count_removable(session: Session, owner: OwnerId = None) -> int:
 
 
 def mark_watched(session: Session, video_ids: list[int], owner: OwnerId = None) -> int:
+    """Mark the owner's items with these ids watched; returns how many changed."""
     # Scoped as well as keyed: an id from another account is not this one's to
     # mark, however it arrived.
     videos = list(
@@ -88,6 +93,7 @@ def mark_watched(session: Session, video_ids: list[int], owner: OwnerId = None) 
 
 
 def mark_unwatched(session: Session, video_ids: list[int], owner: OwnerId = None) -> int:
+    """Clear the watched mark on these ids; returns how many changed."""
     videos = list(
         session.scalars(owned(select(Video), Video, owner).where(Video.id.in_(video_ids)))
     )
@@ -133,6 +139,7 @@ def remove_watched(trigger: str = "manual", owner: OwnerId = None) -> RemovalRes
 def _remove(
     session: Session, http: httpx.Client, trigger: str, owner: OwnerId = None
 ) -> RemovalResult:
+    """Take every watched item out of its feeds, recording it as a run."""
     result = RemovalResult()
     client = build_client(session, http, owner)
 
@@ -273,6 +280,7 @@ def _take_out(
 
 
 def _summary(result: RemovalResult, total: int, stranded: int) -> str:
+    """The line that opens the result: how many went, and what could not."""
     said = f"Removed {total} watched video{'s' if total != 1 else ''} from playlists."
     if result.failed:
         said += f" {result.failed} could not be removed."
@@ -285,6 +293,7 @@ def _summary(result: RemovalResult, total: int, stranded: int) -> str:
 
 
 def _clear(placement: Placement, reason: str) -> None:
+    """Mark a placement removed, with why, keeping the row."""
     placement.playlist_item_id = None
     placement.removed_at = utcnow()
     placement.removal_reason = reason

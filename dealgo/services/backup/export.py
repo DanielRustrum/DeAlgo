@@ -25,6 +25,7 @@ def _stamp(value: dt.datetime | None) -> str | None:
 
 
 def filename(now: dt.datetime | None = None) -> str:
+    """The download's name: `de-algo-backup-YYYY-MM-DD.json`."""
     moment = now or dt.datetime.now(dt.timezone.utc)
     return f"de-algo-backup-{moment:%Y-%m-%d}.json"
 

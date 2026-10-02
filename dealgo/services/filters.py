@@ -12,11 +12,14 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Decision:
+    """Whether an item is accepted and, if not, why."""
+
     accept: bool
     reason: str | None = None
 
 
 def validate_pattern(pattern: str | None, label: str) -> None:
+    """Raise `ValueError` if a pattern is not a valid regular expression."""
     if not pattern:
         return
     try:
@@ -26,6 +29,7 @@ def validate_pattern(pattern: str | None, label: str) -> None:
 
 
 def _matches(pattern: str, text: str) -> bool:
+    """Whether a pattern matches, ignoring case; False for a broken pattern."""
     try:
         return re.search(pattern, text, re.IGNORECASE) is not None
     except re.error:
@@ -80,6 +84,7 @@ def evaluate(
 
 
 def format_duration(seconds: int | None) -> str:
+    """Seconds as `m:ss` or `h:mm:ss`; a dash when unknown."""
     if seconds is None:
         return "—"
     hours, remainder = divmod(seconds, 3600)

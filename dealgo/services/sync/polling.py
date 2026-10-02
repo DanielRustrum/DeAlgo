@@ -195,6 +195,7 @@ def discover(
 
 
 def _enabled(session: Session, owner: OwnerId) -> list[Channel]:
+    """The account's switched-on sources, in fill order."""
     return list(
         session.scalars(
             owned(select(Channel), Channel, owner)

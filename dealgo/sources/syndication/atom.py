@@ -10,6 +10,7 @@ from .text import NAMESPACES, clean_text, parse_date, summary_of
 
 
 def read_atom(root: ElementTree.Element) -> Feed:
+    """An Atom document's entries, as items."""
     items: list[Item] = []
     for node in root.findall("atom:entry", NAMESPACES):
         link = None

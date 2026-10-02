@@ -181,6 +181,7 @@ def graph_filter_report(request: Request, node_pk: int) -> JSONResponse:
 
 
 def _judged(item: graph_service.Judged) -> Context:
+    """One trial verdict as JSON for the canvas."""
     return {
         "id": item.video_pk,
         "title": item.title,

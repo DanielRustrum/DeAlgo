@@ -24,6 +24,8 @@ NO_PASSWORD = "none"
 
 @dataclass
 class SiteSummary:
+    """What a migration restore made, counted, and what the admin must do next."""
+
     accounts: int = 0
     feeds: int = 0
     channels: int = 0
@@ -101,6 +103,7 @@ def restore_site(session: Session, blob: bytes, passphrase: str) -> SiteSummary:
 
 
 def _restore_settings(session: Session, values: dict[str, Any], owner: OwnerId) -> None:
+    """Lay a migrated account's settings over its own."""
     settings = get_settings(session, owner)
     for name, value in values.items():
         if hasattr(settings, name) and name not in {"id", "owner_pk"}:

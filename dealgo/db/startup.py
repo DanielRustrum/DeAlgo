@@ -20,6 +20,11 @@ from .migrations import (
 
 
 def init_db() -> None:
+    """Bring the database up to date, then make sure of the admin account.
+
+    Safe on every start: each migration step does nothing once it has been done. Order matters —
+    the column drops come last because earlier steps read those columns.
+    """
     Base.metadata.create_all(get_engine())
     add_missing_columns()
     rebuild_video_uniqueness()

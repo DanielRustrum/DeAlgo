@@ -35,6 +35,7 @@ _oauth_states: dict[str, float] = {}
 
 @router.get("/oauth/start")
 def oauth_start(request: Request) -> Response:
+    """Send the browser to Google to ask for consent."""
     with session_scope() as session:
         client_id, client_secret = client_credentials(session)
     if not (client_id and client_secret):
@@ -54,6 +55,7 @@ def oauth_start(request: Request) -> Response:
 def oauth_callback(
     request: Request, code: str = "", state: str = "", error: str = ""
 ) -> RedirectResponse:
+    """Where Google sends the browser back: store the grant for this account."""
     # Google sends the browser back here, so the session cookie says which
     # account the grant belongs to.
     owner = owner_of(request)
@@ -107,6 +109,7 @@ def oauth_callback(
 
 @router.post("/oauth/disconnect")
 def oauth_disconnect() -> RedirectResponse:
+    """Revoke and forget the Google grant (the implicit owner's — see Known Issues)."""
     with session_scope() as session, outgoing.client() as http:
         disconnect(session, http)
     return redirect("/settings", ok="Google account disconnected.")

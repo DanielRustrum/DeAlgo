@@ -148,6 +148,7 @@ def take_staged(plugin_id: str) -> bool:
 
 
 def _staging() -> Path:
+    """Where fetched plugins wait for consent: `plugins/.staged/`."""
     return folder() / STAGING
 
 

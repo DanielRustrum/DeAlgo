@@ -121,7 +121,9 @@ def unlink(session: Session, playlist: Playlist) -> str:
 
 
 def update(session: Session, playlist: Playlist, form: Mapping[str, str]) -> Playlist:
+    """Save a feed's caps from its form; raises `PlaylistError` for a bad number."""
     def as_count(key: str, label: str) -> int:
+        """A form field as a count of at least 0; 0 when empty."""
         raw = (form.get(key) or "").strip()
         if not raw:
             return 0

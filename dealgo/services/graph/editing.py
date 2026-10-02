@@ -67,6 +67,7 @@ def stands_alone(session: Session, node: GraphNode, owner: OwnerId = None) -> bo
 
 
 def move(session: Session, node_pk: int, x: int, y: int, owner: OwnerId = None) -> bool:
+    """Put a box at new coordinates. False if it is not here."""
     node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
     if node is None:
         return False

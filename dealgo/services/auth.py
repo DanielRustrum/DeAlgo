@@ -27,11 +27,13 @@ def client_credentials(session: Session, owner: OwnerId = None) -> tuple[str, st
 
 
 def api_key(session: Session, owner: OwnerId = None) -> str:
+    """This account's Google API key, or the environment's."""
     settings = get_settings(session, owner)
     return (settings.api_key or CONFIG.api_key or "").strip()
 
 
 def has_client_credentials(session: Session, owner: OwnerId = None) -> bool:
+    """Whether a Google OAuth client id and secret are set for this account."""
     client_id, client_secret = client_credentials(session, owner)
     return bool(client_id and client_secret)
 
@@ -108,6 +110,7 @@ def store_token(
     account_title: str | None = None,
     owner: OwnerId = None,
 ) -> OAuthToken:
+    """Save a granted token for this account, replacing any it had."""
     token = get_token(session, owner)
     if token is None:
         token = OAuthToken(owner_pk=owner, access_token=response.access_token)
@@ -126,6 +129,10 @@ def store_token(
 
 
 def disconnect(session: Session, http: httpx.Client) -> None:
+    """Revoke the Google grant with Google and forget it.
+
+    Takes no owner, so it acts on the implicit owner's grant — see Known Issues.
+    """
     token = get_token(session)
     if token is None:
         return

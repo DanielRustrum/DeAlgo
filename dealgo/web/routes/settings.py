@@ -23,6 +23,7 @@ router = APIRouter()
 
 @router.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request) -> HTMLResponse:
+    """The Settings page: the Google connection, quota and backups."""
     owner = owner_of(request)
     with session_scope() as session:
         context = {

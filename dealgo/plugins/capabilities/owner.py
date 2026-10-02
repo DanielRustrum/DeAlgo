@@ -45,4 +45,5 @@ def acting_for(owner: OwnerId) -> Iterator[None]:
 
 
 def whose() -> tuple[OwnerId, bool]:
+    """The owner in hand on this thread, and whether any is."""
     return _whose.owner, _whose.acting

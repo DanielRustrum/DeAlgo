@@ -104,6 +104,7 @@ def _paths_into(session: Session, node: GraphNode, owner: OwnerId) -> list[Route
     found: list[Route] = []
 
     def walk(at: GraphNode, carried: list[GraphNode], seen: set[int]) -> None:
+        """Walk back from `at` to every source, collecting the Filters passed."""
         if at.id in seen:
             return
         seen = seen | {at.id}

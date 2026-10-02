@@ -274,6 +274,7 @@ def _unpack(
 def _unpack_source(
     session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
 ) -> GraphNode | None:
+    """A source box from a group file, watching its channel by id."""
     channel_id = entry.get("channel_id")
     if not channel_id:
         return None
@@ -300,6 +301,7 @@ def _unpack_source(
 def _unpack_filter(
     session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
 ) -> GraphNode:
+    """A Filter box from a group file, with its conditions as pieces."""
     x, y = at
     node = add_filter(session, owner, label=str(entry.get("label") or "") or "Filter", x=x, y=y)
     # A format-1 file kept every rule on the box. They are pieces now, so
@@ -322,6 +324,7 @@ def _unpack_filter(
 def _unpack_condition(
     session: Session, entry: dict[str, Any], owner: OwnerId, *, kind: str, at: tuple[int, int]
 ) -> GraphNode:
+    """A condition piece from a group file, with its value."""
     x, y = at
     piece = add_piece(
         session, owner, kind=kind, x=x, y=y,
@@ -408,6 +411,7 @@ def move_group(
 def resize(
     session: Session, node_pk: int, width: int, height: int, owner: OwnerId = None
 ) -> bool:
+    """Resize a group box, no smaller than `GROUP_LEAST`. False if it is not a group."""
     group = session.scalar(
         owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
     )

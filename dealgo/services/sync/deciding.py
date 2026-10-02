@@ -182,6 +182,7 @@ def attribute(
 
 
 def reject(video: Video, result: SyncResult, reason: str) -> None:
+    """Hold an item back with a reason, and count it."""
     video.status = "skipped"
     video.reason = reason
     video.processed_at = utcnow()

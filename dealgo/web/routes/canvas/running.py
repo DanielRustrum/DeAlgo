@@ -218,6 +218,7 @@ def _trigger_targets(
 
 
 def _busy() -> Context:
+    """The mark for a box the run is working on now."""
     # The same shape as a finished mark, so the canvas reads one kind of thing.
     return {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}
 

@@ -38,6 +38,7 @@ def _set_session_cookie(response: Response, request: Request, token: str) -> Non
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "") -> Response:
+    """The sign-in form, or onward if already signed in or sign-in is off."""
     if not CONFIG.auth_enabled:
         return redirect("/")
     if getattr(request.state, "identity", None) is not None:
@@ -52,6 +53,7 @@ def sign_in(
     password: str = Form(""),
     next: str = Form(""),
 ) -> Response:
+    """Check the password and start a session; back to the form if it is wrong."""
     if not CONFIG.auth_enabled:
         return redirect("/")
 
@@ -77,6 +79,7 @@ def sign_in(
 
 @router.post("/logout")
 def sign_out(request: Request) -> Response:
+    """End this browser's session."""
     with session_scope() as session:
         accounts.end_session(session, request.cookies.get(accounts.SESSION_COOKIE))
     response = redirect("/login", ok="Signed out.")

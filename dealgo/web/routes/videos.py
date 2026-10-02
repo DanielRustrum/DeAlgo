@@ -38,6 +38,7 @@ def videos_page(
     page: int = 1,
     q: str = "",
 ) -> HTMLResponse:
+    """The raw list of every item, filtered by status, watched, source and words."""
     owner = owner_of(request)
     page_size = 60
     page = max(1, page)
@@ -107,6 +108,7 @@ def _video_row_response(
     watched_changed: bool = False,
     view: str = "list",
 ) -> Response:
+    """One item's row again for htmx, or a redirect for a plain form post."""
     if not is_htmx(request):
         return redirect(back, ok=ok, err=err)
     # Panels that count watched videos listen for this and re-render themselves.
@@ -129,6 +131,7 @@ def _video_row_response(
 
 @router.post("/videos/{video_id}/requeue")
 def requeue_video(request: Request, video_id: int, back: str = Form("/videos")) -> Response:
+    """Send an item through filing again on the next run."""
     with session_scope() as session:
         video = session.get(Video, video_id)
         if video is None:
@@ -145,6 +148,7 @@ def requeue_video(request: Request, video_id: int, back: str = Form("/videos")) 
 
 @router.post("/videos/{video_id}/watched")
 def mark_video_watched(request: Request, video_id: int, back: str = Form("/videos"), view: str = Form("list")) -> Response:
+    """Mark one item watched."""
     owner = owner_of(request)
     with session_scope() as session:
         video = session.get(Video, video_id)
@@ -159,6 +163,7 @@ def mark_video_watched(request: Request, video_id: int, back: str = Form("/video
 
 @router.post("/videos/{video_id}/unwatched")
 def mark_video_unwatched(request: Request, video_id: int, back: str = Form("/videos"), view: str = Form("list")) -> Response:
+    """Clear one item's watched mark."""
     owner = owner_of(request)
     with session_scope() as session:
         video = session.get(Video, video_id)
@@ -178,6 +183,7 @@ def mark_video_unwatched(request: Request, video_id: int, back: str = Form("/vid
 
 @router.post("/playlist/mark-all-watched")
 def mark_all_watched(request: Request) -> Response:
+    """Mark everything in the account's feeds watched."""
     owner = owner_of(request)
     with session_scope() as session:
         changed = watched_service.mark_all_in_playlist_watched(session, owner)
@@ -257,6 +263,7 @@ def remove_watched(request: Request) -> Response:
 
 @router.post("/videos/{video_id}/ignore")
 def ignore_video(request: Request, video_id: int, back: str = Form("/videos")) -> Response:
+    """Set one item aside so no run files it."""
     with session_scope() as session:
         video = session.get(Video, video_id)
         if video is None:

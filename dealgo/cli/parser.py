@@ -15,6 +15,7 @@ from .watching import cmd_remove_watched, cmd_watched
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """The command line: one subcommand per `cmd_*` function."""
     parser = argparse.ArgumentParser(prog="dealgo", description="A YouTube feed that is yours, not the algorithm's.")
     parser.add_argument("--version", action="version", version=f"dealgo {__version__}")
     sub = parser.add_subparsers(dest="command")

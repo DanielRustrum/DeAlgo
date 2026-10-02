@@ -40,6 +40,7 @@ class Net:
     LUA_OFFERS = frozenset({"get", "embedded", "find"})
 
     def __init__(self, plugin: str, http: Callable[[], httpx.Client] | None, lua: Any = None):
+        """The `net` capability for one plugin, with no requests made yet."""
         self._plugin = plugin
         self._http = http
         self._lua = lua

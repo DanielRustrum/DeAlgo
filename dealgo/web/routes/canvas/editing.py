@@ -29,6 +29,7 @@ router = APIRouter()
 
 @router.get("/api/graph")
 def graph_state(request: Request) -> JSONResponse:
+    """The whole canvas, for the browser to draw."""
     owner = owner_of(request)
     with session_scope() as session:
         return JSONResponse(graph_payload(session, owner))
@@ -64,6 +65,7 @@ def graph_move(
 def graph_connect(
     request: Request, source: int = Form(...), target: int = Form(...)
 ) -> JSONResponse:
+    """Draw a wire from one box to another, if it is allowed."""
     owner = owner_of(request)
     with session_scope() as session:
         nodes = {node.id: node for node in graph_service.nodes(session, owner)}
@@ -247,6 +249,7 @@ def graph_attach(request: Request, node_pk: int, under: str = Form("")) -> JSONR
 def graph_resize(
     request: Request, node_pk: int, width: int = Form(0), height: int = Form(0)
 ) -> JSONResponse:
+    """Resize a group box."""
     owner = owner_of(request)
     with session_scope() as session:
         return JSONResponse({"resized": graph_service.resize(session, node_pk, width, height, owner)})
@@ -254,6 +257,7 @@ def graph_resize(
 
 @router.post("/graph/nodes/{node_pk}/delete")
 def graph_remove(request: Request, node_pk: int) -> JSONResponse:
+    """Remove a box, and its channel or feed if no other box stands for it."""
     owner = owner_of(request)
     with session_scope() as session:
         try:

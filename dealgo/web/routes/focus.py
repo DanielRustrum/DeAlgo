@@ -106,6 +106,7 @@ def _focus_queue(
 
 @router.get("/focus", response_class=HTMLResponse)
 def focus(request: Request, order: str = "oldest", playlist: str = "", start: str = "") -> HTMLResponse:
+    """Focus mode: the queue of unwatched items, one at a time."""
     owner = owner_of(request)
     start_id = int(start) if start.isdigit() else None
     with session_scope() as session:

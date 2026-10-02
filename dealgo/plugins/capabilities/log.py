@@ -16,12 +16,15 @@ class Log:
     LUA_OFFERS = frozenset({"info", "warn"})
 
     def __init__(self, plugin: str):
+        """The `log` capability, labelling every line with the plugin's name."""
         self._plugin = plugin
 
     def info(self, message: object) -> None:
+        """Log a line, shortened to 500 characters."""
         log.info("plugin %s: %s", self._plugin, _short(message))
 
     def warn(self, message: object) -> None:
+        """Log a warning, shortened to 500 characters."""
         log.warning("plugin %s: %s", self._plugin, _short(message))
 
 

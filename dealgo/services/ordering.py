@@ -18,10 +18,12 @@ OrderedType = type[Channel] | type[Playlist]
 
 
 def _ordered(session: Session, model: OrderedType) -> list[Ordered]:
+    """Every row of `model` in fill order."""
     return list(session.scalars(select(model).order_by(model.priority, model.id)))
 
 
 def normalize(session: Session, model: OrderedType) -> None:
+    """Renumber `model`'s priorities 0, 1, 2, … in their current order."""
     for position, row in enumerate(_ordered(session, model)):
         row.priority = position
     session.flush()
@@ -54,8 +56,10 @@ def append(session: Session, row: Ordered) -> None:
 
 
 def move_channel(session: Session, pk: int, direction: str) -> bool:
+    """Move a source up or down the fill order."""
     return move(session, Channel, pk, direction)
 
 
 def move_playlist(session: Session, pk: int, direction: str) -> bool:
+    """Move a feed up or down the fill order."""
     return move(session, Playlist, pk, direction)

@@ -38,6 +38,8 @@ class Resolved:
 
 @dataclass(frozen=True)
 class SourceKind:
+    """A kind of source: what it is called, what to type, and who reads it."""
+
     name: str
     label: str
     #: What to type, said the way somebody would say it.

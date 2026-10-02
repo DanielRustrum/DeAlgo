@@ -117,6 +117,7 @@ def note(**fields: object) -> None:
 
 
 def note_polled(channel_pk: int, found: int) -> None:
+    """Record that a source was polled and how many new items it brought."""
     with _progress_lock:
         if _progress is None:
             return
@@ -125,6 +126,7 @@ def note_polled(channel_pk: int, found: int) -> None:
 
 
 def note_unreachable(channel_pk: int, why: str) -> None:
+    """Record that a source could not be read, and why."""
     with _progress_lock:
         if _progress is None:
             return
@@ -133,6 +135,7 @@ def note_unreachable(channel_pk: int, why: str) -> None:
 
 
 def note_left(channel_pk: int) -> None:
+    """Count an item that its source's own rules let out."""
     with _progress_lock:
         if _progress is None:
             return
@@ -140,6 +143,7 @@ def note_left(channel_pk: int) -> None:
 
 
 def note_filtered(node_pk: int, passed: bool) -> None:
+    """Count an item a Filter box let through, or held."""
     with _progress_lock:
         if _progress is None:
             return
@@ -148,6 +152,7 @@ def note_filtered(node_pk: int, passed: bool) -> None:
 
 
 def note_placed(playlist_pk: int) -> None:
+    """Count an item placed into a feed."""
     with _progress_lock:
         if _progress is None:
             return

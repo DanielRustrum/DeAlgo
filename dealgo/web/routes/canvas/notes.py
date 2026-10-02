@@ -70,6 +70,7 @@ def _filter_note(pieces: list[GraphNode]) -> str:
 
 
 def _sort_note(pieces: list[GraphNode]) -> str:
+    """What a Sort box orders by, from the Order or plugin ordering under it."""
     ordering = next((one for one in pieces if one.enabled and orders(one)), None)
     if ordering is None:
         return "slot an Order under it"
@@ -85,6 +86,7 @@ def _sort_note(pieces: list[GraphNode]) -> str:
 
 
 def _store_note(node: GraphNode, store: Context) -> str:
+    """How much a Deposit holds, or how much a Withdraw pulls at a time."""
     name = str(store.get("name") or "")
     if not name:
         return "open it and give it a name"
@@ -96,6 +98,7 @@ def _store_note(node: GraphNode, store: Context) -> str:
 
 
 def _trigger_note(node: GraphNode, opening: set[int] | None) -> str:
+    """When a trigger fires, or when the feed window it opens comes round."""
     # Wired to a feed it opens a window, which is a different sentence from
     # the one about setting a channel off.
     if opening is not None and node.id in opening:
@@ -107,6 +110,7 @@ def _trigger_note(node: GraphNode, opening: set[int] | None) -> str:
 
 
 def _source_note(node: GraphNode) -> str:
+    """What a source takes: kinds of YouTube upload, or where it reads from."""
     channel = node.channel
     if channel is None:
         return "open it and say where to watch"
@@ -124,6 +128,7 @@ def _source_note(node: GraphNode) -> str:
 
 
 def _feed_note(node: GraphNode) -> str:
+    """Whether a feed lives here or is a YouTube playlist."""
     playlist = node.playlist
     if playlist is None:
         return "feed is gone"

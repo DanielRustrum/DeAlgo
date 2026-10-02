@@ -139,6 +139,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
     second pass, once there is a manifest to weigh them against.
     """
     def nothing_yet(lua: Any) -> dict[str, object]:
+        """The plugin's world for the first pass: a `dealgo` granted nothing."""
         return {**given, **capabilities.granted_to(plugin.id, frozenset(), None, lua)}
 
     try:
@@ -198,6 +199,7 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     asked = tuple((want.name, want.why) for want in plugin.wants)
 
     def able(lua: Any) -> dict[str, object]:
+        """The plugin's world with what it was granted."""
         return capabilities.granted_to(plugin.title, plugin.granted, http, lua, asked)
 
     try:

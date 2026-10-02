@@ -91,10 +91,12 @@ class Asked:
 
     @property
     def known(self) -> bool:
+        """Whether this version of De-Algo knows the permission asked for."""
         return self.name in permissions.BY_NAME
 
     @property
     def detail(self) -> permissions.Permission:
+        """What the permission asked for means."""
         return permissions.describe(self.name)
 
 
@@ -156,6 +158,7 @@ class Augmentation:
 
     @property
     def orders(self) -> bool:
+        """Whether this is an ordering (under a Sort) rather than a condition."""
         return self.under == "sort"
 
 
@@ -216,6 +219,7 @@ class Plugin:
 
     @property
     def title(self) -> str:
+        """What to call the plugin: its name, or its id if it gave none."""
         return self.name or self.id
 
     @property

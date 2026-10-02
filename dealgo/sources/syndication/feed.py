@@ -15,6 +15,7 @@ from .text import plain_tag
 
 
 def fetch(url: str, client: httpx.Client) -> Feed:
+    """Read the feed at `url`, waiting first if its host asked us to."""
     # Asked before the request rather than after the refusal: a host that has
     # told us its budget is spent will only refuse us again, and being refused
     # is what deepens a block.

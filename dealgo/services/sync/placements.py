@@ -57,4 +57,5 @@ def local_item_id(video: Video, playlist: Playlist) -> str:
 
 
 def still_queued(session: Session) -> int:
+    """How many items are waiting to be filed, across every account."""
     return session.scalar(select(func.count(Video.id)).where(Video.status == "pending")) or 0

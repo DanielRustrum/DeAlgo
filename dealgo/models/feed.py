@@ -95,6 +95,7 @@ class Playlist(Base):
 
     @property
     def tag_list(self) -> list[str]:
+        """The feed's tags, as a list."""
         return [tag.strip() for tag in (self.tags or "").split(",") if tag.strip()]
 
     @property
@@ -109,6 +110,7 @@ class Playlist(Base):
 
     @property
     def url(self) -> str | None:
+        """The YouTube playlist's address, or None for a feed that lives here."""
         if self.is_generic:
             return None
         return f"https://www.youtube.com/playlist?list={self.playlist_id}"

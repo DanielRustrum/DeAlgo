@@ -43,6 +43,7 @@ ASSET_VERSION = _asset_version()
 
 
 def ago(value: dt.datetime | None) -> str:
+    """How long ago, said plainly: "3 hours ago"; a date past 30 days."""
     if value is None:
         return "never"
     delta = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - value.replace(tzinfo=None)
@@ -107,6 +108,7 @@ def spell(seconds: int | None) -> str:
 
 
 def stamp(value: dt.datetime | None) -> str:
+    """A time as `YYYY-MM-DD HH:MM UTC`; a dash when there is none."""
     return value.strftime("%Y-%m-%d %H:%M UTC") if value else "—"
 
 

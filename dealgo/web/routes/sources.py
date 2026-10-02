@@ -29,6 +29,7 @@ router = APIRouter()
 
 @router.get("/channels/{channel_id}", response_class=HTMLResponse)
 def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
+    """One source's page: its settings, its feeds, and what it has brought in."""
     owner = owner_of(request)
     with session_scope() as session:
         channel = session.scalar(
@@ -75,6 +76,7 @@ def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
 
 @router.post("/channels/{channel_id}/delete")
 def remove_channel(request: Request, channel_id: int, feed: str = Form("")) -> Response:
+    """Stop watching a source."""
     with session_scope() as session:
         channel = session.get(Channel, channel_id)
         if channel is None:

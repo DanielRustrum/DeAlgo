@@ -37,6 +37,7 @@ class OAuthToken(Base):
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     def is_expired(self, skew_seconds: int = 60) -> bool:
+        """Whether the access token has expired, or will within `skew_seconds`."""
         if self.expires_at is None:
             return True
         return utcnow() >= to_naive_utc(self.expires_at) - dt.timedelta(seconds=skew_seconds)

@@ -32,6 +32,7 @@ QUOTA_TZ = ZoneInfo("America/Los_Angeles")
 
 
 def quota_day(now: dt.datetime | None = None) -> str:
+    """The quota day `now` falls in, as an ISO date in Pacific time."""
     moment = now or dt.datetime.now(dt.timezone.utc)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=dt.timezone.utc)
@@ -51,6 +52,8 @@ def next_reset(now: dt.datetime | None = None) -> dt.datetime:
 
 @dataclass(frozen=True)
 class QuotaState:
+    """One account's quota for today: what is spent, what is allowed, when it resets."""
+
     day: str
     used: int
     budget: int
@@ -60,6 +63,7 @@ class QuotaState:
 
     @property
     def remaining(self) -> int:
+        """Units left before the daily budget, reserve included."""
         return max(0, self.budget - self.used)
 
     @property
@@ -71,10 +75,12 @@ class QuotaState:
 
     @property
     def percent_used(self) -> int:
+        """How much of the budget is spent, 0–100; 100 when there is no budget."""
         return min(100, round(self.used * 100 / self.budget)) if self.budget else 100
 
 
 def _row(session: Session, owner: OwnerId = None, day: str | None = None) -> QuotaUsage:
+    """The owner's ledger row for a day (today by default), made on first use."""
     day = day or quota_day()
     row = session.scalar(
         owned(select(QuotaUsage), QuotaUsage, owner).where(QuotaUsage.day == day)
@@ -87,6 +93,7 @@ def _row(session: Session, owner: OwnerId = None, day: str | None = None) -> Quo
 
 
 def state(session: Session, owner: OwnerId = None) -> QuotaState:
+    """The owner's quota as it stands now."""
     settings = get_settings(session, owner)
     row = _row(session, owner)
     return QuotaState(
@@ -100,6 +107,7 @@ def state(session: Session, owner: OwnerId = None) -> QuotaState:
 
 
 def spend(session: Session, units: int, owner: OwnerId = None) -> None:
+    """Charge units to the owner's ledger for today. Nothing for zero or less."""
     if units <= 0:
         return
     row = _row(session, owner)
@@ -123,6 +131,10 @@ def mark_exhausted(session: Session, owner: OwnerId = None) -> None:
 def can_afford(
     session: Session, units: int, *, use_reserve: bool = False, owner: OwnerId = None
 ) -> bool:
+    """Whether the owner can spend `units` now.
+
+    Syncing keeps the reserve back; `use_reserve=True` lets a manual action dip into it.
+    """
     current = state(session, owner)
     if current.exhausted:
         return False
@@ -137,6 +149,7 @@ def meter(session: Session, owner: OwnerId = None) -> Callable[[int], None]:
     """
 
     def record(units: int) -> None:
+        """Charge one request's units, logging rather than raising if it fails."""
         try:
             spend(session, units, owner)
         except Exception:  # pragma: no cover - accounting must never break a sync
@@ -146,6 +159,7 @@ def meter(session: Session, owner: OwnerId = None) -> Callable[[int], None]:
 
 
 def describe_reset(now: dt.datetime | None = None) -> str:
+    """When the quota resets, said as "in 3h 05m" or "in 12 min"."""
     resets_at = next_reset(now)
     delta = resets_at - (now or dt.datetime.now(dt.timezone.utc))
     hours = int(delta.total_seconds() // 3600)

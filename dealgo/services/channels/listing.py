@@ -10,10 +10,13 @@ from ..scope import OwnerId, owned
 
 
 class ChannelError(RuntimeError):
+    """A source could not be added or changed; the message says why."""
+
     pass
 
 
 def list_channels(session: Session, owner: OwnerId = None) -> list[Channel]:
+    """The account's sources in fill order, with the feeds each fills."""
     # Templates render after the session closes, so the targets come eagerly.
     return list(
         session.scalars(
@@ -25,4 +28,5 @@ def list_channels(session: Session, owner: OwnerId = None) -> list[Channel]:
 
 
 def delete_channel(session: Session, channel: Channel) -> None:
+    """Stop watching a source, deleting its items with it."""
     session.delete(channel)

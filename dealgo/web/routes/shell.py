@@ -58,4 +58,5 @@ def offline(request: Request) -> HTMLResponse:
 
 @router.get("/healthz")
 def healthz() -> dict[str, object]:
+    """Liveness for the container: always ok, with the version and whether a run is going."""
     return {"status": "ok", "version": __version__, "syncing": sync_service.is_running()}

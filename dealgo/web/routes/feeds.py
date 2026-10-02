@@ -37,6 +37,7 @@ def _playlists_response(
     creating: bool = False,
     back: str = "",
 ) -> Response:
+    """Back to where the form came from, or to the canvas."""
     if back:
         # The detail page posts plainly and returns to itself.
         return redirect(back, ok=ok, err=err)
@@ -86,6 +87,7 @@ def save_playlist(
     max_per_run: str = Form("0"),
     back: str = Form(""),
 ) -> Response:
+    """Save a feed's size cap and per-run cap."""
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
@@ -222,6 +224,7 @@ def unlink_playlist(request: Request, playlist_pk: int, back: str = Form("")) ->
 
 @router.post("/settings/playlists/{playlist_pk}/delete")
 def delete_playlist(request: Request, playlist_pk: int, back: str = Form("")) -> Response:
+    """Stop filling a feed. A YouTube playlist itself is left on YouTube."""
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:

@@ -12,6 +12,7 @@ from pathlib import Path
 
 
 def _bool(name: str, default: bool) -> bool:
+    """An environment variable as a switch: 1, true, yes or on."""
     raw = os.getenv(name)
     if raw is None:
         return default
@@ -20,6 +21,8 @@ def _bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Config:
+    """Everything read from the environment at start-up."""
+
     data_dir: Path
     database_url: str
     host: str
@@ -37,6 +40,7 @@ class Config:
 
     @property
     def redirect_uri(self) -> str:
+        """Where Google sends the browser back to after consent."""
         return f"{self.public_url.rstrip('/')}/oauth/callback"
 
     @property
@@ -62,6 +66,7 @@ class Config:
 
 
 def load_config() -> Config:
+    """Read the environment into a `Config`, making the data folder if needed."""
     data_dir = Path(os.getenv("DEALGO_DATA_DIR", "./data")).expanduser()
     data_dir.mkdir(parents=True, exist_ok=True)
     default_db = f"sqlite:///{(data_dir / 'dealgo.sqlite3').resolve()}"

@@ -61,6 +61,7 @@ class Site:
         wants: tuple[tuple[str, str], ...] = (),
         granted: frozenset[str] = frozenset(),
     ):
+        """The `dealgo` object for one plugin: what it may read and change, and its manifest."""
         self._plugin = plugin
         self._lua = lua
         self._reading = reading
@@ -154,6 +155,7 @@ class Site:
     # -- the plumbing ------------------------------------------------------
 
     def _may(self, what: str, granted: bool) -> bool:
+        """Whether this plugin may do `what` now: granted, and with an account in hand."""
         if not granted:
             log.warning("plugin %s tried to %s without being allowed to", self._plugin, what)
             return False
@@ -167,6 +169,7 @@ class Site:
         return True
 
     def _look(self, run: Any) -> list[dict[str, object]]:
+        """Run a read for the account in hand, capped at `MOST_ROWS` rows."""
         from ...db import session_scope
 
         owner, _ = whose()
@@ -178,6 +181,7 @@ class Site:
             return []
 
     def _change(self, run: Any) -> object:
+        """Run a change for the account in hand; None if it could not be made."""
         from ...db import session_scope
 
         owner, _ = whose()
@@ -193,16 +197,19 @@ class Site:
         return to_lua(self._lua, rows)
 
     def _empty(self) -> Any:
+        """An empty Lua table: the answer when there is nothing a plugin may see."""
         return self._lua.table()
 
 
 def permissions_for(name: str) -> Any:
+    """What a permission means, by name."""
     from .. import permissions
 
     return permissions.describe(name)
 
 
 def _known_names() -> frozenset[str]:
+    """Every permission name this version understands."""
     from .. import permissions
 
     return frozenset(permissions.BY_NAME)

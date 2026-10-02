@@ -76,6 +76,7 @@ def find(value: Any, key: str, *, most: int = MOST_MATCHES) -> list[Any]:
 
 
 def _walk(node: Any, key: str, depth: int) -> Iterator[Any]:
+    """Every value under `key`, anywhere in `node`, no deeper than `DEEPEST`."""
     if depth > DEEPEST:
         return
     if isinstance(node, dict):

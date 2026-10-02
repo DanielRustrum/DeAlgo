@@ -24,6 +24,7 @@ router = APIRouter()
 
 
 def _admin_context(session: Session) -> Context:
+    """What the Admin page shows: the accounts, their limits, and the plugin counts."""
     return {
         "users": accounts.list_users(session),
         "admin_user": CONFIG.admin_user,
@@ -43,6 +44,7 @@ def _plugin_tally() -> Context:
 
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request) -> HTMLResponse:
+    """The Admin page, or what would turn accounts on when they are off."""
     # Reachable by address even with accounts switched off, where an empty
     # list of them would explain nothing. Say what would turn it on instead.
     if not CONFIG.auth_enabled:
@@ -67,6 +69,7 @@ def admin_page(request: Request) -> HTMLResponse:
 def add_account(
     request: Request, username: str = Form(""), password: str = Form("")
 ) -> Response:
+    """Create a member account from the form."""
     with session_scope() as session:
         try:
             accounts.create_user(session, username, password)
@@ -77,6 +80,7 @@ def add_account(
 
 @router.post("/admin/accounts/{user_pk}/password")
 def reset_account_password(request: Request, user_pk: int, password: str = Form("")) -> Response:
+    """Set a member's password. The admin's own comes from the environment."""
     with session_scope() as session:
         user = session.get(User, user_pk)
         if user is None:
@@ -96,6 +100,7 @@ def reset_account_password(request: Request, user_pk: int, password: str = Form(
 
 @router.post("/admin/accounts/{user_pk}/enabled")
 def set_account_enabled(request: Request, user_pk: int) -> Response:
+    """Switch a member account off (signing it out everywhere) or back on."""
     with session_scope() as session:
         user = session.get(User, user_pk)
         if user is None:
@@ -110,6 +115,7 @@ def set_account_enabled(request: Request, user_pk: int) -> Response:
 
 @router.post("/admin/accounts/{user_pk}/delete")
 def remove_account(request: Request, user_pk: int) -> Response:
+    """Delete a member account and everything it owns."""
     with session_scope() as session:
         user = session.get(User, user_pk)
         if user is None:
@@ -124,6 +130,7 @@ def remove_account(request: Request, user_pk: int) -> Response:
 
 @router.post("/admin/accounts/{user_pk}/sessions")
 def end_account_sessions(request: Request, user_pk: int) -> Response:
+    """Sign one account out of every browser."""
     with session_scope() as session:
         user = session.get(User, user_pk)
         if user is None:
@@ -159,6 +166,7 @@ def download_site_backup(request: Request, passphrase: str = Form("")) -> Respon
 def restore_site_backup(
     request: Request, passphrase: str = Form(""), backup_file: UploadFile = File(...)
 ) -> Response:
+    """Stand up the accounts in an uploaded, encrypted migration file."""
     blob = backup_file.file.read()
     if not blob:
         return redirect("/admin", err="Choose a site backup to load.")
@@ -182,6 +190,7 @@ def restore_site_backup(
 
 @router.post("/admin/sessions/prune")
 def prune_sessions(request: Request) -> Response:
+    """Delete every expired sign-in session."""
     with session_scope() as session:
         cleared = accounts.clear_expired(session)
     return redirect("/admin", ok=f"Cleared {cleared} expired session(s).")

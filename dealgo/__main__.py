@@ -10,6 +10,7 @@ from .cli import build_parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse the command line and run the command; `serve` when none is given."""
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):

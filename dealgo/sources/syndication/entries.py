@@ -25,5 +25,7 @@ class Item:
 
 @dataclass(frozen=True)
 class Feed:
+    """A feed's title and its items, newest first."""
+
     title: str
     items: list[Item] = field(default_factory=list)

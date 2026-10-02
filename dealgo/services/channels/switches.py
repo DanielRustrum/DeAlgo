@@ -12,6 +12,8 @@ from ...models import Channel, Video
 from .. import filters
 from .listing import ChannelError
 
+# What the filter wrote as the reason, so a toggle can find exactly what it
+# passed over and nothing else.
 SHORTS_REASON = "Short%"
 
 
@@ -50,10 +52,12 @@ def _requeue_skipped(
 
 
 def requeue_skipped_shorts(session: Session, channel: Channel) -> int:
+    """Send this source's Shorts held as Shorts back to be filed."""
     return _requeue_skipped(session, channel, Video.reason.like(SHORTS_REASON))
 
 
 def requeue_skipped_live(session: Session, channel: Channel) -> int:
+    """Send this source's held live streams and premieres back to be filed."""
     return _requeue_skipped(session, channel, Video.reason.in_(LIVE_REASONS))
 
 
@@ -70,6 +74,7 @@ def set_shorts(session: Session, channel: Channel, *, include: bool) -> int:
 
 
 def requeue_skipped_videos(session: Session, channel: Channel) -> int:
+    """Send this source's held videos back to be filed."""
     return _requeue_skipped(session, channel, Video.reason == VIDEO_REASON)
 
 
@@ -84,6 +89,7 @@ def set_videos(session: Session, channel: Channel, *, include: bool) -> int:
 
 
 def requeue_skipped_posts(session: Session, channel: Channel) -> int:
+    """Send this source's held posts back to be filed."""
     return _requeue_skipped(session, channel, Video.reason == POST_REASON)
 
 
@@ -118,6 +124,7 @@ def set_live(session: Session, channel: Channel, *, include: bool) -> int:
 def update_filters(session: Session, channel: Channel, form: Mapping[str, str]) -> int:
     """Apply the filter form: title patterns, durations and the per-run cap."""
     def as_int(key: str) -> int | None:
+        """A form field as a whole number of at least 0, or None when empty."""
         raw = (form.get(key) or "").strip()
         if not raw:
             return None

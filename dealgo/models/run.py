@@ -20,6 +20,8 @@ from .times import utcnow
 
 
 class SyncRun(Base):
+    """One run of the sync engine for one account, and what it did."""
+
     __tablename__ = "sync_run"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

@@ -12,6 +12,7 @@ from .logs import configure_logging
 
 
 def cmd_add(args: argparse.Namespace) -> int:
+    """`dealgo add REFERENCE`: watch a source. Exits 1 if it could not be added."""
     configure_logging()
     init_db()
     with session_scope() as session:
@@ -26,6 +27,7 @@ def cmd_add(args: argparse.Namespace) -> int:
 
 
 def cmd_channels(_args: argparse.Namespace) -> int:
+    """`dealgo channels`: list the watched sources and whether each is paused."""
     init_db()
     with session_scope() as session:
         rows = channel_service.list_channels(session)

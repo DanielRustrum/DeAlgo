@@ -136,6 +136,7 @@ def _place(
     playlist_pk: int | None = None,
     label: str = "",
 ) -> GraphNode:
+    """A new box in its kind's column, at `row`, for a first lay-out."""
     node = GraphNode(
         owner_pk=owner,
         kind=kind,

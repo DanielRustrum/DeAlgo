@@ -46,6 +46,7 @@ def decided() -> tuple[frozenset[str], dict[str, frozenset[str]]]:
 
 
 def _names(stored: str | None) -> frozenset[str]:
+    """The permission names in a stored JSON list; empty when it is unreadable."""
     import json
 
     if not stored:

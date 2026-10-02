@@ -72,11 +72,13 @@ class _Heads(HTMLParser):
     """
 
     def __init__(self) -> None:
+        """A parser that has found nothing yet."""
         super().__init__(convert_charrefs=True)
         self.found: list[str] = []
         self.done = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Collect each feed a `<link rel="alternate">` in the head declares."""
         if tag == "body":
             # Past the head. Anything below it is a link on the page rather
             # than the page saying what it publishes.

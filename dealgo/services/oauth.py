@@ -28,11 +28,15 @@ SCOPES = ("https://www.googleapis.com/auth/youtube",)
 
 
 class OAuthError(RuntimeError):
+    """Google refused, or answered with something that is not a token."""
+
     pass
 
 
 @dataclass(frozen=True)
 class TokenResponse:
+    """A granted access token, and the refresh token to renew it with."""
+
     access_token: str
     refresh_token: str | None
     expires_at: dt.datetime
@@ -40,6 +44,7 @@ class TokenResponse:
 
 
 def build_authorization_url(client_id: str, redirect_uri: str, state: str) -> str:
+    """Where to send the browser to ask Google for consent."""
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -55,6 +60,7 @@ def build_authorization_url(client_id: str, redirect_uri: str, state: str) -> st
 
 
 def _to_token_response(payload: JsonDict, fallback_refresh: str | None = None) -> TokenResponse:
+    """A `TokenResponse` from Google's JSON, keeping `fallback_refresh` if none came."""
     if "access_token" not in payload:
         raise OAuthError(payload.get("error_description") or payload.get("error") or "no access_token in response")
     expires_in = int(payload.get("expires_in", 3600))
@@ -67,6 +73,7 @@ def _to_token_response(payload: JsonDict, fallback_refresh: str | None = None) -
 
 
 def _post(client: httpx.Client, data: dict[str, str]) -> JsonDict:
+    """POST to Google's token endpoint; raises `OAuthError` on any refusal."""
     response = client.post(TOKEN_ENDPOINT, data=data)
     try:
         payload = response.json()
@@ -80,6 +87,7 @@ def _post(client: httpx.Client, data: dict[str, str]) -> JsonDict:
 def exchange_code(
     *, code: str, client_id: str, client_secret: str, redirect_uri: str, client: httpx.Client
 ) -> TokenResponse:
+    """Trade the code from the consent redirect for an access and a refresh token."""
     payload = _post(
         client,
         {
@@ -96,6 +104,7 @@ def exchange_code(
 def refresh_access_token(
     *, refresh_token: str, client_id: str, client_secret: str, client: httpx.Client
 ) -> TokenResponse:
+    """A fresh access token, from the stored refresh token."""
     payload = _post(
         client,
         {
@@ -109,6 +118,7 @@ def refresh_access_token(
 
 
 def revoke(token: str, client: httpx.Client) -> None:
+    """Ask Google to revoke a token. Best effort: disconnecting never fails on this."""
     try:
         client.post(REVOKE_ENDPOINT, data={"token": token})
     except httpx.HTTPError:

@@ -88,6 +88,7 @@ RULE = "rule"
 
 
 def condition(kind: str) -> Condition | None:
+    """The condition of this kind, or None."""
     return next((one for one in CONDITIONS if one.kind == kind), None)
 
 
@@ -141,6 +142,7 @@ FILTER_RULES = tuple(one.column for one in CONDITIONS if one.under == "filter")
 
 
 def check_sort_key(key: str) -> str:
+    """The key, if a Sort can order by it; raises `GraphError` if not."""
     known = {name for name, _, _, _ in SORT_KEYS}
     if key not in known:
         raise GraphError(f"There is nothing to sort by called “{key}”.")

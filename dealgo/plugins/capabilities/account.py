@@ -60,6 +60,7 @@ class Account:
     LUA_OFFERS = frozenset({"connected", "send"})
 
     def __init__(self, plugin: str, lua: Any):
+        """The `account` capability for one plugin, with no calls made yet."""
         self._plugin = plugin
         self._lua = lua
         self._made = 0
@@ -133,6 +134,7 @@ class Account:
         return owner
 
     def _go(self, owner: OwnerId, how: str, url: str, body: object, cost: int) -> Any:
+        """Sign, send and charge one request for `owner`; the answer as Lua tables."""
         from ...db import session_scope
         from ...services.auth import api_key, valid_access_token
         from ...services.quota import meter
@@ -174,6 +176,7 @@ class Account:
         return to_lua(self._lua, payload)
 
 def _is_signable(url: str) -> bool:
+    """Whether a URL is HTTPS to one of the hosts the account may be signed for."""
     from urllib.parse import urlparse
 
     parsed = urlparse(url)
@@ -199,6 +202,7 @@ def _charge(cost: object) -> int:
 
 
 def _read(response: httpx.Response) -> dict[str, Any]:
+    """A response's JSON as a dict, or `{}` when it is empty, too big, or not JSON."""
     if response.status_code == 204:
         return {}
     if len(response.content) > MOST_BYTES:

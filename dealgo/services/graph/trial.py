@@ -199,6 +199,7 @@ def _judge(
     from .. import sync as sync_service
 
     def seen(passed: bool, reason: str | None) -> Judged:
+        """A verdict on this item, before any box has marked it."""
         return Judged(
             video_pk=video.id,
             title=video.title or video.video_id,
@@ -270,6 +271,7 @@ def _before(stopped_at: int, path: Route, start: GraphNode) -> list[int]:
 
 
 def _note(seen: dict[int, list[Judged]], node_ids: list[int], judged: Judged) -> None:
+    """File a verdict under every box it reached."""
     for node_id in node_ids:
         seen.setdefault(node_id, []).append(judged)
 

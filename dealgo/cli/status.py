@@ -12,6 +12,7 @@ from ..services import quota as quota_service
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
+    """`dealgo status`: print the configuration, feeds and today's quota."""
     init_db()
     with session_scope() as session:
         settings = get_settings(session)

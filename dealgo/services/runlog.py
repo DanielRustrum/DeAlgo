@@ -48,6 +48,7 @@ class Pen:
     """
 
     def __init__(self, session: Session, run_pk: int, owner: OwnerId = None):
+        """A pen for one run's log, starting at line zero."""
         self.session = session
         self.run_pk = run_pk
         self.owner = owner
@@ -62,6 +63,7 @@ class Pen:
     def write(
         self, message: str, *, about: str | None = None, level: Level = "info"
     ) -> None:
+        """Add a line to the run's log, unless the run has already written its limit."""
         if self._full:
             return
         self.seq += 1
@@ -87,9 +89,11 @@ class Pen:
         )
 
     def warn(self, message: str, *, about: str | None = None) -> None:
+        """A line saying something needs attention."""
         self.write(message, about=about, level="warn")
 
     def bad(self, message: str, *, about: str | None = None) -> None:
+        """A line saying something failed."""
         self.write(message, about=about, level="bad")
 
 
@@ -101,6 +105,7 @@ class Quiet(Pen):
     """
 
     def __init__(self) -> None:  # noqa: D107 - deliberately takes nothing
+        """A pen that is already full, so it writes nothing."""
         self.seq = 0
         self.stage = "starting"
         self._full = True
@@ -108,6 +113,7 @@ class Quiet(Pen):
     def write(
         self, message: str, *, about: str | None = None, level: Level = "info"
     ) -> None:
+        """Write nothing."""
         return
 
 
@@ -139,6 +145,7 @@ def prune(session: Session, owner: OwnerId = None) -> int:
 
 
 def lines_for(session: Session, run_pk: int, owner: OwnerId = None) -> list[RunEvent]:
+    """Every line one run wrote, in order."""
     return list(
         session.scalars(
             owned(select(RunEvent), RunEvent, owner)

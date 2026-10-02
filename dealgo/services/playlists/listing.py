@@ -10,10 +10,13 @@ from ..scope import OwnerId, belongs_to, owned
 
 
 class PlaylistError(RuntimeError):
+    """A feed could not be made or changed; the message says why."""
+
     pass
 
 
 def list_playlists(session: Session, owner: OwnerId = None) -> list[Playlist]:
+    """The account's feeds in fill order, with their sources loaded."""
     return list(
         session.scalars(
             owned(select(Playlist), Playlist, owner)
@@ -24,6 +27,7 @@ def list_playlists(session: Session, owner: OwnerId = None) -> list[Playlist]:
 
 
 def enabled_playlists(session: Session, owner: OwnerId = None) -> list[Playlist]:
+    """The account's switched-on feeds, in fill order."""
     return list(
         session.scalars(
             owned(select(Playlist), Playlist, owner)

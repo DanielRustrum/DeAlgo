@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 
 
 def filename(now: dt.datetime | None = None) -> str:
+    """The download's name: `de-algo-site-YYYY-MM-DD.dealgo`."""
     moment = now or dt.datetime.now(dt.timezone.utc)
     return f"de-algo-site-{moment:%Y-%m-%d}.dealgo"
 

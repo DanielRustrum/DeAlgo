@@ -19,6 +19,7 @@ router = APIRouter()
 def channels_page(
     request: Request, feed: str = "", new: str = "", track: str = "", q: str = ""
 ) -> HTMLResponse:
+    """The Configuration page: the canvas, its palette, and the counts above it."""
     owner = owner_of(request)
     with session_scope() as session:
         context = {

@@ -149,6 +149,11 @@ def add_channel(
     backfill_days: int | None = None,
     owner: OwnerId = None,
 ) -> Channel:
+    """Watch a YouTube channel by URL, `@handle` or `UC…` id.
+
+    Resolving a handle needs the account's Google connection, which is why YouTube references
+    that need one come here rather than through a plugin. Starts paused.
+    """
     info = resolve(session, reference, http)
     existing = session.scalar(
         owned(select(Channel), Channel, owner).where(Channel.channel_id == info.channel_id)
@@ -174,8 +179,6 @@ def add_channel(
     return channel
 
 
-# What the filter wrote as the reason, so a toggle can find exactly what it
-# passed over and nothing else.
 # Offered when a channel is first tracked. None means "use the global count".
 BACKFILL_CHOICES: tuple[tuple[str, str], ...] = (
     ("", "Default — the newest few"),

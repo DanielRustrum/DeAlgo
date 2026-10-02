@@ -77,6 +77,7 @@ def repository_name(url: str) -> str:
 
 
 def _whole(url: str) -> str:
+    """A typed address as a full URL; https:// is assumed when none is given."""
     said = (url or "").strip()
     if not said:
         raise PluginError("Give it the address of a repository.")

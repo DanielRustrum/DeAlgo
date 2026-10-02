@@ -10,6 +10,7 @@ from .text import NAMESPACES, clean_text, parse_date, summary_of
 
 
 def read_rss(root: ElementTree.Element) -> Feed:
+    """An RSS document's items. A document with no `<channel>` has none."""
     channel = root.find("channel")
     if channel is None:
         return Feed(title="")

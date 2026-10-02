@@ -112,6 +112,7 @@ class Video(Base):
 
     @property
     def is_post(self) -> bool:
+        """Whether this is a YouTube community post."""
         return self.kind == "post"
 
     @property
@@ -145,6 +146,7 @@ class Video(Base):
 
     @property
     def url(self) -> str:
+        """Where the item can be opened: its own link, or its YouTube page."""
         if self.kind == "link":
             # Whatever the feed linked to. Kept whole rather than rebuilt: a
             # feed knows where its own items live and this does not.
@@ -171,8 +173,10 @@ class Video(Base):
 
     @property
     def in_playlist(self) -> bool:
+        """Whether it is in any feed right now."""
         return bool(self.live_placements)
 
     @property
     def watched(self) -> bool:
+        """Whether it has been marked watched."""
         return self.watched_at is not None

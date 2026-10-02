@@ -143,6 +143,7 @@ def declared_in(made: dict[str, object]) -> object:
 
 
 def _fields(node: str, given: object) -> tuple[Field, ...]:
+    """The settings an augmentation asks for, checked; raises `PluginError` if malformed."""
     if given is None:
         return ()
     if not isinstance(given, list):

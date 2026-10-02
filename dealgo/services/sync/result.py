@@ -10,6 +10,8 @@ Tally = dict[int, int]
 
 @dataclass
 class SyncResult:
+    """What one run did, counted, and the messages for whoever started it."""
+
     ok: bool = False
     started: bool = True
     forced: bool = False
@@ -31,4 +33,5 @@ class SyncResult:
 
     @property
     def message(self) -> str:
+        """Every message, as one line."""
         return " ".join(self.messages)

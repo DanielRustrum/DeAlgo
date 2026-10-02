@@ -156,6 +156,7 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
 
 
 def drop_removed_columns() -> None:
+    """Drop each column in `_DROPPED_COLUMNS` that a table still has."""
     engine = get_engine()
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
@@ -170,6 +171,7 @@ def drop_removed_columns() -> None:
 
 
 def add_missing_columns() -> None:
+    """Add each column in `_ADDED_COLUMNS` that a table does not have yet."""
     engine = get_engine()
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())

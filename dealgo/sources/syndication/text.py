@@ -64,6 +64,7 @@ def _without_addresses(words: str, pictures: list[str] | None) -> str:
 
 
 def clean_text(raw: str) -> str:
+    """Text with its runs of whitespace squeezed to single spaces."""
     return " ".join(raw.split())
 
 

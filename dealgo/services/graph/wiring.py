@@ -165,6 +165,7 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
 
 
 def disconnect(session: Session, edge_pk: int, owner: OwnerId = None) -> bool:
+    """Remove a wire, and work out again which feeds its source fills."""
     edge = session.scalar(owned(select(GraphEdge), GraphEdge, owner).where(GraphEdge.id == edge_pk))
     if edge is None:
         return False

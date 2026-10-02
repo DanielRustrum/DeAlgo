@@ -27,6 +27,7 @@ MOST_PLUGIN_BYTES = 256 * 1024
 
 @router.get("/admin/plugins", response_class=HTMLResponse)
 def plugins_page(request: Request) -> HTMLResponse:
+    """The admin's Plugins page."""
     return _plugins_view(request)
 
 

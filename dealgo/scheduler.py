@@ -27,12 +27,14 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _job() -> None:
+    """One heartbeat: a scheduled run for every account in turn."""
     # Every account in turn: the schedule belongs to the site, the channels
     # and feeds it polls belong to whoever set them up.
     run_for_everyone(trigger="scheduled")
 
 
 def start() -> BackgroundScheduler:
+    """Start the scheduler, once, and apply the stored interval."""
     global _scheduler
     if _scheduler is None:
         _scheduler = BackgroundScheduler(timezone=dt.timezone.utc)
@@ -42,6 +44,7 @@ def start() -> BackgroundScheduler:
 
 
 def shutdown() -> None:
+    """Stop the scheduler without waiting for a run in flight."""
     global _scheduler
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
@@ -82,6 +85,7 @@ def reschedule() -> None:
 
 
 def next_run_time() -> dt.datetime | None:
+    """When the next heartbeat is due, or None if automatic sync is off."""
     if _scheduler is None:
         return None
     job = _scheduler.get_job(JOB_ID)

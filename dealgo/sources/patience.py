@@ -34,6 +34,7 @@ class RateLimited(Exception):
     """
 
     def __init__(self, host: str, seconds: float):
+        """A host asked us to wait `seconds` before asking again."""
         super().__init__(f"{host} asked us to wait {round(seconds)}s")
         self.host = host
         self.seconds = seconds
@@ -61,6 +62,7 @@ REFUSALS = (403, 429, 503)
 
 
 def host_of(url: str) -> str:
+    """The hostname a URL is asked of, lowercased."""
     return (urlparse(url).hostname or "").lower()
 
 
@@ -129,6 +131,7 @@ def forget() -> None:
 
 
 def _number(raw: str | None) -> float | None:
+    """A header value as a number, or None."""
     try:
         return float((raw or "").strip())
     except ValueError:

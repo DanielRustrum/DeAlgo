@@ -8,6 +8,7 @@ from ..config import CONFIG
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
+    """`dealgo serve`: run the web app under uvicorn until stopped."""
     import uvicorn
 
     uvicorn.run(

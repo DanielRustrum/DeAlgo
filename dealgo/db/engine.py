@@ -23,6 +23,7 @@ _SessionFactory: sessionmaker[Session] | None = None
 
 
 def _connect_args(url: str) -> dict[str, Any]:
+    """Driver options: SQLite is shared between threads and waits on locks."""
     if url.startswith("sqlite"):
         # The scheduler thread and the request threads share one engine.
         return {"check_same_thread": False, "timeout": 30}
@@ -30,6 +31,7 @@ def _connect_args(url: str) -> dict[str, Any]:
 
 
 def get_engine() -> Engine:
+    """The process's one engine, made on first use."""
     global _engine, _SessionFactory
     if _engine is None:
         _engine = create_engine(
@@ -41,6 +43,7 @@ def get_engine() -> Engine:
 
             @event.listens_for(_engine, "connect")
             def _set_sqlite_pragmas(dbapi_conn: Any, _record: Any) -> None:  # pragma: no cover - driver glue
+                """WAL so readers do not block the writer; foreign keys enforced."""
                 cur = dbapi_conn.cursor()
                 cur.execute("PRAGMA journal_mode=WAL")
                 cur.execute("PRAGMA foreign_keys=ON")
@@ -51,6 +54,7 @@ def get_engine() -> Engine:
 
 
 def get_session_factory() -> sessionmaker[Session]:
+    """The session factory bound to the engine."""
     get_engine()
     assert _SessionFactory is not None
     return _SessionFactory

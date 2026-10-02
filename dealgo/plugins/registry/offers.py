@@ -28,6 +28,7 @@ class Registry:
 
     @property
     def working(self) -> list[Plugin]:
+        """The plugins that loaded and are switched on."""
         return [plugin for plugin in self.plugins if plugin.ok]
 
     @property
@@ -38,15 +39,19 @@ class Registry:
 
     @property
     def paused(self) -> list[Plugin]:
+        """The plugins an admin has switched off."""
         return [plugin for plugin in self.plugins if plugin.paused]
 
     def source_kinds(self) -> list[SourceKind]:
+        """Every kind of source the working plugins read."""
         return [kind for plugin in self.working for kind in plugin.sources]
 
     def augmentations(self) -> list[Augmentation]:
+        """Every condition and ordering the working plugins offer."""
         return [one for plugin in self.working for one in plugin.augments]
 
     def augmentation(self, ref: str) -> Augmentation | None:
+        """One augmentation by its `plugin:kind` ref, or None."""
         return next((one for one in self.augmentations() if one.ref == ref), None)
 
     def _asking(self, ref: str, hook: str) -> tuple[Augmentation, "Sandbox", Any] | None:
@@ -109,6 +114,7 @@ class Registry:
         return float(said)
 
     def kind(self, name: str) -> SourceKind | None:
+        """One source kind by name, or None."""
         return next((k for k in self.source_kinds() if k.kind == name), None)
 
     def recognise(self, reference: str) -> "Recognised | None":

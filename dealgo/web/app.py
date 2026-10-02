@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Start up — logging, database, scheduler — and shut the scheduler down after."""
     logging.basicConfig(
         level=CONFIG.log_level,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -89,6 +90,7 @@ async def require_account(request: Request, call_next: Handler) -> Response:
 
 
 def _identify(token: str | None) -> accounts.Identity | None:
+    """Who a session cookie belongs to, or None if it is not a live session."""
     with session_scope() as session:
         user = accounts.identify(session, token)
         if user is None:
@@ -113,6 +115,7 @@ def _ask_to_sign_in(request: Request) -> Response:
 
 
 def _refuse(request: Request) -> Response:
+    """Turn a member away from an admin page."""
     message = "That part of De-Algo belongs to the admin account."
     if is_htmx(request):
         return Response(message, status_code=403)

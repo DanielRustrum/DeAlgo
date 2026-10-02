@@ -16,11 +16,15 @@ from .export import FORMAT_VERSION
 
 
 class RestoreError(RuntimeError):
+    """The file is not a backup this version can read."""
+
     pass
 
 
 @dataclass
 class RestoreSummary:
+    """What a restore made or updated, counted."""
+
     feeds: int = 0
     channels: int = 0
     videos: int = 0
@@ -28,6 +32,7 @@ class RestoreSummary:
     skipped: list[str] = field(default_factory=list)
 
     def describe(self) -> str:
+        """The summary as one sentence for the person who restored it."""
         parts = [
             f"{self.feeds} feed{'s' if self.feeds != 1 else ''}",
             f"{self.channels} channel{'s' if self.channels != 1 else ''}",
@@ -68,6 +73,7 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
 
 
 def _check(payload: Any) -> None:
+    """Raise `RestoreError` unless this is a backup of a format this version reads."""
     if not isinstance(payload, dict) or "de_algo_backup" not in payload:
         raise RestoreError("That is not a De-Algo backup file.")
     version = payload.get("de_algo_backup")
@@ -78,6 +84,10 @@ def _check(payload: Any) -> None:
 
 
 def _restore_settings(session: Session, payload: dict[str, Any]) -> None:
+    """Lay the file's settings over the stored ones.
+
+    Writes the implicit owner's settings whatever account restores — see Known Issues.
+    """
     settings = get_settings(session)
     for key, value in (payload.get("settings") or {}).items():
         if hasattr(settings, key) and key not in ("id", "updated_at"):
@@ -211,6 +221,7 @@ def _restore_placements(
     playlists: dict[str, Playlist],
     summary: RestoreSummary,
 ) -> None:
+    """Where an older file says an item was placed, matched by playlist id."""
     for slot in slots:
         playlist = playlists.get(slot.get("playlist_id"))
         if playlist is None:

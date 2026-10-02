@@ -29,6 +29,7 @@ def cmd_watched(args: argparse.Namespace) -> int:
 
 
 def cmd_remove_watched(_args: argparse.Namespace) -> int:
+    """`dealgo remove-watched`: take watched items out of their feeds."""
     configure_logging()
     init_db()
     result = watched_service.remove_watched(trigger="cli")

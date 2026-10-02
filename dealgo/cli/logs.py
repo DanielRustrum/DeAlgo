@@ -8,6 +8,7 @@ from ..config import CONFIG
 
 
 def configure_logging() -> None:
+    """Log to the terminal at the configured level."""
     logging.basicConfig(
         level=CONFIG.log_level,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",

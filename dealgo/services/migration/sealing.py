@@ -58,6 +58,7 @@ def _key_from(passphrase: str, salt: bytes) -> bytes:
 
 
 def check_passphrase(passphrase: str) -> None:
+    """Raise `MigrationError` if the passphrase is too short to protect the file."""
     if len(passphrase) < MIN_PASSPHRASE:
         raise MigrationError(
             f"Use at least {MIN_PASSPHRASE} characters: this file holds every account's "

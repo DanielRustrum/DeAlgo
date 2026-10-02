@@ -44,6 +44,7 @@ def quota_context(session: Session, owner: OwnerId = None) -> Context:
 
 
 def stats_context(session: Session, owner: OwnerId = None) -> Context:
+    """The counts row on the Configuration page: items by status, and what is in feeds."""
     counts: dict[str, int] = {
         status: held
         for status, held in session.execute(
@@ -86,6 +87,7 @@ def matching_channels(channels: Sequence[Channel], query: str) -> list[Channel]:
 
 
 def matching_feeds(playlists: Sequence[Playlist], query: str) -> list[Playlist]:
+    """The feeds whose title has every word of `query` in it."""
     terms = query.lower().split()
     if not terms:
         return list(playlists)
@@ -100,7 +102,9 @@ def channel_list_context(
     *,
     owner: OwnerId = None,
 ) -> Context:
+    """Everything the Configuration page draws: sources, feeds, counts and filters."""
     def counts_by_channel(*conditions: ColumnElement[bool]) -> dict[int, int]:
+        """How many items meet `conditions`, per source."""
         return {
             channel_pk: held
             for channel_pk, held in session.execute(
@@ -128,6 +132,7 @@ def channel_list_context(
     terms = query.lower().split()
     if terms:
         def matches(channel: Channel) -> bool:
+            """Whether every search word is in the source's title, handle or id."""
             haystack = " ".join(
                 filter(None, [channel.title, channel.handle, channel.channel_id])
             ).lower()
@@ -188,6 +193,7 @@ def _account_playlists(
 
 
 def forget_account_playlists() -> None:
+    """Drop the cached list of the account's YouTube playlists."""
     _account_playlists_cache["at"] = 0.0
 
 
@@ -213,6 +219,7 @@ def playlist_context(
 
 
 def connection_state(session: Session, owner: OwnerId = None) -> Context:
+    """The Google connection as Settings shows it: account, client, and feeds."""
     token = get_token(session, owner)
     return {
         "connected": token is not None,

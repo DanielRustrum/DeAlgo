@@ -24,6 +24,7 @@ from .vocabulary import AUGMENTATIONS, STAMPS, TRIGGER_KINDS
 
 def add_filter(session: Session, owner: OwnerId = None, *, label: str = "Filter",
                x: int = COLUMN_X["filter"], y: int = 40) -> GraphNode:
+    """A new, empty Filter box."""
     node = GraphNode(owner_pk=owner, kind="filter", label=label or "Filter", x=x, y=y)
     session.add(node)
     session.flush()

@@ -134,6 +134,7 @@ def _entry(files: dict[str, bytes]) -> str | None:
 
 
 def _keepable(name: str) -> bool:
+    """Whether a file in the archive is kept: plain text, at most three folders deep."""
     inside = PurePosixPath(name)
     if inside.is_absolute() or any(part in ("..", "") for part in inside.parts):
         return False

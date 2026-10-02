@@ -144,6 +144,7 @@ def _run(
     reach_back: int | None = None,
     withdrawals: Collection[int] | None = None,
 ) -> SyncResult:
+    """One run, phase by phase: poll, fill the feeds, keep them current, record it."""
     settings = get_settings(session, owner)
     run = SyncRun(trigger=trigger, started_at=utcnow(), forced=force, owner_pk=owner)
     session.add(run)

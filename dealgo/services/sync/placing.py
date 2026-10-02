@@ -70,6 +70,7 @@ class Placing:
         owner: OwnerId,
         say: runlog.Pen | runlog.Quiet,
     ) -> None:
+        """Ready to place items for one run, with nothing counted yet."""
         self.session = session
         self.client = client
         self.settings = settings
@@ -175,6 +176,7 @@ class Placing:
         return went
 
     def _say_where(self, video: Video, went: _Sorted) -> None:
+        """Write to the run log which feeds and repositories an item goes to."""
         going = sorted(p.title for p in went.allowed)
         waiting = sorted({path.store for path in went.stored})
         self.say.write(
@@ -330,10 +332,12 @@ class Placing:
         self.session.flush()
 
     def _count(self, playlist: Playlist) -> None:
+        """Count one item placed into a feed."""
         self.added_per_playlist[playlist.id] = self.added_per_playlist.get(playlist.id, 0) + 1
         self.result.added += 1
 
     def _stop_on_quota(self, message: str) -> None:
+        """Note that the quota ran out, with why, which ends the filing."""
         self.result.stopped_on_quota = True
         self.result.messages.append(message)
         self.quota_spent = True

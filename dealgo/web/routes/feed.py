@@ -157,6 +157,7 @@ def _expiring(session: Session, target: Playlist) -> dict[int, dt.datetime]:
 
 @router.get("/feed", response_class=HTMLResponse)
 def feed_page(request: Request, playlist: str = "", q: str = "") -> HTMLResponse:
+    """The Feed page. Opening it starts a reading window's sitting."""
     owner = owner_of(request)
     with session_scope() as session:
         context = _feed_context(session, playlist=playlist, query=q, owner=owner, sitting=True)

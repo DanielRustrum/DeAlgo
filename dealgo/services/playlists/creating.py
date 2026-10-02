@@ -60,6 +60,7 @@ def create(
     privacy: str = "private",
     owner: OwnerId = None,
 ) -> Playlist:
+    """Make a YouTube playlist on the connected account and a feed filling it."""
     title = (title or "").strip()
     if not title:
         raise PlaylistError("Give the new playlist a name.")
@@ -112,6 +113,7 @@ def set_up_feed(
 def store_feed(
     session: Session, playlist_id: str, title: str, owner: OwnerId = None
 ) -> Playlist:
+    """Save a feed for a playlist id, at the end of the fill order."""
     playlist = Playlist(playlist_id=playlist_id, title=title or playlist_id, owner_pk=owner)
     session.add(playlist)
     session.flush()

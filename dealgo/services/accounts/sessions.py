@@ -40,6 +40,7 @@ class Identity:
 
 
 def _fingerprint(token: str) -> str:
+    """The SHA-256 of a session token: all the database ever holds of it."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
@@ -82,6 +83,7 @@ def identify(session: Session, token: str | None) -> User | None:
 
 
 def end_session(session: Session, token: str | None) -> None:
+    """Sign out the session this token belongs to, if it is live."""
     if not token:
         return
     found = session.scalar(
@@ -93,6 +95,7 @@ def end_session(session: Session, token: str | None) -> None:
 
 
 def revoke_all(session: Session, user: User) -> None:
+    """Sign an account out of every browser."""
     for existing in list(user.sessions):
         session.delete(existing)
     session.flush()

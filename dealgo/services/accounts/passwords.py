@@ -65,6 +65,7 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 def _derive(password: str, salt: bytes) -> bytes:
+    """The scrypt key for a password and salt."""
     return hashlib.scrypt(
         password.encode("utf-8"),
         salt=salt,
@@ -77,6 +78,7 @@ def _derive(password: str, salt: bytes) -> bytes:
 
 
 def check_password(password: str) -> None:
+    """Raise `AccountError` unless the password's length is allowed."""
     if len(password) < MIN_PASSWORD_LENGTH:
         raise AccountError(f"A password needs at least {MIN_PASSWORD_LENGTH} characters.")
     if len(password) > MAX_PASSWORD_LENGTH:

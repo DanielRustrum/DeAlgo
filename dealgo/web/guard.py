@@ -32,10 +32,12 @@ ADMIN_PREFIXES = ("/admin",)
 
 
 def is_public(path: str) -> bool:
+    """Whether a path can be reached without signing in."""
     return path in PUBLIC_EXACT or path.startswith(PUBLIC_PREFIXES)
 
 
 def needs_admin(path: str) -> bool:
+    """Whether a path belongs to the admin."""
     if is_public(path):
         return False
     return path in ADMIN_EXACT or path.startswith(ADMIN_PREFIXES)

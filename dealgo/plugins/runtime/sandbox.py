@@ -104,6 +104,7 @@ def load(
     checks = [0]
 
     def tripwire() -> None:
+        """Called every `CHECK_EVERY` instructions; stops the plugin past `MOST_CHECKS`."""
         checks[0] += 1
         if checks[0] > MOST_CHECKS:
             raise PluginStopped(f"{name} ran too long and was stopped")

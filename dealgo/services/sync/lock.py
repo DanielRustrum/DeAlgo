@@ -30,4 +30,5 @@ def playlist_lock() -> Iterator[None]:
 
 
 def is_running() -> bool:
+    """Whether a playlist operation holds the lock right now."""
     return _run_lock.locked()

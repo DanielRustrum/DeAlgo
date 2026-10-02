@@ -77,6 +77,7 @@ class _Canvas:
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
+        """Read everything once for the whole canvas."""
         nodes, _ = graph_service.load(session, owner)
         windows = graph_service.consumption(session, owner)
         return cls(
@@ -157,6 +158,7 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
 
 
 def _size(node: GraphNode) -> Context | None:
+    """A group's size, or None for any other box."""
     if node.kind != "group":
         return None
     return {
@@ -190,6 +192,7 @@ def _piece(node: GraphNode) -> Context | None:
 
 
 def _sort(node: GraphNode) -> Context | None:
+    """What a Sort box orders by, and the keys it could order by; None if it orders nothing."""
     if not orders(node):
         return None
     return {
@@ -205,6 +208,7 @@ def _sort(node: GraphNode) -> Context | None:
 
 
 def _trigger(node: GraphNode, opening: set[int]) -> Context | None:
+    """A trigger's schedule and next firing, or None for any other box."""
     if node.kind != "trigger":
         return None
     return {

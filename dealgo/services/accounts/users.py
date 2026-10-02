@@ -19,6 +19,7 @@ MAX_USERNAME_LENGTH = 64
 
 
 def normalize_username(raw: str) -> str:
+    """A username as it is stored; raises `AccountError` if it is not usable."""
     name = raw.strip().lower()
     if not name:
         raise AccountError("A username is needed.")
@@ -30,6 +31,7 @@ def normalize_username(raw: str) -> str:
 
 
 def list_users(session: Session) -> list[User]:
+    """Every account, by name, with its sessions loaded."""
     return list(
         session.scalars(
             select(User).options(selectinload(User.sessions)).order_by(User.username)
@@ -38,6 +40,7 @@ def list_users(session: Session) -> list[User]:
 
 
 def find(session: Session, username: str) -> User | None:
+    """The account with this username, or None."""
     return session.scalar(select(User).where(User.username == username.strip().lower()))
 
 
@@ -49,6 +52,7 @@ def create_user(
     is_admin: bool = False,
     enforce_length: bool = True,
 ) -> User:
+    """Make an account. Raises `AccountError` for a taken name or a weak password."""
     name = normalize_username(username)
     if find(session, name) is not None:
         raise AccountError(f"There is already an account called {name}.")
@@ -65,6 +69,7 @@ def create_user(
 
 
 def set_password(session: Session, user: User, password: str) -> None:
+    """Set a new password and sign the account out everywhere."""
     user.password_hash = hash_password(password)
     # Changing a password ends every other sitting: that is usually the whole
     # reason for changing it.
@@ -73,6 +78,7 @@ def set_password(session: Session, user: User, password: str) -> None:
 
 
 def set_enabled(session: Session, user: User, *, enabled: bool) -> None:
+    """Switch an account on or off; switching off signs it out everywhere."""
     user.enabled = enabled
     if not enabled:
         revoke_all(session, user)
@@ -80,6 +86,7 @@ def set_enabled(session: Session, user: User, *, enabled: bool) -> None:
 
 
 def delete_user(session: Session, user: User) -> None:
+    """Delete an account and everything it owns. The admin cannot be deleted."""
     if user.is_admin:
         raise AccountError("The admin account is set in the environment and cannot be deleted.")
     session.delete(user)

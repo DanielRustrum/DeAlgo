@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 
 def sources_of(session: Any, owner: OwnerId) -> list[dict[str, object]]:
+    """The account's sources, as rows a plugin may read."""
     from ...services import channels as channel_service
 
     return [
@@ -30,6 +31,7 @@ def sources_of(session: Any, owner: OwnerId) -> list[dict[str, object]]:
 
 
 def feeds_of(session: Any, owner: OwnerId) -> list[dict[str, object]]:
+    """The account's feeds, as rows a plugin may read."""
     from ...services import playlists as playlist_service
 
     return [
@@ -44,6 +46,7 @@ def feeds_of(session: Any, owner: OwnerId) -> list[dict[str, object]]:
 
 
 def find_source(session: Any, owner: OwnerId, key: str) -> Any:
+    """The account's source with this key, or None."""
     from sqlalchemy import select
 
     from ...models import Channel
@@ -57,6 +60,7 @@ def find_source(session: Any, owner: OwnerId, key: str) -> Any:
 
 
 def pause_source(session: Any, owner: OwnerId, key: str, on: bool) -> bool:
+    """Switch one of the account's sources on or off; False if there is no such source."""
     channel = find_source(session, owner, key)
     if channel is None:
         return False
@@ -66,6 +70,7 @@ def pause_source(session: Any, owner: OwnerId, key: str, on: bool) -> bool:
 
 
 def watch_source(session: Any, owner: OwnerId, reference: str) -> str | None:
+    """Add a source from a reference; its key, or None if it could not be added."""
     from ...services import channels as channel_service
 
     if not reference:

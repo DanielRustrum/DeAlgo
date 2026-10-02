@@ -167,6 +167,7 @@ def channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
     rather than per box, which would be one pair of queries per box.
     """
     def tally(*conditions: ColumnElement[bool]) -> dict[int, int]:
+        """How many items meet `conditions`, per source."""
         rows = session.execute(
             owned(select(Video.channel_pk, func.count(Video.id)), Video, owner)
             .where(*conditions)
@@ -232,6 +233,7 @@ def how_polled(node: GraphNode, plan: dict[int, list[graph_service.When]]) -> st
 
 
 def _when_clause(when: graph_service.When) -> str:
+    """One trigger's schedule, as a clause: "a pulse every 2 hours"."""
     if when.kind == "schedule":
         return f"a schedule on “{when.cron or graph_service.DEFAULT_CRON}”"
     gap = when.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
@@ -239,6 +241,7 @@ def _when_clause(when: graph_service.When) -> str:
 
 
 def _join_clauses(parts: list[str]) -> str:
+    """Clauses joined as "a, b and c"."""
     if len(parts) <= 2:
         return " and ".join(parts)
     return ", ".join(parts[:-1]) + " and " + parts[-1]

@@ -25,6 +25,7 @@ from .templates import ASSET_VERSION, TEMPLATES, Context
 
 
 def newest_run_id() -> int:
+    """The id of the latest run, so the page can tell when another finishes."""
     with session_scope() as session:
         return session.scalar(select(func.max(SyncRun.id))) or 0
 
@@ -74,6 +75,7 @@ def owner_of(request: Request) -> OwnerId:
 
 
 def render(request: Request, template: str, context: Context) -> HTMLResponse:
+    """A full page, with what every page shows: version, flash messages, run state."""
     context = {
         "version": __version__,
         "asset_version": ASSET_VERSION,
@@ -109,10 +111,12 @@ def fragment(
 
 
 def is_htmx(request: Request) -> bool:
+    """Whether htmx sent this request, so a fragment is wanted rather than a page."""
     return request.headers.get("hx-request") == "true"
 
 
 def redirect(path: str, *, ok: str | None = None, err: str | None = None) -> RedirectResponse:
+    """A 303 to `path`, carrying a flash message as `?ok=` or `?err=`."""
     params = {k: v for k, v in (("ok", ok), ("err", err)) if v}
     url = f"{path}?{urlencode(params)}" if params else path
     return RedirectResponse(url, status_code=303)

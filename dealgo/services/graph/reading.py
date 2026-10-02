@@ -25,6 +25,7 @@ def channels_of(session: Session, node: GraphNode, owner: OwnerId = None) -> lis
 
 
 def nodes(session: Session, owner: OwnerId = None) -> list[GraphNode]:
+    """Every box and piece on the account's canvas, with channels and feeds loaded."""
     return list(
         session.scalars(
             owned(select(GraphNode), GraphNode, owner)
@@ -35,6 +36,7 @@ def nodes(session: Session, owner: OwnerId = None) -> list[GraphNode]:
 
 
 def edges(session: Session, owner: OwnerId = None) -> list[GraphEdge]:
+    """Every wire on the account's canvas."""
     return list(
         session.scalars(owned(select(GraphEdge), GraphEdge, owner).order_by(GraphEdge.id))
     )

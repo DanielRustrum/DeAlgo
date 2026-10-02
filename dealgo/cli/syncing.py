@@ -15,6 +15,7 @@ from .logs import configure_logging
 
 
 def _owners() -> list[int | None]:
+    """Every account with sources to sync, the implicit owner included."""
     with session_scope() as session:
         return owners_with_channels(session)
 
@@ -35,6 +36,7 @@ def _combined(results: list[SyncResult]) -> SyncResult:
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
+    """`dealgo sync`: one run for every account. Exits 1 if any run failed."""
     configure_logging()
     init_db()
     # The command line belongs to no account in particular, so it syncs every

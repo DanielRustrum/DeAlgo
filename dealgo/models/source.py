@@ -24,6 +24,12 @@ if TYPE_CHECKING:
 
 
 class Channel(Base):
+    """A source: somewhere items come from.
+
+    Called a channel because that is what every source was when there was only YouTube. Its own
+    filter columns are the default on every path out of it; the canvas lays its boxes over them.
+    """
+
     __tablename__ = "channel"
     __table_args__ = (owned_unique("channel", "channel_id"),)
 
@@ -119,6 +125,7 @@ class Channel(Base):
 
     @property
     def is_youtube(self) -> bool:
+        """Whether this is a YouTube channel."""
         return self.source_kind == "youtube"
 
     @property
