@@ -818,7 +818,7 @@ def test_a_feed_turned_generic_brings_back_what_it_could_not_hold(world, db, mon
     from dealgo.models import Video as VideoModel
 
     stranded_reddit(db)
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
+    monkeypatch.setattr(sync_service.polling, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
 
     result = sync_service.run_sync("manual", force=True)
 
@@ -834,7 +834,7 @@ def test_items_stay_put_while_the_only_feed_is_still_a_youtube_one(world, db, mo
     from dealgo.models import Video as VideoModel
 
     stranded_reddit(db, playlist_id="PLarealyoutubeplaylist")
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
+    monkeypatch.setattr(sync_service.polling, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
 
     result = sync_service.run_sync("manual", force=True)
 
@@ -856,7 +856,7 @@ def test_a_filters_verdict_is_not_reconsidered(world, db, monkeypatch):
             video_id="item-filtered", channel_pk=source_pk, kind="link",
             title="Held by a rule", status="skipped", reason="title did not match",
         ))
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
+    monkeypatch.setattr(sync_service.polling, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
 
     sync_service.run_sync("manual", force=True)
 

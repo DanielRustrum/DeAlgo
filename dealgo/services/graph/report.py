@@ -74,7 +74,7 @@ def filter_report(
             if video.id in seen:
                 continue
             seen.add(video.id)
-            decision = sync_service._decide(video, path, None, settings)
+            decision = sync_service.decide(video, path, None, settings)
             passed = decision.accept and not switched_off
             judged = Judged(
                 video_pk=video.id,

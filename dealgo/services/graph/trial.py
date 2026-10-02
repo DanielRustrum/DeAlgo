@@ -213,7 +213,7 @@ def _judge(
 
     # The channel's own settings first: if they refuse it, it never left.
     own = Route(channel=path.channel, playlist=path.playlist)
-    refusal = sync_service._decide(video, own, None, settings)
+    refusal = sync_service.decide(video, own, None, settings)
     if not refusal.accept:
         return seen(False, refusal.reason), start.id
 
@@ -222,11 +222,11 @@ def _judge(
             channel=path.channel, playlist=path.playlist,
             filters=path.filters[: index + 1], slots=path.slots,
         )
-        decision = sync_service._decide(video, so_far, None, settings)
+        decision = sync_service.decide(video, so_far, None, settings)
         if not decision.accept:
             return seen(False, decision.reason), node.id
 
-    decision = sync_service._decide(video, path, None, settings)
+    decision = sync_service.decide(video, path, None, settings)
     return seen(decision.accept, decision.reason), start.id
 
 

@@ -99,7 +99,7 @@ def world(db, monkeypatch):
     def fake_build_client(session, http, owner=None):
         return state["client"].bind_meter(quota.meter(session))
 
-    monkeypatch.setattr(sync_service, "build_client", fake_build_client)
+    monkeypatch.setattr(sync_service.run, "build_client", fake_build_client)
     monkeypatch.setattr(watched_service, "build_client", fake_build_client)
 
     from dealgo.models import GraphEdge, GraphNode

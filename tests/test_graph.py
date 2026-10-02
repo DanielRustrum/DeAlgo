@@ -1788,7 +1788,7 @@ def test_a_feed_that_refuses_us_is_reported_as_that_not_as_stops_here(canvas, db
             response=httpx.Response(429, request=httpx.Request("GET", "https://example.test/feed")),
         )
 
-    monkeypatch.setattr(sync_service, "_poll", refused)
+    monkeypatch.setattr(sync_service.polling, "_poll", refused)
     canvas.post(f"/graph/nodes/{trigger}/fire")
 
     for _ in range(100):
@@ -1821,7 +1821,7 @@ def test_a_feed_that_is_simply_gone_says_something_different(canvas, db, monkeyp
         request = httpx.Request("GET", "https://example.test/feed")
         raise httpx.HTTPStatusError("404", request=request, response=httpx.Response(404, request=request))
 
-    monkeypatch.setattr(sync_service, "_poll", gone)
+    monkeypatch.setattr(sync_service.polling, "_poll", gone)
     canvas.post(f"/graph/nodes/{trigger}/fire")
 
     for _ in range(100):
@@ -1845,7 +1845,7 @@ def test_pressing_a_trigger_does_not_show_the_previous_runs_answer(canvas, db, m
     trigger = wire_trigger(canvas)
 
     # A first run, so there is a finished one to be mistaken for the new one.
-    monkeypatch.setattr(sync_service, "_poll", lambda *a: (_ for _ in ()).throw(RuntimeError("no")))
+    monkeypatch.setattr(sync_service.polling, "_poll", lambda *a: (_ for _ in ()).throw(RuntimeError("no")))
     canvas.post(f"/graph/nodes/{trigger}/fire")
     for _ in range(100):
         if not canvas.get("/api/graph/run").json()["running"]:
@@ -1871,7 +1871,7 @@ def test_a_run_that_never_got_going_does_not_hold_the_canvas_for_ever(canvas, mo
 
     trigger = wire_trigger(canvas)
     monkeypatch.setattr(
-        sync_service, "_run", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fell over"))
+        sync_service.run, "_run", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fell over"))
     )
 
     canvas.post(f"/graph/nodes/{trigger}/fire")
@@ -2282,15 +2282,15 @@ def test_a_run_says_which_box_it_is_working_on(canvas, db, monkeypatch):
     source = only(canvas.get("/api/graph").json(), "source")
 
     sync_service.claim(None, "pulse")
-    sync_service._note(stage="polling", channel_pk=channel_pk)
+    sync_service.note(stage="polling", channel_pk=channel_pk)
     answer = canvas.get("/api/graph/run").json()
     assert answer["stage"] == "polling"
     assert answer["nodes"][str(source["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}
 
     # Finished with it, and a feed has taken something.
-    sync_service._note_polled(channel_pk, 3)
-    sync_service._note_placed(playlist_pk)
-    sync_service._note(stage="filling")
+    sync_service.note_polled(channel_pk, 3)
+    sync_service.note_placed(playlist_pk)
+    sync_service.note(stage="filling")
     answer = canvas.get("/api/graph/run").json()
     feed = only(canvas.get("/api/graph").json(), "feed")
 
@@ -2407,14 +2407,14 @@ def test_a_trigger_wired_to_a_switched_off_channel_says_it_stopped_there(canvas,
 
     # The run polled nothing: its only channel is switched off.
     sync_service.claim(None, "pulse", trigger["id"])
-    sync_service._note(stage="done", finished=True)
+    sync_service.note(stage="done", finished=True)
     idle = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
     assert idle == {"state": "done", "count": 0, "stopped": 0, "ends": True, "trouble": None}
 
     # And when its channel was polled, it counts that one.
     sync_service.claim(None, "pulse", trigger["id"])
-    sync_service._note_polled(channel_pk, 2)
-    sync_service._note(stage="done", finished=True)
+    sync_service.note_polled(channel_pk, 2)
+    sync_service.note(stage="done", finished=True)
     ran = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
     assert ran == {"state": "done", "count": 1, "stopped": 0, "trouble": None, "ends": False}
 
@@ -2436,8 +2436,8 @@ def test_a_trigger_does_not_count_channels_that_are_not_its_own(canvas, db):
         others = session.scalar(select(ChannelModel.id).where(ChannelModel.channel_id == "UCother"))
 
     sync_service.claim(None, "pulse", trigger["id"])
-    sync_service._note_polled(others, 7)  # somebody else's channel
-    sync_service._note(stage="done", finished=True)
+    sync_service.note_polled(others, 7)  # somebody else's channel
+    sync_service.note(stage="done", finished=True)
 
     idle = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
     assert idle["count"] == 0 and idle["ends"] is True
@@ -2453,12 +2453,12 @@ def test_the_trigger_that_was_pressed_stays_lit_for_the_whole_run(canvas, db):
     canvas.post("/graph/connect", data={"source": trigger["id"], "target": source["id"]})
 
     sync_service.claim(None, "pulse", trigger["id"])
-    sync_service._note(stage="polling")
+    sync_service.note(stage="polling")
     marks = canvas.get("/api/graph/run").json()["nodes"]
     assert marks[str(trigger["id"])] == {"state": "busy", "count": 0, "stopped": 0, "ends": False, "trouble": None}
 
     # It stops pulsing when the run ends, and keeps what it set off.
-    sync_service._note(stage="done", finished=True)
+    sync_service.note(stage="done", finished=True)
     settled = canvas.get("/api/graph/run").json()["nodes"][str(trigger["id"])]
     assert settled["state"] == "done"
 

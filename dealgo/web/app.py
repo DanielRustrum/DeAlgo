@@ -2416,7 +2416,7 @@ def _plugin_facts(node: GraphNode) -> Context | None:
     """
     ref = node.plugin_ref or ""
     box = registry.current().augmentation(ref)
-    was = sync_service._plugin_settings(node)
+    was = sync_service.plugin_settings(node)
     if box is None:
         plugin_id = ref.split(":", 1)[0] if ":" in ref else ref
         return {"ref": ref, "missing": plugin_id or "a plugin", "fields": [], "blurb": ""}

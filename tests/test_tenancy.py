@@ -504,7 +504,7 @@ def test_another_accounts_run_is_not_reported(two_accounts, db):
     with db.session_scope() as session:
         channel_pk = session.scalar(select(Channel.id).where(Channel.owner_pk == admin_pk))
     sync_service.claim(admin_pk, "pulse")
-    sync_service._note(stage="polling", channel_pk=channel_pk)
+    sync_service.note(stage="polling", channel_pk=channel_pk)
 
     as_account(client, "sam", "member-password")
     answer = client.get("/api/graph/run").json()

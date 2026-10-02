@@ -539,11 +539,11 @@ def test_a_condition_is_told_whether_an_item_is_a_broadcast(db, here):
         upcoming = VideoDetails("soon", "Coming up", 0, "upcoming", "public")
         out = VideoDetails("soon", "Coming up", 600, "none", "public")
 
-        assert sync_service._plugin_refusal(soon, path, upcoming) is not None
-        assert sync_service._plugin_refusal(soon, path, out) is None
+        assert sync_service.plugin_refusal(soon, path, upcoming) is not None
+        assert sync_service.plugin_refusal(soon, path, out) is None
         # No details in hand is not a broadcast: the lookup happens after
         # discovery and may never say.
-        assert sync_service._plugin_refusal(soon, path, None) is None
+        assert sync_service.plugin_refusal(soon, path, None) is None
 
 
 # -- augmentations that order rather than narrow ---------------------------

@@ -253,7 +253,7 @@ def test_a_source_that_could_not_be_read_says_so_in_the_log(world, db, monkeypat
             "429", request=request, response=httpx.Response(429, request=request)
         )
 
-    monkeypatch.setattr(sync_service, "_poll", refused)
+    monkeypatch.setattr(sync_service.polling, "_poll", refused)
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
