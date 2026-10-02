@@ -45,6 +45,7 @@ def _download(url: str, client: httpx.Client) -> bytes | None:
         with client.stream("GET", url, headers={"Accept": "application/gzip, */*"}) as answer:
             if answer.status_code != 200:
                 return None
+            # Count what actually arrives, and stop as soon as it is too much.
             held = io.BytesIO()
             for piece in answer.iter_bytes():
                 held.write(piece)

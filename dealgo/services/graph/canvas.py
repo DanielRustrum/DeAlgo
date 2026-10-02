@@ -163,6 +163,7 @@ def room_for_a_trigger(session: Session, existing: list[GraphNode]) -> tuple[int
     sources = [node for node in existing if node.kind == "source"]
     left = min((node.x for node in sources), default=COLUMN_X["source"])
 
+    # The first trigger, with no room left of the sources: slide everything right.
     if not taken and left < TRIGGER_COLUMN + TRIGGER_GAP:
         shift = TRIGGER_COLUMN + TRIGGER_GAP - left
         for node in existing:
@@ -171,5 +172,6 @@ def room_for_a_trigger(session: Session, existing: list[GraphNode]) -> tuple[int
         log.info("moved the canvas %dpx right to make room for a trigger column", shift)
         return TRIGGER_COLUMN, 40
 
+    # Otherwise stack it under the triggers already there.
     column = TRIGGER_COLUMN if not taken else min(node.x for node in taken)
     return column, 40 + len(taken) * ROW_HEIGHT

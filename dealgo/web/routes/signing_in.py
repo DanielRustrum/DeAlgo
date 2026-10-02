@@ -57,6 +57,7 @@ def sign_in(
     if not CONFIG.auth_enabled:
         return redirect("/")
 
+    # Only ever back to a page on this site.
     destination = guard.safe_next(next)
     with session_scope() as session:
         try:

@@ -63,6 +63,7 @@ def filter_report(
     seen: set[int] = set()
     switched_off = not node.enabled
 
+    # The latest items of every source upstream, judged by the rules as they stand now.
     for path in _paths_into(session, node, owner):
         videos = session.scalars(
             owned(select(Video), Video, owner)

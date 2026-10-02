@@ -145,6 +145,7 @@ def _retry_after(raw: str | None) -> float | None:
     seconds = _number(raw)
     if seconds is not None:
         return max(0.0, seconds)
+    # Not a number, so an HTTP date: wait until then.
     try:
         when = email.utils.parsedate_to_datetime(raw.strip())
     except (TypeError, ValueError):

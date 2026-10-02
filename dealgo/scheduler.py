@@ -60,6 +60,7 @@ def reschedule() -> None:
         auto = settings.auto_sync
         minutes = max(1, settings.poll_interval_minutes or 30)
 
+    # Automatic sync off: drop the job if there is one.
     existing = _scheduler.get_job(JOB_ID)
     if not auto:
         if existing:
@@ -67,6 +68,7 @@ def reschedule() -> None:
             log.info("automatic sync disabled")
         return
 
+    # On: move the existing job to the new interval, or add it, first run in 20 seconds.
     trigger = IntervalTrigger(minutes=minutes, timezone=dt.timezone.utc)
     if existing:
         existing.reschedule(trigger=trigger)

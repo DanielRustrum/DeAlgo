@@ -41,6 +41,7 @@ def script_object(html: str, name: str) -> Any:
     """
     if not html or not name:
         return None
+    # Find `name = {`, then read to the brace that closes it.
     pattern = re.compile(
         r"(?:var|let|const)?\s*" + re.escape(name) + r"\s*=\s*(\{)", re.S
     )
@@ -102,6 +103,7 @@ def _balanced(text: str, start: int) -> str | None:
     escaped = False
     for index in range(start, len(text)):
         letter = text[index]
+        # Inside a string only an unescaped quote matters; braces in it are text.
         if inside:
             if escaped:
                 escaped = False
@@ -110,6 +112,7 @@ def _balanced(text: str, start: int) -> str | None:
             elif letter == '"':
                 inside = False
             continue
+        # Outside a string, count braces until the one we started at is closed.
         if letter == '"':
             inside = True
         elif letter == "{":

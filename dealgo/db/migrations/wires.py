@@ -32,6 +32,7 @@ def wires_belong_to_boxes() -> None:
         return
 
     with engine.begin() as connection:
+        # Every (source box, feed box) pair the old links imply that has no wire yet.
         drawn = connection.execute(text("""
             SELECT DISTINCT s.id, f.id, s.owner_pk
             FROM channel_playlist cp
@@ -74,6 +75,7 @@ def retire_tag_nodes() -> None:
         return
 
     with engine.begin() as connection:
+        # The source boxes that stood for a tag rather than a source.
         retiring = [
             row[0]
             for row in connection.execute(
@@ -82,6 +84,7 @@ def retire_tag_nodes() -> None:
         ]
         if not retiring:
             return
+        # Their wires first, then the boxes themselves.
         marks = ", ".join(str(int(one)) for one in retiring)
         connection.execute(
             text(f"DELETE FROM graph_edge WHERE source_pk IN ({marks}) OR target_pk IN ({marks})")

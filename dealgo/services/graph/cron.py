@@ -54,6 +54,7 @@ def _weekdays(field: str) -> str:
         return "*"
 
     wanted: set[int] = set()
+    # Each comma-separated part is a day, a range `a-b`, or `*`, with an optional `/step`.
     for part in field.split(","):
         step = 1
         if "/" in part:
@@ -66,6 +67,7 @@ def _weekdays(field: str) -> str:
             first, last = "0", "6"
         wanted.update(range(_weekday(first), _weekday(last) + 1, step))
 
+    # Written back as names, which APScheduler cannot misnumber.
     if not wanted:
         raise GraphError(f"“{field}” names no weekday.")
     return ",".join(CRON_DAYS[day] for day in sorted(wanted))

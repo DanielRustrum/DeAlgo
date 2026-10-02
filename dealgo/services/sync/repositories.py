@@ -28,6 +28,7 @@ def deposit(
     if not paths:
         return 0
 
+    # The piles this item is already waiting in.
     already = set(
         session.scalars(
             owned(select(RepositoryItem.name), RepositoryItem, owner).where(
@@ -36,6 +37,7 @@ def deposit(
         )
     )
     put = 0
+    # One row per pile it is not in yet, noting which box put it there.
     for path in paths:
         if path.store in already:
             continue

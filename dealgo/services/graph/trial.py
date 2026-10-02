@@ -158,6 +158,7 @@ def _try_withdrawal(
     if not name:
         return
 
+    # The oldest items in the pile, as many as one pull would take.
     most = box.takes or 0
     query = (
         owned(select(RepositoryItem), RepositoryItem, owner)
@@ -169,6 +170,7 @@ def _try_withdrawal(
     if not waiting:
         return
 
+    # Each item down every path out of the box, as a pull would send it.
     for video in waiting:
         channel = video.channel
         if channel is None:

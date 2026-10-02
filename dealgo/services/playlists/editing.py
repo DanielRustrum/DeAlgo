@@ -28,6 +28,7 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
     if title == playlist.title:
         return False
 
+    # The feed's own name changes whatever YouTube says.
     playlist.title = title
     session.flush()
 
@@ -37,6 +38,7 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
     from ...plugins.publisher import cost_of
     from .. import quota
 
+    # Then the playlist behind it, which needs an account and quota.
     client = build_client(session, http, playlist.owner_pk)
     if not client.has_write_access:
         raise PlaylistError(

@@ -40,6 +40,7 @@ def move(session: Session, model: OrderedType, pk: int, direction: str) -> bool:
     if not 0 <= target < len(rows):
         return False
 
+    # Swap with the neighbour, then renumber so priorities stay 0, 1, 2, …
     rows[index], rows[target] = rows[target], rows[index]
     for position, row in enumerate(rows):
         row.priority = position

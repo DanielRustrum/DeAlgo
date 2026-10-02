@@ -174,6 +174,7 @@ def _account_playlists(
     session: Session, *, refresh: bool = False, owner: OwnerId = None
 ) -> tuple[list[PlaylistInfo], str | None]:
     """The playlists on the connected account, cached for a couple of minutes."""
+    # One cache for the whole process, not per account — see Known Issues.
     now = time.monotonic()
     fresh = now - _account_playlists_cache["at"] < _ACCOUNT_PLAYLIST_TTL
     if fresh and not refresh:

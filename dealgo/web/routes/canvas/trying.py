@@ -122,6 +122,7 @@ def _log_the_trial(
     a thing that happens, and it is answered by the same log that answers it
     for a real run. The row says it wrote nothing, so nobody reads it as one.
     """
+    # A run row of its own, marked as a test, so the log can show it.
     run = SyncRun(
         owner_pk=owner,
         trigger="test",
@@ -137,6 +138,7 @@ def _log_the_trial(
     pen.at("trial")
     pen.write(f"Test of {node.title} — nothing was written and nothing was sent.")
 
+    # One line per feed that would take items, and one per item that would be held.
     landed = held = 0
     for node_id, through in sorted(trial.through.items()):
         box = boxes.get(node_id)
@@ -154,6 +156,7 @@ def _log_the_trial(
                 level="warn",
             )
 
+    # Counted like a run, so the log's summary reads the same way.
     run.discovered = landed + held
     run.added = landed
     run.skipped = held

@@ -188,6 +188,8 @@ def _restore_videos(
     for entry in payload.get("videos") or []:
         video_id = entry.get("video_id")
         channel = channels.get(entry.get("channel_id"))
+        # An item whose source is not in the file has nowhere to belong; it is reported, not
+        # restored.
         if not video_id or channel is None:
             if video_id:
                 summary.skipped.append(video_id)

@@ -73,12 +73,14 @@ def stamp_what_is_already_here(
     """
     known = graph.pieces_of(session, owner)
     put = 0
+    # Every path into a feed with an Expire box on it.
     for path in graph.routes(session, owner):
         if path.playlist is None:
             continue
         minutes = graph.stamped_life(path.stamps, known)
         if minutes is None:
             continue
+        # What came down this path, is still in the feed, and has no end yet.
         waiting = session.scalars(
             select(Placement)
             .join(Video, Video.id == Placement.video_pk)

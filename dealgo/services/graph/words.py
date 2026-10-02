@@ -49,10 +49,12 @@ def condition_words(piece: GraphNode) -> str:
     spec = condition(piece.kind)
     if spec is None:
         return ""
+    # An Order piece says its key and direction rather than a value.
     if piece.kind == "order":
         return sort_words(
             piece.sort_by or DEFAULT_SORT_BY, (piece.sort_dir or "desc") == "desc"
         )
+    # Every other condition says its value, in its kind's words.
     value = getattr(piece, spec.column, None)
     if value is None or value == "":
         return "open it and say what"

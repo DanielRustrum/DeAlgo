@@ -193,6 +193,7 @@ def keep(
     home = (where or folder()) / plugin_id
     home.mkdir(parents=True, exist_ok=True)
     (home / ENTRY).write_text(source, encoding="utf-8")
+    # Each extra file goes beside plugin.lua, refused if its name would reach outside the folder.
     for name, body in (extras or {}).items():
         if not _beside(name):
             raise PluginError(f"“{name}” is not a name a plugin may bring with it")

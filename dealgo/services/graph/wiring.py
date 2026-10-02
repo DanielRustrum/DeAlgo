@@ -82,6 +82,8 @@ def _bring_back_what_it_can_now_hold(
     """
     from .. import sync as sync_service
 
+    # Only a feed here can take what a YouTube playlist turned away, and only a non-YouTube source
+    # was turned away.
     if not playlist.is_generic or channel.publishable:
         return 0
 
@@ -116,6 +118,7 @@ def refresh_membership(
     pairing has always meant: a path that goes through a filter is a path,
     and `routes` is what asks about those.
     """
+    # Feed boxes by the feed they stand for, and this channel's own source boxes.
     by_playlist = {
         node.playlist_pk: node
         for node in nodes(session, owner)
@@ -131,6 +134,7 @@ def refresh_membership(
         session.flush()
         return
 
+    # The feeds wired straight from any of those boxes.
     wired = {
         edge.target_pk
         for edge in edges(session, owner)
@@ -188,6 +192,7 @@ def still_drawn(session: Session, pk: int, what: str) -> bool:
 
 def _reaches(session: Session, start: GraphNode, goal: GraphNode, owner: OwnerId) -> bool:
     """Whether `goal` is already downstream of `start` — a loop in waiting."""
+    # Depth-first along the wires from `start`, looking for `goal`.
     out: dict[int, list[int]] = {}
     for edge in edges(session, owner):
         out.setdefault(edge.source_pk, []).append(edge.target_pk)

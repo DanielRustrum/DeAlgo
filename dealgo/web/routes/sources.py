@@ -39,6 +39,7 @@ def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
         )
         if channel is None:
             return redirect("/channels", err="That channel is no longer being watched.")
+        # Its latest fifty items, with where each was placed.
         videos = list(
             session.scalars(
                 owned(select(Video), Video, owner)
@@ -51,13 +52,14 @@ def channel_detail(request: Request, channel_id: int, q: str = "") -> Response:
                 .limit(50)
             )
         )
+        # And how much of what it brought in reached a feed, and how much is still waiting.
         context = {
             "channel": channel,
             "videos": videos,
             "settings": get_settings(session, owner),
             "all_playlists": matching_feeds(playlist_service.list_playlists(session, owner), q),
             "query": q,
-                "channel_playlist_pks": {p.id for p in channel.playlists},
+            "channel_playlist_pks": {p.id for p in channel.playlists},
             "placed": session.scalar(
                 select(func.count(func.distinct(Placement.video_pk)))
                 .join(Video, Video.id == Placement.video_pk)

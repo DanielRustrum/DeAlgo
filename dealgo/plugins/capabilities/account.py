@@ -103,6 +103,8 @@ class Account:
         if owner is False:
             return None
 
+        # Refuse anything but a plain method to the account's own host, and more than the per-call
+        # budget.
         address = str(url or "")
         how = str(method or "GET").upper()
         if not _is_signable(address):

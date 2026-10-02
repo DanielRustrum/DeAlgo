@@ -58,6 +58,7 @@ def publisher_in(given: object) -> tuple[dict[str, Any], dict[str, int]]:
     if not isinstance(given, dict):
         raise PluginError("`publisher` has to be a table")
 
+    # The calls the host makes, where the plugin offers them.
     doing = {
         name: given[name]
         for name in (
@@ -67,6 +68,7 @@ def publisher_in(given: object) -> tuple[dict[str, Any], dict[str, int]]:
         )
         if callable(given.get(name))
     }
+    # What each call costs against the quota; anything unreadable is left at the default.
     prices: dict[str, int] = {}
     asked = given.get("costs")
     if isinstance(asked, dict):
@@ -95,12 +97,14 @@ def augmentations_in(plugin: Plugin, given: object) -> list[Augmentation]:
     for entry in given:
         if not isinstance(entry, dict):
             raise PluginError("every entry in `augmentations` has to be a table")
+        # The kind becomes half of the piece's ref, `plugin:kind`, so it must be a plain name.
         name = str(entry.get("kind") or "").strip()
         if not name:
             raise PluginError("an augmentation needs a `kind`")
         if not set(name) <= PLAIN:
             raise PluginError(f"“{name}” is not a usable augmentation kind")
 
+        # Where it slots decides which hook it needs: `keep` under a Filter, `rank` under a Sort.
         under = str(entry.get("under") or "filter").strip().lower()
         wanted = AUGMENTS.get(under)
         if wanted is None:
@@ -178,6 +182,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
     for entry in given:
         if not isinstance(entry, dict):
             raise PluginError("every entry in `sources` has to be a table")
+        # The kind is stored on every source of it, so it must be a plain name.
         name = str(entry.get("kind") or "").strip()
         if not name:
             raise PluginError("a source needs a `kind`")
@@ -185,6 +190,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
             raise PluginError(f"“{name}” is not a usable kind name")
         if not callable(entry.get("recognise")):
             raise PluginError(f"“{name}” needs a `recognise` function")
+        # Every other hook is optional; `recognise` is the one the app cannot do without.
         kinds.append(
             SourceKind(
                 kind=name,

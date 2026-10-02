@@ -29,6 +29,7 @@ def _prune_generic(session: Session, playlist: Playlist, limit: int, result: Syn
             .order_by(Video.published_at.asc(), Placement.id.asc())
         )
     )
+    # Oldest first: everything beyond the cap is taken out, its row kept.
     for placement in held[: max(0, len(held) - limit)]:
         placement.playlist_item_id = None
         placement.removed_at = utcnow()

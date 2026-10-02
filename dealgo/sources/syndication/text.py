@@ -73,6 +73,7 @@ def parse_date(raw: str | None) -> dt.datetime | None:
     if not raw:
         return None
     text = raw.strip()
+    # Atom writes ISO 8601; RSS writes RFC 822. Either way it comes back in UTC.
     try:
         parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:

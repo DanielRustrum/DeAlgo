@@ -71,6 +71,7 @@ def identify(session: Session, token: str | None) -> User | None:
     )
     if found is None:
         return None
+    # An expired session is deleted when it is next shown; a disabled account's are refused.
     if found.expired:
         session.delete(found)
         session.flush()

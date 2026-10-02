@@ -63,6 +63,7 @@ def unpack(body: bytes, *, origin: str, ref: str, named: str) -> Fetched:
     except (tarfile.TarError, EOFError, OSError) as exc:
         raise PluginError(f"That download is not an archive this can read: {exc}") from exc
 
+    # Find the plugin's own file; the folder it sits in is the plugin's root.
     entry = _entry(files)
     if entry is None:
         raise PluginError(
@@ -75,6 +76,7 @@ def unpack(body: bytes, *, origin: str, ref: str, named: str) -> Fetched:
     except UnicodeDecodeError as exc:
         raise PluginError("That repository's plugin.lua is not text.") from exc
 
+    # Keep only what sits beside plugin.lua or below it, with paths made relative to its folder.
     extras: dict[str, bytes] = {}
     for path, held in files.items():
         if path == entry:

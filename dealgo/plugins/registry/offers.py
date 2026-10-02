@@ -137,6 +137,8 @@ class Registry:
         typed = (reference or "").strip()
         if not typed:
             return None
+        # Ask every kind of every working plugin; the first certain answer wins, else the first
+        # guess.
         guess: Recognised | None = None
         for plugin in self.working:
             for kind in plugin.sources:
