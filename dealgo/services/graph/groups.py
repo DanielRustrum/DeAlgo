@@ -210,26 +210,7 @@ def _unpack(
     x, y = at
 
     if kind == "source":
-        channel_id = entry.get("channel_id")
-        if not channel_id:
-            return None
-        channel = session.scalar(
-            owned(select(Channel), Channel, owner).where(Channel.channel_id == channel_id)
-        )
-        if channel is None:
-            # Made from the file rather than looked up: a UC id is enough to
-            # watch a channel, and asking YouTube would make loading a group
-            # need credentials it has no other use for.
-            channel = Channel(
-                owner_pk=owner,
-                channel_id=str(channel_id),
-                title=str(entry.get("title") or channel_id),
-                enabled=False,
-            )
-            session.add(channel)
-            session.flush()
-            ordering.append(session, channel)
-        return add_source(session, owner, channel=channel, x=x, y=y)
+        return _unpack_source(session, entry, owner, at=at)
 
     if kind == "feed":
         from .. import playlists as playlist_service
@@ -240,22 +221,7 @@ def _unpack(
         return add_feed(session, playlist, owner, x=x, y=y)
 
     if kind == "filter":
-        node = add_filter(session, owner, label=label or "Filter", x=x, y=y)
-        # A format-1 file kept every rule on the box. They are pieces now, so
-        # the file is unpacked into pieces — the same conversion the database
-        # got, said once more for a file somebody exported before it.
-        rules = entry.get("rules")
-        if isinstance(rules, dict):
-            under: GraphNode = node
-            for spec in conditions_for("filter"):
-                said = rules.get(spec.column)
-                if said is None or said == "":
-                    continue
-                under = add_piece(
-                    session, owner, kind=spec.kind, host=under, x=x, y=y + 60
-                )
-                setattr(under, spec.column, said)
-        return node
+        return _unpack_filter(session, entry, owner, at=at)
 
     if kind == "sort":
         node = add_sort(session, owner, label=label, x=x, y=y)
@@ -268,15 +234,7 @@ def _unpack(
         return node
 
     if kind in CONDITION_KINDS:
-        piece = add_piece(
-            session, owner, kind=kind, x=x, y=y,
-            sort_by=str(entry.get("value") or DEFAULT_SORT_BY),
-            newest_first=str(entry.get("sort_dir") or "desc") == "desc",
-        )
-        said = condition(kind)
-        if said is not None and kind != "order" and entry.get("value") not in (None, ""):
-            setattr(piece, said.column, entry.get("value"))
-        return piece
+        return _unpack_condition(session, entry, owner, kind=kind, at=at)
 
     if kind in AUGMENTATIONS:
         return add_piece(
@@ -311,6 +269,69 @@ def _unpack(
             y=y,
         )
     return None
+
+
+def _unpack_source(
+    session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
+) -> GraphNode | None:
+    channel_id = entry.get("channel_id")
+    if not channel_id:
+        return None
+    channel = session.scalar(
+        owned(select(Channel), Channel, owner).where(Channel.channel_id == channel_id)
+    )
+    if channel is None:
+        # Made from the file rather than looked up: a UC id is enough to
+        # watch a channel, and asking YouTube would make loading a group
+        # need credentials it has no other use for.
+        channel = Channel(
+            owner_pk=owner,
+            channel_id=str(channel_id),
+            title=str(entry.get("title") or channel_id),
+            enabled=False,
+        )
+        session.add(channel)
+        session.flush()
+        ordering.append(session, channel)
+    x, y = at
+    return add_source(session, owner, channel=channel, x=x, y=y)
+
+
+def _unpack_filter(
+    session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
+) -> GraphNode:
+    x, y = at
+    node = add_filter(session, owner, label=str(entry.get("label") or "") or "Filter", x=x, y=y)
+    # A format-1 file kept every rule on the box. They are pieces now, so
+    # the file is unpacked into pieces — the same conversion the database
+    # got, said once more for a file somebody exported before it.
+    rules = entry.get("rules")
+    if isinstance(rules, dict):
+        under: GraphNode = node
+        for spec in conditions_for("filter"):
+            said = rules.get(spec.column)
+            if said is None or said == "":
+                continue
+            under = add_piece(
+                session, owner, kind=spec.kind, host=under, x=x, y=y + 60
+            )
+            setattr(under, spec.column, said)
+    return node
+
+
+def _unpack_condition(
+    session: Session, entry: dict[str, Any], owner: OwnerId, *, kind: str, at: tuple[int, int]
+) -> GraphNode:
+    x, y = at
+    piece = add_piece(
+        session, owner, kind=kind, x=x, y=y,
+        sort_by=str(entry.get("value") or DEFAULT_SORT_BY),
+        newest_first=str(entry.get("sort_dir") or "desc") == "desc",
+    )
+    said = condition(kind)
+    if said is not None and kind != "order" and entry.get("value") not in (None, ""):
+        setattr(piece, said.column, entry.get("value"))
+    return piece
 
 
 def add_group(
