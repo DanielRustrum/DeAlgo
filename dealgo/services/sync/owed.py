@@ -105,27 +105,7 @@ def retry_deferred(
 
     Returns True if quota ran out again, so the caller stops there.
     """
-    open_placements = list(
-        session.scalars(
-            select(Placement)
-            .options(selectinload(Placement.video), selectinload(Placement.playlist))
-            .join(Video, Video.id == Placement.video_pk)
-            .where(belongs_to(Video, owner))
-            .join(Channel, Channel.id == Video.channel_pk)
-            .join(Playlist, Playlist.id == Placement.playlist_pk)
-            .where(
-                or_(
-                    Placement.playlist_item_id.is_(None),
-                    # Filled locally while signed out: still owed to YouTube.
-                    Placement.playlist_item_id.startswith(OFFLINE_ITEM_PREFIX),
-                ),
-                Placement.removed_at.is_(None),
-                Placement.attempts < MAX_INSERT_ATTEMPTS,
-                Playlist.enabled.is_(True),
-            )
-            .order_by(Channel.priority, Playlist.priority, Video.published_at, Placement.id)
-        )
-    )
+    open_placements = _owed(session, owner)
 
     for index, placement in enumerate(open_placements):
         already_local = placement.is_offline
@@ -136,15 +116,8 @@ def retry_deferred(
         if placement.playlist.is_generic or not client.has_write_access:
             if already_local:
                 continue  # readable in De-Algo already; nothing more to do here
-            placement.playlist_item_id = local_item_id(placement.video, placement.playlist)
-            placement.error = None
-            placement.added_at = utcnow()
-            added_per_playlist[placement.playlist_pk] = (
-                added_per_playlist.get(placement.playlist_pk, 0) + 1
-            )
-            note_placed(placement.playlist_pk)
-            result.added += 1
-            session.flush()
+            _pay(session, placement, local_item_id(placement.video, placement.playlist),
+                 added_per_playlist, result)
             continue
 
         if not quota.can_afford(session, cost_of("add"), owner=owner):
@@ -173,13 +146,49 @@ def retry_deferred(
             session.flush()
             continue
 
-        placement.playlist_item_id = item_id
-        placement.error = None
-        placement.added_at = utcnow()
-        added_per_playlist[placement.playlist_pk] = (
-            added_per_playlist.get(placement.playlist_pk, 0) + 1
-        )
-        note_placed(placement.playlist_pk)
-        result.added += 1
-        session.flush()
+        _pay(session, placement, item_id, added_per_playlist, result)
     return False
+
+
+def _owed(session: Session, owner: OwnerId) -> list[Placement]:
+    """Every placement still owed, in the order they are paid."""
+    return list(
+        session.scalars(
+            select(Placement)
+            .options(selectinload(Placement.video), selectinload(Placement.playlist))
+            .join(Video, Video.id == Placement.video_pk)
+            .where(belongs_to(Video, owner))
+            .join(Channel, Channel.id == Video.channel_pk)
+            .join(Playlist, Playlist.id == Placement.playlist_pk)
+            .where(
+                or_(
+                    Placement.playlist_item_id.is_(None),
+                    # Filled locally while signed out: still owed to YouTube.
+                    Placement.playlist_item_id.startswith(OFFLINE_ITEM_PREFIX),
+                ),
+                Placement.removed_at.is_(None),
+                Placement.attempts < MAX_INSERT_ATTEMPTS,
+                Playlist.enabled.is_(True),
+            )
+            .order_by(Channel.priority, Playlist.priority, Video.published_at, Placement.id)
+        )
+    )
+
+
+def _pay(
+    session: Session,
+    placement: Placement,
+    item_id: str,
+    added_per_playlist: Tally,
+    result: SyncResult,
+) -> None:
+    """An owed placement filled, here or on YouTube, and counted."""
+    placement.playlist_item_id = item_id
+    placement.error = None
+    placement.added_at = utcnow()
+    added_per_playlist[placement.playlist_pk] = (
+        added_per_playlist.get(placement.playlist_pk, 0) + 1
+    )
+    note_placed(placement.playlist_pk)
+    result.added += 1
+    session.flush()
