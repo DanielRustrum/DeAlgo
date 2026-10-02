@@ -116,7 +116,7 @@ watch-css: ## Recompile the stylesheet whenever a partial changes
 	@command -v inotifywait >/dev/null || { echo "needs inotify-tools"; exit 2; }
 	@echo "watching dealgo/web/scss — ctrl-c to stop"
 	@while true; do \
-		inotifywait -qq -e close_write dealgo/web/scss; \
+		inotifywait -qq -r -e close_write dealgo/web/scss; \
 		$(PY) -m dealgo.web.styles >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
 	done
 
