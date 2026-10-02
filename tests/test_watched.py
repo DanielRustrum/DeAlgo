@@ -162,3 +162,21 @@ def test_watched_marking_is_idempotent(world):
         assert watched_service.mark_watched(session, [video.id]) == 0
         assert video.watched_at == first
         assert isinstance(first, dt.datetime)
+
+
+def test_running_out_of_quota_stops_the_removal_and_says_so_once(world):
+    """The rest wait for the reset, rather than each being refused in turn."""
+    from dealgo.services import quota
+
+    fill_playlist(world)
+    with world["db"].session_scope() as session:
+        watched_service.mark_watched(session, [v.id for v in session.scalars(select(Video))])
+        used = quota.state(session).used
+        world["db"].get_settings(session).daily_quota = used + 60  # one removal, and no more
+
+    result = watched_service.remove_watched()
+
+    assert result.removed == 1
+    assert result.stopped_on_quota
+    assert sum("Quota ran out" in message for message in result.messages) == 1
+    assert len(world["client"].deleted) == 1

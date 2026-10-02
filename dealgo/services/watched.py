@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import outgoing
 from ..db import session_scope
 from ..models import Placement, Playlist, SyncRun, Video, utcnow
-from ..plugins.publisher import PublishError, cost_of
+from ..plugins.publisher import Publisher, PublishError, cost_of
 from . import quota
 from .auth import build_client
 from .scope import OwnerId, belongs_to, owned
@@ -136,32 +136,12 @@ def _remove(
     result = RemovalResult()
     client = build_client(session, http, owner)
 
-    if not session.scalar(
-        owned(select(func.count(Playlist.id)), Playlist, owner).where(Playlist.enabled.is_(True))
-    ):
-        result.messages.append("No feeds are set up.")
-        return result
-    if not client.has_write_access and not session.scalar(
-        select(func.count(Placement.id))
-        .join(Video, Video.id == Placement.video_pk)
-        .where(belongs_to(Video, owner))
-        .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
-    ):
-        # An account is only needed for rows that really are on YouTube. With
-        # nothing watched at all there is nothing to say but this.
-        result.messages.append("No Google account is connected.")
+    why_not = _nothing_to_remove(session, client, owner)
+    if why_not:
+        result.messages.append(why_not)
         return result
 
-    candidates = list(
-        session.scalars(
-            select(Placement)
-            .options(selectinload(Placement.video), selectinload(Placement.playlist))
-            .join(Video, Video.id == Placement.video_pk)
-            .where(belongs_to(Video, owner))
-            .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
-            .order_by(Video.watched_at.asc(), Placement.id.asc())
-        )
-    )
+    candidates = _watched_placements(session, owner)
     if not candidates:
         result.ok = True
         result.messages.append("No watched videos are in a playlist.")
@@ -172,75 +152,16 @@ def _remove(
     session.commit()
 
     stranded = 0  # really on YouTube, and no account to delete them with
-
     for placement in candidates:
-        title = placement.video.title
-
-        if placement.is_local:
-            # Nothing to delete anywhere — a generic feed, or one filled while
-            # signed out — so forgetting the row is the whole removal.
-            _clear(placement, "removed after watching")
-            result.removed += 1
-            session.flush()
-            continue
-
-        if not client.has_write_access:
-            # A real playlist item, and no account to delete it with. Leave it
-            # alone rather than losing the record of where it is.
+        outcome = _take_out(session, client, placement, result)
+        if outcome == "stranded":
             stranded += 1
-            continue
-
-        # Removal is charged the same 50 units as an insert; a manual removal
-        # may dip into the reserve, which is what the reserve is for.
-        if not quota.can_afford(session, cost_of("remove"), use_reserve=True):
-            result.stopped_on_quota = True
-            result.messages.append(
-                f"Quota ran out; the rest can be removed after the reset {quota.describe_reset()}."
-            )
+        elif outcome == "stop":
             break
-        item_id = placement.playlist_item_id
-        if item_id is None:
-            # The query asks for rows that have one; belt and braces for a
-            # future caller that does not.
-            continue
-        try:
-            client.delete_playlist_item(item_id)
-        except PublishError as exc:
-            if exc.status == 404 or exc.reason == "playlistItemNotFound":
-                # Already gone from YouTube's side; just reconcile our record.
-                _clear(placement, "watched — already gone from the playlist")
-                result.missing += 1
-                session.flush()
-                continue
-            if exc.is_quota_error:
-                quota.mark_exhausted(session)
-                result.stopped_on_quota = True
-                result.messages.append(
-                    f"YouTube says the daily quota is gone; the rest can be removed after the reset "
-                    f"{quota.describe_reset()}."
-                )
-                log.warning("quota exhausted while removing watched videos")
-                break
-            result.failed += 1
-            result.messages.append(f"Could not remove {title!r} from {placement.playlist.title!r}: {exc}")
-            log.warning("could not remove playlist item for %s: %s", placement.video.video_id, exc)
-            continue
-
-        _clear(placement, "removed from the playlist after watching")
-        result.removed += 1
-        session.flush()
 
     result.ok = result.failed == 0
     total = result.removed + result.missing
-    summary = f"Removed {total} watched video{'s' if total != 1 else ''} from playlists."
-    if result.failed:
-        summary += f" {result.failed} could not be removed."
-    if stranded:
-        summary += (
-            f" {stranded} sit in a YouTube playlist and need a connected account "
-            "before they can be taken out."
-        )
-    result.messages.insert(0, summary)
+    result.messages.insert(0, _summary(result, total, stranded))
 
     run.finished_at = utcnow()
     run.ok = result.ok
@@ -252,6 +173,115 @@ def _remove(
 
     log.info("removed %d watched placements (%s)", total, trigger)
     return result
+
+
+def _nothing_to_remove(session: Session, client: Publisher, owner: OwnerId) -> str | None:
+    """Why there is nothing to do at all, or None when there may be."""
+    if not session.scalar(
+        owned(select(func.count(Playlist.id)), Playlist, owner).where(Playlist.enabled.is_(True))
+    ):
+        return "No feeds are set up."
+    if not client.has_write_access and not session.scalar(
+        select(func.count(Placement.id))
+        .join(Video, Video.id == Placement.video_pk)
+        .where(belongs_to(Video, owner))
+        .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
+    ):
+        # An account is only needed for rows that really are on YouTube. With
+        # nothing watched at all there is nothing to say but this.
+        return "No Google account is connected."
+    return None
+
+
+def _watched_placements(session: Session, owner: OwnerId) -> list[Placement]:
+    """Every watched item still in a feed, the longest-watched first."""
+    return list(
+        session.scalars(
+            select(Placement)
+            .options(selectinload(Placement.video), selectinload(Placement.playlist))
+            .join(Video, Video.id == Placement.video_pk)
+            .where(belongs_to(Video, owner))
+            .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
+            .order_by(Video.watched_at.asc(), Placement.id.asc())
+        )
+    )
+
+
+def _take_out(
+    session: Session, client: Publisher, placement: Placement, result: RemovalResult
+) -> str:
+    """Take one watched item out of its feed.
+
+    "stranded" when it is on YouTube with no account to remove it with,
+    "stop" when the quota has run out, and "" otherwise.
+    """
+    title = placement.video.title
+
+    if placement.is_local:
+        # Nothing to delete anywhere — a generic feed, or one filled while
+        # signed out — so forgetting the row is the whole removal.
+        _clear(placement, "removed after watching")
+        result.removed += 1
+        session.flush()
+        return ""
+
+    if not client.has_write_access:
+        # A real playlist item, and no account to delete it with. Leave it
+        # alone rather than losing the record of where it is.
+        return "stranded"
+
+    # Removal is charged the same 50 units as an insert; a manual removal
+    # may dip into the reserve, which is what the reserve is for.
+    if not quota.can_afford(session, cost_of("remove"), use_reserve=True):
+        result.stopped_on_quota = True
+        result.messages.append(
+            f"Quota ran out; the rest can be removed after the reset {quota.describe_reset()}."
+        )
+        return "stop"
+    item_id = placement.playlist_item_id
+    if item_id is None:
+        # The query asks for rows that have one; belt and braces for a
+        # future caller that does not.
+        return ""
+    try:
+        client.delete_playlist_item(item_id)
+    except PublishError as exc:
+        if exc.status == 404 or exc.reason == "playlistItemNotFound":
+            # Already gone from YouTube's side; just reconcile our record.
+            _clear(placement, "watched — already gone from the playlist")
+            result.missing += 1
+            session.flush()
+            return ""
+        if exc.is_quota_error:
+            quota.mark_exhausted(session)
+            result.stopped_on_quota = True
+            result.messages.append(
+                f"YouTube says the daily quota is gone; the rest can be removed after the reset "
+                f"{quota.describe_reset()}."
+            )
+            log.warning("quota exhausted while removing watched videos")
+            return "stop"
+        result.failed += 1
+        result.messages.append(f"Could not remove {title!r} from {placement.playlist.title!r}: {exc}")
+        log.warning("could not remove playlist item for %s: %s", placement.video.video_id, exc)
+        return ""
+
+    _clear(placement, "removed from the playlist after watching")
+    result.removed += 1
+    session.flush()
+    return ""
+
+
+def _summary(result: RemovalResult, total: int, stranded: int) -> str:
+    said = f"Removed {total} watched video{'s' if total != 1 else ''} from playlists."
+    if result.failed:
+        said += f" {result.failed} could not be removed."
+    if stranded:
+        said += (
+            f" {stranded} sit in a YouTube playlist and need a connected account "
+            "before they can be taken out."
+        )
+    return said
 
 
 def _clear(placement: Placement, reason: str) -> None:
