@@ -39,7 +39,8 @@ from ..models import (
     utcnow,
 )
 from ..sources import items, patience, syndication
-from ..plugins import registry, site
+from ..plugins import registry
+from ..plugins.capabilities import acting_for
 from ..plugins.publisher import PublishError, Publisher, VideoDetails, cost_of
 from . import filters
 from . import quota
@@ -974,7 +975,7 @@ def _discover_posts(
     year of its writing into a feed on day one.
     """
     try:
-        with site.acting_for(owner):
+        with acting_for(owner):
             posts = registry.current().posts(channel.source_kind, channel.channel_id)
         found = [post for post in (_as_post(row) for row in posts) if post.id]
     except Exception as exc:  # the page shape is not ours to rely on
@@ -1117,7 +1118,7 @@ def _plugin_refusal(
     # Whose work this is, for the whole of the asking. A plugin reaching the
     # site through `dealgo` sees this account and no other, and outside a
     # block like this it sees nobody at all.
-    with site.acting_for(path.channel.owner_pk):
+    with acting_for(path.channel.owner_pk):
         for node in path.checks:
             ref = node.plugin_ref or ""
             box = found.augmentation(ref)
@@ -1169,7 +1170,7 @@ def ordering_value(video: Video, piece: GraphNode) -> float:
     if piece.kind != graph.RULE:
         return _sort_value(video, piece.sort_by or graph.DEFAULT_SORT_BY)
     owner = video.channel.owner_pk if video.channel is not None else None
-    with site.acting_for(owner):
+    with acting_for(owner):
         said = registry.current().ranks(
             piece.plugin_ref or "", _as_item(video), _plugin_settings(piece)
         )

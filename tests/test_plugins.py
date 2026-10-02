@@ -118,11 +118,12 @@ def test_a_capability_that_never_said_what_it_offers_offers_nothing():
 def test_every_capability_says_what_it_offers():
     """Checked over the real ones, so a new capability cannot be added
     without deciding what a plugin may reach on it."""
-    from dealgo.plugins import permissions
-    from dealgo.plugins.account import Account
-    from dealgo.plugins.site import Site
+    from dealgo.plugins import capabilities
 
-    handed = [Account, Site, permissions._Clock, permissions._Log, permissions._Net]
+    handed = [
+        capabilities.Account, capabilities.Site,
+        capabilities.Clock, capabilities.Log, capabilities.Net,
+    ]
     for thing in handed:
         offers = getattr(thing, "LUA_OFFERS", None)
         assert offers, f"{thing.__name__} does not say what it offers"

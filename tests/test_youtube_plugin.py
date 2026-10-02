@@ -18,7 +18,8 @@ import httpx
 import pytest
 
 from dealgo.models import OAuthToken, User, utcnow
-from dealgo.plugins import registry, site
+from dealgo.plugins import registry
+from dealgo.plugins.capabilities import acting_for
 from dealgo.plugins.publisher import Publisher
 
 
@@ -115,7 +116,7 @@ def test_a_reference_decides_which_endpoint_is_asked(signed_in, google, referenc
     made, answers = google
     answers.extend(says({"items": [{"id": CHANNEL_ID, "snippet": {"title": "Devs"}}]}))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().resolve_channel(reference)
 
     assert found is not None and found.title == "Devs"
@@ -133,7 +134,7 @@ def test_a_name_falls_through_to_search(signed_in, google):
         {"items": [{"id": CHANNEL_ID, "snippet": {"title": "Google Developers"}}]},
     ))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().resolve_channel("Google Developers")
 
     assert found.channel_id == CHANNEL_ID
@@ -153,7 +154,7 @@ def test_a_stale_handle_falls_back_to_searching_for_it(signed_in, google):
         {"items": [{"id": CHANNEL_ID, "snippet": {"title": "Devs"}}]},
     ))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().resolve_channel("@GoogleDevelopers")
 
     assert found.channel_id == CHANNEL_ID
@@ -167,7 +168,7 @@ def test_something_that_is_not_a_channel_asks_nothing(signed_in, google, referen
     a hundred units of somebody's day."""
     made, _ = google
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert publisher().resolve_channel(reference) is None
     assert made == []
 
@@ -190,7 +191,7 @@ def test_a_duration_is_read_as_seconds(signed_in, google, raw, seconds):
         "statistics": {"viewCount": "1200", "likeCount": "34"},
     }]}))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().video_details(["v1"])
 
     assert found["v1"].duration_sec == (seconds if raw else None)
@@ -208,7 +209,7 @@ def test_a_hidden_count_stays_nothing_rather_than_zero(signed_in, google):
         "statistics": {"viewCount": "5"},
     }]}))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().video_details(["v1"])
 
     assert found["v1"].like_count is None
@@ -221,7 +222,7 @@ def test_ids_go_up_in_batches_of_fifty(signed_in, google):
     made, answers = google
     answers.extend(says({"items": []}, {"items": []}))
 
-    with site.acting_for(1):
+    with acting_for(1):
         publisher().video_details([f"v{n}" for n in range(60)])
 
     queries = [query["id"].split(",") for _, _, query in asked(made)]
@@ -243,7 +244,7 @@ def test_a_playlist_is_read_page_by_page(signed_in, google):
             "resourceId": {"kind": "youtube#video", "videoId": "v2"}}}]},
     ))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().playlist_items("PL1")
 
     assert [item.video_id for item in found] == ["v1", "v2"]
@@ -259,7 +260,7 @@ def test_something_in_a_playlist_that_is_not_a_video_is_left_alone(signed_in, go
         {"id": "i2", "snippet": {"resourceId": {"kind": "youtube#video", "videoId": "v2"}}},
     ]}))
 
-    with site.acting_for(1):
+    with acting_for(1):
         found = publisher().playlist_items("PL1")
 
     assert [item.video_id for item in found] == ["v2"]
@@ -274,7 +275,7 @@ def test_renaming_carries_the_description_so_it_is_not_wiped(signed_in, google):
         {"id": "PL1"},
     ))
 
-    with site.acting_for(1):
+    with acting_for(1):
         publisher().rename_playlist("PL1", "A better name")
 
     sent = made[1]
@@ -301,7 +302,7 @@ def test_each_call_is_charged_at_the_published_price(signed_in, google, db):
     answers.extend(says({"items": []}, {"items": []}, {"id": "item-1"}))
     before = spent(db)
 
-    with site.acting_for(1):
+    with acting_for(1):
         made = publisher()
         made.video_details(["a", "b"])
         made.playlist_items("PL")
@@ -319,7 +320,7 @@ def test_a_request_google_refuses_is_still_charged(signed_in, google, db):
     ))
     before = spent(db)
 
-    with site.acting_for(1):
+    with acting_for(1):
         with pytest.raises(Exception):
             publisher().insert_playlist_item("PL", "a")
     after_refusal = spent(db)
@@ -327,7 +328,7 @@ def test_a_request_google_refuses_is_still_charged(signed_in, google, db):
     answers.append(httpx.Response(
         403, json={"error": {"errors": [{"reason": "quotaExceeded"}]}}
     ))
-    with site.acting_for(1):
+    with acting_for(1):
         with pytest.raises(Exception):
             publisher().insert_playlist_item("PL", "a")
 
@@ -387,7 +388,7 @@ def serves(google, html: str):
 
 
 def read_posts(key: str = "UCzzzzzzzzzzzzzzzzzzzzzz") -> list[dict]:
-    with site.acting_for(1):
+    with acting_for(1):
         return registry.current().posts("youtube", key)
 
 

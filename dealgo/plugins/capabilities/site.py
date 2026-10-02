@@ -22,13 +22,11 @@ kind of rule that gets missed once.
 
 from __future__ import annotations
 
-import contextlib
 import logging
-import threading
-from collections.abc import Iterator
 from typing import Any
 
-from ..services.scope import OwnerId
+from ...services.scope import OwnerId
+from .owner import whose
 
 log = logging.getLogger(__name__)
 
@@ -38,38 +36,6 @@ log = logging.getLogger(__name__)
 MOST_ROWS = 500
 
 
-class _Whose(threading.local):
-    """Whose work is in hand, on this thread.
-
-    Thread-local because a sync runs in one and a request in another, and the
-    two must never borrow each other's answer.
-    """
-
-    owner: OwnerId = None
-    acting: bool = False
-
-
-_whose = _Whose()
-
-
-@contextlib.contextmanager
-def acting_for(owner: OwnerId) -> Iterator[None]:
-    """Say whose work the plugins about to run are doing.
-
-    Nested deliberately restores rather than clears: a run inside a run is not
-    a thing here, but if it ever became one, the inner finishing must not
-    leave the outer speaking for nobody.
-    """
-    was, acted = _whose.owner, _whose.acting
-    _whose.owner, _whose.acting = owner, True
-    try:
-        yield
-    finally:
-        _whose.owner, _whose.acting = was, acted
-
-
-def whose() -> tuple[OwnerId, bool]:
-    return _whose.owner, _whose.acting
 
 
 class Site:
@@ -112,7 +78,7 @@ class Site:
         do less rather than fail — which is the only way a plugin outlives
         the version it was written against.
         """
-        from .. import __version__
+        from ... import __version__
 
         return str(__version__)
 
@@ -201,7 +167,7 @@ class Site:
         return True
 
     def _look(self, run: Any) -> list[dict[str, object]]:
-        from ..db import session_scope
+        from ...db import session_scope
 
         owner, _ = whose()
         try:
@@ -212,7 +178,7 @@ class Site:
             return []
 
     def _change(self, run: Any) -> object:
-        from ..db import session_scope
+        from ...db import session_scope
 
         owner, _ = whose()
         try:
@@ -237,13 +203,13 @@ class Site:
 
 
 def permissions_for(name: str) -> Any:
-    from . import permissions
+    from .. import permissions
 
     return permissions.describe(name)
 
 
 def _known_names() -> frozenset[str]:
-    from . import permissions
+    from .. import permissions
 
     return frozenset(permissions.BY_NAME)
 
@@ -252,7 +218,7 @@ def _known_names() -> frozenset[str]:
 
 
 def _sources(session: Any, owner: OwnerId) -> list[dict[str, object]]:
-    from ..services import channels as channel_service
+    from ...services import channels as channel_service
 
     return [
         {
@@ -266,7 +232,7 @@ def _sources(session: Any, owner: OwnerId) -> list[dict[str, object]]:
 
 
 def _feeds(session: Any, owner: OwnerId) -> list[dict[str, object]]:
-    from ..services import playlists as playlist_service
+    from ...services import playlists as playlist_service
 
     return [
         {
@@ -282,8 +248,8 @@ def _feeds(session: Any, owner: OwnerId) -> list[dict[str, object]]:
 def _find(session: Any, owner: OwnerId, key: str) -> Any:
     from sqlalchemy import select
 
-    from ..models import Channel
-    from ..services.scope import owned
+    from ...models import Channel
+    from ...services.scope import owned
 
     if not key:
         return None
@@ -302,8 +268,8 @@ def _pause(session: Any, owner: OwnerId, key: str, on: bool) -> bool:
 
 
 def _watch(session: Any, owner: OwnerId, reference: str) -> str | None:
-    from ..services import channels as channel_service
-    from ..services import sync as sync_service
+    from ...services import channels as channel_service
+    from ...services import sync as sync_service
 
     if not reference:
         return None

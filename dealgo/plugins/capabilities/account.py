@@ -21,7 +21,8 @@ from typing import Any
 
 import httpx
 
-from ..services.scope import OwnerId
+from ...services.scope import OwnerId
+from .owner import whose
 
 log = logging.getLogger(__name__)
 
@@ -78,8 +79,8 @@ class Account:
         if owner is False:
             return False
         try:
-            from ..db import get_token, session_scope
-            from ..services.auth import api_key
+            from ...db import get_token, session_scope
+            from ...services.auth import api_key
 
             with session_scope() as session:
                 return bool(get_token(session, owner) or api_key(session, owner))
@@ -123,8 +124,6 @@ class Account:
 
     def _owner(self) -> Any:
         """Whose account, or False when there is nobody in hand."""
-        from .site import whose
-
         owner, acting = whose()
         if not acting:
             log.info("plugin %s asked to send with no account in hand", self._plugin)
@@ -132,10 +131,10 @@ class Account:
         return owner
 
     def _go(self, owner: OwnerId, how: str, url: str, body: object, cost: int) -> Any:
-        from ..db import session_scope
-        from ..services.auth import api_key, valid_access_token
-        from ..services.quota import meter
-        from ..services.sync import http_client
+        from ...db import session_scope
+        from ...services.auth import api_key, valid_access_token
+        from ...services.quota import meter
+        from ...services.sync import http_client
 
         try:
             with session_scope() as session, http_client() as http:

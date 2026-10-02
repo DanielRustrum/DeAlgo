@@ -23,7 +23,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..services.scope import OwnerId
-from . import registry, site
+from . import registry
+from .capabilities import acting_for
 
 log = logging.getLogger(__name__)
 
@@ -211,7 +212,7 @@ class Publisher:
         if fn is None:
             raise PublishError(f"{plugin.title} cannot {what}")
 
-        with site.acting_for(self._owner):
+        with acting_for(self._owner):
             try:
                 return plugin.box.call(
                     fn, *(plugin.box.given(arg) for arg in args)

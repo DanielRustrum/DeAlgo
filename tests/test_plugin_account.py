@@ -15,7 +15,8 @@ import httpx
 import pytest
 
 from dealgo.models import OAuthToken, User, utcnow
-from dealgo.plugins import account, registry, site
+from dealgo.plugins import registry
+from dealgo.plugins.capabilities import account, acting_for
 
 
 def a_plugin(body: str, granted=frozenset({"account"})):
@@ -100,7 +101,7 @@ def test_a_plugin_is_never_handed_the_token(signed_in, sent):
       return out
     """)
 
-    with site.acting_for(1):
+    with acting_for(1):
         said = ask(found, plugin)
     assert said["offered"] == "true"
     assert said["token"] == "blocked"
@@ -114,7 +115,7 @@ def test_the_host_attaches_the_credential(signed_in, sent):
         ' return { got = r ~= nil and r.items[1].id }'
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(found, plugin)["got"] == "x"
     assert sent[0]["headers"]["Authorization"] == "Bearer secret-token"
 
@@ -138,7 +139,7 @@ def test_nothing_is_signed_for_anywhere_but_the_accounts_own_host(signed_in, sen
     leaks the token to the first address a plugin chose."""
     found, plugin = a_plugin(f'return {{ answered = account.send("GET", "{url}") ~= nil }}')
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(found, plugin)["answered"] is False
     assert sent == [], "it sent something anyway"
 
@@ -149,7 +150,7 @@ def test_a_method_nobody_named_is_refused(signed_in, sent):
         '"https://www.googleapis.com/youtube/v3/playlists") ~= nil }'
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(found, plugin)["answered"] is False
     assert sent == []
 
@@ -170,7 +171,7 @@ def test_it_sends_as_nobody_outside_a_run(signed_in, sent):
 def test_without_the_permission_there_is_no_account_at_all(signed_in, sent):
     found, plugin = a_plugin("return { has = account ~= nil }", frozenset())
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(found, plugin)["has"] is False
 
 
@@ -181,7 +182,7 @@ def test_it_says_whether_there_is_anything_to_send_as(db, sent):
         session.add(User(id=1, username="me", password_hash="x"))
 
     found, plugin = a_plugin("return { connected = account.connected() }")
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(found, plugin)["connected"] is False
 
     with pytest.MonkeyPatch.context():
@@ -191,7 +192,7 @@ def test_it_says_whether_there_is_anything_to_send_as(db, sent):
 def test_with_an_account_it_says_so(signed_in, sent):
     found, plugin = a_plugin("return { connected = account.connected() }")
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(found, plugin)["connected"] is True
 
 
@@ -206,7 +207,7 @@ def test_the_day_is_charged_what_the_plugin_says(signed_in, sent, db):
         ' return { done = true }'
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         ask(found, plugin)
     with db.session_scope() as session:
         assert quota.state(session, 1).used == 50
@@ -222,7 +223,7 @@ def test_a_plugin_cannot_spend_the_day_in_one_call(signed_in, sent, db):
         ' return { done = true }'
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         ask(found, plugin)
     with db.session_scope() as session:
         assert quota.state(session, 1).used == account.MOST_COST
@@ -236,7 +237,7 @@ def test_a_call_cannot_be_free(signed_in, sent, db):
         ' return { done = true }'
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         ask(found, plugin)
     with db.session_scope() as session:
         assert quota.state(session, 1).used == 1
@@ -250,6 +251,6 @@ def test_it_cannot_send_for_ever(signed_in, sent):
       return { done = true }
     """)
 
-    with site.acting_for(1):
+    with acting_for(1):
         ask(found, plugin)
     assert len(sent) == account.MOST_CALLS

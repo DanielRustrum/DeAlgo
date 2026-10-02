@@ -26,7 +26,7 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from . import permissions
+from . import capabilities, permissions
 # Re-exported, so that a caller handling what a plugin did wrong does not have
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
@@ -1045,7 +1045,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
     path = plugin.path
 
     def nothing_yet(lua: Any) -> dict[str, object]:
-        return {**given, **permissions.capabilities(plugin.id, frozenset(), None, lua)}
+        return {**given, **capabilities.granted_to(plugin.id, frozenset(), None, lua)}
 
     try:
         box, made = load(plugin.id, source, given=nothing_yet)
@@ -1104,7 +1104,7 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     asked = tuple((want.name, want.why) for want in plugin.wants)
 
     def able(lua: Any) -> dict[str, object]:
-        return permissions.capabilities(plugin.title, plugin.granted, http, lua, asked)
+        return capabilities.granted_to(plugin.title, plugin.granted, http, lua, asked)
 
     try:
         source = plugin.path.read_text(encoding="utf-8")

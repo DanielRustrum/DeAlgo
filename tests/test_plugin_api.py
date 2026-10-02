@@ -16,7 +16,8 @@ import pytest
 from sqlalchemy import select
 
 from dealgo.models import Channel, Playlist
-from dealgo.plugins import registry, site
+from dealgo.plugins import registry
+from dealgo.plugins.capabilities import acting_for
 
 
 def a_plugin(source: str, granted=frozenset(), plugin_id="api"):
@@ -182,7 +183,7 @@ def test_reading_it_back_needs_no_account_in_hand():
     )
 
     assert ask(plugin, found, "")["n"] == 2
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["n"] == 2
 
 
@@ -192,7 +193,7 @@ def test_reading_it_back_needs_no_account_in_hand():
 def test_without_the_read_permission_it_sees_nothing(db, two_accounts):
     found, plugin = a_plugin(probing("return { n = #dealgo.sources() }"), frozenset())
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["n"] == 0
 
 
@@ -202,7 +203,7 @@ def test_with_it_granted_it_sees_the_account_in_hand(db, two_accounts):
         frozenset({"read"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         said = ask(plugin, found, "")
     assert said["n"] == 1
     assert said["first"] == "Mine"
@@ -216,9 +217,9 @@ def test_it_never_sees_another_account(db, two_accounts):
         frozenset({"read"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["first"] == "Mine"
-    with site.acting_for(2):
+    with acting_for(2):
         assert ask(plugin, found, "")["first"] == "Theirs"
 
 
@@ -245,7 +246,7 @@ def test_what_it_sees_is_the_shape_and_not_the_history(db, two_accounts):
         frozenset({"read"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         said = ask(plugin, found, "")
     assert said["names"] == "enabled,key,kind,title"
 
@@ -256,7 +257,7 @@ def test_it_can_see_the_feeds_too(db, two_accounts):
         frozenset({"read"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         said = ask(plugin, found, "")
     assert said["n"] == 1 and said["first"] == "My Feed"
 
@@ -273,7 +274,7 @@ def test_what_it_gets_back_is_a_table_it_can_walk(db, two_accounts):
         frozenset({"read"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["walked"] == 1
 
 
@@ -285,7 +286,7 @@ def test_without_the_manage_permission_nothing_changes(db, two_accounts):
         probing('return { did = dealgo.pause("r/mine", false) }'), frozenset({"read"})
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["did"] is False
     with db.session_scope() as session:
         kept = session.scalar(select(Channel).where(Channel.channel_id == "r/mine"))
@@ -299,7 +300,7 @@ def test_it_cannot_change_another_accounts_source(db, two_accounts):
         frozenset({"manage"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["did"] is False
     with db.session_scope() as session:
         theirs = session.scalar(select(Channel).where(Channel.channel_id == "r/theirs"))
@@ -311,7 +312,7 @@ def test_it_can_switch_a_source_off(db, two_accounts):
         probing('return { did = dealgo.pause("r/mine", false) }'), frozenset({"manage"})
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["did"] is True
     with db.session_scope() as session:
         changed = session.scalar(select(Channel).where(Channel.channel_id == "r/mine"))
@@ -323,7 +324,7 @@ def test_something_that_is_not_there_is_a_no_rather_than_a_crash(db, two_account
         probing('return { did = dealgo.pause("r/nowhere", false) }'), frozenset({"manage"})
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["did"] is False
 
 
@@ -339,7 +340,7 @@ def test_what_it_adds_arrives_paused(db, two_accounts, monkeypatch):
         probing('return { key = dealgo.watch("r/added") }'), frozenset({"manage"})
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         assert ask(plugin, found, "")["key"] == "r/added"
     with db.session_scope() as session:
         added = session.scalar(select(Channel).where(Channel.channel_id == "r/added"))
@@ -356,7 +357,7 @@ def test_watching_nonsense_is_nothing_rather_than_a_crash(db, two_accounts):
         frozenset({"manage"}),
     )
 
-    with site.acting_for(1):
+    with acting_for(1):
         said = ask(plugin, found, "")
     assert said == {"asked": True}, "it ran, and there was simply no key"
 
@@ -375,7 +376,7 @@ def test_two_plugins_each_get_their_own(db, two_accounts):
 
     opened = next(p for p in found.plugins if p.id == "open")
     shut = next(p for p in found.plugins if p.id == "shut")
-    with site.acting_for(1):
+    with acting_for(1):
         saw = opened.box.call(found.augmentation("open:probe")._keep, opened.box.table(), opened.box.table())
         blind = shut.box.call(found.augmentation("shut:probe2")._keep, shut.box.table(), shut.box.table())
 

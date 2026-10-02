@@ -11,7 +11,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from dealgo.plugins import permissions
+from dealgo.plugins import capabilities, permissions
+from dealgo.plugins.capabilities import net as net_capability
 
 
 def a_client(answers):
@@ -46,17 +47,17 @@ def forget_waits():
 
 
 def test_nothing_granted_means_nothing_at_all():
-    assert permissions.capabilities("x", frozenset()) == {}
+    assert capabilities.granted_to("x", frozenset()) == {}
 
 
 def test_each_grant_brings_exactly_one_thing():
-    given = permissions.capabilities("x", frozenset({"clock", "log", "network"}))
+    given = capabilities.granted_to("x", frozenset({"clock", "log", "network"}))
 
     assert sorted(given) == ["clock", "log", "net"]
 
 
 def test_a_name_nobody_wrote_down_brings_nothing():
-    assert permissions.capabilities("x", frozenset({"telepathy"})) == {}
+    assert capabilities.granted_to("x", frozenset({"telepathy"})) == {}
 
 
 def test_an_unknown_permission_still_describes_itself():
@@ -74,7 +75,7 @@ def test_an_unknown_permission_still_describes_itself():
 
 def test_a_plugin_fetches_through_the_host():
     asked, client = a_client({"https://example.com/a": (200, b"hello")})
-    net = permissions.capabilities("Asker", frozenset({"network"}), client)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     assert net.get("https://example.com/a") == "hello"
     assert asked == ["https://example.com/a"]
@@ -88,7 +89,7 @@ def test_a_plugins_fetch_waits_when_a_host_asked_it_to():
 
     body = (200, b"<rss/>")
     asked, client = a_client({"https://www.reddit.com/r/x/.rss": body})
-    net = permissions.capabilities("Asker", frozenset({"network"}), client)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     patience.rest("https://www.reddit.com/r/x/.rss", 60)
     assert net.get("https://www.reddit.com/r/x/.rss") is None
@@ -115,7 +116,7 @@ def test_a_plugins_fetch_feeds_what_it_learns_back_to_patience():
         def __exit__(self, *_):
             return False
 
-    net = permissions.capabilities("Asker", frozenset({"network"}), lambda: Limiting())["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), lambda: Limiting())["net"]
     net.get(url)
 
     assert patience.wait_for(url) > 0, "what it learned was kept to itself"
@@ -123,7 +124,7 @@ def test_a_plugins_fetch_feeds_what_it_learns_back_to_patience():
 
 def test_a_plugin_cannot_fetch_something_that_is_not_a_web_address():
     asked, client = a_client({})
-    net = permissions.capabilities("Asker", frozenset({"network"}), client)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     assert net.get("file:///etc/passwd") is None
     assert net.get("/data/dealgo.sqlite3") is None
@@ -136,19 +137,19 @@ def test_a_plugin_cannot_fetch_for_ever():
     needs a different design."""
     answers = {f"https://example.com/{i}": (200, b"x") for i in range(20)}
     asked, client = a_client(answers)
-    net = permissions.capabilities("Asker", frozenset({"network"}), client)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     for i in range(20):
         net.get(f"https://example.com/{i}")
 
-    assert len(asked) == permissions.MOST_REQUESTS
+    assert len(asked) == net_capability.MOST_REQUESTS
 
 
 def test_something_too_large_is_refused_rather_than_held():
     asked, client = a_client(
-        {"https://example.com/big": (200, b"x" * (permissions.MOST_BYTES + 10))}
+        {"https://example.com/big": (200, b"x" * (net_capability.MOST_BYTES + 10))}
     )
-    net = permissions.capabilities("Asker", frozenset({"network"}), client)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     assert net.get("https://example.com/big") is None
 
@@ -157,7 +158,7 @@ def test_a_page_that_is_not_there_is_nothing_rather_than_an_error():
     """A plugin is a filter, and a filter that throws because a site was down
     is a filter that stops a sync."""
     asked, client = a_client({})
-    net = permissions.capabilities("Asker", frozenset({"network"}), client)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     assert net.get("https://example.com/gone") is None
 
@@ -166,7 +167,7 @@ def test_a_client_that_explodes_is_nothing_too():
     def explodes():
         raise RuntimeError("no network at all")
 
-    net = permissions.capabilities("Asker", frozenset({"network"}), explodes)["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), explodes)["net"]
 
     assert net.get("https://example.com/a") is None
 
@@ -177,7 +178,7 @@ def test_a_client_that_explodes_is_nothing_too():
 def test_the_clock_says_the_time_and_nothing_else_about_the_machine():
     import datetime as dt
 
-    clock = permissions.capabilities("x", frozenset({"clock"}))["clock"]
+    clock = capabilities.granted_to("x", frozenset({"clock"}))["clock"]
     now = clock.now()
 
     assert abs(now - dt.datetime.now(dt.timezone.utc).timestamp()) < 5
@@ -186,7 +187,7 @@ def test_the_clock_says_the_time_and_nothing_else_about_the_machine():
 
 def test_a_plugins_log_line_is_bounded(caplog):
     """A log line is not a place to put a feed."""
-    logger = permissions.capabilities("Noisy", frozenset({"log"}))["log"]
+    logger = capabilities.granted_to("Noisy", frozenset({"log"}))["log"]
 
     with caplog.at_level("INFO"):
         logger.info("x" * 5000)
@@ -208,7 +209,7 @@ def a_net(answers=None):
 
     box, _ = runtime.load("reader", "return { api = 1, name = 'Reader' }")
     _, client = a_client(answers or {})
-    return permissions.capabilities(
+    return capabilities.granted_to(
         "Reader", frozenset({"network"}), client, box._lua
     )["net"]
 
@@ -268,7 +269,7 @@ def test_a_plugin_may_send_a_user_agent_and_nothing_with_authority():
         def __exit__(self, *_):
             return False
 
-    net = permissions.capabilities("Asker", frozenset({"network"}), lambda: Watching())["net"]
+    net = capabilities.granted_to("Asker", frozenset({"network"}), lambda: Watching())["net"]
     net.get("https://example.com/a", {
         "User-Agent": "Mozilla/5.0", "Cookie": "session=secret", "Authorization": "Bearer x",
     })
