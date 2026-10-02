@@ -273,8 +273,8 @@ def _fresh_instance(tmp_path, monkeypatch):
     path = tmp_path / "elsewhere.sqlite3"
     elsewhere = config.Config(**{**config.CONFIG.__dict__, "database_url": f"sqlite:///{path}"})
     monkeypatch.setattr(config, "CONFIG", elsewhere)
-    monkeypatch.setattr(db_module, "CONFIG", elsewhere)
-    monkeypatch.setattr(db_module, "_engine", None)
-    monkeypatch.setattr(db_module, "_SessionFactory", None)
+    monkeypatch.setattr(db_module.engine, "CONFIG", elsewhere)
+    monkeypatch.setattr(db_module.engine, "_engine", None)
+    monkeypatch.setattr(db_module.engine, "_SessionFactory", None)
     db_module.init_db()
     return db_module

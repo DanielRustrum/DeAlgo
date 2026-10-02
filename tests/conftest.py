@@ -19,12 +19,12 @@ def db(tmp_path, monkeypatch):
     from dealgo import db as db_module
     from dealgo.config import CONFIG
 
-    monkeypatch.setattr(db_module, "CONFIG", replace(CONFIG, database_url=f"sqlite:///{tmp_path / 'test.sqlite3'}"))
-    monkeypatch.setattr(db_module, "_engine", None)
-    monkeypatch.setattr(db_module, "_SessionFactory", None)
+    monkeypatch.setattr(db_module.engine, "CONFIG", replace(CONFIG, database_url=f"sqlite:///{tmp_path / 'test.sqlite3'}"))
+    monkeypatch.setattr(db_module.engine, "_engine", None)
+    monkeypatch.setattr(db_module.engine, "_SessionFactory", None)
     db_module.init_db()
     yield db_module
-    engine = db_module._engine
+    engine = db_module.engine._engine
     if engine is not None:
         engine.dispose()
 

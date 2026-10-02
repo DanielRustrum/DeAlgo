@@ -61,9 +61,9 @@ def old_database(tmp_path, monkeypatch):
 
     older = config.Config(**{**config.CONFIG.__dict__, "database_url": f"sqlite:///{path}"})
     monkeypatch.setattr(config, "CONFIG", older)
-    monkeypatch.setattr(db_module, "CONFIG", older)
-    monkeypatch.setattr(db_module, "_engine", None)
-    monkeypatch.setattr(db_module, "_SessionFactory", None)
+    monkeypatch.setattr(db_module.engine, "CONFIG", older)
+    monkeypatch.setattr(db_module.engine, "_engine", None)
+    monkeypatch.setattr(db_module.engine, "_SessionFactory", None)
 
     db_module.init_db()
     return path
