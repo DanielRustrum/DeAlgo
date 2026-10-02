@@ -13,7 +13,7 @@
 De-Algo is designed to sit behind a reverse proxy on a home network or a VPS, for a household or a
 small group.
 
-## Accounts and sign-in — `services/accounts.py`
+## Accounts and sign-in — `services/accounts/`
 
 - **Passwords:** scrypt (N = 2¹⁴, r = 8, p = 1, 32-byte key, 16-byte salt), compared with
   `hmac.compare_digest`. 8–1024 characters for members.
@@ -35,7 +35,7 @@ backslash and control-character redirects after login.
 
 ## Data separation
 
-Every owned query goes through `scope.owned`. Plugins reach data only through `site.acting_for`,
+Every owned query goes through `scope.owned`. Plugins reach data only through `capabilities.acting_for`,
 thread-local and set by the host. `tests/test_tenancy.py` asserts separation across routes.
 See [Multi-Tenancy](Multi-Tenancy.md).
 

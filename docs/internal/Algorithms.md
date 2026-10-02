@@ -26,7 +26,7 @@ host, nearest first, with a `seen` set against legacy rings. `host_of` walks up 
 `Route.effective` · channel defaults, then each Filter's rules in path order (later overwrites).
 
 ## Batch ordering
-`_reorder` / `_sorter`:
+`reorder` / `_sorter`:
 
 1. For each pending item, the first route with an `order` gives key `(sort box id, ±value)`
    (descending negates).
@@ -59,7 +59,7 @@ two feeds' identical guids apart.
 de-duplicated, capped at 10; first that parses as a feed wins.
 
 ## Archive vetting
-`fetching._members` · stream the tar, keep regular files only, reject absolute and `..` paths, count
+`fetching.archive._members` · stream the tar, keep regular files only, reject absolute and `..` paths, count
 files and running unpacked size against limits before reading each.
 
 ## Quota day

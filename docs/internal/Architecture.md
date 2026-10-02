@@ -5,16 +5,16 @@ and storing everything in one SQL database. No queue, no cache server, no worker
 
 ```
                 ┌──────────────────────── one process ───────────────────────┐
- browser ──────▶│ FastAPI app (web/app.py)                                   │
-  htmx, canvas  │   middleware: who is this? (guard.py, accounts.py)         │
+ browser ──────▶│ FastAPI app (web/app.py), routers (web/routes/)            │
+  htmx, canvas  │   middleware: who is this? (web/guard.py, accounts/)       │
                 │   routes ──▶ services/*  ──▶ SQLAlchemy ──▶ SQLite/Postgres│
                 │                  │                                         │
                 │ APScheduler ─────┤ heartbeat: run_for_everyone()          │
                 │  (thread)        ▼                                         │
-                │            sync engine (services/sync.py)                  │
+                │            sync engine (services/sync/)                    │
                 │              │ routes from      │ polls via                │
                 │              ▼                  ▼                          │
-                │         services/graph.py   sources/* ──▶ httpx ──▶ web    │
+                │         services/graph/     sources/* ──▶ outgoing ──▶ web │
                 │                                 │                          │
                 │         plugins/registry ──▶ Lua sandbox (lupa)            │
                 │              │ publisher/account ──▶ YouTube Data API      │
@@ -29,7 +29,7 @@ and storing everything in one SQL database. No queue, no cache server, no worker
 | Services | `dealgo/services` | The domain: graph, sync, accounts, quota, backups. |
 | Sources | `dealgo/sources` | Reading feeds and pages. Nothing about accounts or feeds. |
 | Plugins | `dealgo/plugins` | Running Lua and exposing what it declares. |
-| Storage | `dealgo/models.py`, `dealgo/db.py` | Tables, sessions, migrations. |
+| Storage | `dealgo/models/`, `dealgo/db/` | Tables, sessions, migrations. |
 
 Dependencies point downwards. `sources` never imports `services`; `plugins/runtime` knows nothing
 about sources or graphs.

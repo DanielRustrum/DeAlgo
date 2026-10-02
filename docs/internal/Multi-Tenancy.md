@@ -38,12 +38,12 @@ Tables **without** an owner: `user`, `login_session`, `placement` (reached throu
 
 ## Uniqueness is per owner
 
-Two accounts can follow the same channel. `_scope_uniqueness_to_owners` creates unique indexes on
+Two accounts can follow the same channel. `scope_uniqueness_to_owners` creates unique indexes on
 `(COALESCE(owner_pk, 0), column)` for `channel.channel_id`, `playlist.playlist_id` and
 `quota_usage.day` — `COALESCE` because SQL treats NULLs as distinct, so a plain
 `UNIQUE(owner_pk, …)` would let the implicit owner hold duplicates. `video` had a global
 `UNIQUE(video_id)` inside its `CREATE TABLE`, which SQLite cannot drop, so
-`_rebuild_video_uniqueness` rebuilds that table. See [Database and Migrations](Database%20and%20Migrations.md).
+`rebuild_video_uniqueness` rebuilds that table. See [Database and Migrations](Database%20and%20Migrations.md).
 
 ## Syncing
 
@@ -53,9 +53,9 @@ each **in turn**. Sequential on purpose: one SQLite file, one playlist lock, and
 ## Plugins and owners
 
 Plugins are install-wide; data is not. The `dealgo` and `account` capabilities answer nothing
-until the host enters `site.acting_for(owner)`, which the sync engine does only around `keep`,
+until the host enters `capabilities.acting_for(owner)`, which the sync engine does only around `keep`,
 `rank`, `posts` and publisher calls. Outside it, `dealgo.sources()` is empty and changes are
-refused. Enforced in one place (`plugins/site.py`) so no plugin function can forget it. See
+refused. Enforced in one place (`plugins/capabilities/`) so no plugin function can forget it. See
 [Plugin Registry](Plugin%20Registry.md).
 
 ## The admin

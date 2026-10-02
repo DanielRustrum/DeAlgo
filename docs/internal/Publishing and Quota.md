@@ -17,9 +17,9 @@ connected (owed placements).
 
 ```
 sync._publish
-  └─ Publisher (plugins/publisher.py)        neutral verbs: insert_playlist_item, playlist_items, …
+  └─ Publisher (plugins/publisher/)          neutral verbs: insert_playlist_item, playlist_items, …
        └─ YouTube plugin's `publisher` table  builds {method, url, query, body, cost}; reads the answer
-            └─ account.send (plugins/account.py)
+            └─ account.send (plugins/capabilities/account.py)
                  ├─ refuse unless host ∈ googleapis.com / www.googleapis.com / youtube.googleapis.com
                  ├─ attach Bearer <owner's access token>     (plugin never sees it)
                  ├─ quota.meter(owner)(cost)                  (charged whether or not it worked)
@@ -59,9 +59,9 @@ Google does not expose remaining quota, so De-Algo keeps its own.
 Before each insert the engine checks `can_afford(cost_of("add"))`. If not, or if YouTube refuses for
 quota:
 
-1. `_defer` writes an owed `Placement` (no item id) for every target the item still needs.
+1. `defer` writes an owed `Placement` (no item id) for every target the item still needs.
 2. The run stops filing, sets `stopped_on_quota`, and says when the quota resets.
-3. The next run's `_retry_deferred` finishes owed placements first.
+3. The next run's `retry_deferred` finishes owed placements first.
 
 Feeds added *after* an item was handled get no owed row, which is what stops a new playlist
 back-filling years of history.
@@ -73,7 +73,7 @@ Each YouTube playlist is read once per run (`playlist_contents`). An item alread
 
 ## Pruning
 
-`_prune` trims each feed to `max_items`, oldest first — by API calls for YouTube playlists, by
+`prune` trims each feed to `max_items`, oldest first — by API calls for YouTube playlists, by
 marking placements removed for De-Algo feeds.
 
 ## Known limits

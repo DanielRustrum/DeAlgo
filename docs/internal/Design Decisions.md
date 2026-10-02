@@ -7,6 +7,19 @@ The choices that shape the codebase. Each says what was chosen, why, and what it
 **Why:** A self-hosted app for a household should be one thing to run and one file to back up.
 **Cost:** Runs are serialised; scale stops at a few accounts and hundreds of sources.
 
+## One job per module
+**Chosen:** A module does one thing. A job with several parts is a folder with a module per part, and
+an `__init__.py` that exports what the rest of the app uses. Helpers one module hands another are
+public names; underscores stay inside a module.
+**Why:** A file small enough to read in one sitting is a file someone will actually read. Callers
+keep writing `graph.routes(...)` whether `graph` is one file or twenty.
+**Cost:** More files; and a test must patch the module that *uses* a name, not the package.
+
+## One way out to the network
+**Chosen:** Every outgoing request starts with `outgoing.client()`.
+**Why:** One user agent, timeout and redirect policy — and one place for a test to stand in for the
+network.
+
 ## Server-rendered HTML with htmx
 **Chosen:** Jinja2 pages, `hx-boost`, partials; TypeScript only where interaction demands it.
 **Why:** Works in any browser, no client state to drift, no build step in the image.
@@ -75,6 +88,13 @@ bounded.
 ## Backups carry no secrets
 **Chosen:** Neither per-account nor instance files include passwords, tokens or keys.
 **Why:** Files that travel get leaked; credentials are cheap to re-enter.
+
+## Large scripts written as parts, shipped as one
+**Chosen:** The canvas and Focus mode are folders of TypeScript parts, compiled together and joined
+into one script each (`dealgo/web/scripts.py`).
+**Why:** Readable parts for whoever edits them; one file for the browser, because htmx re-inserts a
+page's scripts and does not promise to run several in order.
+**Cost:** A join step in `make js`, which a test keeps honest.
 
 ## Committed build output
 **Chosen:** `app.css` and `*.js` are committed; tests fail if they drift.

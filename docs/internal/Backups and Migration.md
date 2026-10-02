@@ -4,7 +4,7 @@ Two deliberately different things.
 
 | | Per-account backup | Instance migration |
 | --- | --- | --- |
-| Code | `services/backup.py` | `services/migration.py` |
+| Code | `services/backup/` | `services/migration/` |
 | Who | Any account, for itself (Settings) | Admin only (`/admin/backup`, `/admin/restore`) |
 | Covers | One account's feeds and sources | Every account and its setup |
 | Format | Plain JSON, `de_algo_backup: 1` | Encrypted blob, `dealgo-site-backup` v1 |

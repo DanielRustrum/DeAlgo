@@ -1,6 +1,6 @@
 # Data Model
 
-All tables are in `dealgo/models.py`. Times are stored as **naive UTC**. Names are historical:
+All tables are in `dealgo/models/`. Times are stored as **naive UTC**. Names are historical:
 a `Channel` is any source, a `Playlist` is any feed, a `Video` is any item.
 
 ```
@@ -57,7 +57,7 @@ SyncRun ─< RunEvent           PluginState (install-wide, no owner)
 
 - A `pending` item with **no route** stays `pending`; wiring it later picks it up.
 - A `skipped` item refused only because it is not YouTube and the feed is a YouTube playlist is
-  revived to `pending` each run once a De-Algo feed or repository can take it (`_reconsider_routing`).
+  revived to `pending` each run once a De-Algo feed or repository can take it (`reconsider_routing`).
 - *Reach back* revives `ignored` items (`_unignore`).
 - Rows are never deleted by a run: the row is what stops an item being added twice.
 

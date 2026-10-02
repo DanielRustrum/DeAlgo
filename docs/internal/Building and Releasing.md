@@ -10,10 +10,11 @@ make dev                     # rebuild assets, run on :8080 with ./data, reading
 
 | Target | Does |
 | --- | --- |
-| `make css` / `make js` / `make assets` | Compile SCSS and TS into `web/static` (commit the output) |
+| `make css` / `make js` / `make assets` | Compile SCSS and TS into `web/static` (commit the output); `make js` also joins scripts written as parts |
 | `make watch-css` / `make watch-js` | Rebuild on save |
 | `make test` / `make typecheck` | Suite / mypy + tsc |
 | `make docs` | Generate API reference into `docs/internal/autodoc` |
+| `make toc` | Rebuild the docs' tables of contents |
 
 ## The image — `Dockerfile`
 
@@ -40,7 +41,7 @@ published port and joins a shared reverse-proxy network (`make … CLUSTER=1`).
 
 On push to `main`, tags `v*`, or manual dispatch:
 
-1. **test** — Python 3.12, `mypy`, Node 22, `tsc` (pages and worker), `pytest -q`.
+1. **test** — Python 3.12, `mypy`, Node 22, `tsc` (pages, worker, parts), `pytest -q`.
 2. **publish** — buildx for `linux/amd64` and `linux/arm64`; tags `latest` (default branch),
    short SHA, and semver from tags; push to the Gitea registry; optional Portainer webhook.
 

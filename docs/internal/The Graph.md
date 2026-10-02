@@ -1,6 +1,6 @@
 # The Graph
 
-The Configuration canvas is the routing table. `services/graph.py` owns it; the sync engine asks it
+The Configuration canvas is the routing table. `services/graph/` owns it; the sync engine asks it
 for routes and never reads wiring directly.
 
 ## Vocabulary
@@ -14,7 +14,7 @@ for routes and never reads wiring directly.
 
 ## Box kinds and what may be wired to what
 
-`ALLOWED` in `graph.py`:
+`ALLOWED` in `graph/vocabulary.py`:
 
 | From | May wire to |
 | --- | --- |
@@ -65,7 +65,7 @@ Condition pieces store their value in the same column the old box field used
      and always to `walked`.
    - A disabled box ends the path. Nothing passes through it.
    - `seen` is **per path**, so two paths may share a box; only a loop stops a walk.
-3. `_slot_in`: compute `pieces_under` once per slotted box, hand every route the same `slots` map,
+3. `slot_in`: compute `pieces_under` once per slotted box, hand every route the same `slots` map,
    and collect `checks` — enabled `rule` pieces under the route's Filters.
 4. `_once_each`: drop routes whose signature (channel, feed, store, filters, sorts, checks, stamps)
    repeats. Two boxes for one channel wired identically are one route.

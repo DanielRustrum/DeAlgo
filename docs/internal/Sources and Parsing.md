@@ -5,10 +5,10 @@ rate limits. It makes no decisions about accounts, feeds or routing.
 
 ## From a reference to a source
 
-`services/channels.add_source(reference, within=kind)`:
+`channels.add_source(reference, within=kind)` (`services/channels/adding.py`):
 
 ```
-sources.resolve(typed, within)            # kinds.py — no network
+sources.resolve(typed, within)            # sources/kinds/ — no network
   ├─ within = a plugin kind  → registry.accept(kind, typed)       (generous: "python" → r/python)
   ├─ within = "newsletter"   → Resolved(key=site, feed_url="")     needs_finding
   ├─ within = "rss"          → the address as typed
@@ -21,10 +21,10 @@ then
   → Channel row (channel_id = key, source_kind, source_url, feed_url)
 ```
 
-`kinds.py` owns only the vocabulary (`Resolved`, `SourceKind`, `UnknownSource`) and the two host
+`sources/kinds/` owns only the vocabulary (`Resolved`, `SourceKind`, `UnknownSource`) and the two host
 kinds — **RSS** and **Newsletter** — that belong to no service. Every other kind is a plugin's.
 
-## Reading a feed — `syndication.py`
+## Reading a feed — `sources/syndication/`
 
 1. `patience.hold(url)` — refuse before asking if the host told us to wait.
 2. GET with an RSS/Atom `Accept` header; `patience.note(response)`; raise on HTTP error.

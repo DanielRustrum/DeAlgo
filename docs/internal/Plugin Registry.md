@@ -1,8 +1,9 @@
 # Plugin Registry
 
-`plugins/registry.py` decides what plugins exist, what each offers, and what went wrong.
-Supporting modules: `permissions.py` (vocabulary and capabilities), `site.py` (`dealgo`),
-`account.py` (signed requests), `publisher.py` (playlist operations), `fetching.py` (git archives).
+`plugins/registry/` decides what plugins exist, what each offers, and what went wrong.
+Beside it: `permissions.py` (the vocabulary), `capabilities/` (what a plugin is handed: `clock`,
+`log`, `net`, `account`, the `dealgo` object in `site`, and `owner` for whose work is in hand),
+`publisher/` (playlist operations) and `fetching/` (git archives).
 
 ## Where plugins come from
 
@@ -53,8 +54,8 @@ way to hand a kind to a replacement.
 | `recognise(ref)` / `accept(kind, ref)` | `sources.resolve` | each kind's `recognise` |
 | `refine(kind, item)` | sync polling | `refine` |
 | `posts(kind, key)` / `has_extras` | sync polling | `posts` (≤ 200) |
-| `keeps(ref, item, settings)` | `_decide` | augmentation `keep` |
-| `ranks(ref, item, settings)` | `_reorder` | augmentation `rank` |
+| `keeps(ref, item, settings)` | `decide` | augmentation `keep` |
+| `ranks(ref, item, settings)` | `reorder` | augmentation `rank` |
 | `augmentations()` / `augmentation(ref)` | canvas palette, `piece_hosts` | — |
 | `home`, `item_url`, `mirror` | UI links, mirrors | `home`, `item_url`, `mirror` |
 
@@ -62,7 +63,7 @@ Errors inside a hook are logged and treated as **no opinion**.
 
 ## Capabilities
 
-Built per plugin per load by `permissions.capabilities`; absent unless granted.
+Built per plugin per load by `capabilities.granted_to`; absent unless granted.
 
 | Permission | Global | Ceiling |
 | --- | --- | --- |
@@ -75,7 +76,7 @@ Built per plugin per load by `permissions.capabilities`; absent unless granted.
 
 ## Acting for an owner
 
-Plugins are install-wide; data is per account. `site.acting_for(owner)` sets a **thread-local**
+Plugins are install-wide; data is per account. `capabilities.acting_for(owner)` sets a **thread-local**
 owner for the duration of a block. `dealgo` and `account` read it: outside a block they answer
 nothing and refuse changes. The sync engine opens a block around `keep`, `rank`, `posts` and
 publisher calls. Nested blocks restore the outer owner.
@@ -102,7 +103,7 @@ See [Publishing and Quota](Publishing%20and%20Quota.md).
 Nothing is written to the live folder before consent. Granting never exceeds what the plugin asked
 for, whatever the form says.
 
-### `fetching.py`
+### `fetching/`
 
 - HTTPS only. `archives(url, ref)` builds candidate URLs: GitHub →
   `codeload.github.com/<o>/<r>/tar.gz/<ref>`; others → `<host>/<o>/<r>/archive/<ref>.tar.gz`; a

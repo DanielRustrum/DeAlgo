@@ -1,7 +1,7 @@
 # Web Layer
 
-`dealgo/web/app.py` is the whole HTTP surface: one FastAPI app, server-rendered Jinja2 pages, htmx
-for partial updates, and a JSON API for the canvas.
+`dealgo/web/` is the whole HTTP surface: one FastAPI app (`app.py`), a router per part of the app
+(`routes/`), server-rendered Jinja2 pages, htmx for partial updates, and a JSON API for the canvas.
 
 ## Why server-rendered
 
@@ -54,7 +54,7 @@ Templates starting `_` are partials, re-rendered by htmx (`/partials/log`, `/par
 ## The canvas API
 
 All JSON, all owner-scoped. Every mutating call answers with the **whole** graph payload
-(`_graph_payload`), and the client redraws from it.
+(`graph_payload`, in `routes/canvas/payload.py`), and the client redraws from it.
 
 | Method & path | Does |
 | --- | --- |

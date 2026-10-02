@@ -1,8 +1,15 @@
 # Plugin Runtime
 
-`plugins/runtime.py` runs a plugin's Lua with [lupa](https://github.com/scoder/lupa) (Lua 5.5) inside
+`plugins/runtime/` runs a plugin's Lua with [lupa](https://github.com/scoder/lupa) (Lua 5.5) inside
 the app process. It knows nothing about sources or graphs: it loads a file, calls functions, and
 converts answers to Python.
+
+| Module | Holds |
+| --- | --- |
+| `sandbox.py` | `Sandbox`, `load()`, and the memory and instruction ceilings |
+| `guard.py` | The globals a plugin may see, and the attribute filter on what it is handed |
+| `values.py` | `to_python` and `to_lua`: values across the boundary |
+| `errors.py` | `PluginError`, `PluginStopped`, and Lua's message trimmed for people |
 
 ## One runtime per plugin
 
@@ -36,7 +43,7 @@ into a fresh table that is its entire world:
 ## The attribute filter — the one function that matters
 
 A capability is a Python object, and Lua can ask a Python object for any attribute, including
-`__class__` → `__globals__` → `__builtins__` → everything. `_only_what_is_offered` allows reading
+`__class__` → `__globals__` → `__builtins__` → everything. `only_what_is_offered` allows reading
 only names listed in the class's `LUA_OFFERS` and refuses **all** writes. A class without
 `LUA_OFFERS` offers nothing, so a new capability is inert until it says what it exposes.
 
@@ -57,13 +64,15 @@ plugin has no `debug` with which to remove it.
 
 1. Reset the instruction counter and every capability meter (`afresh()`), so budgets are
    **per call**, not per process.
-2. Call; convert the result with `_plain` (a table with keys `1..n` is a list, anything else a
+2. Call; convert the result with `to_python` (a table with keys `1..n` is a list, anything else a
    dict; functions left as Lua functions).
 3. Map errors: memory → `PluginStopped`; Lua errors → `PluginError("<name>: <line>: <message>")`
    with the traceback and chunk name trimmed.
 
-`Sandbox.given(value)` converts Python dicts and lists into Lua tables going in, since a Python list
-is not walkable with `ipairs`.
+Values cross in both directions through `runtime/values.py`: `to_python` (tables become lists or
+dicts) on the way out, `to_lua` (dicts and lists become tables, all the way down) on the way in —
+a Python list handed straight across is not walkable with `ipairs`. The sandbox and every capability
+use these two; none carries its own copy.
 
 ## Threading
 

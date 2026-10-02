@@ -39,7 +39,7 @@ Never-polled is always due. Several triggers on one source: **any** being due is
 
 ### Pressing ▶ on a trigger
 
-`POST /graph/nodes/{id}/fire` (and `/backfill` for reach back), both through `_set_off` in `web/app.py`:
+`POST /graph/nodes/{id}/fire` (and `/backfill` for reach back), both through `_set_off` in `web/routes/canvas/running.py`:
 
 1. Collect the channels (`pulse_targets`), source **boxes** (`wired_sources`) and Withdraw boxes
    (`wired_withdrawals`) it reaches. Nothing wired → 400.
