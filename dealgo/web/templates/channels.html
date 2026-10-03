@@ -27,7 +27,7 @@
   nothing can reach the playlist until the account is reconnected.
   <a href="/settings#plugin-{{ state.plugin_id }}">Reconnect in Settings →</a>
 </div>
-{% elif not state.connected and show_connect_notice %}
+{% elif not state.connected %}
 <div class="banner">
   <strong>Connect your {{ state.service }} account</strong> so De-Algo can add items to a
   {{ state.publisher }} playlist on your behalf.

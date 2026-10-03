@@ -31,39 +31,6 @@ def newest_run_id() -> int:
         return session.scalar(select(func.max(SyncRun.id))) or 0
 
 
-def tour_progress(session: Session, owner: OwnerId = None) -> Context:
-    """What the tour can already tick off, so it guides rather than lectures."""
-    feeds = list(session.scalars(owned(select(Playlist), Playlist, owner)))
-    return {
-        "has_feed": bool(feeds),
-        "has_published_feed": any(feed.is_published for feed in feeds),
-        "has_channel": bool(session.scalar(owned(select(func.count(Channel.id)), Channel, owner))),
-        "linked": bool(
-            session.scalar(
-                select(func.count()).select_from(channel_playlist)
-            )
-        ),
-        "connected": connections.publisher_token(session, owner) is not None,
-        "synced": bool(session.scalar(owned(select(func.count(SyncRun.id)), SyncRun, owner))),
-        "watched_any": watched_service.count_watched(session, owner) > 0,
-    }
-
-
-def notices() -> Context:
-    """Which standing notices this instance still wants to see.
-
-    One read for all of them, since every page render asks. Each is stored as
-    "hide", so an unticked checkbox — which sends nothing at all — means show.
-    """
-    with session_scope() as session:
-        settings = get_settings(session)
-        return {
-            "show_tour": not settings.hide_tour,
-            "show_open_notice": not settings.hide_open_notice,
-            "show_connect_notice": not settings.hide_connect_notice,
-        }
-
-
 def owner_of(request: Request) -> OwnerId:
     """Whose data this request is about.
 
@@ -84,7 +51,6 @@ def render(request: Request, template: str, context: Context) -> HTMLResponse:
         "error_message": request.query_params.get("err"),
         "sync_running": sync_service.is_running(),
         "last_run_id": newest_run_id(),
-        **notices(),
         "identity": getattr(request.state, "identity", None),
         "auth_enabled": CONFIG.auth_enabled,
         "weak_admin_password": CONFIG.admin_password_weak,

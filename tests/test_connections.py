@@ -167,9 +167,9 @@ def test_an_installs_google_state_moves_into_the_youtube_plugin(db, monkeypatch)
         connection.execute(text("ALTER TABLE settings ADD COLUMN daily_quota INTEGER DEFAULT 10000"))
         connection.execute(text(
             "INSERT INTO settings (owner_pk, auto_sync, poll_interval_minutes, initial_backfill,"
-            " post_seconds, hide_tour, hide_open_notice, hide_connect_notice,"
+            " post_seconds,"
             " client_id, client_secret, daily_quota, updated_at)"
-            " VALUES (NULL, 1, 30, 3, 30, 0, 0, 0, 'old-id', 'old-secret', 10000,"
+            " VALUES (NULL, 1, 30, 3, 30, 'old-id', 'old-secret', 10000,"
             " CURRENT_TIMESTAMP)"
         ))
         connection.execute(text(

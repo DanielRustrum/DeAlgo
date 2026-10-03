@@ -34,6 +34,18 @@ function restoreSections(open: OpenSections, root: ParentNode): void {
   rememberSections(open, root);
 }
 
+/** Open the section the address points at, if it is one.
+ *
+ *  A form inside a collapsed section — a plugin's settings — comes back to
+ *  `#plugin-…` after saving, and should come back to it open, not to a fold
+ *  that hides the message about what was saved. */
+function openTargetSection(): void {
+  const id = decodeURIComponent(window.location.hash.slice(1));
+  if (!id) return;
+  const target = document.getElementById(id);
+  if (target instanceof HTMLDetailsElement) target.open = true;
+}
+
 /** A swap can land on anything; only an element has children to search. */
 function swappedSectionRoot(event: Event): ParentNode {
   return event.target instanceof Element ? event.target : document;
@@ -45,11 +57,17 @@ function initSections(): void {
   // top-level binding could not survive the script being run twice.
   const open: OpenSections = new Set<string>();
 
-  document.addEventListener("DOMContentLoaded", (): void => rememberSections(open, document));
+  document.addEventListener("DOMContentLoaded", (): void => {
+    openTargetSection();
+    rememberSections(open, document);
+  });
+  window.addEventListener("hashchange", openTargetSection);
   document.body.addEventListener("htmx:beforeSwap", (): void => rememberSections(open, document));
   document.body.addEventListener("htmx:afterSwap", (event: Event): void => {
     restoreSections(open, swappedSectionRoot(event));
+    openTargetSection();
   });
+  openTargetSection();
   rememberSections(open, document);
 }
 

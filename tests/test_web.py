@@ -733,48 +733,10 @@ def test_searching_a_picker_matches_ids_as_well_as_names(client):
     assert "Fake Channel" in body.split('id="feed-channels"', 1)[1].split("</div>", 1)[0]
 
 
-def test_the_tour_walks_from_setup_to_daily_use(client):
-    body = client.get("/").text
-    assert 'href="/tour"' in body and ">Tour</a>" in body
-
-    first = client.get("/tour").text
-    assert "1. What this is" in first
-    assert "Make a feed" in first and "Day to day" in first  # the whole rail
-    assert "Next →" in first and "← Back" not in first  # nowhere to go back to
-
-    last = client.get("/tour?step=8").text
-    assert "8. Day to day" in last
-    assert "Start watching" in last  # the end offers the app, not another step
 
 
-def test_the_tour_ticks_off_what_is_already_done(client, db):
-    """It should guide from where you are, not lecture from zero."""
-    from dealgo.models import OAuthToken
-
-    body = client.get("/tour").text
-    # The fixture has a feed, a channel and a link between them.
-    assert body.count("tour-done") >= 3
-    assert "tour-done" not in body.split("Connect YouTube")[1][:200]  # not connected yet
-
-    with db.session_scope() as session:
-        session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
-    assert client.get("/tour").text.count("tour-done") >= 4
 
 
-def test_an_out_of_range_step_lands_somewhere_sensible(client):
-    assert client.get("/tour?step=0").status_code == 200
-    assert client.get("/tour?step=99").status_code == 200
-def test_the_channel_page_shows_the_channel_in_its_own_words(client, db):
-    from dealgo.models import Channel
-
-    with db.session_scope() as session:
-        session.get(Channel, 1).description = "Woodworking, badly, on a budget."
-
-    body = client.get("/channels/1").text
-    name = body.index("Fake Channel")
-    blurb = body.index("Woodworking, badly, on a budget.")
-    assert name < blurb                       # under the name, not above it
-    assert '<div class="titled-text">' in body
 
 
 def test_a_long_channel_description_folds_away(client, db):
@@ -1234,60 +1196,10 @@ def test_the_close_button_lands_on_the_drawers_corner(client):
 
 # -- the settings page -----------------------------------------------------
 
-def test_every_preference_is_under_a_heading_that_describes_it(client):
-    """The panel was titled Syncing and held eleven fields across five
-    concerns — the Tour toggle sat beside the polling checkbox as though the
-    two were related."""
-    import re
-
-    body = client.get("/settings").text
-    panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
-    groups = re.findall(r"<h3>([^<]*)</h3>", panel)
-
-    # The Google credentials were here once. They are the YouTube plugin's
-    # settings for everyone now, on its card under Admin → Plugins.
-    assert groups == ["This interface"]
-    assert 'name="client_id"' not in panel
 
 
-def test_the_preferences_stay_in_one_form(client):
-    """Splitting them would be the tidy-looking mistake: /settings reads every
-    field at once and defaults anything absent, so a second form would save
-    its own fields and reset the others without saying so."""
-    body = client.get("/settings").text
-    panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
-
-    assert panel.count("<form") == 1
-    for field in ["hide_tour", "hide_open_notice"]:
-        assert f'name="{field}"' in panel
-
-    # And the ones that left are not half-here: a field the form no longer
-    # carries would be reset on every save if the route still read it.
-    for gone in ["auto_sync", "poll_interval_minutes", "initial_backfill",
-                 "shorts_max_seconds", "post_seconds", "daily_quota",
-                 "quota_reserve", "client_id", "client_secret", "api_key"]:
-        assert f'name="{gone}"' not in panel
 
 
-def test_saving_one_group_keeps_the_others(client, db):
-    """The behaviour that constraint protects."""
-    with db.session_scope() as session:
-        settings = get_settings(session)
-        settings.hide_tour = True
-
-    body = client.get("/settings").text
-    import re
-
-    # Submit the form exactly as the browser would: every field it contains.
-    form = body.split('action="/settings"', 1)[1].split("</form>", 1)[0]
-    fields = dict(re.findall(r'name="([a-z_]+)" value="([^"]*)"', form))
-    fields["hide_open_notice"] = "1"
-    client.post("/settings", data=fields, follow_redirects=False)
-
-    with db.session_scope() as session:
-        settings = get_settings(session)
-        assert settings.hide_open_notice is True       # what was changed
-        assert settings.hide_tour is True              # and what was not
 
 
 def test_the_settings_that_left_are_not_reset_by_saving(client, db):
@@ -1311,22 +1223,6 @@ def test_the_settings_that_left_are_not_reset_by_saving(client, db):
 
 # -- the standing notices --------------------------------------------------
 
-def test_the_notices_can_each_be_switched_off(client, db):
-    from dealgo.models import Settings
-
-    body = client.get("/").text
-    assert "No sign-in required" in body
-    assert "No Google account is connected" in body
-
-    with db.session_scope() as session:
-        settings = get_settings(session)
-        settings.hide_open_notice = True
-        settings.hide_connect_notice = True
-
-    body = client.get("/").text
-    assert "No sign-in required" not in body
-    assert "No Google account is connected" not in body
-    assert "Connect your YouTube account" not in body     # the dashboard's too
 
 
 def test_one_switch_covers_both_google_notices(client, db):
@@ -1354,39 +1250,8 @@ def test_switching_a_notice_off_leaves_the_page_working(client, db):
         assert client.get(path).status_code == 200, path
 
 
-def test_the_switches_are_opt_out(client, db):
-    """An unticked checkbox sends nothing, so "hide" has to be what is stored
-    — a "show" checkbox would switch itself off the first time this form was
-    saved."""
-    from dealgo.models import Settings
-
-    body = client.get("/settings").text
-    assert 'name="hide_open_notice" value="1"' in body
-    assert 'name="hide_connect_notice" value="1"' in body
-
-    # Saving the form without them means "show", not "leave as they were".
-    with db.session_scope() as session:
-        get_settings(session).hide_open_notice = True
-
-    fields = dict(__import__("re").findall(r'name="([a-z_]+)" value="([^"]*)"', body))
-    fields.pop("hide_open_notice", None)
-    client.post("/settings", data=fields, follow_redirects=False)
-
-    with db.session_scope() as session:
-        assert get_settings(session).hide_open_notice is False
 
 
-def test_hiding_the_notice_does_not_hide_the_state(client, db):
-    """A security warning you can dismiss must not become a security state you
-    cannot see."""
-    from dealgo.models import Settings
-
-    with db.session_scope() as session:
-        get_settings(session).hide_open_notice = True
-
-    page = client.get("/settings").text
-    assert "Sign-in is off right now" in page
-    assert "No account is connected" in page
 
 
 # -- the sources tab -------------------------------------------------------
@@ -1419,3 +1284,19 @@ def test_the_quota_is_still_readable_somewhere(client, db):
     assert "units today" in panel
     # The plugin's own account of what costs what.
     assert "each added video costs" in panel
+
+
+def test_the_tour_and_the_notice_switches_are_gone(client):
+    assert client.get("/tour").status_code == 404
+    body = client.get("/settings").text
+    for gone in ("hide_tour", "hide_open_notice", "hide_connect_notice", "Preferences", 'href="/tour"'):
+        assert gone not in body
+
+
+def test_each_plugins_settings_fold_away(client):
+    """Folded until opened; the address a save comes back to opens its own."""
+    body = client.get("/settings").text
+    assert '<details class="plugin-card" id="plugin-youtube"' in body
+    from dealgo.web.templates import BASE_DIR
+
+    assert "openTargetSection" in (BASE_DIR / "static" / "sections.js").read_text()

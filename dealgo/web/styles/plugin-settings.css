@@ -75,3 +75,38 @@
 .plugin-connection > .btn { align-self: flex-start; }
 .plugin-connection .quota { max-width: 420px; }
 .plugin-connection .hint { margin: 0; }
+
+/* Folded until opened: a plugin's block under Settings, and its settings
+   for everyone on its card. The summary is the whole header row, with a
+   turning chevron at its end so it reads as something that opens. */
+details.plugin-card > summary,
+.plugin-section-fold > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.plugin-card > summary::-webkit-details-marker,
+.plugin-section-fold > summary::-webkit-details-marker { display: none; }
+details.plugin-card > summary::after,
+.plugin-section-fold > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 140ms ease;
+}
+.plugin-section-fold > summary { display: flex; align-items: center; gap: 8px; }
+.plugin-section-fold > summary::after { margin-left: 4px; }
+details.plugin-card[open] > summary::after,
+.plugin-section-fold[open] > summary::after { transform: rotate(45deg); }
+details.plugin-card > summary:hover::after,
+.plugin-section-fold > summary:hover::after { border-color: var(--accent); }
+details.plugin-card[open] > summary { margin-bottom: 4px; }
+.plugin-summary-state { font-size: 12px; color: var(--muted); }
+
+@variant motion-reduce {
+  details.plugin-card > summary::after,
+  .plugin-section-fold > summary::after { transition: none; }
+}

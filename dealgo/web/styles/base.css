@@ -328,7 +328,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
 
      Every rule here is scoped to the panel rather than written against the
      control's own class. A media query adds no specificity, and forms.css
-     and tour.css are imported after this file — so an unscoped
+     and later files are imported after this one — so an unscoped
      `.topbar-action` here would quietly lose to the plain one over there. */
   .menu-panel .topbar-action {
     display: flex;
@@ -342,7 +342,6 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
     padding: 10px 14px;
     font-size: 14px;
   }
-  .menu-panel .tour-button { display: block; text-align: center; }
 
   /* In the drawer, the account line is a row like the buttons above it. */
   .menu-panel .signed-in { flex-wrap: wrap; }

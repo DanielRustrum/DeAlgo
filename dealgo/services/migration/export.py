@@ -45,9 +45,6 @@ def _account_payload(session: Session, user: User | None) -> dict[str, Any]:
             "poll_interval_minutes": settings.poll_interval_minutes,
             "initial_backfill": settings.initial_backfill,
             "post_seconds": settings.post_seconds,
-            "hide_tour": settings.hide_tour,
-            "hide_open_notice": settings.hide_open_notice,
-            "hide_connect_notice": settings.hide_connect_notice,
             # No credentials of any kind: this file is meant to be moved
             # around. A plugin's settings for everyone stay on this install.
         },

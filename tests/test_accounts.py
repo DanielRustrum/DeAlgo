@@ -245,7 +245,7 @@ def test_it_will_not_be_talked_into_sending_you_off_site(secured, elsewhere):
 def test_a_member_uses_the_app(secured):
     sign_in(secured, "sam", "member-password")
 
-    for path in ["/", "/feed", "/channels", "/videos", "/focus", "/tour"]:
+    for path in ["/", "/feed", "/channels", "/videos", "/focus"]:
         assert secured.get(path).status_code == 200, path
 
 
@@ -643,38 +643,8 @@ def test_the_open_instance_switch_is_not_offered_when_sign_in_is_on(secured):
     assert 'name="hide_open_notice" value="1"' not in body or 'type="hidden"' in body
 
 
-def test_the_hidden_switch_keeps_what_it_was_set_to(secured, db):
-    """The form saves every field at once, so a switch it stops rendering
-    would be cleared on the next save."""
-    import re
-
-    from dealgo.db import get_settings
-
-    sign_in(secured, *ADMIN)
-    with db.session_scope() as session:
-        # The admin's own settings, not the implicit owner's: each account
-        # keeps its own now.
-        admin = accounts.find(session, ADMIN[0])
-        get_settings(session, admin.id).hide_open_notice = True
-
-    body = secured.get("/settings").text
-    assert '<input type="hidden" name="hide_open_notice" value="1">' in body
-
-    fields = dict(re.findall(r'name="([a-z_]+)" value="([^"]*)"', body))
-    secured.post("/settings", data=fields, follow_redirects=False)
-
-    with db.session_scope() as session:
-        admin = accounts.find(session, ADMIN[0])
-        assert get_settings(session, admin.id).hide_open_notice is True
 
 
-def test_it_is_offered_again_when_sign_in_goes_away(client):
-    """With no admin configured the notice is back, and so is its switch."""
-    body = client.get("/settings").text
-
-    assert "no sign-in required" in body
-    assert 'name="hide_open_notice" value="1"' in body
-    assert "Sign-in is off right now" in body
 
 
 # -- the two backups -------------------------------------------------------

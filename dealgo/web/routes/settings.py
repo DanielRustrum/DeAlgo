@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from ... import scheduler
@@ -44,31 +44,6 @@ def settings_page(request: Request) -> HTMLResponse:
             "plugin_panels": panels,
         }
     return render(request, "settings.html", context)
-
-
-@router.post("/settings")
-def save_settings(
-    request: Request,
-    hide_tour: str = Form(""),
-    hide_open_notice: str = Form(""),
-    hide_connect_notice: str = Form(""),
-) -> RedirectResponse:
-    """What is left to set here, which is what the canvas cannot say.
-
-    How often to poll, how far to reach back, what counts as a Short, how
-    long a post is held, and what the day's quota is are all gone from this
-    form. The first two are what a trigger box and a source box say; the
-    rest keep the value they have. Not read from the form at all rather
-    than read and defaulted: an absent field would otherwise reset the
-    setting on every save, and an absent checkbox would switch polling off.
-    """
-    with session_scope() as session:
-        settings = get_settings(session, owner_of(request))
-        settings.hide_tour = bool(hide_tour)
-        settings.hide_open_notice = bool(hide_open_notice)
-        settings.hide_connect_notice = bool(hide_connect_notice)
-    scheduler.reschedule()
-    return redirect("/settings", ok="Settings saved.")
 
 
 @router.get("/settings/backup")

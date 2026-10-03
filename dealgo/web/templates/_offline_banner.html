@@ -1,7 +1,7 @@
 {# Shown wherever feeds are: De-Algo works without a sign-in, but the
    playlists behind these feeds are not being touched, and it should never be
    a surprise which state you are in. #}
-{% set offline = publishing_offline(identity.user_pk if identity else none) if show_connect_notice else none %}
+{% set offline = publishing_offline(identity.user_pk if identity else none) %}
 {% if offline %}
 {% set pub = publishing() %}
 <div class="toast toast-warn" data-toast="no-sign-in">

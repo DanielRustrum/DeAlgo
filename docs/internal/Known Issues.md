@@ -41,11 +41,12 @@ per-account file; add a tenancy test.
 ## Correctness and data
 
 ### 26. Settings rows multiply on every restart
-`web/responses.notices()` (every page render) and other calls read `get_settings(session)` with no
-owner, which makes an implicit-owner row when there is none. With sign-in on, `adopt_unowned` hands
+Calls that read `get_settings(session)` with no owner make an implicit-owner row when there is none.
+The worst of them, `notices()` on every page render, went with the notice switches; a few remain
+(`sync_service`, the scheduler, per-account backups). With sign-in on, `adopt_unowned` hands
 every implicit-owner `settings` row to the admin on each start, so the admin gains a duplicate row per
 restart (a live database had 160). `get_settings` reads the first, so nothing visible breaks yet.
-**Fix:** read the signed-in owner's settings in `notices()`; give `settings` a unique owner index and
+**Fix:** pass the owner in those calls; give `settings` a unique owner index and
 delete duplicates in a migration; have `adopt_unowned` drop implicit settings rows the admin already
 has, as it does for `oauth_token`.
 
@@ -89,9 +90,6 @@ Focus does not consult Timer/Reset/Alive. Decay timers apply only to non-video i
 ### 13. CLI acts on the implicit owner
 `dealgo add/export/channels/watched/remove-watched` (and `make backup`) operate on unowned rows,
 which are empty once sign-in is on. Only `sync` and `serve` are useful there.
-
-### 14. The tour is stale
-It mentions *New feed*, *Track content*, the Raw tab and fill order.
 
 ### 15. Two "Newsletter" boxes
 The Substack plugin's box is labelled Newsletter, as is the built-in Newsletter box.

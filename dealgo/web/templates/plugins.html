@@ -207,8 +207,9 @@
          what it is allowed to do, because both are the admin deciding how
          this plugin runs here. #}
       {% if plugin.settings %}
-      <section class="plugin-section">
-        <strong class="plugin-section-head">Settings for everyone</strong>
+      {# Folded until opened, like a plugin's block under Settings. #}
+      <details class="plugin-section plugin-section-fold">
+        <summary class="plugin-section-head">Settings for everyone</summary>
         <p class="hint plugin-section-note">
           Set once for this whole De-Algo.
           {%- if plugin.has_user_settings %} Each account also has settings of its own for
@@ -216,7 +217,7 @@
         </p>
         {{ settings_form('/admin/plugins/' ~ plugin.id ~ '/settings', plugin.settings, 'app',
                          plugin.id, 'Save settings for everyone') }}
-      </section>
+      </details>
       {% elif plugin.has_user_settings %}
       <p class="meta">Each account sets {{ plugin.title }} up for itself, under Settings.</p>
       {% endif %}

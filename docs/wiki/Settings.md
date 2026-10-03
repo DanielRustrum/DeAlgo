@@ -2,20 +2,10 @@
 
 Each account has its own Settings.
 
-## Preferences
-
-**This interface**
-
-- **Hide the Tour button.** The tour stays at `/tour`.
-- **Hide the "no sign-in required" notice** shown when no admin is set.
-- **Hide the "connect a … account" notices**, when a plugin you publish through needs a sign-in.
-
-These hide notices only, never the problems they describe.
-
 ## Plugins
 
-A block for each plugin that has something for you: a service to sign in to, or settings each
-account sets for itself. Each is marked with the plugin's badge and colour, the same as on its card
+A folded block for each plugin that has something for you: a service to sign in to, or settings each
+account sets for itself. Click one to open it. Each is marked with the plugin's badge and colour, the same as on its card
 under Admin → Plugins. Your values and sign-ins are yours; changing them changes nothing for anyone
 else. Plugins the admin has switched off are not listed.
 

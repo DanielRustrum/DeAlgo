@@ -38,9 +38,6 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("playlist", "tags", "TEXT"),
     ("playlist", "view_order", "VARCHAR(8) NOT NULL DEFAULT 'oldest'"),
     ("playlist", "view_show", "VARCHAR(10) NOT NULL DEFAULT 'unwatched'"),
-    ("settings", "hide_tour", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("settings", "hide_open_notice", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("settings", "hide_connect_notice", "BOOLEAN NOT NULL DEFAULT 0"),
     ("sync_run", "forced", "BOOLEAN NOT NULL DEFAULT 0"),
     ("sync_run", "quota_spent", "INTEGER NOT NULL DEFAULT 0"),
     ("sync_run", "stopped_on_quota", "BOOLEAN NOT NULL DEFAULT 0"),
@@ -169,6 +166,10 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
     ("channel", "skip_posts"),
     ("video", "is_short"),
     ("settings", "shorts_max_seconds"),
+    # The Tour, and the switches that hid the standing notices.
+    ("settings", "hide_tour"),
+    ("settings", "hide_open_notice"),
+    ("settings", "hide_connect_notice"),
 )
 
 

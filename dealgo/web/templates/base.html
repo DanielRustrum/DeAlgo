@@ -96,10 +96,6 @@
     {% endif %}
   </nav>
 
-  {% if show_tour %}
-  <a class="btn btn-quiet tour-button" href="/tour"
-     title="A guided walk from setup to daily use">Tour</a>
-  {% endif %}
   {% include "_sync_controls.html" %}
 
     <span class="menu-foot">De-Algo {{ version }}</span>
@@ -133,7 +129,7 @@
    Rendered server-side and dismissed by script: with no JavaScript they
    simply stay, which is the truthful state of a condition nobody has fixed. #}
 <div class="toasts" id="toasts" aria-live="polite">
-  {% if not auth_enabled and show_open_notice %}
+  {% if not auth_enabled %}
   <div class="toast toast-bad" data-toast="no-auth">
     <strong>No sign-in required.</strong>
     Anyone who can reach this address can use De-Algo, and act as whoever has signed in to a

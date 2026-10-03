@@ -253,7 +253,7 @@ def test_nor_does_anything_else_leak(two_accounts):
     client, _, _ = two_accounts
     as_account(client, "sam", "member-password")
 
-    for path in ["/", "/feed", "/channels", "/videos", "/focus", "/settings", "/tour"]:
+    for path in ["/", "/feed", "/channels", "/videos", "/focus", "/settings"]:
         body = client.get(path).text
         assert "AdminChannel" not in body, path
         assert "AdminFeed" not in body, path
@@ -357,21 +357,24 @@ def test_two_accounts_may_track_the_same_channel(db):
 
 
 def test_settings_are_each_accounts_own(two_accounts, db):
+    """A plugin's settings for one account are that account's alone: Sam's
+    choice of what counts as a Short is not the admin's."""
+    from dealgo.services import plugin_settings
+
     client, admin_pk, sam_pk = two_accounts
+    plugin_settings.save("youtube", "user", sam_pk, {"shorts_max_seconds": "120"})
 
-    def ticked(body: str, field: str) -> bool:
-        """Whether that checkbox is ticked, read off the tag itself."""
-        return "checked" in body.split(f'name="{field}"', 1)[1].split(">", 1)[0]
-
-    with db.session_scope() as session:
-        get_settings(session, admin_pk).hide_tour = True
-        get_settings(session, sam_pk).hide_tour = False
+    def shorts(body: str) -> str:
+        block = body.split('id="plugin-youtube"', 1)[1]
+        return block.split('name="s_shorts_max_seconds"', 1)[1].split('value="', 1)[1].split('"', 1)[0]
 
     as_account(client, "sam", "member-password")
-    assert ticked(client.get("/settings").text, "hide_tour") is False
+    assert shorts(client.get("/settings").text) == "120"
 
     as_account(client, *ADMIN)
-    assert ticked(client.get("/settings").text, "hide_tour") is True
+    assert shorts(client.get("/settings").text) == "60"
+
+
 def test_turning_sign_in_on_hands_the_existing_setup_to_the_admin(db, monkeypatch):
     """Upgrading an instance that already had channels and feeds: they belong
     to the implicit owner, which is nobody once there are accounts. Without

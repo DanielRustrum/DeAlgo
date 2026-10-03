@@ -32,79 +32,6 @@
 </section>
 {% endif %}
 
-<section class="panel">
-  {# One panel and one form, deliberately. /settings takes every field at once
-     and falls back to a default for anything absent, so a second form here
-     would save its own fields and quietly reset the rest. The headings below
-     are what separates the groups; the form is not split. #}
-  <h2>Preferences</h2>
-  <form method="post" action="/settings" class="stack-form">
-
-    <h3>This interface</h3>
-    {# All opt-out, because an unticked box sends nothing: a "show it"
-       checkbox would switch itself off the first time this form was saved.
-
-       These hide notices, not the things they are about. The state of each
-       one is written beside its switch, so this page still tells the truth
-       when the banners are gone. #}
-    <div class="field-row checks-stacked">
-      <label class="check check-with-hint">
-        <input type="checkbox" name="hide_tour" value="1" {{ 'checked' if settings.hide_tour }}>
-        <span class="check-body">
-          <span>Hide the Tour button</span>
-          <span class="hint">The tour stays at <a href="/tour">/tour</a> either way.</span>
-        </span>
-      </label>
-
-      {# Only worth offering while there is a notice to hide. With sign-in on
-         the banner never appears, and a switch for it would be a control that
-         does nothing with a note explaining that it does nothing. #}
-      {% if not auth_enabled %}
-      <label class="check check-with-hint">
-        <input type="checkbox" name="hide_open_notice" value="1"
-               {{ 'checked' if settings.hide_open_notice }}>
-        <span class="check-body">
-          <span>Hide the “no sign-in required” notice</span>
-          <span class="hint">
-            <strong>Sign-in is off right now</strong> — anyone who can reach this address can
-            use De-Algo as you. Hiding the banner does not change that;
-            set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code> to.
-          </span>
-        </span>
-      </label>
-      {% elif settings.hide_open_notice %}
-      {# Not shown, but not forgotten: this form saves every field at once, so
-         leaving the switch out entirely would quietly clear what was set the
-         last time sign-in was off. #}
-      <input type="hidden" name="hide_open_notice" value="1">
-      {% endif %}
-
-      {% if state.can_connect %}
-      <label class="check check-with-hint">
-        <input type="checkbox" name="hide_connect_notice" value="1"
-               {{ 'checked' if settings.hide_connect_notice }}>
-        <span class="check-body">
-          <span>Hide the “connect a {{ state.service }} account” notices</span>
-          <span class="hint">
-            Both of them: the one on Configuration and the one above every page.
-            {% if state.connected %}
-              An account is connected, so neither is being shown.
-            {% else %}
-              No account is connected — feeds collect inside De-Algo and nothing is written
-              to {{ state.publisher }}.
-            {% endif %}
-          </span>
-        </span>
-      </label>
-      {% elif settings.hide_connect_notice %}
-      <input type="hidden" name="hide_connect_notice" value="1">
-      {% endif %}
-    </div>
-
-    <button class="btn btn-primary" type="submit">Save settings</button>
-  </form>
-</section>
-
 {# What each plugin lets you set for yourself. Anything a plugin needs set
    once for everybody is the admin's, on its card under Admin → Plugins. #}
 {% if plugin_panels %}
@@ -116,22 +43,28 @@
   </p>
   {% for panel in plugin_panels %}
   {% set plugin = panel.plugin %}
-  <article class="plugin-card" id="plugin-{{ plugin.id }}" data-colour="{{ plugin.colour }}">
-    <div class="plugin-head">
+  {# Folded until opened: a page of every plugin's settings at once is a page
+     nobody reads. sections.js opens the one the address points at, which is
+     where a save comes back to. #}
+  <details class="plugin-card" id="plugin-{{ plugin.id }}" data-colour="{{ plugin.colour }}">
+    <summary class="plugin-head">
       {{ plugin_mark(plugin.title, plugin.colour) }}
       <strong>{{ plugin.title }}</strong>
       {% if plugin.version %}<span class="plugin-version">{{ plugin.version }}</span>{% endif %}
       {% for kind in plugin.sources %}
       <span class="pill pill-kind kind-{{ kind.kind }}" data-colour="{{ kind.colour }}">{{ kind.label }}</span>
       {% endfor %}
-    </div>
+      {% if panel.connection %}<span class="plugin-summary-state">
+        {{- 'connected' if panel.connection.connected else 'not connected' -}}
+      </span>{% endif %}
+    </summary>
     {% if panel.connection %}{{ connection_block(plugin, panel.connection) }}{% endif %}
     {# The plugin feeds are published through: making a feed on its service. #}
     {% if plugin.id == state.plugin_id %}{% include "_new_feed.html" %}{% endif %}
     {% if panel.fields %}
     {{ settings_form('/settings/plugins/' ~ plugin.id, panel.fields, 'user', plugin.id, 'Save') }}
     {% endif %}
-  </article>
+  </details>
   {% endfor %}
 </section>
 {% endif %}

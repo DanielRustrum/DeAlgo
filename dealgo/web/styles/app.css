@@ -57,4 +57,3 @@
 @import "./offline.css" layer(components);
 @import "./plugin-settings.css" layer(components);
 @import "./dialogs.css" layer(components);
-@import "./tour.css" layer(components);

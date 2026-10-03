@@ -36,11 +36,5 @@ class Settings(Base):
     # How long Focus mode holds a community post before moving on. A post has
     # no end of its own, so reading time is the only thing that can advance it.
     post_seconds: Mapped[int] = mapped_column(Integer, default=30)
-    # Opt-*out*, so an unticked checkbox means "show it" rather than hiding it.
-    hide_tour: Mapped[bool] = mapped_column(Boolean, default=False)
-    # The standing notices at the top of every page. Hiding one changes
-    # nothing but the notice: the Settings page always states the real state.
-    hide_open_notice: Mapped[bool] = mapped_column(Boolean, default=False)
-    hide_connect_notice: Mapped[bool] = mapped_column(Boolean, default=False)
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

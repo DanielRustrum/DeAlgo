@@ -1,14 +1,13 @@
-"""The way in: the front door and the tour."""
+"""The way in: the front door."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 
-from ...db import session_scope
-from ..responses import owner_of, redirect, render, tour_progress
+from ..responses import redirect
 
 if TYPE_CHECKING:
     pass
@@ -28,12 +27,3 @@ def front_door(request: Request) -> RedirectResponse:
     """
     return redirect("/feed")
 
-
-@router.get("/tour", response_class=HTMLResponse)
-def tour(request: Request, step: int = 1) -> HTMLResponse:
-    """A guided walk from an empty install to a daily habit."""
-    owner = owner_of(request)
-    with session_scope() as session:
-        progress = tour_progress(session, owner)
-        context = {"progress": progress, "step": step}
-    return render(request, "tour.html", context)

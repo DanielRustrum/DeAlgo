@@ -39,7 +39,7 @@ request
 | `/videos` | Raw list (no nav link) | `videos.html` |
 | `/settings` | Settings | `settings.html` |
 | `/admin`, `/admin/plugins` | Admin | `admin.html`, `plugins.html` |
-| `/tour`, `/login`, `/offline` | — | `tour.html`, `login.html`, `offline.html` |
+| `/login`, `/offline` | — | `login.html`, `offline.html` |
 
 Templates starting `_` are partials, re-rendered by htmx (`/partials/log`, `/partials/stats`,
 `/partials/sync-status`, `/partials/feed`).
