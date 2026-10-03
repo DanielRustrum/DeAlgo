@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from . import (
     activity,
     admin,
+    admin_accounts,
     canvas,
     configuration,
     feed,
@@ -31,6 +32,7 @@ from . import (
 ROUTERS: tuple[APIRouter, ...] = (
     activity.router,
     admin.router,
+    admin_accounts.router,
     canvas.router,
     configuration.router,
     feed.router,

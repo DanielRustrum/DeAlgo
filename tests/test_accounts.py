@@ -408,7 +408,7 @@ def test_the_admin_can_sign_someone_out_everywhere(secured, db):
 
 def test_the_admin_page_lists_the_accounts(secured):
     sign_in(secured, *ADMIN)
-    body = secured.get("/admin").text
+    body = secured.get("/admin/accounts").text
 
     assert "sam" in body and ADMIN[0] in body
     assert "pill-admin" in body          # and says which one is the admin
@@ -417,7 +417,7 @@ def test_the_admin_page_lists_the_accounts(secured):
 def test_the_admin_page_explains_itself_when_accounts_are_off(client):
     """Reachable by address with no admin configured, where an empty list of
     accounts would explain nothing."""
-    body = client.get("/admin").text
+    body = client.get("/admin/accounts").text
 
     assert "Accounts are switched off" in body
     assert "DEALGO_ADMIN_USER" in body
@@ -694,3 +694,14 @@ def test_the_per_account_backup_is_still_everyones(secured):
     assert "feeds" in export and "channels" in export
     assert "client_secret" not in response.text
     assert "password_hash" not in response.text
+
+
+def test_accounts_have_a_page_of_their_own_under_admin(secured):
+    """Like plugins: the Admin page says how many and points at the page."""
+    sign_in(secured, *ADMIN)
+    admin = secured.get("/admin").text
+    assert 'href="/admin/accounts"' in admin and "Add an account" not in admin
+
+    done = secured.post("/admin/accounts", data={"username": "newbie", "password": "a-long-password"},
+                        follow_redirects=False)
+    assert done.headers["location"].startswith("/admin/accounts?")

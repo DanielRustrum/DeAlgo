@@ -38,7 +38,7 @@ request
 | `/channels/{id}` | One source | `channel_detail.html` |
 | `/videos` | Raw list (no nav link) | `videos.html` |
 | `/settings` | Settings | `settings.html` |
-| `/admin`, `/admin/plugins` | Admin | `admin.html`, `plugins.html` |
+| `/admin`, `/admin/accounts`, `/admin/plugins` | Admin | `admin.html`, `accounts.html`, `plugins.html` |
 | `/login`, `/offline` | — | `login.html`, `offline.html` |
 
 Templates starting `_` are partials, re-rendered by htmx (`/partials/log`, `/partials/stats`,
