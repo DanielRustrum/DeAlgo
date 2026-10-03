@@ -45,6 +45,7 @@
    dress it. */
 @import "./graph/canvas.css" layer(components);
 @import "./graph/wires.css" layer(components);
+@import "./graph/kinds.css" layer(components);
 @import "./graph/boxes.css" layer(components);
 @import "./graph/states.css" layer(components);
 @import "./graph/ports.css" layer(components);

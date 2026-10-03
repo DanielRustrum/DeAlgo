@@ -131,7 +131,7 @@ td.rank { width: 58px; }
   text-overflow: ellipsis;
 }
 /* A tag is the one somebody chose the words for, so it reads as a label. */
-.card-mark-tag { color: var(--kind-expire); border-color: color-mix(in oklab, var(--kind-expire) 40%, transparent); }
+.card-mark-tag { color: var(--kind-stamp); border-color: color-mix(in oklab, var(--kind-stamp) 40%, transparent); }
 
 /* The quick actions stay out of the way until wanted. */
 .card-quick { display: flex; gap: 2px; opacity: 0; transition: opacity 120ms; }

@@ -1,0 +1,46 @@
+/* Which colour each kind of box wears — on the canvas, in the palette, and on
+   the pills that name a box. Set here once as --kind-colour; the box's left
+   bar, the palette swatch and the pill all read it, so the three cannot
+   drift apart. The colours themselves are tokens (--kind-*, tokens.css). */
+
+:is(.graph-node, .palette-swatch, .palette-pill) {
+  &.kind-trigger { --kind-colour: var(--kind-trigger); }
+  &.kind-source { --kind-colour: var(--kind-source); }
+  &.kind-filter { --kind-colour: var(--kind-filter); }
+  &.kind-sort { --kind-colour: var(--kind-sort); }
+  /* The boxes that mark what passes rather than narrowing it: they turn
+     nothing away, which is the thing worth reading beside a filter. */
+  &.kind-tag,
+  &.kind-decay,
+  &.kind-expire { --kind-colour: var(--kind-stamp); }
+  /* The two ends of a repository: one thing seen from either side. */
+  &.kind-deposit,
+  &.kind-withdraw { --kind-colour: var(--kind-store); }
+  &.kind-feed { --kind-colour: var(--kind-feed); }
+  &.kind-group { --kind-colour: var(--line); }
+
+  /* The augmentations, a plugin's conditions among them. */
+  &.kind-timer,
+  &.kind-reset,
+  &.kind-alive,
+  &.kind-lock,
+  &.kind-has-words,
+  &.kind-lacks-words,
+  &.kind-longer-than,
+  &.kind-shorter-than,
+  &.kind-carrying,
+  &.kind-at-most,
+  &.kind-order,
+  &.kind-rule { --kind-colour: var(--kind-piece); }
+}
+
+/* A slotted piece is part of its box, so it wears the box's colour: an Order
+   under a Sort is blue, a Timer under an Expire teal. The canvas script marks
+   each piece with the kind of the box at the top of its stack. */
+.graph-node.is-piece {
+  &[data-host="feed"] { --kind-colour: var(--kind-feed); }
+  &[data-host="filter"] { --kind-colour: var(--kind-filter); }
+  &[data-host="sort"] { --kind-colour: var(--kind-sort); }
+  &[data-host="decay"],
+  &[data-host="expire"] { --kind-colour: var(--kind-stamp); }
+}

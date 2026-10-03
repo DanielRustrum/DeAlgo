@@ -3,7 +3,7 @@
 An augmentation is a piece that slots under a box and changes what that box does. It sits on no
 path and has no wires.
 
-In the palette, augmentation rows wear a green **tab** icon, and pills under the description name the
+In the palette, augmentation rows wear a **tab** icon, and pills under the description name the
 boxes each one fits.
 
 | Augmentation | Fits under | Does |

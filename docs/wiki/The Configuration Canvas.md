@@ -26,8 +26,23 @@ middle of the view.
 | Plugins | Each plugin's [sources](Nodes/Sources.md) and conditions |
 | Layout | [Group](Nodes/Groups.md) |
 
-Rows marked with a green tab are [augmentations](Nodes/Augmentations.md); the pills under them name the
+Rows marked with a tab icon are [augmentations](Nodes/Augmentations.md); the pills under them name the
 boxes they fit.
+
+## Colours
+
+The bar down a box's left edge says what kind of box it is. The palette uses the same colours.
+
+| Colour | Kind |
+| --- | --- |
+| Violet | Triggers — Pulse, Schedule |
+| Green | Sources — channels, newsletters, feed addresses |
+| Amber | Filter |
+| Blue | Sort |
+| Teal | Tag, Decay, Expire — they mark what passes and turn nothing away |
+| Brown | Deposit and Withdraw |
+| Terracotta | Feed |
+| Grey | An augmentation not yet slotted in; once it is, it takes the colour of its box |
 
 ## Wiring
 

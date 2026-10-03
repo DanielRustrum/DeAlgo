@@ -19,9 +19,11 @@
   border-radius: 20px; padding: 2px 9px; margin-left: 6px; font-weight: 600;
 }
 
-/* Colour blocks, in the garden's order: forest, sage, terracotta, peach —
-   and round again. Each block carries its own ink, so they read the same in
-   either theme. */
+/* Colour blocks, each with a meaning rather than a place in a rotation. The
+   colours that ask to be read are the queue (the accent, as a feed is on the
+   canvas), what is waiting (amber) and what failed (red, and only when
+   something has); the rest are calm. Each block carries its own ink, so it
+   reads the same in either theme. */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 22px; }
 .stat {
   --stat-bg: var(--forest);
@@ -35,9 +37,20 @@
   box-shadow: 0 16px 30px -22px var(--shadow);
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
-.stat:nth-child(4n + 2) { --stat-bg: var(--sage); --stat-ink: var(--forest); }
-.stat:nth-child(4n + 3) { --stat-bg: var(--accent); --stat-ink: var(--on-accent); }
-.stat:nth-child(4n + 4) { --stat-bg: var(--peach); --stat-ink: var(--forest); }
+/* What is being followed: the deep green of the garden itself. */
+.stat-channels { --stat-bg: var(--forest); --stat-ink: var(--cream); }
+/* In the playlist: the accent, the colour a feed wears on the canvas. */
+.stat-queued { --stat-bg: var(--accent); --stat-ink: var(--on-accent); }
+/* Watched: done with, so calm. */
+.stat-watched { --stat-bg: var(--sage); --stat-ink: var(--forest); }
+/* Waiting to go out: amber, the usual colour for pending. */
+.stat-pending { --stat-bg: var(--ochre); --stat-ink: #2a1b06; }
+/* Filtered out, and failures while there are none: nothing to act on. */
+.stat-quiet {
+  --stat-bg: var(--stat-quiet); --stat-ink: var(--stat-quiet-ink);
+  /* Close to the page colour, so it needs an edge to read as a card. */
+  outline: 1px solid var(--line); outline-offset: -1px;
+}
 /* A leaf in the corner of every block, drawn in the block's own ink. */
 .stat::after {
   content: "";
@@ -53,7 +66,7 @@
 .stat:hover { color: var(--stat-ink); transform: translateY(-2px); box-shadow: 0 22px 36px -22px var(--shadow); }
 .stat-value { font-family: var(--font-display); font-size: 32px; font-weight: 600; line-height: 1.1; }
 .stat-label { font-size: 11.5px; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.1em; }
-/* Failures are not a colour block: they are a warning, whatever slot they land in. */
+/* Failures, while there are any: red, the one block that is a warning. */
 .stat-bad { --stat-bg: var(--bad); --stat-ink: #fff; }
 @variant motion-reduce { .stat { transition: none; } .stat:hover { transform: none; } }
 

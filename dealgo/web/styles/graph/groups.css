@@ -8,7 +8,7 @@
   box-sizing: border-box;
   border: 1px dashed var(--line);
   border-radius: var(--radius);
-  background: color-mix(in oklab, var(--kind-sort) 6%, transparent);
+  background: color-mix(in oklab, var(--muted) 6%, transparent);
   pointer-events: auto;
   cursor: grab;
   touch-action: none;

@@ -46,6 +46,11 @@ plain CSS with native nesting, plus a few Tailwind directives:
   custom variants; `pointer-coarse` and `motion-reduce` are Tailwind's. Write them at the top
   level of a file or at the end of a rule, never between a rule's declarations: the compiler
   hoists a nested block above the declarations that follow it.
+- **Canvas colours.** `graph/kinds.css` maps every box kind to one of eight category colours
+  (`--kind-trigger`, `--kind-source`, `--kind-filter`, `--kind-sort`, `--kind-stamp`, `--kind-store`,
+  `--kind-feed`, `--kind-piece`) as `--kind-colour`, which the box's bar, the palette swatch and the
+  palette pill read. A slotted piece gets `data-host` (the kind of the box at the top of its stack)
+  from `placeGraphPieces`, and wears that box's colour.
 - **`@apply surface`** is the raised-panel look (background, border, radius, shadow).
 - **Type.** DM Sans for text, Fraunces for headings (`h1`, `h2`, `.display`), both variable fonts
   served from `static/fonts/` so an installed copy has them offline.

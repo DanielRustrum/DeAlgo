@@ -347,11 +347,14 @@ function placeGraphPieces(state: GraphState): void {
   // from. `offsetTop` is measured against whichever ancestor happens to be
   // positioned, so a piece placed from it lands wherever that ancestor is
   // rather than under its host.
-  const place = (hostId: number, left: number, top: number, depth: number): void => {
+  // `kind` is the box at the top of the stack: every piece in it is part of
+  // that box, and wears its colour (kinds.css reads data-host).
+  const place = (hostId: number, kind: string, left: number, top: number, depth: number): void => {
     if (depth > 12) return;  // a ring built before they were refused
     for (const piece of under.get(hostId) ?? []) {
       const box = state.boxes.get(piece.id);
       if (box === undefined) continue;
+      box.dataset["host"] = kind;
       box.style.left = `${left}px`;
       box.style.top = `${top}px`;
       // Kept on the node as well, so anything that reads a position — a
@@ -360,7 +363,7 @@ function placeGraphPieces(state: GraphState): void {
       piece.x = left;
       piece.y = top;
       const next = top + box.offsetHeight;
-      place(piece.id, left, next, depth + 1);
+      place(piece.id, kind, left, next, depth + 1);
       top = next;
     }
   };
@@ -374,7 +377,7 @@ function placeGraphPieces(state: GraphState): void {
     if (node.piece !== null) continue;  // a chain belongs to the box at its top
     const box = state.boxes.get(node.id);
     if (box === undefined || !under.has(node.id)) continue;
-    place(node.id, node.x, node.y + box.offsetHeight, 0);
+    place(node.id, node.kind, node.x, node.y + box.offsetHeight, 0);
   }
 }
 

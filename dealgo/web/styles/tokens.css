@@ -35,11 +35,24 @@
   --ochre: #e3a24a;
   --cream: #fffaf3;
 
-  /* The kinds of box on the Configuration canvas. */
-  --kind-sort: #4f7fa0;
-  --kind-withdraw: #c58a2e;
-  --kind-expire: #2f8c86;
-  --kind-piece: #5f9a55;
+  /* The kinds of box on the Configuration canvas, one colour per category
+     and following the usual flow-editor code: events violet, inputs green,
+     decisions amber, processing blue, annotation teal, storage brown,
+     outputs in the accent. A piece takes the colour of the box it is slotted
+     under; a loose one is neutral until it is. */
+  --kind-trigger: #7a5aa6;
+  --kind-source: #3f7d4e;
+  --kind-filter: #b8820f;
+  --kind-sort: #3f73a8;
+  --kind-stamp: #2f8c86;
+  --kind-store: #8a6440;
+  --kind-feed: var(--accent);
+  --kind-piece: #7c857f;
+
+  /* What the stat blocks mean. Colour for what wants reading — the queue,
+     what is waiting, what broke — and quiet for what does not. */
+  --stat-quiet: #ece2d3;
+  --stat-quiet-ink: #4c5650;
 
   /* Where a source comes from, on its pill. */
   --source-youtube: #c8402b;
@@ -77,10 +90,16 @@
     --sage-soft: #26382f;
     --blush: #3a2a22;
 
-    --kind-sort: #8fb4d4;
-    --kind-withdraw: #e8b35e;
-    --kind-expire: #5cc3bb;
-    --kind-piece: #9ccc7f;
+    --kind-trigger: #b59be0;
+    --kind-source: #7fbf7c;
+    --kind-filter: #e8b84a;
+    --kind-sort: #8fb4e0;
+    --kind-stamp: #5cc3bb;
+    --kind-store: #c9a27a;
+    --kind-piece: #8f9a92;
+
+    --stat-quiet: #22332e;
+    --stat-quiet-ink: #c3cbbd;
 
     --source-youtube: #f08068;
     --source-reddit: #f39a62;
