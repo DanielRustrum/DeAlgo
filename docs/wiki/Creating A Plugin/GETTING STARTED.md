@@ -114,6 +114,8 @@ its row on the Plugins page says why, with a line number.
 | [Distributing](Distributing.md) | Publishing your plugin in a git repository |
 | [Testing and Debugging](Testing%20and%20Debugging.md) | Finding out why it does not work |
 
-The five plugins that ship with De-Algo are complete examples, in `dealgo/plugins/builtin/`. Start with
-`reddit/plugin.lua` (a source with a mirror and two conditions) and `shape/plugin.lua` (conditions and
-an ordering, no source).
+The five plugins that ship with De-Algo are complete examples, in `dealgo/plugins/builtin/`, each split
+into a file per job: `plugin.lua` says who it is and requires the rest. Start with `reddit/` (a source
+with a mirror and two conditions: `references.lua`, `source.lua`, `conditions.lua`) and `shape/`
+(conditions and an ordering, no source). `youtube/` is the full set: sign-in, settings, a Data API
+client and a publisher, each in its own file.

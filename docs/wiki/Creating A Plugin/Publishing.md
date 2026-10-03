@@ -68,6 +68,7 @@ you pass to `account.send` for each request.
 A function that errors is treated as that operation failing. A failed `add` is retried on later runs,
 up to 3 attempts.
 
-See `dealgo/plugins/builtin/youtube/plugin.lua` for a complete publisher.
+See `dealgo/plugins/builtin/youtube/publisher.lua` for a complete publisher, and `api.lua` beside it
+for the Data API calls it makes.
 
 **Related:** [Account](Account.md) · [Sources](Sources.md)

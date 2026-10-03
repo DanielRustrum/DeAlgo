@@ -39,7 +39,8 @@ HTTPS only, public repositories only. The admin can name a branch or tag; otherw
 
 Only `.lua`, `.md`, `.txt`, `.json` and `.toml` files, and `LICENSE`, `LICENCE`, `COPYING` and
 `NOTICE`, up to three folders deep beside `plugin.lua`. Links, scripts and binaries are dropped.
-Nothing is ever executed; only `plugin.lua` is run, in the sandbox.
+Nothing is ever executed by fetching; `plugin.lua` and the `.lua` files it requires run only in the
+sandbox.
 
 Limits: 2 MiB to download, 8 MiB unpacked, 200 files.
 

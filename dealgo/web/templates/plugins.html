@@ -27,7 +27,8 @@
       {%- if pending.extras %} It brings {{ pending.extras | length }} other
       file{{ 's' if pending.extras | length != 1 }} with it, which are kept
       beside it: <code>{{ pending.extras | join('</code>, <code>') | safe }}</code>.
-      Only its <code>plugin.lua</code> is ever run.{% endif %}
+      Only <code>plugin.lua</code>, and the <code>.lua</code> files it asks for with
+      <code>require</code>, are ever run — in the sandbox.{% endif %}
     </p>
     {% endif %}
 
