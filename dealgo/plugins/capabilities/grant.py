@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import httpx
 
@@ -12,6 +12,9 @@ from .log import Log
 from .net import Net
 from .site import Site
 
+if TYPE_CHECKING:
+    from ..registry.plugin import Plugin
+
 
 def granted_to(
     plugin: str,
@@ -19,6 +22,7 @@ def granted_to(
     http: Callable[[], httpx.Client] | None = None,
     lua: Any = None,
     wants: tuple[tuple[str, str], ...] = (),
+    declared: Plugin | None = None,
 ) -> dict[str, object]:
     """What to put in a plugin's world, given what it has been granted.
 
@@ -40,7 +44,7 @@ def granted_to(
     if "network" in granted:
         given["net"] = Net(plugin, http, lua)
     if "account" in granted and lua is not None:
-        given["account"] = Account(plugin, lua)
+        given["account"] = Account(plugin, lua, declared)
     if lua is not None:
         given["dealgo"] = Site(
             plugin,

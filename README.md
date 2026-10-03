@@ -46,7 +46,7 @@ It is self-hosted: one container, one database, your server.
 
 ```bash
 git clone <this repository> dealgo && cd dealgo
-cp .env.example .env          # optional: sign-in and Google credentials
+cp .env.example .env          # optional: sign-in, and plugin settings
 make up                       # build, start, wait until healthy
 ```
 

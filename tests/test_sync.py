@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry, wire
+from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry, wire, set_quota
 from sqlalchemy import select
 
 from dealgo import outgoing
@@ -163,7 +163,7 @@ def test_running_out_of_quota_stops_the_filing_and_says_so_once(world):
     with world["db"].session_scope() as session:
         settings = world["db"].get_settings(session)
         settings.initial_backfill = 10
-        settings.daily_quota = 60  # the reads, one insert, and no more
+        set_quota(daily=60, session=session)  # the reads, one insert, and no more
     world["entries"] = [entry(f"v{i}", i) for i in range(3)]
     world["client"].details = {
         f"v{i}": VideoDetails(f"v{i}", f"Video v{i}", 600, "none", "public") for i in range(3)

@@ -43,8 +43,6 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
             "poll_interval_minutes": settings.poll_interval_minutes,
             "initial_backfill": settings.initial_backfill,
             "shorts_max_seconds": settings.shorts_max_seconds,
-            "daily_quota": settings.daily_quota,
-            "quota_reserve": settings.quota_reserve,
         },
     }
 

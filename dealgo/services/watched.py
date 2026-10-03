@@ -22,7 +22,7 @@ from ..db import session_scope
 from ..models import Placement, Playlist, SyncRun, Video, utcnow
 from ..plugins.publisher import Publisher, PublishError, cost_of
 from . import quota
-from .auth import build_client
+from .connections import build_client
 from .scope import OwnerId, belongs_to, owned
 from .sync import Busy, playlist_lock
 

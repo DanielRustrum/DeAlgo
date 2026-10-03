@@ -20,7 +20,7 @@ from ...models import (
 )
 from ...plugins.publisher import Publisher, cost_of
 from .. import quota, runlog
-from ..auth import build_client
+from ..connections import build_client
 from ..scope import OwnerId, owned
 from .details import fill_missing_details
 from .expiry import stamp_what_is_already_here, sweep_expired
@@ -151,7 +151,7 @@ def _run(
     session.commit()
 
     result = SyncResult(forced=force)
-    quota_before = quota.state(session, owner).used
+    quota_before = quota.state(session).used
     client = build_client(session, http, owner)
 
     pen = runlog.Pen(session, run.id, owner)
@@ -185,7 +185,7 @@ def _run(
         f"added {result.added}, held back {result.skipped}, failed {result.failed}."
     )
     runlog.prune(session, owner)
-    _record(run, result, quota_spent=max(0, quota.state(session, owner).used - quota_before))
+    _record(run, result, quota_spent=max(0, quota.state(session).used - quota_before))
     session.commit()
 
     log.info(
@@ -218,7 +218,7 @@ def _fill(
             .order_by(Playlist.priority, Playlist.id)
         )
     )
-    quota_state = quota.state(session, owner)
+    quota_state = quota.state(session)
     # Feeds that live only in De-Algo need neither an account nor quota, so a
     # missing sign-in holds back the YouTube ones without stopping the run.
     youtube_feeds = [playlist for playlist in playlists if not playlist.is_generic]

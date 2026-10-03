@@ -16,12 +16,14 @@ services:
 
     environment:
       # The URL people reach De-Algo at. The OAuth redirect URI is this plus
-      # /oauth/callback and must match the Google client exactly, so behind a
+      # /oauth/callback and must match the OAuth client exactly, so behind a
       # proxy this is the public https URL, not the container's own address.
       DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
-      DEALGO_CLIENT_ID: ${DEALGO_CLIENT_ID:-}
-      DEALGO_CLIENT_SECRET: ${DEALGO_CLIENT_SECRET:-}
-      DEALGO_API_KEY: ${DEALGO_API_KEY:-}
+      # The YouTube plugin's settings for everyone, if you would rather set
+      # them here than on its card under Admin -> Plugins.
+      DEALGO_PLUGIN_YOUTUBE_CLIENT_ID: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_ID:-}
+      DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
+      DEALGO_PLUGIN_YOUTUBE_API_KEY: ${DEALGO_PLUGIN_YOUTUBE_API_KEY:-}
       DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
       # Setting both of these is what turns sign-in on. Leave them
       # empty and anyone who can reach the address can use De-Algo.

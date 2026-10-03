@@ -55,9 +55,9 @@
            title="Play this feed through, marking each one watched">Focus ▶</a>
         {% endif %}
         {% if section.playlist.url %}
-          {% if youtube_offline(identity.user_pk if identity else none) %}
+          {% if publishing_offline(identity.user_pk if identity else none) %}
           <span class="pill pill-dormant"
-                title="No Google account, so nothing is being written to this playlist">
+                title="No {{ publishing().service }} account, so nothing is being written to this playlist">
             local only</span>
           {% else %}
           <a class="btn btn-quiet" href="{{ section.playlist.url }}" target="_blank" rel="noopener">

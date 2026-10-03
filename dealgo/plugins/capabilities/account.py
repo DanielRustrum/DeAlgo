@@ -11,13 +11,16 @@ addressed anywhere but the host the account came from.
 
 That last part is the whole reason this is safe to grant. A capability that
 signed a request to any address would be a capability that leaks the token to
-the first address a plugin chose.
+the first address a plugin chose. The hosts are the plugin's own `connect.hosts`
+— declared in its file, checked when it loads, and shown to the admin — and the
+token is the one its own service issued, so the most a plugin can do is send
+its own service's token to its own service.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -26,12 +29,10 @@ from ...services.scope import OwnerId
 from ..runtime.values import to_lua, to_python
 from .owner import whose
 
-log = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from ..registry.plugin import Plugin
 
-#: The only hosts a credential is ever attached to. Not the plugin's to
-#: widen: a token is only ever meant for the service that issued it, and a
-#: plugin asking to sign a request elsewhere is asking for the token itself.
-SIGNED_FOR = ("googleapis.com", "www.googleapis.com", "youtube.googleapis.com")
+log = logging.getLogger(__name__)
 
 #: What one call may cost, whatever the plugin says. A quota unit is real
 #: money to somebody, and a plugin that miscounts should not be able to spend
@@ -59,10 +60,16 @@ class Account:
     #: machine behind it — out of a plugin's hands.
     LUA_OFFERS = frozenset({"connected", "send"})
 
-    def __init__(self, plugin: str, lua: Any):
-        """The `account` capability for one plugin, with no calls made yet."""
+    def __init__(self, plugin: str, lua: Any, declared: Plugin | None = None):
+        """The `account` capability for one plugin, with no calls made yet.
+
+        `declared` is the plugin itself, whose `connect` says which service
+        and which hosts. Read when a request is made, not now: the file has
+        not run yet, so nothing is declared.
+        """
         self._plugin = plugin
         self._lua = lua
+        self._declared = declared
         self._made = 0
 
     def afresh(self) -> None:
@@ -79,14 +86,15 @@ class Account:
         failing at the send.
         """
         owner = self._owner()
-        if owner is False:
+        declared = self._declared
+        if owner is False or declared is None or declared.connect is None:
             return False
         try:
-            from ...db import get_token, session_scope
-            from ...services.auth import api_key
+            from ...db import session_scope
+            from ...services.connections import api_key, get_token
 
             with session_scope() as session:
-                return bool(get_token(session, owner) or api_key(session, owner))
+                return bool(get_token(session, owner, declared.id) or api_key(declared))
         except Exception as exc:  # pragma: no cover - a database having a bad day
             log.warning("plugin %s could not check for an account: %s", self._plugin, exc)
             return False
@@ -107,7 +115,11 @@ class Account:
         # budget.
         address = str(url or "")
         how = str(method or "GET").upper()
-        if not _is_signable(address):
+        connect = self._declared.connect if self._declared is not None else None
+        if connect is None:
+            log.warning("plugin %s has no `connect`, so nothing to send as", self._plugin)
+            return None
+        if not connect.signs(address):
             log.warning(
                 "plugin %s asked to sign a request to %r, which is not the account's host",
                 self._plugin,
@@ -138,13 +150,16 @@ class Account:
     def _go(self, owner: OwnerId, how: str, url: str, body: object, cost: int) -> Any:
         """Sign, send and charge one request for `owner`; the answer as Lua tables."""
         from ...db import session_scope
-        from ...services.auth import api_key, valid_access_token
-        from ...services.quota import meter
+        from ...services.connections import api_key, valid_access_token
+        from ...services.quota import mark_exhausted, meter
 
+        declared = self._declared
+        if declared is None or declared.connect is None:  # pragma: no cover - checked in send
+            return None
         try:
             with session_scope() as session, outgoing.client() as http:
-                token = valid_access_token(session, http, owner)
-                key = api_key(session, owner) if not token else None
+                token = valid_access_token(session, http, owner, declared)
+                key = api_key(declared) if not token else None
                 if not token and not key:
                     log.info("plugin %s has no account to send as", self._plugin)
                     return None
@@ -156,19 +171,25 @@ class Account:
                     how, url, params=params, json=sending, headers=headers
                 )
 
-                # Charged whatever the answer, because Google charges for the
-                # requests it refuses too — the only free call is one turned
-                # away for having no allowance left.
-                spent = meter(session, owner)
+                # Charged whatever the answer, because a service that rations
+                # charges for the requests it refuses too — the only free call
+                # is one turned away for having no allowance left.
+                spent = meter(session, declared.id)
                 payload = _read(response)
-                if _refusal(payload) != "quotaExceeded":
+                why = self._refusal(payload)
+                allowance = declared.connect.allowance
+                if allowance is not None and allowance.exhausted and why == allowance.exhausted:
+                    # The service says the day is spent. Believe it over the
+                    # count, so nothing else is tried until it resets.
+                    mark_exhausted(session, declared.id)
+                else:
                     spent(cost)
 
             if response.status_code >= 400:
                 log.warning(
                     "plugin %s: %s %s answered %d (%s)",
                     self._plugin, how, _tidy(url), response.status_code,
-                    _refusal(payload) or "no reason given",
+                    why or "no reason given",
                 )
                 return None
         except Exception as exc:
@@ -177,16 +198,23 @@ class Account:
 
         return to_lua(self._lua, payload)
 
-def _is_signable(url: str) -> bool:
-    """Whether a URL is HTTPS to one of the hosts the account may be signed for."""
-    from urllib.parse import urlparse
+    def _refusal(self, payload: dict[str, Any]) -> str | None:
+        """Why the service said no, in the plugin's words, where it says.
 
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        return False
-    host = (parsed.hostname or "").lower()
-    return any(host == allowed or host.endswith("." + allowed) for allowed in SIGNED_FOR)
-
+        The plugin's own `connect.refusal` reads it, since how a service
+        spells a refusal is the service's business. One that throws, or has
+        no such function, gives no reason.
+        """
+        declared = self._declared
+        reader = declared.connect._refusal if declared and declared.connect else None
+        if reader is None or not payload:
+            return None
+        try:
+            said = reader(to_lua(self._lua, payload))
+        except Exception as exc:
+            log.warning("plugin %s could not read a refusal: %s", self._plugin, exc)
+            return None
+        return str(said) if said else None
 
 def _charge(cost: object) -> int:
     """What to take off the day's allowance, bounded.
@@ -214,18 +242,6 @@ def _read(response: httpx.Response) -> dict[str, Any]:
     except ValueError:
         return {}
     return payload if isinstance(payload, dict) else {"items": payload}
-
-
-def _refusal(payload: dict[str, Any]) -> str | None:
-    """Why the service said no, where it said."""
-    error = payload.get("error")
-    if not isinstance(error, dict):
-        return None
-    details = error.get("errors")
-    if isinstance(details, list) and details and isinstance(details[0], dict):
-        reason = details[0].get("reason")
-        return str(reason) if reason else None
-    return None
 
 
 def _tidy(url: str) -> str:

@@ -16,8 +16,17 @@ class PublishError(RuntimeError):
 
     @property
     def is_quota_error(self) -> bool:
-        """Whether the service refused because the day's quota is spent."""
-        return self.reason in ("quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded")
+        """Whether the service refused because the day's allowance is spent.
+
+        The reason that means so is the publishing plugin's to say — its
+        `connect.allowance.exhausted` — since every service spells it its
+        own way.
+        """
+        from .client import publishing_plugin
+
+        plugin = publishing_plugin()
+        allowance = plugin.connect.allowance if plugin and plugin.connect else None
+        return bool(allowance and allowance.exhausted and self.reason == allowance.exhausted)
 
     @property
     def is_auth_error(self) -> bool:

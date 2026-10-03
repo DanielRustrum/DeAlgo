@@ -19,6 +19,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("video", "watched_at", "DATETIME"),
     ("sync_run", "removed", "INTEGER NOT NULL DEFAULT 0"),
     ("oauth_token", "refresh_error", "TEXT"),
+    # Which plugin's service a grant is for. Every earlier one was YouTube's,
+    # which youtube_becomes_a_plugin fills in.
+    ("oauth_token", "provider", "VARCHAR(64) NOT NULL DEFAULT ''"),
     ("channel", "priority", "INTEGER NOT NULL DEFAULT 0"),
     ("channel", "min_pull_minutes", "INTEGER NOT NULL DEFAULT 0"),
     ("channel", "backfill_days", "INTEGER"),
@@ -34,8 +37,6 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("playlist", "tags", "TEXT"),
     ("playlist", "view_order", "VARCHAR(8) NOT NULL DEFAULT 'oldest'"),
     ("playlist", "view_show", "VARCHAR(10) NOT NULL DEFAULT 'unwatched'"),
-    ("settings", "daily_quota", "INTEGER NOT NULL DEFAULT 10000"),
-    ("settings", "quota_reserve", "INTEGER NOT NULL DEFAULT 0"),
     ("settings", "hide_tour", "BOOLEAN NOT NULL DEFAULT 0"),
     ("settings", "hide_open_notice", "BOOLEAN NOT NULL DEFAULT 0"),
     ("settings", "hide_connect_notice", "BOOLEAN NOT NULL DEFAULT 0"),
@@ -67,7 +68,6 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("channel", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
     ("playlist", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
     ("video", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
-    ("quota_usage", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
     ("sync_run", "owner_pk", "INTEGER REFERENCES user(id) ON DELETE CASCADE"),
     # Sources that are not YouTube. Every row that existed before these is
     # YouTube, which is what the default says: an upgrade must not quietly
@@ -152,6 +152,13 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
     ("graph_node", "skip_shorts"),
     ("graph_node", "skip_live"),
     ("graph_node", "skip_posts"),
+    # Google's credentials and quota, which are the YouTube plugin's settings
+    # for everyone now. youtube_becomes_a_plugin carries them across first.
+    ("settings", "client_id"),
+    ("settings", "client_secret"),
+    ("settings", "api_key"),
+    ("settings", "daily_quota"),
+    ("settings", "quota_reserve"),
 )
 
 

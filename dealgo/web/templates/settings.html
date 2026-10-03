@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "_garden.html" import page_head %}
-{% from "_plugin_settings.html" import plugin_mark, settings_form %}
+{% from "_plugin_settings.html" import connection_block, plugin_mark, settings_form %}
 {% block title %}De-Algo — Settings{% endblock %}
 {% block content %}
-{{ page_head('Settings', 'Your account, your Google connection, and how De-Algo behaves.') }}
+{{ page_head('Settings', 'Your account, your plugins, and how De-Algo behaves.') }}
 
 {% if identity %}
 <section class="panel account-panel">
@@ -25,54 +25,12 @@
       This account manages the others in <a href="/admin">Admin</a>. Its password comes from
       <code>DEALGO_ADMIN_PASSWORD</code>, so it is changed there rather than here.
     {% else %}
-      Everything on this page is yours: your channels, your feeds and your Google connection
-      are separate from every other account's.
+      Everything on this page is yours: your channels, your feeds and your sign-ins are
+      separate from every other account's.
     {% endif %}
   </p>
 </section>
 {% endif %}
-
-<section class="panel">
-  <h2>Google account</h2>
-  {% if state.connected and state.needs_reconnect %}
-    <p class="error-note">
-      Google will no longer refresh this sign-in: {{ state.reconnect_reason }}
-    </p>
-    <p class="hint">
-      While the OAuth consent screen is in <strong>Testing</strong>, Google expires refresh tokens
-      after seven days. Publishing the consent screen stops that; until then, reconnect here.
-    </p>
-    <p><a class="btn btn-primary" href="/oauth/start" hx-boost="false">Reconnect YouTube account</a></p>
-    <form method="post" action="/oauth/disconnect"
-          hx-confirm="Disconnect the Google account? De-Algo keeps its history but stops updating the playlist.">
-      <button class="btn btn-danger" type="submit">Disconnect</button>
-    </form>
-  {% elif state.connected %}
-    <p class="connected">Connected{% if state.account %} as <strong>{{ state.account }}</strong>{% endif %}.</p>
-    <form method="post" action="/oauth/disconnect"
-          hx-confirm="Disconnect the Google account? De-Algo keeps its history but stops updating the playlist.">
-      <button class="btn btn-danger" type="submit">Disconnect</button>
-    </form>
-  {% elif state.has_client %}
-    <p>De-Algo needs your permission to edit playlists on your behalf.</p>
-    {# hx-boost must not touch this: the response redirects to accounts.google.com,
-       and an XHR cannot follow a cross-origin redirect. #}
-    <a class="btn btn-primary" href="/oauth/start" hx-boost="false">Connect YouTube account</a>
-    <p class="hint">
-      Google compares this against the client's authorized redirect URIs, character for character —
-      if it answers <code>redirect_uri_mismatch</code>, this exact line is what must be registered:
-    </p>
-    <div class="copy-row">
-      <code id="redirect-uri">{{ redirect_uri }}</code>
-      <button class="btn btn-quiet" type="button"
-              onclick="navigator.clipboard.writeText(document.getElementById('redirect-uri').textContent.trim()).then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">
-        Copy
-      </button>
-    </div>
-  {% else %}
-    <p class="muted">Add an OAuth client id and secret below, then come back to connect.</p>
-  {% endif %}
-</section>
 
 <section class="panel">
   {# One panel and one form, deliberately. /settings takes every field at once
@@ -109,7 +67,7 @@
           <span>Hide the “no sign-in required” notice</span>
           <span class="hint">
             <strong>Sign-in is off right now</strong> — anyone who can reach this address can
-            use De-Algo and read the credentials below. Hiding the banner does not change that;
+            use De-Algo as you. Hiding the banner does not change that;
             set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code> to.
           </span>
         </span>
@@ -121,47 +79,28 @@
       <input type="hidden" name="hide_open_notice" value="1">
       {% endif %}
 
+      {% if state.can_connect %}
       <label class="check check-with-hint">
         <input type="checkbox" name="hide_connect_notice" value="1"
                {{ 'checked' if settings.hide_connect_notice }}>
         <span class="check-body">
-          <span>Hide the “connect a Google account” notices</span>
+          <span>Hide the “connect a {{ state.service }} account” notices</span>
           <span class="hint">
             Both of them: the one on Configuration and the one above every page.
             {% if state.connected %}
               An account is connected, so neither is being shown.
             {% else %}
               No account is connected — feeds collect inside De-Algo and nothing is written
-              to YouTube.
+              to {{ state.publisher }}.
             {% endif %}
           </span>
         </span>
       </label>
+      {% elif settings.hide_connect_notice %}
+      <input type="hidden" name="hide_connect_notice" value="1">
+      {% endif %}
     </div>
 
-    <h3>Google API credentials</h3>
-    <p class="hint">
-      Create an OAuth client (type “Web application”) in the Google Cloud console with the YouTube Data API v3
-      enabled, and add <code>{{ redirect_uri }}</code> as an authorized redirect URI.
-      Values set here override the environment.
-    </p>
-    <div class="field-row">
-      <label>
-        Client id
-        <input type="text" name="client_id" value="{{ settings.client_id or '' }}"
-               placeholder="{{ 'set from environment' if env_client_id else '…apps.googleusercontent.com' }}">
-      </label>
-      <label>
-        Client secret
-        <input type="password" name="client_secret" value="{{ settings.client_secret or '' }}"
-               placeholder="{{ 'set from environment' if env_client_secret else 'GOCSPX-…' }}">
-      </label>
-      <label>
-        API key (optional)
-        <input type="text" name="api_key" value="{{ settings.api_key or '' }}"
-               placeholder="{{ 'set from environment' if env_api_key else 'read-only lookups' }}">
-      </label>
-    </div>
     <button class="btn btn-primary" type="submit">Save settings</button>
   </form>
 </section>
@@ -171,7 +110,10 @@
 {% if plugin_panels %}
 <section class="panel plugin-settings-panel" id="plugins">
   <h2>Plugins</h2>
-  <p class="hint">Settings the plugins offer each account. They are yours: nobody else's change.</p>
+  <p class="hint">
+    Signing in to a plugin's service, and the settings plugins offer each account. They are
+    yours: nobody else's change.
+  </p>
   {% for panel in plugin_panels %}
   {% set plugin = panel.plugin %}
   <article class="plugin-card" id="plugin-{{ plugin.id }}" data-colour="{{ plugin.colour }}">
@@ -183,7 +125,10 @@
       <span class="pill pill-kind kind-{{ kind.kind }}" data-colour="{{ kind.colour }}">{{ kind.label }}</span>
       {% endfor %}
     </div>
+    {% if panel.connection %}{{ connection_block(plugin, panel.connection) }}{% endif %}
+    {% if panel.fields %}
     {{ settings_form('/settings/plugins/' ~ plugin.id, panel.fields, 'user', plugin.id, 'Save') }}
+    {% endif %}
   </article>
   {% endfor %}
 </section>
@@ -210,7 +155,7 @@
 
   <h3>Restore</h3>
   <p class="hint">
-    Loads a backup back in. Feeds and channels are matched by their YouTube ids, so anything the
+    Loads a backup back in. Feeds and channels are matched by their ids, so anything the
     file names is created or brought up to date — nothing is deleted.
   </p>
   {# A file upload needs a real form post, not a boosted fetch. #}
@@ -222,41 +167,12 @@
   </form>
 
   <p class="hint">
-    No credentials are in the file — not the YouTube sign-in, not the Google client id and secret.
-    A backup sits in a Downloads folder for years, and both are re-entered in a minute. On a new
-    machine: restore the file, paste the client id and secret below, then press
-    <strong>Connect YouTube account</strong>.
+    No credentials are in the file — no sign-in to any plugin's service, and none of a plugin's
+    settings. A backup sits in a Downloads folder for years, and a sign-in is redone in a minute.
+    On a new machine: restore the file, then sign in again under <strong>Plugins</strong> above.
   </p>
 </section>
 
-<section class="panel">
-  <h2>How De-Algo spends quota</h2>
-
-  {# What it has spent today. The only place left that says so, and worth
-     saying: a spent allowance stops writes without anything breaking, which
-     reads exactly like a feed that has gone quiet. #}
-  <div class="quota">
-    <div class="quota-bar {{ 'quota-bar-full' if quota.exhausted or quota.spendable == 0 }}">
-      <span style="width: {{ quota.percent_used }}%"></span>
-    </div>
-    <p class="hint">
-      <strong>{{ quota.used }}</strong> of {{ quota.budget }} units today · resets
-      {{ quota_resets_in }}.
-    </p>
-  </div>
-
-  {% if quota.exhausted or quota.spendable == 0 %}
-  <p class="error-note">
-    Writes are paused until the allowance resets. Polling carries on, so new items are still queued.
-  </p>
-  {% endif %}
-
-  <p class="hint">
-    Channel polling uses YouTube's public Atom feed and costs nothing, so a short interval is fine.
-    Only playlist writes are expensive: each added video costs 50 of the default 10,000 daily units,
-    which works out to about 200 videos a day.
-  </p>
-</section>
 {% endblock %}
 
 {% block footer %}

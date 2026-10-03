@@ -183,6 +183,26 @@
       <div class="meta">Asks for nothing: it can compute, and that is all.</div>
       {% endif %}
 
+      {# How it signs people in, when it does. The admin's half: register this
+         address with the service, then set the OAuth client below. #}
+      {% if plugin.connect %}
+      <section class="plugin-section">
+        <strong class="plugin-section-head">Signing in with {{ plugin.connect.name }}</strong>
+        <p class="hint plugin-section-note">
+          Each account signs in for itself, under Settings. Register this as an authorized
+          redirect URI on the OAuth client — character for character — then set the client below.
+        </p>
+        <div class="copy-row">
+          <code id="redirect-uri-{{ plugin.id }}">{{ redirect_uri }}</code>
+          <button class="btn btn-quiet" type="button"
+                  onclick="navigator.clipboard.writeText(document.getElementById('redirect-uri-{{ plugin.id }}').textContent.trim()).then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">
+            Copy
+          </button>
+        </div>
+        <p class="meta">Its token is only ever sent to {{ plugin.connect.hosts | join(', ') }}.</p>
+      </section>
+      {% endif %}
+
       {# The admin's settings for it: one value for every account. Beside
          what it is allowed to do, because both are the admin deciding how
          this plugin runs here. #}

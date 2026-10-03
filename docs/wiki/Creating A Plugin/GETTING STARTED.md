@@ -104,6 +104,7 @@ its row on the Plugins page says why, with a line number.
 | [Sources](Sources.md) | `recognise`, `accept`, `refine`, `posts` and the other source hooks |
 | [Augmentations](Augmentations.md) | Conditions (`keep`) and orderings (`rank`), with settings fields |
 | [Settings](Settings.md) | Settings the admin sets for everyone, and settings each account sets for itself |
+| [Signing In](Signing%20In.md) | Letting each account sign in to your service, and its daily allowance |
 | [Permissions](Permissions.md) | Asking for more than pure Lua |
 | [The dealgo Object](The%20dealgo%20Object.md) | Reading and changing the running account's setup |
 | [Network](Network.md) | Fetching pages and pulling JSON out of them |

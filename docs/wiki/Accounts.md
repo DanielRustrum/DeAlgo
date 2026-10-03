@@ -33,8 +33,9 @@ Switching off, deleting or changing a password ends that account's sessions imme
 
 ## What is whose
 
-Every account is private. Each has its own sources, feeds, canvas, [Settings](Settings.md), Google
-connection and [quota](Quota.md). The admin cannot see other accounts' setups.
+Every account is private. Each has its own sources, feeds, canvas, [Settings](Settings.md) and
+sign-ins to plugins' services. The admin cannot see other accounts' setups. A plugin's settings for
+everyone, and its service's daily [quota](Quota.md), are shared by the whole install.
 
 The admin alone manages **accounts**, [plugins](Plugins.md) and
 [moving the instance](Moving%20an%20Instance.md). Plugins are shared: one install, one set of plugins.

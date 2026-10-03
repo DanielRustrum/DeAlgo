@@ -36,7 +36,7 @@ A plugin can do nothing outside its own code unless granted:
 | **Read the time** | Know the current time. |
 | **See what you are watching** | Read the running account's sources and feeds. Never what you watched, never another account's. |
 | **Change what you are watching** | Add a source (always paused) or switch one on or off, for the running account. |
-| **Act as your connected account** | Send requests to Google as your account, charged to your quota. It never sees the credential. |
+| **Act as your connected account** | Send requests to its own service as your signed-in account, only to the hosts its sign-in names, charged to that service's allowance. It never sees the credential. |
 | **Write to the log** | Write lines to De-Algo's log. |
 
 Untick any you would rather it did without — it still loads, and simply finds that ability missing.

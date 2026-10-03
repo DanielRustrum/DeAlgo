@@ -95,12 +95,24 @@ def test_the_migration_keeps_every_row(old_database):
 def test_uniqueness_follows_the_owner(old_database):
     """Two accounts may track the same channel, so it can no longer be global."""
     for table, column in [("channel", "channel_id"), ("playlist", "playlist_id"),
-                          ("video", "video_id"), ("quota_usage", "day")]:
+                          ("video", "video_id")]:
         sql = inspect_sql(old_database, f"uq_{table}_owner_{column}")
         assert "UNIQUE" in sql and "owner_pk" in sql, table
         # COALESCE, because SQL counts NULLs as distinct and the implicit owner
         # would otherwise be allowed duplicates.
         assert "COALESCE" in sql, table
+
+
+def test_the_per_account_quota_ledger_becomes_the_installs(old_database):
+    """One Google project, one allowance: the old per-account ledger is
+    carried into the YouTube plugin's, and its table goes."""
+    raw = sqlite3.connect(old_database)
+    try:
+        tables = {row[0] for row in raw.execute("select name from sqlite_master where type='table'")}
+        assert "quota_usage" not in tables
+        assert "allowance_usage" in tables
+    finally:
+        raw.close()
 
 
 def test_the_old_global_constraint_is_gone(old_database):
@@ -135,8 +147,7 @@ def test_migrating_twice_changes_nothing(old_database):
 def test_every_owned_table_carries_an_owner(old_database):
     raw = sqlite3.connect(old_database)
     try:
-        for table in ("settings", "oauth_token", "channel", "playlist", "video",
-                      "quota_usage", "sync_run"):
+        for table in ("settings", "oauth_token", "channel", "playlist", "video", "sync_run"):
             columns = {row[1] for row in raw.execute(f"pragma table_info({table})")}
             assert "owner_pk" in columns, table
     finally:
@@ -581,21 +592,22 @@ def test_the_source_picker_only_offers_your_own(two_accounts):
     assert refused.status_code == 400
 
 
-def test_each_account_reads_its_own_quota_in_settings(two_accounts, db):
-    """Each account keeps its own ledger. Settings once read the default
-    owner's, which showed every signed-in account an untouched day."""
+def test_every_account_reads_the_same_allowance_in_settings(two_accounts, db):
+    """The OAuth client is the install's, so its allowance is too: every
+    account spends the same day's units, and each sees what is left of them
+    in the YouTube plugin's block under Settings."""
     from dealgo.services import quota
 
     client, admin_pk, sam_pk = two_accounts
     with db.session_scope() as session:
-        quota.meter(session, sam_pk)(250)
+        quota.meter(session)(250)
 
     def spent(body: str) -> str:
-        panel = body.split("How De-Algo spends quota", 1)[1]
-        return panel.split("<strong>", 1)[1].split("</strong>", 1)[0]
+        block = body.split('id="plugin-youtube"', 1)[1].split("</article>", 1)[0]
+        return block.split('class="quota"', 1)[1].split("<strong>", 1)[1].split("</strong>", 1)[0]
 
     as_account(client, "sam", "member-password")
     assert spent(client.get("/settings").text) == "250"
 
     as_account(client, *ADMIN)
-    assert spent(client.get("/settings").text) == "0"
+    assert spent(client.get("/settings").text) == "250"

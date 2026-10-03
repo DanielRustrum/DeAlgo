@@ -49,7 +49,7 @@ def restore_site(session: Session, blob: bytes, passphrase: str) -> SiteSummary:
     opened = open_site_export(blob, passphrase)
     summary = SiteSummary()
     needs_password: list[str] = []
-    needs_google: list[str] = []
+    needs_sign_in: list[str] = []
 
     for payload in opened.get("accounts", []):
         username = payload.get("username")
@@ -74,8 +74,9 @@ def restore_site(session: Session, blob: bytes, passphrase: str) -> SiteSummary:
             else:
                 summary.notes.append(f"{user.username} was already here; its setup was merged.")
             owner = user.id
-            if payload.get("had_google"):
-                needs_google.append(user.username)
+            # "had_google" is what files from before plugins signed in say.
+            if payload.get("had_sign_in") or payload.get("had_google"):
+                needs_sign_in.append(user.username)
 
         _restore_settings(session, payload.get("settings") or {}, owner)
 
@@ -91,10 +92,10 @@ def restore_site(session: Session, blob: bytes, passphrase: str) -> SiteSummary:
         summary.notes.append(
             f"Set a password for {', '.join(sorted(needs_password))} before they can sign in."
         )
-    if needs_google:
+    if needs_sign_in:
         summary.notes.append(
-            f"{', '.join(sorted(needs_google))} had a Google account connected and will need to "
-            "connect it again."
+            f"{', '.join(sorted(needs_sign_in))} had signed in to a plugin's service and will need to "
+            "sign in again under Settings."
         )
 
     session.flush()

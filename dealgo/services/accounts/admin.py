@@ -66,7 +66,6 @@ OWNED_TABLES: tuple[tuple[str, str | None], ...] = (
     ("channel", "channel_id"),
     ("playlist", "playlist_id"),
     ("video", "video_id"),
-    ("quota_usage", "day"),
     ("sync_run", None),
     ("graph_node", None),
     ("graph_edge", None),
@@ -104,7 +103,7 @@ def adopt_unowned(session: Session, admin: User) -> int:
     # What is left is a duplicate of something the admin already has. For the
     # bookkeeping tables that is meaningless and goes; anything else stays put
     # rather than being deleted on a guess, and says so.
-    for table in ("settings", "quota_usage", "oauth_token"):
+    for table in ("settings", "oauth_token"):
         session.execute(text(f"DELETE FROM {table} WHERE owner_pk IS NULL"))
     for table, _ in OWNED_TABLES:
         left = session.execute(

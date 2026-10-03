@@ -37,7 +37,7 @@ def fill_missing_details(
             .order_by(Channel.id)
         )
     )
-    if not missing or not quota.can_afford(session, 1, use_reserve=True, owner=owner):
+    if not missing or not quota.can_afford(session, 1, use_reserve=True):
         return
 
     try:

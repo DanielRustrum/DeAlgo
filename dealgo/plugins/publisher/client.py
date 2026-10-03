@@ -6,6 +6,7 @@ from typing import Any
 
 from ...services.scope import OwnerId
 from .. import registry
+from ..registry.plugin import Plugin
 from ..capabilities import acting_for
 from .answers import ChannelInfo, PlaylistInfo, PlaylistItem, PublishError, VideoDetails
 from .reading import (
@@ -22,6 +23,23 @@ from .reading import (
 #: calls are the common ones and guessing high would stop work that would
 #: have been affordable.
 DEFAULT_COST = 1
+
+
+def publishing_plugin() -> Plugin | None:
+    """The plugin that owns a kind things can be published to.
+
+    One, because two plugins both claiming to own publishing would be a
+    question with no answer — and the same rule that keeps a Reddit post
+    out of a YouTube playlist keeps a second one from appearing.
+    """
+    found = registry.current()
+    for kind in found.source_kinds():
+        if not kind.playlistable:
+            continue
+        plugin = next((p for p in found.working if p.title == kind.plugin), None)
+        if plugin is not None and plugin.publishes:
+            return plugin
+    return None
 
 
 class Publisher:
@@ -125,20 +143,8 @@ class Publisher:
     # -- the plumbing ------------------------------------------------------
 
     def _plugin(self) -> Any:
-        """The plugin that owns a kind things can be published to.
-
-        One, because two plugins both claiming to own publishing would be a
-        question with no answer — and the same rule that keeps a Reddit post
-        out of a YouTube playlist keeps a second one from appearing.
-        """
-        found = registry.current()
-        for kind in found.source_kinds():
-            if not kind.playlistable:
-                continue
-            plugin = next((p for p in found.working if p.title == kind.plugin), None)
-            if plugin is not None and plugin.publishes:
-                return plugin
-        return None
+        """The plugin that publishes, or None (see `publishing_plugin`)."""
+        return publishing_plugin()
 
     def _ask(self, what: str, *args: object) -> object:
         """Call one of the plugin's publishing functions.

@@ -10,6 +10,9 @@ item — so what has been read is held in memory, and any save drops it.
 
 from __future__ import annotations
 
+import os
+import re
+
 from sqlalchemy import delete, select
 
 from ..db import session_scope
@@ -19,6 +22,38 @@ from .scope import OwnerId, belongs_to
 #: What has been read, by (plugin, scope, owner). The owner is None for app
 #: settings, which have none.
 _held: dict[tuple[str, str, OwnerId], dict[str, str]] = {}
+
+
+def env_name(plugin_id: str, name: str) -> str:
+    """The environment variable an app setting can be given by.
+
+    `DEALGO_PLUGIN_<ID>_<NAME>`, upper-cased, with anything but letters and
+    digits as `_`. The `PLUGIN_` is not decoration: without it a plugin
+    called "admin" would have its `password` setting read from
+    DEALGO_ADMIN_PASSWORD.
+    """
+    def plain(word: str) -> str:
+        return re.sub(r"[^A-Z0-9]", "_", word.upper())
+
+    return f"DEALGO_PLUGIN_{plain(plugin_id)}_{plain(name)}"
+
+
+def from_env(plugin_id: str, name: str) -> str:
+    """An app setting's value from the environment, or "" when it has none."""
+    return os.environ.get(env_name(plugin_id, name), "").strip()
+
+
+def app_value(plugin_id: str, name: str) -> str | None:
+    """What an app setting is, before its declaration's default.
+
+    What the admin saved, if anything non-empty; else the environment's;
+    else None, for the declaration to supply its default. Saved wins so the
+    card always says what is in use.
+    """
+    saved = stored(plugin_id, "app").get(name)
+    if saved:
+        return saved
+    return from_env(plugin_id, name) or None
 
 
 def key_for(plugin_id: str, name: str) -> str:

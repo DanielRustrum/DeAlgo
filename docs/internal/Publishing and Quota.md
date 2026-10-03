@@ -32,27 +32,43 @@ sync._publish
 - Prices come from the plugin's `costs` table (`cost_of`): read 1, add 50, remove 50, create 50,
   rename 50, search 100.
 
-## OAuth
+## Signing in — a plugin's `connect`
 
-`services/oauth.py`: authorization-code flow with scope `https://www.googleapis.com/auth/youtube`
-(playlist writes need it). `state` tokens live in memory. The refresh token is stored per owner in
-`oauth_token`; a failed refresh is kept in `refresh_error` and shown in Settings. Each account uses
-its own Google client id/secret from Settings, falling back to the `DEALGO_CLIENT_ID`/
-`DEALGO_CLIENT_SECRET` environment.
+Nothing about Google is the host's. A plugin declares how its service signs people in
+(`registry/connect.py`: endpoints, scopes, extra consent parameters, the hosts the token is for, which
+of its app settings hold the OAuth client and API key, its allowance, a `refusal` reader). The host
+runs the flow:
+
+- `services/oauth.py` — the generic authorization-code flow, refresh and revoke, given a `Connect`.
+- `services/connections.py` — the client credentials (the plugin's app settings, then
+  `DEALGO_PLUGIN_<ID>_<NAME>`, then defaults), tokens per `(owner, provider)` in `oauth_token`,
+  refreshing (`valid_access_token`, failures kept in `refresh_error`), `build_client` for the
+  publishing plugin, and `disconnect`.
+- `web/routes/connections.py` — `GET /connect/{id}` (to the consent page), `GET /oauth/callback`
+  (one address for every plugin; the in-memory `state` says which), and
+  `POST /connect/{id}/disconnect`. `connection_view` is the block under Settings.
+
+The OAuth client is the admin's, set once per install on the plugin's card. Each account signs in for
+itself. `capabilities/account.py` signs only for the plugin's own `connect.hosts`.
 
 ## The quota ledger — `services/quota.py`
 
 Google does not expose remaining quota, so De-Algo keeps its own.
 
-- **Day** = the date in `America/Los_Angeles`, when Google resets. One `quota_usage` row per owner
-  per day.
-- **Budget** = `Settings.daily_quota` (default 10,000). **Reserve** = `quota_reserve`, held back
-  from syncing for manual actions.
+- **Whose:** the plugin's `connect.allowance`. Every function defaults to the publishing plugin.
+- **Day** = the date in the allowance's `timezone` (YouTube: `America/Los_Angeles`). One
+  `allowance_usage` row per provider per day, for the **whole install**: the OAuth client is the
+  admin's, so every account spends the same allowance.
+- **Budget** and **reserve** = the allowance's `daily` and `reserve`, each a number or one of the
+  plugin's app settings (YouTube: `daily_quota`, default 10,000; `quota_reserve`, held back from
+  syncing for manual actions). A service with no allowance is counted but never held back.
 - `spendable = remaining − reserve` (0 once exhausted). Syncing checks `can_afford(units)`
   against `spendable`; manual actions and details reads pass `use_reserve=True`.
 - **Pessimistic:** every request is charged when sent, success or not.
-- **Believe Google over arithmetic:** a quota error calls `mark_exhausted`, which stamps
-  `exhausted_at` and raises `units` to the budget for the rest of the day.
+- **Believe the service over arithmetic:** a refusal whose reason (read by the plugin's
+  `connect.refusal`) is `allowance.exhausted` calls `mark_exhausted`, which stamps `exhausted_at` and
+  raises `units` to the budget for the rest of the day. `PublishError.is_quota_error` compares with
+  the same declared reason.
 
 ## Stopping cleanly
 

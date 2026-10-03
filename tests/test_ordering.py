@@ -9,7 +9,7 @@ from dealgo.services import ordering
 from dealgo.services import quota
 from dealgo.services import sync as sync_service
 from dealgo.plugins.publisher import VideoDetails
-from fakes import MAIN_PLAYLIST, entry
+from fakes import MAIN_PLAYLIST, entry, set_quota
 
 SECOND = "PL_second"
 
@@ -90,7 +90,7 @@ def test_the_highest_priority_channel_is_inserted_first(world, db):
         # Put the second channel first in the fill order.
         ordering.move_channel(session, other, "up")
         db.get_settings(session).initial_backfill = 10
-        db.get_settings(session).daily_quota = 60  # one insert, plus reads
+        set_quota(daily=60, session=session)  # one insert, plus reads
 
     # Both channels have an upload; the newer one belongs to the top channel.
     # Keyed by the feed address now, because that is what a source is read
@@ -146,7 +146,7 @@ def test_the_first_playlist_is_filled_first(world, add_playlist, db):
     with db.session_scope() as session:
         # Mirror goes to the top of the fill order.
         ordering.move_playlist(session, second_pk, "up")
-        db.get_settings(session).daily_quota = 60  # room for exactly one insert
+        set_quota(daily=60, session=session)  # room for exactly one insert
 
     world["entries"] = [entry("v0", 1)]
     world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
@@ -159,7 +159,7 @@ def test_the_first_playlist_is_filled_first(world, add_playlist, db):
 
     # The other playlist is filled once the quota allows it.
     with db.session_scope() as session:
-        db.get_settings(session).daily_quota = 10000
+        set_quota(daily=10000, session=session)
         quota.spend(session, 0)
     sync_service.run_sync()
     assert world["client"].contents(MAIN_PLAYLIST) == ["v0"]

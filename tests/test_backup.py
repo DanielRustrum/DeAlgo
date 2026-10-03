@@ -49,7 +49,7 @@ def populated(db):
         settings.poll_interval_minutes = 45
         settings.client_id = "client-id"
         settings.client_secret = "secret"
-        session.add(OAuthToken(id=1, access_token="live-token", refresh_token="refresh-token"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="live-token", refresh_token="refresh-token"))
     return db
 
 
@@ -66,9 +66,10 @@ def legacy_export(db) -> dict:
     with db.session_scope() as session:
         settings = db.get_settings(session)
         data["credentials"] = {
-            "client_id": settings.client_id,
-            "client_secret": settings.client_secret,
-            "api_key": settings.api_key,
+            # What an old file carried, as it would have said it.
+            "client_id": "id-from-an-old-file",
+            "client_secret": "secret",
+            "api_key": "key-from-an-old-file",
         }
         feeds = {p.id: p.playlist_id for p in session.scalars(select(Playlist))}
         channels = {c.id: c.channel_id for c in session.scalars(select(Channel))}
@@ -270,7 +271,12 @@ def test_an_older_file_with_history_still_restores(populated, db):
         assert placement.playlist_item_id == "item-1"
         # With the videos present, a last-checked time can be trusted.
         assert session.scalar(select(Channel)).last_checked_at is not None
-        assert db.get_settings(session).client_secret == "secret"
+
+    # Credentials in an old file are not taken: they belong to the plugin's
+    # settings for everyone now, set by the admin, never by a restore.
+    from dealgo.services import plugin_settings
+
+    assert plugin_settings.stored("youtube", "app") == {}
 
 
 def test_a_video_whose_channel_is_missing_is_skipped_not_orphaned(populated, db):

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ...models import GENERIC_PLAYLIST_PREFIX, Playlist
 from ...plugins.publisher import PublishError
 from .. import ordering
-from ..auth import build_client
+from ..connections import build_client
 from ..scope import OwnerId, owned
 from .listing import PlaylistError
 from .membership import set_membership

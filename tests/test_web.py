@@ -13,7 +13,7 @@ from sqlalchemy import select
 from dealgo.db import get_settings
 from dealgo.models import Channel, Placement, Playlist, SyncRun, Video
 from dealgo.web import contexts as web_contexts
-from fakes import unwire, wire
+from fakes import give_youtube_a_client, unwire, wire, set_quota
 
 HX = {"HX-Request": "true"}
 
@@ -143,7 +143,7 @@ def test_remove_watched_does_nothing_when_nothing_is_watched(client, db, monkeyp
     from dealgo.services import watched as watched_service
 
     with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
 
     called = []
     monkeypatch.setattr(watched_service, "remove_watched", lambda *a, **k: called.append(a))
@@ -173,7 +173,7 @@ def test_remove_watched_starts_only_on_request(client, db, monkeypatch):
     from dealgo.services import watched as watched_service
 
     with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
 
     called = []
     monkeypatch.setattr(watched_service, "remove_watched", lambda *a, **k: called.append(a))
@@ -200,38 +200,50 @@ def test_mark_playlist_watched_covers_everything_in_the_playlist(client, db):
 
 
 def test_connect_link_opts_out_of_boosting(client, db):
-    """A boosted click cannot follow a redirect to accounts.google.com."""
-    with db.session_scope() as session:
-        settings = db.get_settings(session)
-        settings.client_id = "client-id"
-        settings.client_secret = "secret"
+    """A boosted click cannot follow a redirect to the service's sign-in page."""
+    give_youtube_a_client()
 
     body = client.get("/settings").text
-    assert 'href="/oauth/start" hx-boost="false"' in body
+    assert 'href="/connect/youtube" hx-boost="false"' in body
 
 
-def test_oauth_start_redirects_to_google(client, db):
-    with db.session_scope() as session:
-        settings = db.get_settings(session)
-        settings.client_id = "client-id"
-        settings.client_secret = "secret"
+def test_signing_in_goes_where_the_plugin_says(client, db):
+    """The address, scopes and parameters are the YouTube plugin's `connect`."""
+    give_youtube_a_client()
 
-    plain = client.get("/oauth/start", follow_redirects=False)
+    plain = client.get("/connect/youtube", follow_redirects=False)
     assert plain.status_code == 303
     assert plain.headers["location"].startswith("https://accounts.google.com/o/oauth2/v2/auth?")
 
     # If htmx does make the request, it must be told to navigate the window.
-    boosted = client.get("/oauth/start", headers=HX, follow_redirects=False)
+    boosted = client.get("/connect/youtube", headers=HX, follow_redirects=False)
     assert boosted.status_code == 200
     assert boosted.headers["HX-Redirect"].startswith("https://accounts.google.com/")
+    # The plugin's own scope and parameters, and the host's state and address.
+    asked = unquote_plus(plain.headers["location"])
+    assert "scope=https://www.googleapis.com/auth/youtube" in asked
+    assert "access_type=offline" in asked and "state=" in asked
+    assert "redirect_uri=http://localhost:8080/oauth/callback" in asked
 
 
-def test_google_errors_are_explained(client):
+def test_without_a_client_signing_in_says_whose_job_it_is(client):
+    location = unquote_plus(client.get("/connect/youtube", follow_redirects=False).headers["location"])
+    assert "Admin → Plugins" in location
+
+
+def test_sign_in_errors_are_explained(client):
+    from dealgo.web.routes import connections as connecting
+
+    give_youtube_a_client()
+
     def flash_of(error: str) -> str:
-        response = client.get(f"/oauth/callback?error={error}", follow_redirects=False)
+        # A real sign-in leaves a state behind; the callback is only believed with one.
+        client.get("/connect/youtube", follow_redirects=False)
+        state = next(iter(connecting._states))
+        response = client.get(f"/oauth/callback?error={error}&state={state}", follow_redirects=False)
         return unquote_plus(response.headers["location"])
 
-    assert "test-user list" in flash_of("access_denied")
+    assert "test users" in flash_of("access_denied")
     assert "/oauth/callback" in flash_of("redirect_uri_mismatch")
     assert "some_new_error" in flash_of("some_new_error")
 
@@ -243,19 +255,18 @@ def test_a_dead_refresh_grant_is_reported_not_hidden(client, db):
     with db.session_scope() as session:
         session.add(
             OAuthToken(
+                provider="youtube",
                 id=1,
                 access_token="stale",
                 account_title="Someone",
                 refresh_error="Token has been expired or revoked.",
             )
         )
-        settings = db.get_settings(session)
-        settings.client_id = "client-id"
-        settings.client_secret = "secret"
+    give_youtube_a_client()
 
     settings_page = client.get("/settings").text
     assert "Token has been expired or revoked." in settings_page
-    assert "Reconnect YouTube account" in settings_page
+    assert "Reconnect Google account" in settings_page
 
     # The notice lives on Configuration now: it is the page that can act on
     # it, and the one somebody is on when they find out.
@@ -269,7 +280,7 @@ def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkey
     from dealgo.web import app as web_app
 
     with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
 
     calls = []
 
@@ -746,7 +757,7 @@ def test_the_tour_ticks_off_what_is_already_done(client, db):
     assert "tour-done" not in body.split("Connect YouTube")[1][:200]  # not connected yet
 
     with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="token"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
     assert client.get("/tour").text.count("tour-done") >= 4
 
 
@@ -1233,15 +1244,10 @@ def test_every_preference_is_under_a_heading_that_describes_it(client):
     panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
     groups = re.findall(r"<h3>([^<]*)</h3>", panel)
 
-    assert groups == ["This interface", "Google API credentials"]
-
-    # And each field sits under the heading that describes it.
-    def group_of(field: str) -> str:
-        before = panel.split(f'name="{field}"', 1)[0]
-        return re.findall(r"<h3>([^<]*)</h3>", before)[-1]
-
-    assert group_of("hide_tour") == "This interface"
-    assert group_of("client_secret") == "Google API credentials"
+    # The Google credentials were here once. They are the YouTube plugin's
+    # settings for everyone now, on its card under Admin → Plugins.
+    assert groups == ["This interface"]
+    assert 'name="client_id"' not in panel
 
 
 def test_the_preferences_stay_in_one_form(client):
@@ -1252,14 +1258,14 @@ def test_the_preferences_stay_in_one_form(client):
     panel = body.split("<h2>Preferences</h2>", 1)[1].split("</section>", 1)[0]
 
     assert panel.count("<form") == 1
-    for field in ["hide_tour", "hide_open_notice", "client_id", "client_secret"]:
+    for field in ["hide_tour", "hide_open_notice"]:
         assert f'name="{field}"' in panel
 
     # And the ones that left are not half-here: a field the form no longer
     # carries would be reset on every save if the route still read it.
     for gone in ["auto_sync", "poll_interval_minutes", "initial_backfill",
                  "shorts_max_seconds", "post_seconds", "daily_quota",
-                 "quota_reserve"]:
+                 "quota_reserve", "client_id", "client_secret", "api_key"]:
         assert f'name="{gone}"' not in panel
 
 
@@ -1273,13 +1279,14 @@ def test_saving_one_group_keeps_the_others(client, db):
     import re
 
     # Submit the form exactly as the browser would: every field it contains.
-    fields = dict(re.findall(r'name="([a-z_]+)" value="([^"]*)"', body))
-    fields["client_id"] = "changed-id"
+    form = body.split('action="/settings"', 1)[1].split("</form>", 1)[0]
+    fields = dict(re.findall(r'name="([a-z_]+)" value="([^"]*)"', form))
+    fields["hide_open_notice"] = "1"
     client.post("/settings", data=fields, follow_redirects=False)
 
     with db.session_scope() as session:
         settings = get_settings(session)
-        assert settings.client_id == "changed-id"      # what was changed
+        assert settings.hide_open_notice is True       # what was changed
         assert settings.hide_tour is True              # and what was not
 
 
@@ -1290,7 +1297,6 @@ def test_the_settings_that_left_are_not_reset_by_saving(client, db):
     with db.session_scope() as session:
         settings = get_settings(session)
         settings.post_seconds = 45
-        settings.daily_quota = 8000
         settings.poll_interval_minutes = 12
         settings.auto_sync = True
 
@@ -1299,7 +1305,6 @@ def test_the_settings_that_left_are_not_reset_by_saving(client, db):
     with db.session_scope() as session:
         settings = get_settings(session)
         assert settings.post_seconds == 45
-        assert settings.daily_quota == 8000
         assert settings.poll_interval_minutes == 12
         assert settings.auto_sync is True
 
@@ -1408,7 +1413,9 @@ def test_the_quota_is_still_readable_somewhere(client, db):
     writes without anything breaking, which reads exactly like a feed that
     has gone quiet — so it is said in the panel that explains it."""
     body = client.get("/settings").text
-    panel = body.split("<h2>How De-Algo spends quota</h2>", 1)[1].split("</section>", 1)[0]
+    panel = body.split('id="plugin-youtube"', 1)[1].split("</article>", 1)[0]
 
     assert "quota-bar" in panel
     assert "units today" in panel
+    # The plugin's own account of what costs what.
+    assert "each added video costs" in panel

@@ -24,7 +24,7 @@ def client(db, monkeypatch):
     with db.session_scope() as session:
         # These feeds write to YouTube, so the page is exercised signed in.
         # The signed-out shape has its own tests below.
-        session.add(OAuthToken(id=1, access_token="tok", account_title="Someone"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="tok", account_title="Someone"))
         science = Playlist(playlist_id="PL_sci", title="Science", priority=0)
         music = Playlist(playlist_id="PL_mus", title="Music", priority=1)
         channel = Channel(channel_id="UCzzzzzzzzzzzzzzzzzzzzzz", title="A Channel")
@@ -538,7 +538,7 @@ def test_without_an_account_the_feed_page_warns(client, db):
 
     body = client.get("/feed").text
 
-    assert 'data-toast="no-google"' in body
+    assert 'data-toast="no-sign-in"' in body
     assert "No Google account is connected" in body
     assert "2 feeds point at a YouTube playlist" in body
 
@@ -567,7 +567,7 @@ def test_the_warning_names_a_stale_account_differently(client, db):
 def test_a_connected_account_gets_no_warning(client):
     body = client.get("/feed").text
 
-    assert 'data-toast="no-google"' not in body
+    assert 'data-toast="no-sign-in"' not in body
     assert "pill-dormant" not in body
 
 
@@ -582,7 +582,7 @@ def test_generic_feeds_are_not_greyed_out(client, db):
 
     body = client.get("/feed").text
 
-    assert 'data-toast="no-google"' not in body      # no YouTube feed to warn about
+    assert 'data-toast="no-sign-in"' not in body      # no YouTube feed to warn about
     assert "pill-dormant" not in body
 
 

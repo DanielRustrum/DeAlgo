@@ -5,14 +5,14 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import OAuthToken, Settings
+from ..models import Settings
 
 
 def get_settings(session: Session, owner: int | None = None) -> Settings:
     """This account's settings, made on first use.
 
-    Every account keeps its own — the poll interval, the backfill, the quota
-    and the Google credentials all belong to whoever set them. `owner=None` is
+    Every account keeps its own — the poll interval, the backfill and the
+    notices it has hidden all belong to whoever set them. `owner=None` is
     the implicit account, which is what everything is while sign-in is off.
     """
     settings = session.scalar(
@@ -26,11 +26,3 @@ def get_settings(session: Session, owner: int | None = None) -> Settings:
         session.flush()
     return settings
 
-
-def get_token(session: Session, owner: int | None = None) -> OAuthToken | None:
-    """This account's Google grant. Each connects their own."""
-    return session.scalar(
-        select(OAuthToken).where(
-            OAuthToken.owner_pk.is_(None) if owner is None else OAuthToken.owner_pk == owner
-        )
-    )

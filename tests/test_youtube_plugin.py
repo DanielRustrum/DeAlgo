@@ -31,6 +31,7 @@ def signed_in(db):
         session.add(User(id=1, username="me", password_hash="x"))
     with db.session_scope() as session:
         session.add(OAuthToken(
+            provider="youtube",
             owner_pk=1,
             access_token="secret-token",
             expires_at=utcnow() + dt.timedelta(hours=1),
@@ -293,7 +294,7 @@ def spent(db, owner=1) -> int:
     from dealgo.services import quota
 
     with db.session_scope() as session:
-        return quota.state(session, owner).used
+        return quota.state(session).used
 
 
 def test_each_call_is_charged_at_the_published_price(signed_in, google, db):
@@ -313,7 +314,8 @@ def test_each_call_is_charged_at_the_published_price(signed_in, google, db):
 
 def test_a_request_google_refuses_is_still_charged(signed_in, google, db):
     """Google bills failed calls too — except the one refused for no quota,
-    which is the only free call there is."""
+    which instead says the day is spent: believed over the count, so nothing
+    more is tried until it resets."""
     _, answers = google
     answers.append(httpx.Response(
         404, json={"error": {"errors": [{"reason": "videoNotFound"}]}}
@@ -333,7 +335,11 @@ def test_a_request_google_refuses_is_still_charged(signed_in, google, db):
             publisher().insert_playlist_item("PL", "a")
 
     assert after_refusal - before == 50
-    assert spent(db) == after_refusal  # nothing more for the quota refusal
+    from dealgo.services import quota
+
+    with db.session_scope() as session:
+        day = quota.state(session)
+        assert day.exhausted and day.spendable == 0
 
 
 # -- community posts -------------------------------------------------------

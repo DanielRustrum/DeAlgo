@@ -11,7 +11,7 @@ from dealgo.models import SyncRun, Video
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
 from dealgo.plugins.publisher import PublishError, VideoDetails
-from fakes import MAIN_PLAYLIST, entry
+from fakes import MAIN_PLAYLIST, entry, set_quota
 
 
 def fill_playlist(world, count=3):
@@ -172,7 +172,7 @@ def test_running_out_of_quota_stops_the_removal_and_says_so_once(world):
     with world["db"].session_scope() as session:
         watched_service.mark_watched(session, [v.id for v in session.scalars(select(Video))])
         used = quota.state(session).used
-        world["db"].get_settings(session).daily_quota = used + 60  # one removal, and no more
+        set_quota(daily=used + 60, session=session)  # one removal, and no more
 
     result = watched_service.remove_watched()
 

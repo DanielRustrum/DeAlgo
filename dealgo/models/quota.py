@@ -1,37 +1,38 @@
-"""What one account spent against the YouTube quota on one day."""
+"""What has been spent today against a service's daily allowance."""
 
 from __future__ import annotations
 
 import datetime as dt
 from typing import Optional
 
-from sqlalchemy import (
-    DateTime,
-    Integer,
-    String,
-)
+from sqlalchemy import DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, owned_unique, owner_column
+from .base import Base
 from .times import utcnow
 
 
-class QuotaUsage(Base):
-    """What De-Algo has spent against the YouTube API today.
+class AllowanceUsage(Base):
+    """One day's spending against one plugin's service, for the whole install.
 
-    One row per quota day, which Google resets at midnight Pacific — so the day
-    key is a Pacific date, not a local or UTC one.
+    A service that rations requests — YouTube's daily quota is the one there
+    is — rations them per OAuth client, and the client is the admin's, set
+    once on the plugin's card. So the ledger is the install's too: every
+    account spends the same allowance, and each sees what is left of it.
+
+    The day is the service's own (its `allowance.timezone`), since that is
+    when the service starts counting again, wherever the server sits.
     """
 
-    __tablename__ = "quota_usage"
-    # Each account spends against its own Google project, so each keeps its
-    # own ledger for the day.
-    __table_args__ = (owned_unique("quota_usage", "day"),)
+    __tablename__ = "allowance_usage"
+    __table_args__ = (UniqueConstraint("provider", "day", name="uq_allowance_usage_provider_day"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    owner_pk: Mapped[Optional[int]] = owner_column()
-    day: Mapped[str] = mapped_column(String(10), index=True)
+    #: The plugin whose service this is, by id.
+    provider: Mapped[str] = mapped_column(String(64), index=True)
+    day: Mapped[str] = mapped_column(String(10))
     units: Mapped[int] = mapped_column(Integer, default=0)
-    # Set when YouTube itself said the quota is gone, which overrides our count.
+    # Set when the service itself said the allowance is gone, which
+    # overrides the count.
     exhausted_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

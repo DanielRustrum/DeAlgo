@@ -13,7 +13,7 @@ from ... import __version__
 from ...db import get_settings
 from ...models import OAuthToken, User
 from .. import backup
-from ..scope import OwnerId
+from ..scope import OwnerId, belongs_to
 from .sealing import FORMAT, FORMAT_VERSION, check_passphrase, seal
 
 log = logging.getLogger(__name__)
@@ -29,11 +29,9 @@ def _account_payload(session: Session, user: User | None) -> dict[str, Any]:
     """One account: who they are, and everything of theirs."""
     owner: OwnerId = user.id if user else None
     settings = get_settings(session, owner)
-    token = session.scalar(
-        select(OAuthToken).where(
-            OAuthToken.owner_pk.is_(None) if owner is None else OAuthToken.owner_pk == owner
-        )
-    )
+    # Whether it had signed in to any plugin's service, to say so on the
+    # other side; never the sign-in itself.
+    token = session.scalar(select(OAuthToken).where(belongs_to(OAuthToken, owner)))
 
     payload: dict[str, Any] = {
         # Who the account is, and nothing that would let anyone be them.
@@ -48,17 +46,15 @@ def _account_payload(session: Session, user: User | None) -> dict[str, Any]:
             "initial_backfill": settings.initial_backfill,
             "shorts_max_seconds": settings.shorts_max_seconds,
             "post_seconds": settings.post_seconds,
-            "daily_quota": settings.daily_quota,
-            "quota_reserve": settings.quota_reserve,
             "hide_tour": settings.hide_tour,
             "hide_open_notice": settings.hide_open_notice,
             "hide_connect_notice": settings.hide_connect_notice,
-            # No client_id, client_secret or api_key. They are credentials,
-            # and this file is meant to be moved around.
+            # No credentials of any kind: this file is meant to be moved
+            # around. A plugin's settings for everyone stay on this install.
         },
         # Recorded so a restore can say who will need to reconnect, without
         # carrying anything that would let it reconnect for them.
-        "had_google": token is not None,
+        "had_sign_in": token is not None,
     }
     return payload
 

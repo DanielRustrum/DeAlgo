@@ -13,7 +13,7 @@ from ...models import Channel
 from ...plugins.publisher import ChannelInfo, PublishError
 from ...sources import newsletter, syndication
 from .. import ordering
-from ..auth import build_client
+from ..connections import build_client
 from ..scope import OwnerId, owned
 from .listing import ChannelError
 

@@ -38,20 +38,11 @@ class Settings(Base):
     # How long Focus mode holds a community post before moving on. A post has
     # no end of its own, so reading time is the only thing that can advance it.
     post_seconds: Mapped[int] = mapped_column(Integer, default=30)
-    # YouTube Data API units per day. 10,000 is Google's default allowance.
-    daily_quota: Mapped[int] = mapped_column(Integer, default=10000)
-    # Units held back from syncing, so manual actions still work late in the day.
-    quota_reserve: Mapped[int] = mapped_column(Integer, default=0)
     # Opt-*out*, so an unticked checkbox means "show it" rather than hiding it.
     hide_tour: Mapped[bool] = mapped_column(Boolean, default=False)
     # The standing notices at the top of every page. Hiding one changes
     # nothing but the notice: the Settings page always states the real state.
     hide_open_notice: Mapped[bool] = mapped_column(Boolean, default=False)
     hide_connect_notice: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    # Optional overrides for the env-supplied Google credentials.
-    client_id: Mapped[Optional[str]] = mapped_column(String(255))
-    client_secret: Mapped[Optional[str]] = mapped_column(String(255))
-    api_key: Mapped[Optional[str]] = mapped_column(String(255))
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

@@ -51,9 +51,69 @@
            {% if one.placeholder %}placeholder="{{ one.placeholder }}"{% endif %}>
     {% endif %}
     {% if one.hint %}<p class="hint">{{ one.hint }}</p>{% endif %}
+    {% if field.from_env %}<p class="hint">Set by <code>{{ field.env }}</code> while this is blank.</p>{% endif %}
     {% endif %}
   </div>
   {% endfor %}
   <button class="btn btn-primary" type="submit">{{ submit }}</button>
 </form>
+{%- endmacro %}
+
+{# A plugin's sign-in, in its block under Settings: whether this account is
+   connected, the way to connect or disconnect, and what is left of its
+   service's allowance today. `connection` comes from connection_view() in
+   routes/connections.py. #}
+{% macro connection_block(plugin, connection) -%}
+<div class="plugin-connection">
+  {% if connection.connected and connection.needs_reconnect %}
+    <p class="error-note">
+      {{ connection.service }} will no longer refresh this sign-in: {{ connection.reconnect_reason }}
+    </p>
+    <div class="row-buttons">
+      {# Not boosted: the answer redirects to the service, which an XHR cannot follow. #}
+      <a class="btn btn-primary" href="/connect/{{ plugin.id }}" hx-boost="false">Reconnect {{ connection.service }} account</a>
+      <form method="post" action="/connect/{{ plugin.id }}/disconnect"
+            hx-confirm="Disconnect the {{ connection.service }} account? Nothing already in De-Algo is lost.">
+        <button class="btn btn-danger" type="submit">Disconnect</button>
+      </form>
+    </div>
+  {% elif connection.connected %}
+    <div class="row-buttons">
+      <p class="connected">Connected{% if connection.account %} as <strong>{{ connection.account }}</strong>{% endif %}.</p>
+      <form method="post" action="/connect/{{ plugin.id }}/disconnect"
+            hx-confirm="Disconnect the {{ connection.service }} account? Nothing already in De-Algo is lost.">
+        <button class="btn btn-danger" type="submit">Disconnect</button>
+      </form>
+    </div>
+  {% elif connection.has_client %}
+    <a class="btn btn-primary" href="/connect/{{ plugin.id }}" hx-boost="false">Connect {{ connection.service }} account</a>
+  {% else %}
+    <p class="muted">
+      Signing in needs an OAuth client, which the admin sets on {{ plugin.title }}'s card under
+      Admin → Plugins.
+    </p>
+  {% endif %}
+
+  {% if connection.allowance %}
+  {% set allowance = connection.allowance %}
+  {# What has been spent today. A spent allowance stops writes without
+     anything breaking, which reads exactly like a feed gone quiet. #}
+  <div class="quota">
+    <div class="quota-bar {{ 'quota-bar-full' if allowance.exhausted or allowance.spendable == 0 }}">
+      <span style="width: {{ allowance.percent_used }}%"></span>
+    </div>
+    <p class="hint">
+      <strong>{{ allowance.used }}</strong> of {{ allowance.budget }} {{ allowance.unit }} today,
+      for everyone on this De-Algo · resets {{ connection.resets_in }}.
+    </p>
+    {% if allowance.exhausted or allowance.spendable == 0 %}
+    <p class="error-note">
+      Writes are paused until the allowance resets. Polling carries on, so new items are still queued.
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if connection.about %}<p class="hint">{{ connection.about }}</p>{% endif %}
+</div>
 {%- endmacro %}

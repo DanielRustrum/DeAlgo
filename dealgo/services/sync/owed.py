@@ -116,7 +116,7 @@ def retry_deferred(
                  added_per_playlist, result)
             continue
 
-        if not quota.can_afford(session, cost_of("add"), owner=owner):
+        if not quota.can_afford(session, cost_of("add")):
             result.stopped_on_quota = True
             result.messages.append(
                 f"YouTube API quota is spent; {len(open_placements) - index} playlist insertion(s) "
@@ -129,7 +129,7 @@ def retry_deferred(
             )
         except PublishError as exc:
             if exc.is_quota_error:
-                quota.mark_exhausted(session, owner)
+                quota.mark_exhausted(session)
                 result.stopped_on_quota = True
                 result.messages.append(
                     f"YouTube refused further writes: the daily quota is gone. Queued videos "

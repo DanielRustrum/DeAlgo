@@ -35,7 +35,7 @@ def instance(db):
             channel.playlists.append(feed)
             session.add_all([feed, channel])
 
-        session.add(OAuthToken(owner_pk=sam.id, access_token="sams-token",
+        session.add(OAuthToken(provider="youtube", owner_pk=sam.id, access_token="sams-token",
                                refresh_token="sams-refresh", account_title="Sam on YouTube"))
     return db
 
@@ -92,8 +92,8 @@ def test_it_remembers_who_will_have_to_reconnect(instance):
         )
 
     by_name = {a["username"]: a for a in opened["accounts"]}
-    assert by_name["sam"]["had_google"] is True
-    assert by_name["admin"]["had_google"] is False
+    assert by_name["sam"]["had_sign_in"] is True
+    assert by_name["admin"]["had_sign_in"] is False
 
 
 # -- the encryption --------------------------------------------------------
@@ -234,7 +234,7 @@ def test_the_restore_says_what_is_still_missing(instance, tmp_path, monkeypatch)
 
     notes = " ".join(summary.notes)
     assert "Set a password for" in notes and "sam" in notes
-    assert "connect it again" in notes          # and who had a Google account
+    assert "sign in again" in notes             # and who had signed in to a service
 
 
 def test_the_admin_of_the_new_machine_stays_its_own(instance, tmp_path, monkeypatch):

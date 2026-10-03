@@ -25,6 +25,19 @@ def a_plugin(body: str, granted=frozenset({"account"})):
     return {{
       api = 1, name = "Sender",
       permissions = {{ {{ name = "account", why = "To read your playlists." }} }},
+      settings = {{ app = {{ {{ name = "client_id" }}, {{ name = "client_secret", type = "secret" }},
+                             {{ name = "api_key", type = "secret" }} }} }},
+      connect = {{
+        name = "Example", authorize = "https://accounts.example.com/auth",
+        token = "https://accounts.example.com/token", hosts = {{ "googleapis.com" }},
+        api_key = "api_key",
+        allowance = {{ daily = 10000, timezone = "America/Los_Angeles", exhausted = "quotaExceeded" }},
+        refusal = function(answer)
+          local errors = type(answer.error) == "table" and answer.error.errors
+          local first = type(errors) == "table" and errors[1]
+          return type(first) == "table" and first.reason or nil
+        end,
+      }},
       nodes = {{ {{ kind = "probe", label = "Probe", keep = function()
         {body}
       end }} }},
@@ -49,6 +62,7 @@ def signed_in(db):
         # With an expiry, or it reads as stale and the host quite rightly
         # refuses to send with it.
         session.add(OAuthToken(
+            provider="sender",
             owner_pk=1,
             access_token="secret-token",
             expires_at=utcnow() + dt.timedelta(hours=1),
@@ -210,7 +224,7 @@ def test_the_day_is_charged_what_the_plugin_says(signed_in, sent, db):
     with acting_for(1):
         ask(found, plugin)
     with db.session_scope() as session:
-        assert quota.state(session, 1).used == 50
+        assert quota.state(session, "sender").used == 50
 
 
 def test_a_plugin_cannot_spend_the_day_in_one_call(signed_in, sent, db):
@@ -226,7 +240,7 @@ def test_a_plugin_cannot_spend_the_day_in_one_call(signed_in, sent, db):
     with acting_for(1):
         ask(found, plugin)
     with db.session_scope() as session:
-        assert quota.state(session, 1).used == account.MOST_COST
+        assert quota.state(session, "sender").used == account.MOST_COST
 
 
 def test_a_call_cannot_be_free(signed_in, sent, db):
@@ -240,7 +254,7 @@ def test_a_call_cannot_be_free(signed_in, sent, db):
     with acting_for(1):
         ask(found, plugin)
     with db.session_scope() as session:
-        assert quota.state(session, 1).used == 1
+        assert quota.state(session, "sender").used == 1
 
 
 def test_it_cannot_send_for_ever(signed_in, sent):

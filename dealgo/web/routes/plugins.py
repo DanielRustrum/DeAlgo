@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, select
 
 from ... import outgoing
+from ...config import CONFIG
 from ...db import session_scope
 from ...models import (
     Channel,
@@ -43,6 +44,7 @@ def _plugins_view(request: Request, pending: Context | None = None) -> HTMLRespo
         request,
         "plugins.html",
         {
+            "redirect_uri": CONFIG.redirect_uri,
             "plugins": [
                 {
                     "id": plugin.id,
@@ -58,6 +60,9 @@ def _plugins_view(request: Request, pending: Context | None = None) -> HTMLRespo
                     # what it is allowed to do.
                     "settings": settings_view(plugin, "app") if plugin.loaded else [],
                     "has_user_settings": bool(plugin.settings.user),
+                    # How it signs people in, when it does: the admin
+                    # registers the redirect address with that service.
+                    "connect": plugin.connect,
                     "wants": plugin.wants,
                     "granted": plugin.granted,
                     "wanting": plugin.wanting,

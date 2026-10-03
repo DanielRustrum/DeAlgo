@@ -12,6 +12,7 @@ from .. import permissions
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import Sandbox
+from .connect import Connect
 from .settings import Settings
 from .storage import home_of
 
@@ -199,6 +200,9 @@ class Plugin:
     #: What it asked to be configured with: the admin's settings and each
     #: account's own.
     settings: Settings = field(default_factory=Settings)
+    #: How it signs somebody in to its service, when it does: the host does
+    #: the sign-in and keeps the token (registry/connect.py).
+    connect: Connect | None = None
     #: What it actually has. Never more than it asked for, and never anything
     #: this version does not understand.
     granted: frozenset[str] = frozenset()

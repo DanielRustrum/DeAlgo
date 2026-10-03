@@ -11,13 +11,14 @@ from sqlalchemy.orm import Session
 
 from .. import __version__
 from ..config import CONFIG
-from ..db import get_settings, get_token, session_scope
+from ..db import get_settings, session_scope
 from ..models import (
     Channel,
     Playlist,
     SyncRun,
     channel_playlist,
 )
+from ..services import connections
 from ..services import sync as sync_service
 from ..services import watched as watched_service
 from ..services.scope import OwnerId, owned
@@ -42,7 +43,7 @@ def tour_progress(session: Session, owner: OwnerId = None) -> Context:
                 select(func.count()).select_from(channel_playlist)
             )
         ),
-        "connected": get_token(session, owner) is not None,
+        "connected": connections.publisher_token(session, owner) is not None,
         "synced": bool(session.scalar(owned(select(func.count(SyncRun.id)), SyncRun, owner))),
         "watched_any": watched_service.count_watched(session, owner) > 0,
     }

@@ -90,7 +90,7 @@ const report = {};
 
 // A standing condition — still true after you look away. It waits.
 {
-  const { made, timers } = run({ toasts: [{ dataset: { toast: "no-google" } }] });
+  const { made, timers } = run({ toasts: [{ dataset: { toast: "no-sign-in" } }] });
   report.standing = {
     hasCloseButton: made[0].children.length === 1,
     timerCount: timers.length,
@@ -100,8 +100,8 @@ const report = {};
 // One already dismissed this session never appears at all.
 {
   const { made } = run({
-    toasts: [{ dataset: { toast: "no-google" } }],
-    stored: { "toast:no-google": "gone" },
+    toasts: [{ dataset: { toast: "no-sign-in" } }],
+    stored: { "toast:no-sign-in": "gone" },
   });
   report.alreadyDismissed = { removed: made[0].removed };
 }
@@ -122,7 +122,7 @@ const report = {};
 // Storage that throws on access — a private window, or blocked site data.
 // The toast still works; the dismissal simply does not outlive the page.
 {
-  const { made, memory } = run({ toasts: [{ dataset: { toast: "no-google" } }], storageThrows: true });
+  const { made, memory } = run({ toasts: [{ dataset: { toast: "no-sign-in" } }], storageThrows: true });
   made[0].children[0].handlers.click();
   report.storageBlocked = {
     shown: made[0].removed === false,

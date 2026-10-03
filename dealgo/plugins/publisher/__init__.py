@@ -19,7 +19,7 @@ the other end.
 from __future__ import annotations
 
 from .answers import ChannelInfo, PlaylistInfo, PlaylistItem, PublishError, VideoDetails
-from .client import Publisher, cost_of
+from .client import Publisher, cost_of, publishing_plugin
 
 __all__ = [
     "ChannelInfo",
@@ -28,5 +28,6 @@ __all__ = [
     "PlaylistItem",
     "Publisher",
     "PublishError",
+    "publishing_plugin",
     "VideoDetails",
 ]

@@ -69,7 +69,7 @@ def prune(
 
         # De-Algo appends oldest-first, so the front of the playlist is the oldest.
         for item in sorted(items, key=lambda i: i.position)[:overflow]:
-            if not quota.can_afford(session, cost_of("remove"), owner=owner):
+            if not quota.can_afford(session, cost_of("remove")):
                 result.stopped_on_quota = True
                 result.messages.append("Quota ran out before pruning finished.")
                 return
@@ -77,7 +77,7 @@ def prune(
                 client.delete_playlist_item(item.item_id)
             except PublishError as exc:
                 if exc.is_quota_error:
-                    quota.mark_exhausted(session, owner)
+                    quota.mark_exhausted(session)
                     result.stopped_on_quota = True
                     return
                 result.messages.append(f"Could not prune an item from {playlist.title!r}: {exc}")

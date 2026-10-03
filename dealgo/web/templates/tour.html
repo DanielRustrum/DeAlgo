@@ -52,7 +52,7 @@
 
     {% elif current.key == 'feed' %}
       <p>A <strong>feed</strong> is the list De-Algo keeps filled. It can be a real YouTube playlist,
-        or a <strong>generic feed</strong> that lives only here — which needs no Google account and
+        or a <strong>generic feed</strong> that lives only here — which needs no sign-in and
         spends no API quota.</p>
       <p>On <a href="/channels">Configuration</a>, press <strong>New feed</strong> and pick one of
         the three routes.</p>
@@ -78,8 +78,11 @@
       <p>Only needed for feeds backed by a real YouTube playlist, and only to write to it. Without an
         account De-Algo still polls channels, filters them and fills every feed for watching here —
         it simply leaves YouTube alone until you connect, then catches the playlists up.</p>
-      <p>In <a href="/settings">Settings</a>, add a Google OAuth client, then press
-        <strong>Connect YouTube account</strong>. The page shows the exact redirect URI to register.</p>
+      {% set pub = publishing() %}
+      <p>The admin first gives the {{ pub.publisher }} plugin an OAuth client, on its card under
+        Admin → Plugins, which also shows the exact redirect URI to register. Then, in
+        <a href="{{ pub.where }}">Settings</a>, press
+        <strong>Connect {{ pub.service }} account</strong>.</p>
       {% if not progress.has_youtube_feed %}
       <p class="hint">None of your feeds needs this yet — they are all generic.</p>
       {% endif %}

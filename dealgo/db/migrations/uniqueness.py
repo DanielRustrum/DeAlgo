@@ -19,7 +19,6 @@ log = logging.getLogger(__name__)
 _REPLACED_INDEXES: tuple[tuple[str, str, str], ...] = (
     ("channel", "ix_channel_channel_id", "channel_id"),
     ("playlist", "ix_playlist_playlist_id", "playlist_id"),
-    ("quota_usage", "ix_quota_usage_day", "day"),
 )
 
 

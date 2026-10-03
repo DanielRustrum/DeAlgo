@@ -27,7 +27,7 @@ source's page says how long. For Reddit, set a **Mirror** in the source's panel.
 
 ## Items never reach YouTube
 
-- **No Google account**, or its grant expired — see [Connecting YouTube](Connecting%20YouTube.md).
+- **Not signed in to Google** (Settings → Plugins → YouTube), or the grant expired — see [Connecting YouTube](Connecting%20YouTube.md).
 - **Quota spent** — writing resumes after midnight Pacific. See [Quota](Quota.md).
 - **Not a YouTube video** — only YouTube videos can go into a YouTube playlist; others are skipped.
 

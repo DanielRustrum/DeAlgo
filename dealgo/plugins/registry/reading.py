@@ -16,6 +16,7 @@ from ..runtime import PluginError, load
 from .manifest import augmentations_in, declared_in, publisher_in, sources_in, wants_in
 from .offers import Registry
 from .plugin import API, Plugin
+from .connect import connect_in
 from .settings import settings_in
 from .storage import ENTRY, PLAIN, home_of, inside
 
@@ -177,6 +178,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
     try:
         plugin.wants = wants_in(made.get("permissions"))
         plugin.settings = settings_in(made.get("settings"))
+        plugin.connect = connect_in(made.get("connect"), plugin.settings)
         plugin.sources = sources_in(plugin, made.get("sources"))
         plugin.augments = augmentations_in(plugin, declared_in(made))
         plugin.publishes, plugin.costs = publisher_in(made.get("publisher"))
@@ -208,7 +210,9 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
     def able(lua: Any) -> dict[str, object]:
         """The plugin's world with what it was granted."""
         return {
-            **capabilities.granted_to(plugin.title, plugin.granted, http, lua, asked),
+            **capabilities.granted_to(
+                plugin.title, plugin.granted, http, lua, asked, declared=plugin
+            ),
             "settings": capabilities.PluginSettings(plugin),
         }
 
@@ -227,6 +231,9 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
 
     plugin.box = box
     try:
+        # Again, for the refusal function: the first pass's belongs to a
+        # runtime that is no longer this plugin's.
+        plugin.connect = connect_in(made.get("connect"), plugin.settings)
         plugin.sources = sources_in(plugin, made.get("sources"))
         plugin.augments = augmentations_in(plugin, declared_in(made))
         plugin.publishes, plugin.costs = publisher_in(made.get("publisher"))

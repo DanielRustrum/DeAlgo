@@ -21,9 +21,9 @@
       {{ playlist.title }}
       {% if playlist.is_generic %}
         <span class="pill" title="No YouTube playlist behind it">generic</span>
-      {% elif youtube_offline(identity.user_pk if identity else none) %}
+      {% elif publishing_offline(identity.user_pk if identity else none) %}
         <span class="pill pill-dormant"
-              title="No Google account, so this one collects inside De-Algo for now">
+              title="No {{ publishing().service }} account, so this one collects inside De-Algo for now">
           local only</span>
       {% endif %}
       {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
@@ -43,8 +43,8 @@
     <dt>Backed by</dt>
     <dd>
       {% if playlist.url %}<code>{{ playlist.playlist_id }}</code>
-        {% if youtube_offline(identity.user_pk if identity else none) %}
-        <div class="hint">Not being written to: no Google account is connected. New videos
+        {% if publishing_offline(identity.user_pk if identity else none) %}
+        <div class="hint">Not being written to: no {{ publishing().service }} account is connected. New items
           collect in De-Algo and go into the playlist on the first sync after you connect.</div>
         {% endif %}
       {% else %}nothing — videos live in De-Algo only, costing no API quota{% endif %}

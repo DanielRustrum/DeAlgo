@@ -88,8 +88,8 @@ publisher calls. Nested blocks restore the outer owner.
 
 `publisher.Publisher` holds the conversation shape (lookup, read playlist, add, remove, create,
 rename, details). The plugin's `publisher` table builds each request and reads each answer;
-`account.Account` signs it with the owner's OAuth token, charges quota, and refuses any host not in
-`SIGNED_FOR`. The plugin never sees the token. Only a `playlistable` source kind's plugin is asked.
+`account.Account` signs it with the owner's token for that plugin's service, charges its allowance,
+and refuses any host not in the plugin's own `connect.hosts`. The plugin never sees the token. Only a `playlistable` source kind's plugin is asked.
 See [Publishing and Quota](Publishing%20and%20Quota.md).
 
 ## Installing

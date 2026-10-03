@@ -140,14 +140,14 @@ def sweep_expired(
         if not (playlist.is_generic or placement.is_local or not client.has_write_access):
             # A real playlist holds a real item, which has to be taken out of
             # it — and that costs quota like any other write.
-            if not quota.can_afford(session, cost_of("remove"), owner=owner):
+            if not quota.can_afford(session, cost_of("remove")):
                 result.messages.append("Quota ran out before the expired items were cleared.")
                 break
             try:
                 client.delete_playlist_item(placement.playlist_item_id or "")
             except PublishError as exc:
                 if exc.is_quota_error:
-                    quota.mark_exhausted(session, owner)
+                    quota.mark_exhausted(session)
                     result.stopped_on_quota = True
                     break
                 log.warning("could not clear an expired item: %s", exc)

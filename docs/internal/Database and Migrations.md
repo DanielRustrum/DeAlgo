@@ -7,7 +7,8 @@
   timeout, and on every connection `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`.
 - `session_scope()` commits on success, rolls back on error, always closes.
   `expire_on_commit=False`, so objects stay readable after commit.
-- `get_settings(session, owner)` / `get_token(session, owner)` create-or-fetch the owner's row.
+- `get_settings(session, owner)` creates or fetches the owner's row. Tokens are per plugin:
+  `services/connections.get_token(session, owner, plugin_id)`.
 
 SQLite is the supported database. Postgres works through SQLAlchemy in principle, but some
 `VARCHAR` lengths are too short for values the app writes — see [Known Issues](Known%20Issues.md).
@@ -30,6 +31,7 @@ does nothing if already done. Order matters:
 | `feed_windows_become_pieces` | Trigger-into-feed → Timer/Reset pieces under the feed |
 | `plugin_boxes_become_pieces` | Plugin boxes → a Filter carrying a `rule` piece |
 | `rules_become_pieces` | Fields on Filter/Sort boxes → condition pieces (`_RULES_AS_PIECES`, `_SWITCHES_AS_PLUGIN_RULES`) |
+| `youtube_becomes_a_plugin` | Google client id/secret/API key and non-default quota figures (from `settings`, or `DEALGO_CLIENT_ID` etc.) → the YouTube plugin's app settings; `oauth_token.provider` = `youtube`; per-account `quota_usage` → install-wide `allowance_usage` (busiest account's count per day), then the table is dropped |
 | `drop_removed_columns` | Drop `_DROPPED_COLUMNS` — **last**, because earlier steps read them |
 | then | `ensure_admin`, `clear_expired` sessions, `repair_stored_pictures` |
 

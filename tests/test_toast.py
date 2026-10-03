@@ -125,7 +125,7 @@ def test_a_standing_notice_says_which_one_it_is(client, db):
 
     body = client.get("/").text
 
-    assert 'data-toast="no-google"' in body
+    assert 'data-toast="no-sign-in"' in body
 
 
 def test_a_passing_message_is_marked_as_passing(client):
@@ -141,9 +141,9 @@ def test_a_notice_with_nothing_to_say_shows_nothing(client, db):
     """The region is always there, for messages that arrive later. It is what
     is inside it that is conditional."""
     with db.session_scope() as session:
-        session.add(OAuthToken(id=1, access_token="tok", account_title="Someone"))
+        session.add(OAuthToken(provider="youtube", id=1, access_token="tok", account_title="Someone"))
 
     body = client.get("/").text
 
     assert 'class="toasts"' in body
-    assert 'data-toast="no-google"' not in body
+    assert 'data-toast="no-sign-in"' not in body

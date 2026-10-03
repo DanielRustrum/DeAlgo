@@ -23,15 +23,17 @@ De-Algo keeps its own count and stops writing **before** Google refuses — even
 Google rejected. Checking sources and filling De-Algo's own feeds carry on. What was owed to YouTube
 is written after the allowance resets at **midnight Pacific time**.
 
-See today's use under **Settings → How De-Algo spends quota**. A run that stopped on quota says so in
-[the run log](The%20Run%20Log.md).
+See today's use in the YouTube block under **Settings → Plugins**. A run that stopped on quota says
+so in [the run log](The%20Run%20Log.md).
 
-## Quota is per account
+## One allowance for everyone
 
-Each account connects its own Google account and keeps its own count.
+Google's allowance belongs to the **Cloud project**, and every account here signs in through the
+same OAuth client, the one the admin set on the YouTube plugin. So there is one count for the whole
+install: every account spends from it, and each sees the same number.
 
-Google's allowance is per **Cloud project**, though. If several accounts use the same OAuth client,
-they share one 10,000-unit allowance while De-Algo counts each separately — so Google may refuse
-before De-Algo expects. Give each heavy user their own client in Settings to avoid this.
+The admin can change the daily figure and how much is held back from syncing on the plugin's card
+under **Admin → Plugins** (**Daily quota**, **Held back from syncing**), for a project that Google
+has granted more.
 
 **Related:** [Connecting YouTube](Connecting%20YouTube.md) · [Feeds](Nodes/Feeds.md)

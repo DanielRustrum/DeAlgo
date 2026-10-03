@@ -274,7 +274,7 @@ class Placing:
             outcome.landed = True
             return True
 
-        if not quota.can_afford(self.session, cost_of("add"), owner=self.owner):
+        if not quota.can_afford(self.session, cost_of("add")):
             # Stop cleanly on our own ledger rather than being refused, and
             # leave a marker for every playlist this video still owes so the
             # next run finishes the job instead of forgetting it.
@@ -290,7 +290,7 @@ class Placing:
             item_id = self.client.insert_playlist_item(playlist.playlist_id, video.video_id)
         except PublishError as exc:
             if exc.is_quota_error:
-                quota.mark_exhausted(self.session, self.owner)
+                quota.mark_exhausted(self.session)
                 outcome.deferred += defer(self.session, video, targets, placed)
                 self._stop_on_quota(
                     f"YouTube refused further writes: the daily quota is gone. Queued videos "

@@ -11,6 +11,9 @@ os.environ.setdefault("DEALGO_DATA_DIR", "/tmp/dealgo-tests")
 os.environ.pop("DEALGO_CLIENT_ID", None)
 os.environ.pop("DEALGO_CLIENT_SECRET", None)
 os.environ.pop("DEALGO_API_KEY", None)
+# Nor any plugin setting given by the environment.
+for _name in [name for name in os.environ if name.startswith("DEALGO_PLUGIN_")]:
+    os.environ.pop(_name, None)
 
 
 @pytest.fixture

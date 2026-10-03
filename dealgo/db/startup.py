@@ -16,6 +16,7 @@ from .migrations import (
     rules_become_pieces,
     scope_uniqueness_to_owners,
     wires_belong_to_boxes,
+    youtube_becomes_a_plugin,
 )
 
 
@@ -36,6 +37,7 @@ def init_db() -> None:
     feed_windows_become_pieces()
     plugin_boxes_become_pieces()
     rules_become_pieces()
+    youtube_becomes_a_plugin()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     drop_removed_columns()

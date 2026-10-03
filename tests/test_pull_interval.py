@@ -15,7 +15,7 @@ from sqlalchemy import select
 from dealgo.models import Channel, GraphNode, Video, utcnow
 from dealgo.services import sync as sync_service
 from dealgo.plugins.publisher import VideoDetails
-from fakes import MAIN_PLAYLIST, entry
+from fakes import MAIN_PLAYLIST, entry, set_quota
 
 
 def set_pulse(db, minutes: int) -> None:
@@ -92,7 +92,7 @@ def test_waiting_does_not_stall_the_videos_already_queued(world, db):
     two halves of a run are separate, and only the polling half waits."""
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10
-        db.get_settings(session).daily_quota = 60  # room for one insert
+        set_quota(daily=60, session=session)  # room for one insert
     world["entries"] = [entry("v0", 1), entry("v1", 2)]
     world["client"].details = {
         "v0": VideoDetails("v0", "v0", 600, "none", "public"),
@@ -103,7 +103,7 @@ def test_waiting_does_not_stall_the_videos_already_queued(world, db):
 
     set_pulse(db, 1440)
     with db.session_scope() as session:
-        db.get_settings(session).daily_quota = 10000
+        set_quota(daily=10000, session=session)
 
     second = sync_service.run_sync()
 

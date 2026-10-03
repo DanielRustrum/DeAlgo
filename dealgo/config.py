@@ -28,9 +28,6 @@ class Config:
     host: str
     port: int
     public_url: str
-    client_id: str
-    client_secret: str
-    api_key: str
     log_level: str
     # The admin account, and the only account defined outside the database.
     # Setting both is what switches authentication on at all.
@@ -40,7 +37,12 @@ class Config:
 
     @property
     def redirect_uri(self) -> str:
-        """Where Google sends the browser back to after consent."""
+        """Where a service sends the browser back to after a sign-in.
+
+        One address for every plugin's service: which sign-in it was is in
+        the `state` the host made, not in the path, so the address registered
+        with a service never has to change.
+        """
         return f"{self.public_url.rstrip('/')}/oauth/callback"
 
     @property
@@ -77,9 +79,6 @@ def load_config() -> Config:
         host=os.getenv("DEALGO_HOST", "0.0.0.0"),
         port=port,
         public_url=os.getenv("DEALGO_PUBLIC_URL", f"http://localhost:{port}"),
-        client_id=os.getenv("DEALGO_CLIENT_ID", ""),
-        client_secret=os.getenv("DEALGO_CLIENT_SECRET", ""),
-        api_key=os.getenv("DEALGO_API_KEY", ""),
         log_level=os.getenv("DEALGO_LOG_LEVEL", "INFO").upper(),
         admin_user=os.getenv("DEALGO_ADMIN_USER", "").strip(),
         admin_password=os.getenv("DEALGO_ADMIN_PASSWORD", ""),

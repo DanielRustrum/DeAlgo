@@ -9,14 +9,14 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from ... import scheduler
-from ...config import CONFIG
 from ...db import get_settings, session_scope
 from ...services import backup as backup_service
 from ..responses import owner_of, redirect, render
 
 if TYPE_CHECKING:
     pass
-from ..contexts import connection_state, playlist_context, quota_context
+from ..contexts import connection_state, playlist_context
+from .connections import connection_view
 from .plugin_settings import user_settings_panels
 
 router = APIRouter()
@@ -24,35 +24,34 @@ router = APIRouter()
 
 @router.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request) -> HTMLResponse:
-    """The Settings page: the Google connection, quota and backups."""
+    """The Settings page: preferences, each plugin's own block, and backups."""
     owner = owner_of(request)
     with session_scope() as session:
+        panels = user_settings_panels(owner)
+        for panel in panels:
+            # Its sign-in, where its service has one: connected or not, and
+            # what is left of its allowance today.
+            panel["connection"] = connection_view(session, owner, panel["plugin"])
         context = {
-            **quota_context(session, owner),
             "state": connection_state(session, owner),
             "settings": get_settings(session, owner),
-            "env_client_id": bool(CONFIG.client_id),
-            "env_client_secret": bool(CONFIG.client_secret),
-            "env_api_key": bool(CONFIG.api_key),
-            "redirect_uri": CONFIG.redirect_uri,
             "next_run": scheduler.next_run_time(),
             # Feeds backed by a real YouTube playlist are made here: the
             # canvas makes the ones that live inside De-Algo.
             **playlist_context(session, owner=owner),
-            # What each switched-on plugin lets this account set for itself.
-            "plugin_panels": user_settings_panels(owner),
+            # What each switched-on plugin lets this account set for itself,
+            # and its sign-in where it has one.
+            "plugin_panels": panels,
         }
     return render(request, "settings.html", context)
 
 
 @router.post("/settings")
 def save_settings(
+    request: Request,
     hide_tour: str = Form(""),
     hide_open_notice: str = Form(""),
     hide_connect_notice: str = Form(""),
-    client_id: str = Form(""),
-    client_secret: str = Form(""),
-    api_key: str = Form(""),
 ) -> RedirectResponse:
     """What is left to set here, which is what the canvas cannot say.
 
@@ -64,13 +63,10 @@ def save_settings(
     setting on every save, and an absent checkbox would switch polling off.
     """
     with session_scope() as session:
-        settings = get_settings(session)
+        settings = get_settings(session, owner_of(request))
         settings.hide_tour = bool(hide_tour)
         settings.hide_open_notice = bool(hide_open_notice)
         settings.hide_connect_notice = bool(hide_connect_notice)
-        settings.client_id = client_id.strip() or None
-        settings.client_secret = client_secret.strip() or None
-        settings.api_key = api_key.strip() or None
     scheduler.reschedule()
     return redirect("/settings", ok="Settings saved.")
 

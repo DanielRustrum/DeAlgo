@@ -12,7 +12,8 @@
 
   {% if not state.connected %}
   <p class="hint">
-    Connect a Google account above to write feeds to real YouTube playlists.
+    Connect a {{ state.service }} account under <a href="/settings#plugin-{{ state.plugin_id }}">Plugins</a>
+    to write feeds to real {{ state.publisher }} playlists.
     Without one, the feeds you draw on the
     <a href="/channels">Configuration</a> canvas collect inside De-Algo.
   </p>

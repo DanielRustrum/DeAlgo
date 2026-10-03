@@ -63,8 +63,8 @@ de-duplicated, capped at 10; first that parses as a feed wins.
 files and running unpacked size against limits before reading each.
 
 ## Quota day
-`quota.quota_day` · the current date in `America/Los_Angeles`; `next_reset` is the next Pacific
-midnight in UTC.
+`quota.quota_day` · the current date in the plugin's `allowance.timezone` (YouTube's:
+`America/Los_Angeles`); `next_reset` is the next midnight there, in UTC.
 
 ## Password and key derivation
 scrypt (`hashlib.scrypt`) for passwords (N = 2¹⁴) and migration keys (N = 2¹⁵); SHA-256 for

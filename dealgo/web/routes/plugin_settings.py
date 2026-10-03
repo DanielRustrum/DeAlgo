@@ -47,13 +47,18 @@ def settings_view(plugin: Plugin, scope: str, owner: OwnerId = None) -> list[Con
                     setting.default if value is None else value
                 ),
                 "is_set": bool(value),
+                # Given by the environment while nothing is saved here.
+                "env": plugin_settings.env_name(plugin.id, setting.name) if scope == "app" else "",
+                "from_env": scope == "app" and not value
+                and bool(plugin_settings.from_env(plugin.id, setting.name)),
             }
         )
     return shown
 
 
 def user_settings_panels(owner: OwnerId) -> list[Context]:
-    """Every switched-on plugin with settings of its own for this account.
+    """Every switched-on plugin with something for this account: settings of
+    its own, or a service to sign in to.
 
     Switched-off plugins are left out: their settings would change nothing
     until the admin turns them back on, and a form that does nothing is a
@@ -62,7 +67,7 @@ def user_settings_panels(owner: OwnerId) -> list[Context]:
     return [
         {"plugin": plugin, "fields": settings_view(plugin, "user", owner)}
         for plugin in registry.current().plugins
-        if plugin.ok and plugin.settings.user
+        if plugin.ok and (plugin.settings.user or plugin.connect is not None)
     ]
 
 

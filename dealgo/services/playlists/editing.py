@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ...models import GENERIC_PLAYLIST_PREFIX, Placement, Playlist
 from ...plugins.publisher import PublishError
-from ..auth import build_client
+from ..connections import build_client
 from .listing import PlaylistError
 
 

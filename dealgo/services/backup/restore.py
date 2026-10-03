@@ -93,10 +93,6 @@ def _restore_settings(session: Session, payload: dict[str, Any]) -> None:
         if hasattr(settings, key) and key not in ("id", "updated_at"):
             setattr(settings, key, value)
 
-    for key, value in (payload.get("credentials") or {}).items():
-        if key in ("client_id", "client_secret", "api_key") and value:
-            setattr(settings, key, value)
-
 
 def _restore_feeds(
     session: Session, payload: dict[str, Any], owner: OwnerId, summary: RestoreSummary

@@ -19,11 +19,11 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from ..models import (
     Channel,
+    OAuthToken,
     GraphEdge,
     GraphNode,
     Playlist,
     PluginUserSetting,
-    QuotaUsage,
     RepositoryItem,
     RunEvent,
     Settings,
@@ -34,8 +34,8 @@ from ..models import (
 # Anything with an owner. Listed rather than inferred, so adding a table is a
 # deliberate decision about who it belongs to.
 Owned = (
-    Channel | Playlist | Video | Settings | SyncRun | QuotaUsage | GraphNode | GraphEdge
-    | RunEvent | RepositoryItem | PluginUserSetting
+    Channel | Playlist | Video | Settings | SyncRun | GraphNode | GraphEdge
+    | RunEvent | RepositoryItem | PluginUserSetting | OAuthToken
 )
 
 # A select of anything: one column, several, or a count. The rows it yields

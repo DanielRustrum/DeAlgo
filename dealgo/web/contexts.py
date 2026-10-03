@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from .. import outgoing
-from ..db import get_token
 from ..models import (
     Channel,
     GraphNode,
@@ -27,19 +26,17 @@ from ..services import graph as graph_service
 from ..services import playlists as playlist_service
 from ..services import quota as quota_service
 from ..services import watched as watched_service
-from ..services.auth import (
-    build_client,
-    has_client_credentials,
-)
+from ..plugins.publisher import publishing_plugin
+from ..services import connections
+from ..services.connections import build_client
 from ..services.scope import OwnerId, belongs_to, owned
 from .responses import redirect
 from .templates import Context
 
 
-def quota_context(session: Session, owner: OwnerId = None) -> Context:
-    """This account's quota. Each account keeps its own ledger, so reading the
-    default owner's here showed every signed-in account an untouched day."""
-    state = quota_service.state(session, owner)
+def quota_context(session: Session) -> Context:
+    """The publishing service's allowance today: one ledger for the install."""
+    state = quota_service.state(session)
     return {"quota": state, "quota_resets_in": quota_service.describe_reset()}
 
 
@@ -202,7 +199,7 @@ def playlist_context(
     session: Session, creating: bool = False, *, owner: OwnerId = None
 ) -> Context:
     """Everything the targets panel needs, including the account's own lists."""
-    state = connection_state(session)
+    state = connection_state(session, owner)
     available: list[PlaylistInfo] = []
     error: str | None = None
     if state["connected"]:
@@ -220,14 +217,27 @@ def playlist_context(
 
 
 def connection_state(session: Session, owner: OwnerId = None) -> Context:
-    """The Google connection as Settings shows it: account, client, and feeds."""
-    token = get_token(session, owner)
+    """The sign-in feeds are published through, and the feeds themselves.
+
+    About the plugin that publishes, whichever that is: what its service is
+    called, whether the admin has given it an OAuth client, and whether this
+    account has signed in.
+    """
+    plugin = publishing_plugin()
+    connect = plugin.connect if plugin is not None else None
+    token = connections.publisher_token(session, owner) if connect else None
     return {
+        # Which plugin, and what its service is called, for every sentence
+        # that has to name them: "Connect your Google account".
+        "plugin_id": plugin.id if plugin is not None else "",
+        "publisher": plugin.title if plugin is not None else "",
+        "service": connect.name if connect is not None else "",
+        "can_connect": connect is not None,
         "connected": token is not None,
         "account": token.account_title if token else None,
         "needs_reconnect": bool(token and token.refresh_error),
         "reconnect_reason": token.refresh_error if token else None,
-        "has_client": has_client_credentials(session, owner),
+        "has_client": bool(plugin and connections.has_client_credentials(plugin)),
         "playlists": playlist_service.list_playlists(session, owner),
         "playlist_counts": playlist_service.item_counts(session, owner),
         "has_targets": bool(

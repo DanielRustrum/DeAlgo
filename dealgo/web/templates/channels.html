@@ -13,20 +13,25 @@
 {# Setup that is not drawable. Everything else on this page is a box and a
    wire; these are the things that have to be true before any of it can
    reach YouTube, and this is where somebody would be when they find out. #}
-{% if not state.has_client %}
+{% if not state.can_connect %}
+{# No plugin publishes, or the one that does needs no sign-in: nothing to say. #}
+{% elif not state.has_client %}
 <div class="banner">
-  <strong>Almost there.</strong> De-Algo can already watch channels, but it needs a Google OAuth client
-  to write to a playlist. <a href="/settings">Set that up in Settings →</a>
+  <strong>Almost there.</strong> De-Algo can already watch sources, but writing to a
+  {{ state.publisher }} playlist needs an OAuth client, which the admin sets on the
+  {{ state.publisher }} plugin's card under Admin → Plugins.
 </div>
 {% elif state.needs_reconnect %}
 <div class="banner">
-  <strong>Google needs you to sign in again.</strong> Videos are still being queued, but nothing can
-  reach the playlist until the account is reconnected. <a href="/settings">Reconnect in Settings →</a>
+  <strong>{{ state.service }} needs you to sign in again.</strong> Items are still being queued, but
+  nothing can reach the playlist until the account is reconnected.
+  <a href="/settings#plugin-{{ state.plugin_id }}">Reconnect in Settings →</a>
 </div>
 {% elif not state.connected and show_connect_notice %}
 <div class="banner">
-  <strong>Connect your YouTube account</strong> so De-Algo can add videos to a playlist on your behalf.
-  <a href="/settings">Connect in Settings →</a>
+  <strong>Connect your {{ state.service }} account</strong> so De-Algo can add items to a
+  {{ state.publisher }} playlist on your behalf.
+  <a href="/settings#plugin-{{ state.plugin_id }}">Connect in Settings →</a>
 </div>
 {% endif %}
 

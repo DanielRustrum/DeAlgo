@@ -1,7 +1,7 @@
 # Known Issues
 
-What is wrong or missing as of 2026-10-02, most serious first. Each says where, what happens, and
-the likely fix.
+What is wrong or missing as of 2026-10-03, most serious first. Each says where, what happens, and
+the likely fix. Numbers are kept when an issue is fixed, so references to them stay right.
 
 ## Account separation
 
@@ -16,15 +16,11 @@ The canvas routes are scoped and tested; these older ones are not.
 **Fix:** look rows up with `owned(...)` (a small `owned_get(session, Model, id, owner)` helper), and
 add a tenancy test per route that tries another account's id.
 
-### 2. Google disconnect, connect and quota use the implicit owner
-- `oauth_disconnect` → `auth.disconnect()` takes no owner: a member's *Disconnect* revokes and
-  deletes the implicit owner's Google grant, not their own.
-- `oauth_start` and `oauth_callback` read the implicit owner's client id and secret, and the
-  callback names the connected account using the implicit owner's token.
-- Removing watched items and renaming a YouTube playlist check and mark the implicit owner's
-  quota (`services/watched.py`, `services/playlists/editing.py`).
-- `sync.placements.still_queued` counts waiting items across every account (only in a message).
-**Fix:** pass `owner` through each call; add tenancy tests.
+### 2. One message counts every account's queue
+Signing in, disconnecting and the allowance were fixed when sign-in moved into plugins: each acts for
+the signed-in account, and the allowance is the install's by design. What is left:
+`sync.placements.still_queued` counts waiting items across every account (only in a message).
+**Fix:** pass `owner` through; add a tenancy test.
 
 ### 3. The YouTube playlist cache is shared between accounts
 `web/contexts.py` caches the connected account's YouTube playlists in one module-level slot for two
@@ -36,12 +32,22 @@ playlists.
 
 `services/backup/` — `build_export` and `restore` call `get_settings(session)` with no owner. A
 member's export carries the **implicit owner's** settings, and a member's restore **overwrites** them
-(`auto_sync`, `poll_interval_minutes` — the instance heartbeat — quota numbers, and, from older files,
-Google client id/secret/API key). Breaks account separation.
+(`auto_sync`, `poll_interval_minutes` — the instance heartbeat). Breaks account separation. Credentials
+and quota figures are no longer touched: they are plugins' settings for everyone now, and a restore
+never writes those.
 **Fix:** pass `owner` to `get_settings` in both; stop restoring instance-wide fields from a
 per-account file; add a tenancy test.
 
 ## Correctness and data
+
+### 26. Settings rows multiply on every restart
+`web/responses.notices()` (every page render) and other calls read `get_settings(session)` with no
+owner, which makes an implicit-owner row when there is none. With sign-in on, `adopt_unowned` hands
+every implicit-owner `settings` row to the admin on each start, so the admin gains a duplicate row per
+restart (a live database had 160). `get_settings` reads the first, so nothing visible breaks yet.
+**Fix:** read the signed-in owner's settings in `notices()`; give `settings` a unique owner index and
+delete duplicates in a migration; have `adopt_unowned` drop implicit settings rows the admin already
+has, as it does for `oauth_token`.
 
 ### 5. Per-account backups predate the canvas
 `services/backup/` exports no nodes, wires, pieces, triggers or positions, and no `source_kind`,
@@ -108,22 +114,13 @@ Passwords are scrypt-hashed, but attempts are not throttled or locked out.
 No CSP, `X-Frame-Options` or `X-Content-Type-Options`. No CSRF tokens; `SameSite=Lax` cookies are
 the only defence for POSTs.
 
-### 20. Google tokens and client secrets stored in plaintext
-In `oauth_token` and `settings`. The data volume must be protected.
+### 20. Sign-in tokens and plugin secrets stored in plaintext
+In `oauth_token` and `plugin_app_setting`. The data volume must be protected.
 
 ## Plugins
 
-### 21. A plugin is one file
-The loader runs only `plugin.lua`, and the sandbox has no `require`, so a plugin cannot be split into
-modules: the shipped YouTube plugin is 683 lines in one file.
-**Fix:** a sandboxed `require` that loads only text files from the plugin's own folder, into the
-same environment and under the same ceilings.
-
-### 22. Account capability is Google-only, and there is one publisher
-`account.send` signs only Google API hosts; only one `playlistable` plugin can publish.
-
-### 23. Shared Google project quota
-Quota is counted per account, but accounts using the same Google project share Google's real limit.
+### 22. There is one publisher
+Any plugin can declare a sign-in (`connect`), but only one `playlistable` plugin can publish feeds.
 
 ### 24. Abandoned fetches are not swept
 A fetched plugin left unconfirmed stays in `plugins/.staged/` until the next fetch of the same id.

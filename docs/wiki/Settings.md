@@ -2,35 +2,31 @@
 
 Each account has its own Settings.
 
-## Google account
-
-**Connect YouTube account**, **Reconnect** after a grant expires, or **Disconnect**. Disconnecting
-keeps your history and stops writing to playlists. See [Connecting YouTube](Connecting%20YouTube.md).
-
-The exact redirect URI to register with Google is shown here, with a copy button.
-
 ## Preferences
 
 **This interface**
 
 - **Hide the Tour button.** The tour stays at `/tour`.
 - **Hide the "no sign-in required" notice** shown when no admin is set.
-- **Hide the "connect a Google account" notices.**
+- **Hide the "connect a … account" notices**, when a plugin you publish through needs a sign-in.
 
 These hide notices only, never the problems they describe.
 
-**Google API credentials** — client id, client secret and an optional API key. Values set by
-environment variables are used when these are blank. See
-[Environment Variables](Environment%20Variables.md).
-
 ## Plugins
 
-Some plugins have settings each account sets for itself. Each such plugin has its own block here,
-marked with its badge and colour, the same as on its card under Admin → Plugins. Your values are
-yours; changing them changes nothing for anyone else. Plugins the admin has switched off are not
-listed.
+A block for each plugin that has something for you: a service to sign in to, or settings each
+account sets for itself. Each is marked with the plugin's badge and colour, the same as on its card
+under Admin → Plugins. Your values and sign-ins are yours; changing them changes nothing for anyone
+else. Plugins the admin has switched off are not listed.
 
-Settings that apply to everyone are the admin's, on the plugin's card under Admin → Plugins.
+**Signing in.** A plugin that writes back to its service as you — YouTube, filling playlists — has
+**Connect … account**, **Reconnect** after a grant expires, and **Disconnect**. Disconnecting keeps
+your history and stops writing to that service. Where the service has a daily allowance, the block
+shows how much of it is spent today, for everyone on this De-Algo. See
+[Connecting YouTube](Connecting%20YouTube.md) and [Quota](Quota.md).
+
+Settings that apply to everyone, such as a plugin's OAuth client, are the admin's, on the plugin's
+card under Admin → Plugins.
 
 ## Feeds on YouTube
 
@@ -41,10 +37,6 @@ Make a feed backed by a new or existing YouTube playlist. Needs a connected acco
 Download or load a setup file. See [Backup and Restore](Backup%20and%20Restore.md) — and read what it
 does not include.
 
-## How De-Algo spends quota
-
-Today's quota use and when it resets. See [Quota](Quota.md).
-
 ## Fixed values
 
 These used to be settings and now keep their defaults:
@@ -54,7 +46,5 @@ These used to be settings and now keep their defaults:
 | How often De-Algo wakes to check [triggers](Nodes/Triggers.md) | 30 minutes |
 | Items taken from a new source when no backfill is given | 3 |
 | Longest video counted as a Short when the feed does not say | 60 seconds |
-| Daily YouTube quota | 10,000 units |
-| Quota held back for manual removals | 0 |
 
 **Related:** [Accounts](Accounts.md) · [Quota](Quota.md)

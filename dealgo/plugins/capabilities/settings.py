@@ -55,5 +55,7 @@ class PluginSettings:
         declared = self._plugin.settings.named(scope, name)
         if declared is None:
             return None
+        if scope == "app":
+            return declared.read(plugin_settings.app_value(self._plugin.id, name))
         stored = plugin_settings.stored(self._plugin.id, scope, owner)
         return declared.read(stored.get(name))

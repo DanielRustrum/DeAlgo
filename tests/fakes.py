@@ -212,3 +212,43 @@ def use_config(monkeypatch, config):
     for name, module in list(sys.modules.items()):
         if (name == "dealgo" or name.startswith("dealgo.")) and hasattr(module, "CONFIG"):
             monkeypatch.setattr(module, "CONFIG", config)
+
+
+def set_quota(*, daily: int | None = None, reserve: int | None = None, session=None) -> None:
+    """Set the YouTube plugin's allowance, which are its settings for everyone now.
+
+    Inside an open `session_scope`, pass its `session`: a second session
+    writing while the first holds the database would wait on a lock. The
+    value is then seen once that session commits.
+    """
+    from sqlalchemy import select
+
+    from dealgo.models import PluginAppSetting
+    from dealgo.services import plugin_settings
+
+    values = {}
+    if daily is not None:
+        values["daily_quota"] = str(daily)
+    if reserve is not None:
+        values["quota_reserve"] = str(reserve)
+    if session is None:
+        plugin_settings.save("youtube", "app", None, values)
+        return
+    for name, value in values.items():
+        key = plugin_settings.key_for("youtube", name)
+        row = session.scalar(select(PluginAppSetting).where(PluginAppSetting.key == key))
+        if row is None:
+            session.add(PluginAppSetting(key=key, value=value))
+        else:
+            row.value = value
+    session.flush()
+    plugin_settings.drop_held()
+
+
+def give_youtube_a_client() -> None:
+    """The admin's half of signing in: an OAuth client on the YouTube plugin."""
+    from dealgo.services import plugin_settings
+
+    plugin_settings.save(
+        "youtube", "app", None, {"client_id": "client-id", "client_secret": "secret"}
+    )

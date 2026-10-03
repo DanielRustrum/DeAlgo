@@ -10,11 +10,13 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
 from .. import __version__, sources
-from ..db import get_token, session_scope
+from ..db import session_scope
 from ..models import (
     GENERIC_PLAYLIST_PREFIX,
     Playlist,
 )
+from ..plugins.publisher import publishing_plugin
+from ..services import connections
 from ..services import graph as graph_service
 from ..services.filters import format_duration
 from ..services.scope import OwnerId, owned
@@ -168,18 +170,36 @@ TEMPLATES.env.filters["duration"] = format_duration
 
 # Bound late: the function is defined further down, and the template calls it
 # with the owner the page belongs to.
-TEMPLATES.env.globals["youtube_offline"] = lambda owner=None: youtube_offline(owner)
+TEMPLATES.env.globals["publishing_offline"] = lambda owner=None: publishing_offline(owner)
+TEMPLATES.env.globals["publishing"] = lambda: publishing_names()
 
 
-def youtube_offline(owner: OwnerId = None) -> Context | None:
-    """The state where Google is not available: no usable account, but feeds
-    that point at a YouTube playlist.
+def publishing_names() -> Context:
+    """What to call the plugin feeds are published through, and its service.
+
+    For the sentences that have to name them — "Connect your Google account",
+    "Open on YouTube" — whichever plugin that is. Empty strings when no
+    plugin publishes.
+    """
+    plugin = publishing_plugin()
+    connect = plugin.connect if plugin is not None else None
+    return {
+        "plugin_id": plugin.id if plugin is not None else "",
+        "publisher": plugin.title if plugin is not None else "",
+        "service": connect.name if connect is not None else "",
+        "where": f"/settings#plugin-{plugin.id}" if plugin is not None else "/settings",
+    }
+
+
+def publishing_offline(owner: OwnerId = None) -> Context | None:
+    """The state where nothing can be published: no usable sign-in, but feeds
+    that point at a playlist on the publishing plugin's service.
 
     Registered as a template global rather than threaded through every context,
     because the htmx fragments render outside `render()` and need it too.
     """
     with session_scope() as session:
-        token = get_token(session, owner)
+        token = connections.publisher_token(session, owner)
         if token is not None and not token.refresh_error:
             return None
         feeds = session.scalar(

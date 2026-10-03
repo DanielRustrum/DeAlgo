@@ -66,3 +66,12 @@
 .plugin-setting.is-toggle { grid-column: 1 / -1; }
 .plugin-setting .check { display: flex; font-size: 14px; }
 .plugin-setting-clear { font-size: 12.5px !important; color: var(--muted) !important; }
+
+/* A plugin's sign-in, in its block under Settings: the state, the button,
+   and its allowance meter. */
+.plugin-connection { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.plugin-connection .row-buttons { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plugin-connection .connected { margin: 0; }
+.plugin-connection > .btn { align-self: flex-start; }
+.plugin-connection .quota { max-width: 420px; }
+.plugin-connection .hint { margin: 0; }

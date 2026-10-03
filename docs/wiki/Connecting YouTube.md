@@ -4,21 +4,25 @@ Optional. De-Algo reads every source — YouTube included — without any Google
 one to **write**: to fill real YouTube playlists, read video lengths and view counts, and look up
 channels by `@handle`.
 
-Each account connects its own Google account.
+All of this is the YouTube plugin's. The admin gives it a Google OAuth client once, for the whole
+install; then each account signs in with its own Google account.
 
-## Set up a Google OAuth client
+## The admin: set up a Google OAuth client
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable
    **YouTube Data API v3**.
 2. Create an OAuth client of type **Web application**.
 3. Add an **Authorized redirect URI**: your `DEALGO_PUBLIC_URL` plus `/oauth/callback`, e.g.
-   `http://localhost:8080/oauth/callback`. It must match character for character. Settings shows
-   the exact string with a copy button.
-4. Put the client id and secret in **Settings → Google API credentials** (or in
-   `DEALGO_CLIENT_ID` / `DEALGO_CLIENT_SECRET`).
-5. Press **Connect YouTube account** in Settings.
+   `http://localhost:8080/oauth/callback`. It must match character for character. The YouTube
+   plugin's card under **Admin → Plugins** shows the exact string, with a copy button.
+4. On that card, under **Settings for everyone**, enter the client id and secret, and optionally an
+   API key. They can also come from the environment: `DEALGO_PLUGIN_YOUTUBE_CLIENT_ID`,
+   `DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET`, `DEALGO_PLUGIN_YOUTUBE_API_KEY`.
 
-The grant is kept, so you do this once.
+## Each account: sign in
+
+Under **Settings → Plugins**, the YouTube block has **Connect Google account**. The grant is kept,
+so you do this once.
 
 ## Making a feed that writes to YouTube
 
@@ -40,7 +44,8 @@ In **Testing** mode Google expires the grant after seven days. Publish the conse
 that. A personal app stays unverified, so Google shows an "unverified app" warning once —
 choose *Advanced → Go to De-Algo*.
 
-When a grant dies, De-Algo says so in Settings and on the Configuration page. Items keep collecting
+When a grant dies, De-Algo says so in the YouTube block under Settings and on the Configuration
+page. Items keep collecting
 inside De-Algo and are written to YouTube after you reconnect.
 
 ## Without an account

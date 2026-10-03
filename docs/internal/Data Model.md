@@ -8,7 +8,7 @@ User ─< LoginSession
 
   owner_pk on every table below (NULL = the implicit owner)
 
-Settings (one per owner)        OAuthToken (one per owner)       QuotaUsage (per owner per day)
+Settings (one per owner)        OAuthToken (per owner per plugin)   PluginUserSetting (per owner)
 
 Channel ─< Video ─< Placement >─ Playlist
    │ ╲                              │
@@ -19,7 +19,7 @@ GraphNode ─< GraphEdge (source_pk → target_pk)
    │
 RepositoryItem >─ Video
 
-SyncRun ─< RunEvent           PluginState (install-wide, no owner)
+SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (install-wide, no owner)
 ```
 
 ## Tables
@@ -28,8 +28,8 @@ SyncRun ─< RunEvent           PluginState (install-wide, no owner)
 | --- | --- | --- |
 | `user` | An account | `username`, `password_hash` (scrypt), `is_admin`, `enabled` |
 | `login_session` | A signed-in browser | `token_hash` (SHA-256 of the cookie), `expires_at` |
-| `settings` | One owner's settings | `initial_backfill`, `shorts_max_seconds`, `daily_quota`, `quota_reserve`, Google client id/secret/API key, tour flags |
-| `oauth_token` | One owner's Google grant | `access_token`, `refresh_token`, `expires_at`, `refresh_error` |
+| `settings` | One owner's settings | `initial_backfill`, `shorts_max_seconds`, `post_seconds`, notice flags |
+| `oauth_token` | One owner's sign-in to one plugin's service | `provider` (plugin id), `access_token`, `refresh_token`, `expires_at`, `refresh_error`, `account_title` |
 | `channel` | A source | `channel_id` (the key a plugin resolved), `source_kind`, `source_url`, `mirror_url`, legacy filter columns, `last_checked_at`, `enabled` |
 | `playlist` | A feed | `playlist_id` (YouTube id, or `generic:…` for De-Algo feeds), `max_items`, `max_per_run`, `view_order`, `view_show` |
 | `video` | An item | `video_id`, `kind` (`video`/`post`/`link`), `status` (`pending`/`added`/`skipped`/`ignored`/`failed`), `tags`, `view_seconds`, `view_locked`, `watched_at` |
@@ -37,7 +37,9 @@ SyncRun ─< RunEvent           PluginState (install-wide, no owner)
 | `graph_node` | A box or piece on the canvas | `kind`, `x`/`y`, `enabled`, `channel_pk`/`playlist_pk`, `attached_to`, per-kind columns |
 | `graph_edge` | A wire | `source_pk` → `target_pk` |
 | `repository_item` | An item waiting in a named repository | `name` (normalised), `video_pk`, `deposited_by` |
-| `quota_usage` | Units spent on one Pacific day | `day`, `units`, `exhausted_at` |
+| `allowance_usage` | Units spent against one plugin's service on its day (install-wide) | `provider`, `day`, `units`, `exhausted_at` |
+| `plugin_app_setting` | A plugin's setting for everyone | `key` (`<plugin>:<name>`), `value` |
+| `plugin_user_setting` | A plugin's setting for one owner | `key`, `value` |
 | `sync_run` | One run | counts, `trigger`, `forced`, `ok`, `quota_spent` |
 | `run_event` | One line of a run's log | `seq`, `level`, `stage`, `about`, `message` |
 | `plugin_state` | Admin decisions about a plugin | `plugin_id`, `enabled`, `granted` (JSON), `origin`, `origin_ref`, `fetched_at` |

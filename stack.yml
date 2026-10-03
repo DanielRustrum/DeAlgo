@@ -21,9 +21,11 @@ services:
       # Must be the URL people actually open, and <this>/oauth/callback must be
       # an authorized redirect URI on the Google OAuth client.
       DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
-      DEALGO_CLIENT_ID: ${DEALGO_CLIENT_ID:-}
-      DEALGO_CLIENT_SECRET: ${DEALGO_CLIENT_SECRET:-}
-      DEALGO_API_KEY: ${DEALGO_API_KEY:-}
+      # The YouTube plugin's settings for everyone, if you would rather set
+      # them here than on its card under Admin -> Plugins.
+      DEALGO_PLUGIN_YOUTUBE_CLIENT_ID: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_ID:-}
+      DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
+      DEALGO_PLUGIN_YOUTUBE_API_KEY: ${DEALGO_PLUGIN_YOUTUBE_API_KEY:-}
       DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
       TZ: ${TZ:-UTC}
 

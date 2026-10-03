@@ -9,6 +9,7 @@ again is always safe. `startup.init_db` says the order, which matters.
 from __future__ import annotations
 
 from .columns import add_missing_columns, drop_removed_columns
+from .connections import youtube_becomes_a_plugin
 from .feeds import migrate_single_playlist, rename_local_feed_prefix
 from .pieces import feed_windows_become_pieces, plugin_boxes_become_pieces, rules_become_pieces
 from .uniqueness import rebuild_video_uniqueness, scope_uniqueness_to_owners
@@ -26,4 +27,5 @@ __all__ = [
     "rules_become_pieces",
     "scope_uniqueness_to_owners",
     "wires_belong_to_boxes",
+    "youtube_becomes_a_plugin",
 ]

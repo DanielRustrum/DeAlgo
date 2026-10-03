@@ -1,21 +1,22 @@
-{# Shown wherever feeds are: De-Algo works without Google, but the YouTube
+{# Shown wherever feeds are: De-Algo works without a sign-in, but the
    playlists behind these feeds are not being touched, and it should never be
    a surprise which state you are in. #}
-{% set offline = youtube_offline(identity.user_pk if identity else none) if show_connect_notice else none %}
+{% set offline = publishing_offline(identity.user_pk if identity else none) if show_connect_notice else none %}
 {% if offline %}
-<div class="toast toast-warn" data-toast="no-google">
+{% set pub = publishing() %}
+<div class="toast toast-warn" data-toast="no-sign-in">
   <strong>
     {% if offline.stale %}
-      The Google account needs reconnecting.
+      The {{ pub.service }} account needs reconnecting.
     {% else %}
-      No Google account is connected.
+      No {{ pub.service }} account is connected.
     {% endif %}
   </strong>
-  {{ offline.feeds }} {{ 'feed points' if offline.feeds == 1 else 'feeds point' }} at a YouTube playlist.
+  {{ offline.feeds }} {{ 'feed points' if offline.feeds == 1 else 'feeds point' }} at a {{ pub.publisher }} playlist.
   Until an account is connected they behave like generic feeds:
-  new videos collect inside De-Algo and are watchable here, but nothing is added to,
-  or removed from, YouTube. Whatever collects meanwhile is added to the playlists on the
+  new items collect inside De-Algo and are watchable here, but nothing is added to,
+  or removed from, {{ pub.publisher }}. Whatever collects meanwhile is added to the playlists on the
   first sync after you connect.
-  <a href="/settings">Settings →</a>
+  <a href="{{ pub.where }}">Settings →</a>
 </div>
 {% endif %}

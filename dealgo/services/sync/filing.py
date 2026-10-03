@@ -110,7 +110,7 @@ def _details_for(
     """
     details: dict[str, VideoDetails] = {}
     clips = [v.video_id for v in pending if v.kind == "video"]
-    if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True, owner=owner):
+    if clips and client.can_read and quota.can_afford(session, 1, use_reserve=True):
         try:
             details = client.video_details(clips)
         except PublishError as exc:

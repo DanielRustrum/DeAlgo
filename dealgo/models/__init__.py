@@ -21,7 +21,7 @@ from .item import Video
 from .oauth import OAuthToken
 from .placement import Placement
 from .plugin import PluginAppSetting, PluginState, PluginUserSetting
-from .quota import QuotaUsage
+from .quota import AllowanceUsage
 from .repository import RepositoryItem
 from .run import RunEvent, SyncRun
 from .settings import Settings
@@ -42,10 +42,10 @@ __all__ = [
     "OFFLINE_ITEM_PREFIX",
     "Placement",
     "Playlist",
+    "AllowanceUsage",
     "PluginAppSetting",
     "PluginState",
     "PluginUserSetting",
-    "QuotaUsage",
     "RepositoryItem",
     "RunEvent",
     "Settings",

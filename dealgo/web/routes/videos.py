@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from ...db import get_token, session_scope
+from ...db import session_scope
 from ...models import (
     Channel,
     Placement,
@@ -18,6 +18,7 @@ from ...models import (
     Video,
 )
 from ...services import channels as channel_service
+from ...services import connections
 from ...services import sync as sync_service
 from ...services import watched as watched_service
 from ...services.scope import owned
@@ -209,7 +210,7 @@ def remove_watched(request: Request) -> Response:
     owner = owner_of(request)
     with session_scope() as session:
         removable = watched_service.count_removable(session, owner)
-        connected = get_token(session, owner) is not None
+        connected = connections.publisher_token(session, owner) is not None
         feeds = list(
             session.scalars(
                 owned(select(Playlist), Playlist, owner).where(Playlist.enabled.is_(True))

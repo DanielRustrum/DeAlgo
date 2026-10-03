@@ -12,7 +12,7 @@ from dealgo.services import quota
 from dealgo.services import sync as sync_service
 from dealgo.services import watched as watched_service
 from dealgo.plugins.publisher import PublishError, VideoDetails, cost_of
-from fakes import MAIN_PLAYLIST, entry
+from fakes import MAIN_PLAYLIST, entry, set_quota
 
 
 def test_costs_match_googles_published_table():
@@ -48,10 +48,8 @@ def test_spending_accumulates_and_resets_with_the_day(db):
 
 
 def test_the_reserve_is_held_back_from_syncing(db):
+    set_quota(daily=200, reserve=100)
     with db.session_scope() as session:
-        settings = db.get_settings(session)
-        settings.daily_quota = 200
-        settings.quota_reserve = 100
         quota.spend(session, 100)
 
         state = quota.state(session)
@@ -98,7 +96,7 @@ def test_a_sync_spends_and_records_what_it_used(loaded):
 def test_syncing_stops_at_the_budget_and_queues_the_rest(loaded):
     with loaded["db"].session_scope() as session:
         settings = loaded["db"].get_settings(session)
-        settings.daily_quota = 120  # enough for two inserts and some reads
+        set_quota(daily=120, session=session)  # enough for two inserts and some reads
 
     result = sync_service.run_sync()
 
@@ -114,7 +112,7 @@ def test_syncing_stops_at_the_budget_and_queues_the_rest(loaded):
 
 def test_the_next_run_does_nothing_until_the_quota_resets(loaded):
     with loaded["db"].session_scope() as session:
-        loaded["db"].get_settings(session).daily_quota = 120
+        set_quota(daily=120, session=session)
     sync_service.run_sync()
     before = list(loaded["client"].contents())
 
@@ -133,15 +131,15 @@ def test_the_next_run_does_nothing_until_the_quota_resets(loaded):
 
 def test_a_fresh_quota_day_resumes_the_queue(loaded, monkeypatch):
     with loaded["db"].session_scope() as session:
-        loaded["db"].get_settings(session).daily_quota = 120
+        set_quota(daily=120, session=session)
     sync_service.run_sync()
     assert len(loaded["client"].contents()) < 3
 
     # Roll over to the next quota day.
     tomorrow = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
-    monkeypatch.setattr(quota, "quota_day", lambda now=None: quota.QUOTA_TZ and tomorrow.date().isoformat())
+    monkeypatch.setattr(quota, "quota_day", lambda now=None, **_: tomorrow.date().isoformat())
     with loaded["db"].session_scope() as session:
-        loaded["db"].get_settings(session).daily_quota = 10000
+        set_quota(daily=10000, session=session)
 
     result = sync_service.run_sync()
 
@@ -174,8 +172,8 @@ def test_removal_may_dip_into_the_reserve(loaded):
     sync_service.run_sync()
     with loaded["db"].session_scope() as session:
         settings = loaded["db"].get_settings(session)
-        settings.daily_quota = quota.state(session).used + 100
-        settings.quota_reserve = 100  # nothing left for syncing, all for manual work
+        set_quota(daily=quota.state(session).used + 100, session=session)
+        set_quota(reserve=100, session=session)  # nothing left for syncing, all for manual work
         watched_service.mark_watched(session, [v.id for v in session.scalars(select(Video))])
 
     result = watched_service.remove_watched()
@@ -189,7 +187,7 @@ def test_a_fan_out_cut_short_is_finished_next_run(world, add_playlist, db):
 
     add_playlist("PL_second", "Mirror")
     with db.session_scope() as session:
-        db.get_settings(session).daily_quota = 60  # room for one of the two inserts
+        set_quota(daily=60, session=session)  # room for one of the two inserts
     world["entries"] = [entry("v0", 1)]
     world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
 
@@ -203,7 +201,7 @@ def test_a_fan_out_cut_short_is_finished_next_run(world, add_playlist, db):
         )
         assert len(owed) == 1
         assert owed[0].removed_at is None
-        db.get_settings(session).daily_quota = 10000
+        set_quota(daily=10000, session=session)
 
     second = sync_service.run_sync()
 
