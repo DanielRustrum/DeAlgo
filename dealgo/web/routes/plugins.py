@@ -14,8 +14,10 @@ from ...models import (
     Channel,
 )
 from ...plugins import fetching, permissions, registry
+from ...services import plugin_settings
 from ..responses import redirect, render
 from ..templates import Context
+from .plugin_settings import settings_view
 
 router = APIRouter()
 
@@ -51,6 +53,11 @@ def _plugins_view(request: Request, pending: Context | None = None) -> HTMLRespo
                     "paused": plugin.paused,
                     "trouble": plugin.trouble,
                     "sources": plugin.sources,
+                    "colour": plugin.colour,
+                    # The admin's settings for it, drawn on its card beside
+                    # what it is allowed to do.
+                    "settings": settings_view(plugin, "app") if plugin.loaded else [],
+                    "has_user_settings": bool(plugin.settings.user),
                     "wants": plugin.wants,
                     "granted": plugin.granted,
                     "wanting": plugin.wanting,
@@ -302,5 +309,8 @@ def remove_plugin(request: Request, plugin_id: str) -> Response:
     """
     if not registry.discard(plugin_id):
         return redirect("/admin/plugins", err="That is not a plugin you added.")
+    # Its settings go with it: the admin's and every account's. Adding it
+    # again starts it from its defaults, as adding anything new does.
+    plugin_settings.forget(plugin_id)
     registry.reload()
     return redirect("/admin/plugins", ok=f"{plugin_id} removed.")

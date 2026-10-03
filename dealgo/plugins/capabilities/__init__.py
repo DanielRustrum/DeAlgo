@@ -19,6 +19,7 @@ from .grant import granted_to
 from .log import Log
 from .net import Net
 from .owner import acting_for, whose
+from .settings import PluginSettings
 from .site import Site
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "granted_to",
     "Log",
     "Net",
+    "PluginSettings",
     "Site",
     "whose",
 ]

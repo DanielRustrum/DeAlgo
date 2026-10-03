@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_plugin_settings.html" import plugin_mark, settings_form %}
 {% block title %}De-Algo — Plugins{% endblock %}
 {% block content %}
 
@@ -109,8 +110,10 @@
   {% if plugins %}
   <ul class="plugin-list">
     {% for plugin in plugins %}
-    <li class="plugin {{ 'is-bad' if not plugin.loaded }} {{ 'is-off' if plugin.paused }}">
+    <li class="plugin {{ 'is-bad' if not plugin.loaded }} {{ 'is-off' if plugin.paused }}"
+        id="plugin-{{ plugin.id }}" data-colour="{{ plugin.colour }}">
       <div class="plugin-head">
+        {{ plugin_mark(plugin.title, plugin.colour) }}
         <strong>{{ plugin.title }}</strong>
         {% if plugin.version %}<span class="plugin-version">{{ plugin.version }}</span>{% endif %}
         {% if plugin.mine %}
@@ -149,9 +152,9 @@
       {% endif %}
 
       {% if plugin.wants %}
-      <form class="plugin-permissions" method="post"
+      <form class="plugin-permissions plugin-section" method="post"
             action="/admin/plugins/{{ plugin.id }}/permissions">
-        <strong class="plugin-permissions-head">Allowed to</strong>
+        <strong class="plugin-section-head">Allowed to</strong>
         {% for want in plugin.wants %}
         <label class="consent-want {{ 'is-unknown' if not want.known }}">
           <input type="checkbox" name="grant_{{ want.name }}" value="1"
@@ -178,6 +181,24 @@
       {% endif %}
       {% else %}
       <div class="meta">Asks for nothing: it can compute, and that is all.</div>
+      {% endif %}
+
+      {# The admin's settings for it: one value for every account. Beside
+         what it is allowed to do, because both are the admin deciding how
+         this plugin runs here. #}
+      {% if plugin.settings %}
+      <section class="plugin-section">
+        <strong class="plugin-section-head">Settings for everyone</strong>
+        <p class="hint plugin-section-note">
+          Set once for this whole De-Algo.
+          {%- if plugin.has_user_settings %} Each account also has settings of its own for
+          {{ plugin.title }}, under Settings.{% endif %}
+        </p>
+        {{ settings_form('/admin/plugins/' ~ plugin.id ~ '/settings', plugin.settings, 'app',
+                         plugin.id, 'Save settings for everyone') }}
+      </section>
+      {% elif plugin.has_user_settings %}
+      <p class="meta">Each account sets {{ plugin.title }} up for itself, under Settings.</p>
       {% endif %}
 
       <div class="meta plugin-where">{{ plugin.path }}</div>

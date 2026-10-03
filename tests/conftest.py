@@ -38,10 +38,14 @@ def fresh_plugins():
     answering about somewhere else.
     """
     from dealgo.plugins import registry
+    from dealgo.services import plugin_settings
 
+    # And the plugins' setting values, which are held the same way.
     registry.forget()
+    plugin_settings.drop_held()
     yield
     registry.forget()
+    plugin_settings.drop_held()
 
 
 @pytest.fixture(autouse=True)

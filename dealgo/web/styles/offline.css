@@ -244,5 +244,5 @@
 .consent-want.is-unknown { opacity: 0.6; border-style: dashed; }
 
 .plugin-permissions { margin-top: 10px; }
-.plugin-permissions-head { font-size: 12px; color: var(--muted); }
+
 .plugin-permissions .btn { margin-top: 8px; }

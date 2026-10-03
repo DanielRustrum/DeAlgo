@@ -1,0 +1,68 @@
+/* A plugin's identity, and the settings it asks for.
+
+   Everything about one plugin wears its colour — the badge, the stripe down
+   its card, the rule beside each section — so its settings under Admin →
+   Plugins read as part of the same card as what it is allowed to do, and
+   its panel under Settings reads as the same plugin. The colour is its
+   sources' (plugin-colours.css turns data-colour into --plugin-colour). */
+
+.plugin-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--plugin-colour, var(--muted));
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+/* Its card on Admin → Plugins, and its panel under Settings: a stripe in its
+   colour down the left. A plugin that failed to load keeps the red one. */
+.plugin,
+.plugin-card {
+  border-left: 3px solid var(--plugin-colour, var(--line));
+  padding-left: 14px;
+}
+.plugin-card { padding-block: 12px; border-top: 1px solid var(--line); }
+.plugin-card:first-of-type { border-top: none; }
+
+/* What can be decided about a plugin — what it may do, how it is set up —
+   in one shape: a small heading and a rule in the plugin's colour. */
+.plugin-section {
+  margin-top: 12px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid color-mix(in oklab, var(--plugin-colour, var(--line)) 45%, transparent);
+}
+.plugin-section-head {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.plugin-section-note { margin: 4px 0 0; }
+.plugin-section .btn { margin-top: 10px; }
+
+/* The form itself: a column of settings, each its label, its control and
+   its hint. Two columns where there is room. */
+.plugin-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px 18px;
+  margin-top: 8px;
+  align-items: start;
+}
+.plugin-settings > .btn { grid-column: 1 / -1; justify-self: start; margin-top: 2px; }
+.plugin-setting { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.plugin-setting-label { font-size: 12.5px; color: var(--muted); }
+.plugin-setting .hint { margin: 0; }
+/* A switch takes a row of its own: its sentence is the setting, beside it. */
+.plugin-setting.is-toggle { grid-column: 1 / -1; }
+.plugin-setting .check { display: flex; font-size: 14px; }
+.plugin-setting-clear { font-size: 12.5px !important; color: var(--muted) !important; }

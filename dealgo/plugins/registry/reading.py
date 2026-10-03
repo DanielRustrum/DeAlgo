@@ -16,6 +16,7 @@ from ..runtime import PluginError, load
 from .manifest import augmentations_in, declared_in, publisher_in, sources_in, wants_in
 from .offers import Registry
 from .plugin import API, Plugin
+from .settings import settings_in
 from .storage import ENTRY, PLAIN, home_of, inside
 
 log = logging.getLogger(__name__)
@@ -139,8 +140,13 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
     second pass, once there is a manifest to weigh them against.
     """
     def nothing_yet(lua: Any) -> dict[str, object]:
-        """The plugin's world for the first pass: a `dealgo` granted nothing."""
-        return {**given, **capabilities.granted_to(plugin.id, frozenset(), None, lua)}
+        """The plugin's world for the first pass: a `dealgo` granted nothing,
+        and its own settings, which need no permission to read."""
+        return {
+            **given,
+            **capabilities.granted_to(plugin.id, frozenset(), None, lua),
+            "settings": capabilities.PluginSettings(plugin),
+        }
 
     try:
         box, made = load(plugin.id, source, given=nothing_yet)
@@ -170,6 +176,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
 
     try:
         plugin.wants = wants_in(made.get("permissions"))
+        plugin.settings = settings_in(made.get("settings"))
         plugin.sources = sources_in(plugin, made.get("sources"))
         plugin.augments = augmentations_in(plugin, declared_in(made))
         plugin.publishes, plugin.costs = publisher_in(made.get("publisher"))
@@ -200,7 +207,10 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
 
     def able(lua: Any) -> dict[str, object]:
         """The plugin's world with what it was granted."""
-        return capabilities.granted_to(plugin.title, plugin.granted, http, lua, asked)
+        return {
+            **capabilities.granted_to(plugin.title, plugin.granted, http, lua, asked),
+            "settings": capabilities.PluginSettings(plugin),
+        }
 
     try:
         source = plugin.path.read_text(encoding="utf-8")

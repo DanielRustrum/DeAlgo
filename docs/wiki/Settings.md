@@ -23,6 +23,15 @@ These hide notices only, never the problems they describe.
 environment variables are used when these are blank. See
 [Environment Variables](Environment%20Variables.md).
 
+## Plugins
+
+Some plugins have settings each account sets for itself. Each such plugin has its own block here,
+marked with its badge and colour, the same as on its card under Admin → Plugins. Your values are
+yours; changing them changes nothing for anyone else. Plugins the admin has switched off are not
+listed.
+
+Settings that apply to everyone are the admin's, on the plugin's card under Admin → Plugins.
+
 ## Feeds on YouTube
 
 Make a feed backed by a new or existing YouTube playlist. Needs a connected account. See [Feeds](Nodes/Feeds.md).

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_garden.html" import page_head %}
+{% from "_plugin_settings.html" import plugin_mark, settings_form %}
 {% block title %}De-Algo — Settings{% endblock %}
 {% block content %}
 {{ page_head('Settings', 'Your account, your Google connection, and how De-Algo behaves.') }}
@@ -164,6 +165,29 @@
     <button class="btn btn-primary" type="submit">Save settings</button>
   </form>
 </section>
+
+{# What each plugin lets you set for yourself. Anything a plugin needs set
+   once for everybody is the admin's, on its card under Admin → Plugins. #}
+{% if plugin_panels %}
+<section class="panel plugin-settings-panel" id="plugins">
+  <h2>Plugins</h2>
+  <p class="hint">Settings the plugins offer each account. They are yours: nobody else's change.</p>
+  {% for panel in plugin_panels %}
+  {% set plugin = panel.plugin %}
+  <article class="plugin-card" id="plugin-{{ plugin.id }}" data-colour="{{ plugin.colour }}">
+    <div class="plugin-head">
+      {{ plugin_mark(plugin.title, plugin.colour) }}
+      <strong>{{ plugin.title }}</strong>
+      {% if plugin.version %}<span class="plugin-version">{{ plugin.version }}</span>{% endif %}
+      {% for kind in plugin.sources %}
+      <span class="pill pill-kind kind-{{ kind.kind }}" data-colour="{{ kind.colour }}">{{ kind.label }}</span>
+      {% endfor %}
+    </div>
+    {{ settings_form('/settings/plugins/' ~ plugin.id, panel.fields, 'user', plugin.id, 'Save') }}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
 
 {% include "_new_feed.html" %}
 

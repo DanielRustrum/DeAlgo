@@ -75,6 +75,7 @@ Built per plugin per load by `capabilities.granted_to`; absent unless granted.
 | `read` | `dealgo.sources/feeds` | owner-scoped |
 | `manage` | `dealgo.pause/watch` | owner-scoped |
 | `account` | `account.send` | Google API hosts only, 30 calls/call, cost 1–100 each, 4 MiB |
+| *(always)* | `settings` (`app`, `user`) | The plugin's own values only; `user` for the owner in hand, else defaults |
 
 ## Acting for an owner
 
@@ -120,7 +121,17 @@ for, whatever the form says.
 ## State in the database
 
 `plugin_state` per id: `enabled` (pause), `granted` (JSON list), `origin`, `origin_ref`,
-`fetched_at`. Removing a plugin deletes its folder (`discard`); pieces using it stay on canvases and
+`fetched_at`.
+
+Plugin settings: a plugin declares `settings = { app = {…}, user = {…} }`, parsed by
+`registry/settings.py` (`settings_in`, the `Setting` kinds text/number/toggle/choice/secret) onto
+`Plugin.settings`. Values live in `plugin_app_setting` (no owner; the admin's, for everyone) and
+`plugin_user_setting` (owned, adopted with the rest when sign-in is turned on), each keyed
+`<plugin id>:<name>`, read and written by `services/plugin_settings.py`. That service caches what
+it has read, because `keep` reads per item, and any save clears the cache. The forms are
+`routes/plugin_settings.py`: `POST /settings/plugins/{id}` (the account's own) and
+`POST /admin/plugins/{id}/settings` (admin, guarded by path). Secrets are never rendered back.
+Removing a plugin calls `plugin_settings.forget`. Neither table is in backups or migration files. Removing a plugin deletes its folder (`discard`); pieces using it stay on canvases and
 do nothing.
 
 **Related:** [Plugin Runtime](Plugin%20Runtime.md) · [Security](Security.md) ·

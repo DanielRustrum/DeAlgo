@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base
+from .base import Base, owned_unique, owner_column
 from .times import utcnow
 
 
@@ -50,3 +50,34 @@ class PluginState(Base):
     origin_ref: Mapped[Optional[str]] = mapped_column(String(120))
     fetched_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     changed_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PluginAppSetting(Base):
+    """One of a plugin's install-wide settings, as the admin left it.
+
+    No owner: these are the admin's, for everyone, and set under Admin →
+    Plugins. Kept apart from the per-account ones rather than told apart by a
+    NULL owner, which already means "the implicit owner" everywhere else.
+    """
+
+    __tablename__ = "plugin_app_setting"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: `<plugin id>:<setting name>`: one key, so it can be unique on its own.
+    key: Mapped[str] = mapped_column(String(140), unique=True, index=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class PluginUserSetting(Base):
+    """One of a plugin's settings, as one account left it for itself."""
+
+    __tablename__ = "plugin_user_setting"
+    __table_args__ = (owned_unique("plugin_user_setting", "key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_pk: Mapped[Optional[int]] = owner_column()
+    #: `<plugin id>:<setting name>`, unique per account.
+    key: Mapped[str] = mapped_column(String(140))
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

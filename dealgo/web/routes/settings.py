@@ -17,6 +17,7 @@ from ..responses import owner_of, redirect, render
 if TYPE_CHECKING:
     pass
 from ..contexts import connection_state, playlist_context, quota_context
+from .plugin_settings import user_settings_panels
 
 router = APIRouter()
 
@@ -38,6 +39,8 @@ def settings_page(request: Request) -> HTMLResponse:
             # Feeds backed by a real YouTube playlist are made here: the
             # canvas makes the ones that live inside De-Algo.
             **playlist_context(session, owner=owner),
+            # What each switched-on plugin lets this account set for itself.
+            "plugin_panels": user_settings_panels(owner),
         }
     return render(request, "settings.html", context)
 

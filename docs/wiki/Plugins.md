@@ -42,6 +42,16 @@ A plugin can do nothing outside its own code unless granted:
 Untick any you would rather it did without — it still loads, and simply finds that ability missing.
 Change them later on its row. Shipped plugins start with what they asked for; you can revoke it.
 
+## Settings for everyone
+
+A plugin that needs setting up for the whole install, such as a server address or an API key, has a
+**Settings for everyone** block on its card, below **Allowed to**. Both use the plugin's colour and
+badge, so it is clear whose settings they are. Values apply to every account. A secret, such as a
+token, is never shown again once saved: leave it blank to keep it, or tick **Clear what is saved**.
+
+Settings a plugin offers each account are under each person's [Settings](Settings.md#plugins), not
+here. The card says when a plugin has some.
+
 ## Switching one off
 
 **Switch off** stops a plugin offering anything. Sources of its kind keep polling their stored feed
@@ -54,6 +64,7 @@ A switched-off plugin also releases its source kind, so a replacement can take i
 
 - **Update** — on a plugin fetched from a repository: fetches it again and asks for consent again.
 - **Remove** — on your own plugins only. Shipped ones come back on the next start; switch them off instead.
+  Removing one also deletes its settings, both yours and every account's.
 
 ## Replacing a shipped plugin
 

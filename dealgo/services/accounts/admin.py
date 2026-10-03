@@ -70,6 +70,7 @@ OWNED_TABLES: tuple[tuple[str, str | None], ...] = (
     ("sync_run", None),
     ("graph_node", None),
     ("graph_edge", None),
+    ("plugin_user_setting", "key"),
 )
 
 

@@ -12,6 +12,7 @@ from .. import permissions
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import Sandbox
+from .settings import Settings
 from .storage import home_of
 
 #: The version of the plugin API this host speaks. A plugin says which it was
@@ -195,6 +196,9 @@ class Plugin:
     costs: dict[str, int] = field(default_factory=dict)
     #: What it asked for, in the order it asked.
     wants: list[Asked] = field(default_factory=list)
+    #: What it asked to be configured with: the admin's settings and each
+    #: account's own.
+    settings: Settings = field(default_factory=Settings)
     #: What it actually has. Never more than it asked for, and never anything
     #: this version does not understand.
     granted: frozenset[str] = frozenset()
@@ -231,6 +235,12 @@ class Plugin:
     def title(self) -> str:
         """What to call the plugin: its name, or its id if it gave none."""
         return self.name or self.id
+
+    @property
+    def colour(self) -> str:
+        """The colour that marks this plugin wherever it is spoken of: its
+        first source's, or slate for a plugin with no sources of its own."""
+        return self.sources[0].colour if self.sources else "slate"
 
     @property
     def wanting(self) -> list[Asked]:

@@ -116,7 +116,13 @@ def is_htmx(request: Request) -> bool:
 
 
 def redirect(path: str, *, ok: str | None = None, err: str | None = None) -> RedirectResponse:
-    """A 303 to `path`, carrying a flash message as `?ok=` or `?err=`."""
+    """A 303 to `path`, carrying a flash message as `?ok=` or `?err=`.
+
+    A `#place` on the path stays at the end, where it belongs: written after
+    it, the message would be part of the fragment and never reach the server.
+    """
     params = {k: v for k, v in (("ok", ok), ("err", err)) if v}
+    path, hash_, fragment = path.partition("#")
     url = f"{path}?{urlencode(params)}" if params else path
+    url += hash_ + fragment
     return RedirectResponse(url, status_code=303)

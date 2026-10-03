@@ -1,0 +1,59 @@
+{# A plugin's own settings, and the mark that says whose they are.
+
+   The same form on both pages: under Settings for what each account sets for
+   itself, and on the plugin's card under Admin → Plugins for what the admin
+   sets for everyone. `fields` comes from settings_view() in
+   routes/plugin_settings.py. #}
+
+{# The plugin's badge: its initial, in the colour of its sources. Wherever a
+   plugin is spoken of — its card, its settings — this is what marks it, so
+   the two places read as the same plugin. #}
+{% macro plugin_mark(title, colour) -%}
+<span class="plugin-mark" data-colour="{{ colour }}" aria-hidden="true">{{ title[:1] | upper }}</span>
+{%- endmacro %}
+
+{% macro settings_form(action, fields, scope, plugin_id, submit) -%}
+<form class="plugin-settings" method="post" action="{{ action }}">
+  {% for field in fields %}
+  {% set one = field.setting %}
+  {% set id = 'ps-' ~ scope ~ '-' ~ plugin_id ~ '-' ~ one.name %}
+  <div class="plugin-setting is-{{ one.kind }}">
+    {% if one.kind == 'toggle' %}
+    <label class="check check-with-hint" for="{{ id }}">
+      <input type="checkbox" id="{{ id }}" name="s_{{ one.name }}" value="1"
+             {{ 'checked' if field.value == '1' }}>
+      <span class="check-body">
+        <span>{{ one.label }}</span>
+        {% if one.hint %}<span class="hint">{{ one.hint }}</span>{% endif %}
+      </span>
+    </label>
+    {% else %}
+    <label class="plugin-setting-label" for="{{ id }}">{{ one.label }}</label>
+    {% if one.kind == 'choice' %}
+    <select id="{{ id }}" name="s_{{ one.name }}">
+      {% for value, label in one.choices %}
+      <option value="{{ value }}" {{ 'selected' if value == field.value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% elif one.kind == 'secret' %}
+    {# Never written back into the page. Blank keeps what is saved. #}
+    <input type="password" id="{{ id }}" name="s_{{ one.name }}" autocomplete="new-password"
+           placeholder="{{ 'Saved — type to replace it' if field.is_set else (one.placeholder or 'Not set') }}">
+    {% if field.is_set %}
+    <label class="check plugin-setting-clear">
+      <input type="checkbox" name="clear_{{ one.name }}" value="1"> Clear what is saved
+    </label>
+    {% endif %}
+    {% else %}
+    <input type="{{ 'number' if one.kind == 'number' else 'text' }}" id="{{ id }}"
+           name="s_{{ one.name }}" value="{{ field.value }}"
+           {% if one.kind == 'number' %}step="any"{% endif %}
+           {% if one.placeholder %}placeholder="{{ one.placeholder }}"{% endif %}>
+    {% endif %}
+    {% if one.hint %}<p class="hint">{{ one.hint }}</p>{% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+  <button class="btn btn-primary" type="submit">{{ submit }}</button>
+</form>
+{%- endmacro %}
