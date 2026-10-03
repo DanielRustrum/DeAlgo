@@ -85,6 +85,9 @@ class SourceKind:
     #: Whether a second address for its feed is worth offering. False for a
     #: service that never refuses a reader.
     mirrors: bool = True
+    #: Which of `PLAYERS` plays its videos in Focus mode; "" for none, and
+    #: then they are read rather than played.
+    player: str = ""
     _recognise: Any = None
     _accept: Any = None
     _item_url: Any = None
@@ -158,6 +161,17 @@ AUGMENTS: dict[str, str] = {"filter": "keep", "sort": "rank"}
 #: already uses to mean another kind of box — violet triggers, amber
 #: filters, blue sorts, teal stamps, brown stores, terracotta feeds.
 SOURCE_COLOURS: tuple[str, ...] = ("green", "moss", "jade", "sky", "pink", "red", "slate")
+
+
+#: The players Focus mode has built in, by name. A source picks one with
+#: `player = "…"`, and its items of kind "video" are played in it; anything
+#: else is read rather than played.
+#:
+#: Built in rather than a plugin's own, because a player is code that runs in
+#: the browser with the signed-in person's session, and a plugin is Lua that
+#: is never handed one. Each is the one place a service's embed lives:
+#: `web/templates/focus.html` and `web/ts/focus/player.ts` for "youtube".
+PLAYERS: tuple[str, ...] = ("youtube",)
 
 
 @dataclass(frozen=True)

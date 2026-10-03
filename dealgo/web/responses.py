@@ -36,7 +36,7 @@ def tour_progress(session: Session, owner: OwnerId = None) -> Context:
     feeds = list(session.scalars(owned(select(Playlist), Playlist, owner)))
     return {
         "has_feed": bool(feeds),
-        "has_youtube_feed": any(not feed.is_generic for feed in feeds),
+        "has_published_feed": any(feed.is_published for feed in feeds),
         "has_channel": bool(session.scalar(owned(select(func.count(Channel.id)), Channel, owner))),
         "linked": bool(
             session.scalar(

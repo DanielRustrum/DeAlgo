@@ -108,7 +108,7 @@ async function main() {
 
   // A thumbnail never seen gets a drawn placeholder rather than a broken icon.
   const noImage = makeWorker({ online: false });
-  const placeholder = await answerFor(noImage, { method: "GET", url: "https://i.ytimg.com/vi/abc/hq.jpg", mode: "no-cors" });
+  const placeholder = await answerFor(noImage, { method: "GET", url: "https://i.ytimg.com/vi/abc/hq.jpg", mode: "no-cors", destination: "image" });
   report.placeholder = {
     status: placeholder.status,
     type: placeholder.headers["Content-Type"],

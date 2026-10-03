@@ -2,13 +2,15 @@
 {% block title %}De-Algo — Tour{% endblock %}
 {% block content %}
 
+{# The plugin feeds are published through, for the steps that name it. #}
+{% set pub = publishing() %}
 {# Steps are data so the progress rail and the body cannot drift apart. #}
 {% set steps = [
   {'key': 'welcome', 'title': 'What this is',            'done': none},
   {'key': 'feed',    'title': 'Make a feed',             'done': progress.has_feed},
   {'key': 'channel', 'title': 'Track a channel',         'done': progress.has_channel},
   {'key': 'link',    'title': 'Link the two',            'done': progress.linked},
-  {'key': 'connect', 'title': 'Connect YouTube (optional)', 'done': progress.connected},
+  {'key': 'connect', 'title': 'Connect ' ~ (pub.publisher or 'an account') ~ ' (optional)', 'done': progress.connected},
   {'key': 'sync',    'title': 'Run a sync',              'done': progress.synced},
   {'key': 'watch',   'title': 'Watch it',                'done': progress.watched_any},
   {'key': 'daily',   'title': 'Day to day',              'done': none},
@@ -51,7 +53,7 @@
       <p class="hint">Already have some of it? The ticks on the left show what is done.</p>
 
     {% elif current.key == 'feed' %}
-      <p>A <strong>feed</strong> is the list De-Algo keeps filled. It can be a real YouTube playlist,
+      <p>A <strong>feed</strong> is the list De-Algo keeps filled. It can be a real {{ pub.publisher }} playlist,
         or a <strong>generic feed</strong> that lives only here — which needs no sign-in and
         spends no API quota.</p>
       <p>On <a href="/channels">Configuration</a>, press <strong>New feed</strong> and pick one of
@@ -63,9 +65,9 @@
         wherever you want to follow: a YouTube channel URL, an <code>@handle</code> or a bare
         <code>UC…</code> id; an <code>r/</code> community; a Bluesky handle; a Substack; or the
         address of any RSS or Atom feed.</p>
-      <p>The same box asks how far back to reach on the first check. Only a YouTube handle needs
+      <p>The same box asks how far back to reach on the first check. Only an <code>@handle</code> needs
         credentials — a <code>UC…</code> id and everything else need none at all.</p>
-      <p class="hint">Only YouTube videos can go into a real YouTube playlist. Everything else
+      <p class="hint">Only {{ pub.publisher }}'s own items can go into a real {{ pub.publisher }} playlist. Everything else
         fills a feed that lives here, and is read here.</p>
 
     {% elif current.key == 'link' %}
@@ -75,15 +77,14 @@
         page lists the feeds it fills. Linking the first one starts the channel watching.</p>
 
     {% elif current.key == 'connect' %}
-      <p>Only needed for feeds backed by a real YouTube playlist, and only to write to it. Without an
+      <p>Only needed for feeds backed by a real {{ pub.publisher }} playlist, and only to write to it. Without an
         account De-Algo still polls channels, filters them and fills every feed for watching here —
-        it simply leaves YouTube alone until you connect, then catches the playlists up.</p>
-      {% set pub = publishing() %}
+        it simply leaves {{ pub.publisher }} alone until you connect, then catches the playlists up.</p>
       <p>The admin first gives the {{ pub.publisher }} plugin an OAuth client, on its card under
         Admin → Plugins, which also shows the exact redirect URI to register. Then, in
         <a href="{{ pub.where }}">Settings</a>, press
         <strong>Connect {{ pub.service }} account</strong>.</p>
-      {% if not progress.has_youtube_feed %}
+      {% if not progress.has_published_feed %}
       <p class="hint">None of your feeds needs this yet — they are all generic.</p>
       {% endif %}
 
@@ -109,7 +110,7 @@
           clear them out of the playlists.</li>
         <li>Use <strong>Raw</strong> to see every video De-Algo has seen and why it was skipped.</li>
         <li>Watch the <strong>quota</strong> in Settings. Polling is free; only playlist writes
-          cost anything, and De-Algo stops before YouTube refuses it.</li>
+          cost anything, and De-Algo stops before {{ pub.publisher }} refuses it.</li>
         <li>If quota is tight, the <strong>fill order</strong> on Configuration decides who gets in
           first.</li>
       </ul>

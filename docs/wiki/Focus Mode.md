@@ -7,7 +7,8 @@ clicking a card (starting there, in that feed's order).
 
 ## How it advances
 
-- A **video** plays full width and moves on when it ends.
+- A **video** from a source whose plugin chose a player plays full width and moves on when it ends.
+  YouTube's does; a video from anywhere else is shown like an article, with a link to watch it there.
 - A **post** or **article** is laid out as its images and text. Click an image to open it full size,
   or **Open it on …** to read it at its source.
 - **Done · next** marks the item watched and moves on.
@@ -30,7 +31,7 @@ Videos are never timed: they always play to the end.
 - An item in two feeds is queued once.
 - [Reading windows](Nodes/Reading%20Windows.md) do **not** apply here yet: a feed the Feed page shows as
   shut still plays through Focus.
-- This page loads YouTube's player script to know when a video ends. If it cannot load, the page
+- For YouTube videos this page loads YouTube's player script to know when a video ends. If it cannot load, the page
   says so and offers **Reload**.
 - The old `/watch` address still redirects here.
 

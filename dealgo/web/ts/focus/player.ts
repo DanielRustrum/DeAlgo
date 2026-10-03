@@ -1,4 +1,4 @@
-// The YouTube player, and waiting for its API.
+// The built-in "youtube" player (registry PLAYERS), and waiting for its API.
 //
 // Part of Focus mode; see main.ts.
 
@@ -18,13 +18,13 @@ function buildFocusPlayer(sitting: FocusSitting): void {
         if (focusIsRead(sitting.current) && sitting.player) sitting.player.pauseVideo();
       },
       onStateChange: (event: YouTubePlayerEvent): void => {
-        if (event.data === api.PlayerState.ENDED && sitting.current.kind === "video") {
+        if (event.data === api.PlayerState.ENDED && !focusIsRead(sitting.current)) {
           advanceFocus(sitting, true);
         }
       },
       onError: (): void => {
         // Private, deleted or not embeddable: do not strand the queue on it.
-        if (sitting.current.kind !== "video") return;
+        if (focusIsRead(sitting.current)) return;
         setFocusStatus(sitting, "this one would not play — skipping");
         advanceFocus(sitting, false);
       },

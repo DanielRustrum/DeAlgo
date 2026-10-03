@@ -2,7 +2,8 @@
 {% block title %}De-Algo — Focus{% endblock %}
 {% block content %}
 
-{% set clip = queue | selectattr('kind', 'equalto', 'video') | first %}
+{# Played in the built-in YouTube player: what its source's plugin chose. #}
+{% set clip = queue | selectattr('player', 'equalto', 'youtube') | first %}
 {# Back to the whole list. Carrying the playlist through would filter the feed
    page down to the one feed just watched, which reads as the others having
    vanished. Order and show were passed too, and the page has ignored both
@@ -18,9 +19,9 @@
          data-post-seconds="{{ post_seconds }}">
   <script type="application/json" id="focus-queue">{{ queue_json | safe }}</script>
 
-  {# Hidden for anything read rather than played. Asked as "not a video" so a
-     kind added later hides the player rather than showing an empty one. #}
-  <div class="focus-stage" id="focus-stage" {{ 'hidden' if queue[0].kind != 'video' }}>
+  {# Hidden for anything read rather than played. Asked as "has a player" so
+     a source with none hides the stage rather than showing an empty one. #}
+  <div class="focus-stage" id="focus-stage" {{ 'hidden' if not queue[0].player }}>
     {% if clip %}
     {# The player is our own iframe rather than one the IFrame API builds: left
        to itself it sets allow="…; picture-in-picture; web-share", putting the
@@ -33,7 +34,7 @@
        only when a video is what opens: starting on a post must not play audio
        underneath the reading. #}
     <iframe id="focus-player"
-            data-src="https://www.youtube-nocookie.com/embed/{{ clip.video_id }}?enablejsapi=1&amp;autoplay={{ 1 if queue[0].kind == 'video' else 0 }}&amp;rel=0"
+            data-src="https://www.youtube-nocookie.com/embed/{{ clip.video_id }}?enablejsapi=1&amp;autoplay={{ 1 if queue[0].player else 0 }}&amp;rel=0"
             title="{{ clip.title }}"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
             referrerpolicy="strict-origin-when-cross-origin"
@@ -47,9 +48,9 @@
   {# Anything read rather than played: a community post, an item from a feed
      somewhere else. Filled in by focus.js as the queue moves; rendered here
      for the one that opens, so it is readable before the script runs. #}
-  <article class="focus-post" id="focus-post" {{ 'hidden' if queue[0].kind == 'video' }}>
+  <article class="focus-post" id="focus-post" {{ 'hidden' if queue[0].player }}>
     <div class="focus-tiles" id="focus-tiles">
-      {% if queue[0].kind != 'video' %}
+      {% if not queue[0].player %}
         {% for image in queue[0].images %}
         <a class="focus-tile" href="{{ image }}" target="_blank" rel="noopener">
           <img src="{{ image }}" alt="" loading="lazy" referrerpolicy="no-referrer">
@@ -57,7 +58,7 @@
         {% endfor %}
       {% endif %}
     </div>
-    <div class="focus-words" id="focus-words">{{ queue[0].body if queue[0].kind != 'video' }}</div>
+    <div class="focus-words" id="focus-words">{{ queue[0].body if not queue[0].player }}</div>
     <p class="focus-post-link">
       <a id="focus-post-url" href="{{ queue[0].url }}" target="_blank" rel="noopener">
         Open it on {{ queue[0].source }} ↗</a>
@@ -70,7 +71,7 @@
      Drawn hidden and shown by focus.js, which knows what the first item
      carries. #}
   <div class="focus-timer" id="focus-timer"
-       {{ 'hidden' if queue[0].kind == 'video' or not queue[0].seconds }}>
+       {{ 'hidden' if queue[0].player or not queue[0].seconds }}>
     <button class="focus-timer-button" type="button" id="focus-timer-toggle"
             title="Hold the timer where it is">
       <span class="focus-timer-count" id="focus-timer-count">{{ queue[0].seconds or post_seconds }}s</span>

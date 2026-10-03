@@ -32,7 +32,7 @@ function cacheName(): string {
   return `dealgo-${version}`;
 }
 
-/** Thumbnails and avatars from YouTube. Kept apart so it can be capped
+/** Pictures from other hosts: thumbnails, avatars. Kept apart so it can be capped
  *  without touching the shell, and survives a version change. */
 function imageCacheName(): string {
   return "dealgo-images";
@@ -71,13 +71,13 @@ function shellUrls(): string[] {
   ];
 }
 
-/** Hosts YouTube serves thumbnails and avatars from. */
-function isRemoteImage(url: URL): boolean {
-  return (
-    url.hostname.endsWith("ytimg.com") ||
-    url.hostname.endsWith("ggpht.com") ||
-    url.hostname.endsWith("googleusercontent.com")
-  );
+/** A picture from somewhere else: a thumbnail, an avatar, a post's image.
+ *
+ *  Whatever its host. Which services an install reads from is its plugins'
+ *  business, and a stored feed with every picture missing does not look
+ *  like the feed it was. `imageCacheLimit` is what keeps this bounded. */
+function isRemoteImage(request: Request, url: URL): boolean {
+  return request.destination === "image" && url.origin !== worker().location.origin;
 }
 
 /** Whether a URL is one of the app's own static files. */
@@ -274,7 +274,7 @@ async function freshOrCached(request: Request): Promise<Response> {
 function routeRequest(request: Request): Promise<Response> | null {
   const url = new URL(request.url);
 
-  if (isRemoteImage(url)) return cachedImageOrFetch(request);
+  if (isRemoteImage(request, url)) return cachedImageOrFetch(request);
   if (url.origin !== worker().location.origin) return null; // not ours to handle
   if (isLiveState(url)) return null;
   if (request.mode === "navigate") return pageOrCachedPage(request);

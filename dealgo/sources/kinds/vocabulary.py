@@ -59,6 +59,8 @@ class SourceKind:
     colour: str = "green"
     #: Whether a second address for its feed is worth offering.
     mirrors: bool = True
+    #: Which built-in Focus player plays its videos; "" for none.
+    player: str = ""
 
 
 #: The floor. Not a plugin, because every plugin's parsing is built on it and
@@ -105,6 +107,7 @@ def all_kinds() -> tuple[SourceKind, ...]:
             blurb=kind.blurb,
             colour=kind.colour,
             mirrors=kind.mirrors,
+            player=kind.player,
         )
         for kind in registry.current().source_kinds()
     )

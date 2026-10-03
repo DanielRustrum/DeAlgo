@@ -146,7 +146,7 @@
       {% for kind in plugin.sources %}
       <div class="meta">
         <code>{{ kind.kind }}</code> — {{ kind.example or 'no example given' }}
-        {%- if kind.playlistable %} · may fill a real YouTube playlist{% endif %}
+        {%- if kind.playlistable %} · may fill real playlists on its service{% endif %}
       </div>
       {% endfor %}
       {% endif %}

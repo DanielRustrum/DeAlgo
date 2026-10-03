@@ -14,6 +14,7 @@ from typing import Any
 from ..runtime import PluginError
 from .plugin import (
     AUGMENTS,
+    PLAYERS,
     SOURCE_COLOURS,
     Asked,
     Augmentation,
@@ -244,6 +245,10 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
             raise PluginError(f"“{name}” needs a `recognise` function")
         colour = _colour(name, entry)
         takes = _takes(name, entry.get("takes"))
+        player = str(entry.get("player") or "").strip().lower()
+        if player and player not in PLAYERS:
+            allowed = ", ".join(f"“{one}”" for one in PLAYERS)
+            raise PluginError(f"source “{name}”: `player` has to be one of {allowed}, not “{player}”")
         if takes and not callable(entry.get("classify")):
             raise PluginError(f"“{name}” declares `takes`, so it needs a `classify` function")
         # Every other hook is optional; `recognise` is the one the app cannot do without.
@@ -259,6 +264,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
                 colour=colour,
                 takes=takes,
                 mirrors=entry.get("mirrors") is not False,
+                player=player,
                 _recognise=entry.get("recognise"),
                 _accept=entry.get("accept"),
                 _item_url=entry.get("item_url"),

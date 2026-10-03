@@ -7,6 +7,9 @@ interface FocusItem {
   id: number;
   video_id: string;
   kind: "video" | "post" | "link";
+  /** Which built-in player plays it, as its source's plugin chose; "" for
+   *  anything read rather than played. */
+  player: string;
   /** What its source is called — "YouTube", "Reddit" — for the link out. */
   source: string;
   title: string;

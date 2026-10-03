@@ -113,7 +113,7 @@ function graphGroupFields(form, node) {
     give.textContent = "Export";
     give.title = "Save this group as a file to give to somebody else";
     form.appendChild(give);
-    form.appendChild(graphElement("p", "hint", "Everything inside the rectangle travels with it, and goes into the file. Channels travel as their YouTube ids; feeds travel as names, and are made afresh by whoever loads them."));
+    form.appendChild(graphElement("p", "hint", "Everything inside the rectangle travels with it, and goes into the file. Sources travel as their own ids; feeds travel as names, and are made afresh by whoever loads them."));
 }
 /** What to put the batch in order of, and which way round. */
 function graphSortFields(form, sort) {
@@ -2817,7 +2817,7 @@ function asGraphChannel(value) {
     }
     const checked = raw["checked"];
     return {
-        source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
+        source: typeof raw["source"] === "string" ? raw["source"] : "",
         colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
         mirrors: raw["mirrors"] !== false,
         feedUrl: typeof raw["feed_url"] === "string" ? raw["feed_url"] : "",

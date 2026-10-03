@@ -129,7 +129,7 @@ function graphGroupFields(form: HTMLElement, node: GraphNodeView): void {
     graphElement(
       "p",
       "hint",
-      "Everything inside the rectangle travels with it, and goes into the file. Channels travel as their YouTube ids; feeds travel as names, and are made afresh by whoever loads them.",
+      "Everything inside the rectangle travels with it, and goes into the file. Sources travel as their own ids; feeds travel as names, and are made afresh by whoever loads them.",
     ),
   );
 }

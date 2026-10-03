@@ -7,6 +7,7 @@ from ....models import (
     GraphNode,
 )
 from ....plugins import registry
+from ....plugins.publisher import names
 from ....services import graph as graph_service
 from ...templates import Context
 from .facts import orders
@@ -125,8 +126,8 @@ def _source_note(node: GraphNode) -> str:
 
 
 def _feed_note(node: GraphNode) -> str:
-    """Whether a feed lives here or is a YouTube playlist."""
+    """Whether a feed lives here or is a published playlist."""
     playlist = node.playlist
     if playlist is None:
         return "feed is gone"
-    return "generic" if playlist.is_generic else "YouTube playlist"
+    return "generic" if playlist.is_generic else f"{names().publisher} playlist"

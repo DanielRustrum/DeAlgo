@@ -563,3 +563,20 @@ def test_a_new_source_leaves_out_what_its_plugin_starts_off(db):
         session.flush()
         assert youtube.left_out_names == {"shorts", "live"}
         assert reddit.left_out_names == set() and not reddit.takes
+
+
+def test_a_source_picks_its_player_from_the_ones_built_in(tmp_path):
+    """A player is browser code with the signed-in session behind it, which a
+    plugin is never handed — so it names one of the app's own, or none."""
+    found = registry.read(a_plugin(tmp_path, "vid", """
+        return { api = 1, sources = { { kind = "vid", player = "flash",
+          recognise = function() return nil end } } }
+    """))
+    assert "`player` has to be one of “youtube”" in found.broken[0].trouble
+
+
+def test_youtube_plays_in_the_youtube_player_and_nothing_else_plays():
+    found = registry.read(SHIPPED)
+    players = {kind.kind: kind.player for kind in found.source_kinds()}
+    assert players.pop("youtube") == "youtube"
+    assert set(players.values()) == {""}

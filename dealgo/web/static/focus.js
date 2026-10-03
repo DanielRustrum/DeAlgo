@@ -131,7 +131,7 @@ function setFocusStatus(sitting, message) {
 }
 
 "use strict";
-// The YouTube player, and waiting for its API.
+// The built-in "youtube" player (registry PLAYERS), and waiting for its API.
 //
 // Part of Focus mode; see main.ts.
 /** Attach YouTube's player to the existing iframe, once, when the API is here. */
@@ -151,13 +151,13 @@ function buildFocusPlayer(sitting) {
                     sitting.player.pauseVideo();
             },
             onStateChange: (event) => {
-                if (event.data === api.PlayerState.ENDED && sitting.current.kind === "video") {
+                if (event.data === api.PlayerState.ENDED && !focusIsRead(sitting.current)) {
                     advanceFocus(sitting, true);
                 }
             },
             onError: () => {
                 // Private, deleted or not embeddable: do not strand the queue on it.
-                if (sitting.current.kind !== "video")
+                if (focusIsRead(sitting.current))
                     return;
                 setFocusStatus(sitting, "this one would not play — skipping");
                 advanceFocus(sitting, false);
@@ -283,11 +283,12 @@ function buildFocusTile(url) {
     link.appendChild(image);
     return link;
 }
-/** Whether this is read rather than played. Asked as "not a video" so a kind
- *  added later is read by default, which is the safe way round: the worst case
- *  is a reading timer on something, not an empty player nobody can advance. */
+/** Whether this is read rather than played. Asked as "has no player" so a
+ *  source that chose none is read by default, which is the safe way round:
+ *  the worst case is a reading timer on something, not an empty player
+ *  nobody can advance. "youtube" is the one player built in. */
 function focusIsRead(item) {
-    return item.kind !== "video";
+    return item.player !== "youtube";
 }
 /** Whether this one is on the clock at all.
  *

@@ -209,8 +209,11 @@ def test_the_shell_precache_covers_what_the_app_opens_with():
 
 
 def test_thumbnails_are_cached_so_a_stored_feed_still_looks_like_one():
+    """Any picture from elsewhere, whichever service it came from: which
+    services an install reads is its plugins' business, not the worker's."""
     source = SW.read_text()
-    assert "ytimg.com" in source and "ggpht.com" in source
+    assert 'request.destination === "image"' in source
+    assert "ytimg" not in source                 # no service named here
     assert "imageCacheLimit" in source          # and does not grow forever
 
 

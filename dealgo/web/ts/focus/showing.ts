@@ -25,11 +25,12 @@ function buildFocusTile(url: string): HTMLAnchorElement {
   return link;
 }
 
-/** Whether this is read rather than played. Asked as "not a video" so a kind
- *  added later is read by default, which is the safe way round: the worst case
- *  is a reading timer on something, not an empty player nobody can advance. */
+/** Whether this is read rather than played. Asked as "has no player" so a
+ *  source that chose none is read by default, which is the safe way round:
+ *  the worst case is a reading timer on something, not an empty player
+ *  nobody can advance. "youtube" is the one player built in. */
 function focusIsRead(item: FocusItem): boolean {
-  return item.kind !== "video";
+  return item.player !== "youtube";
 }
 
 /** Whether this one is on the clock at all.

@@ -27,6 +27,7 @@ sources = {
     takes     = { … },                      -- optional: kinds of content, each a switch
     classify  = function(item) … end,       -- required with `takes`
     mirrors   = false,                      -- optional: never offer a mirror address
+    player    = "youtube",                  -- optional: Focus mode's built-in player for its videos
     mirror    = function(key) … end,        -- optional
     posts     = function(key) … end,        -- optional
   },
@@ -131,6 +132,13 @@ reason is the kind's `label`, which is how switching it back on finds what it he
 marked `extras` is switched off, `posts` is not called at all.
 
 Without `takes`, the source takes everything and its box says so.
+
+## player
+
+Which of Focus mode's built-in players plays this source's items of kind `"video"`. Only `"youtube"`
+exists. Without one, every item is read rather than played: shown with its pictures and text and a
+link out. A player is browser code that runs with the signed-in person's session, so it cannot be a
+plugin's own; anything not on the list stops the plugin loading.
 
 ## mirror(key)
 

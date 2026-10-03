@@ -29,13 +29,17 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
     """One entry in the Focus queue: a video, a community post, or an item
     from a feed somewhere else. The last two are read rather than played, and
     differ only in what the link out is called."""
+    described = sources.describe(video.channel.source_kind)
     return {
         "id": video.id,
         "video_id": video.video_id,
         "kind": video.kind,
+        # Which built-in player plays it, as its source's plugin chose: "" for
+        # anything read rather than played.
+        "player": described.player if video.kind == "video" else "",
         # Where it came from, said the way a person would say it, so the page
         # can offer "Open it on Reddit" without knowing the list of kinds.
-        "source": sources.describe(video.channel.source_kind).label,
+        "source": described.label,
         "title": video.title or video.video_id,
         "channel": video.channel.title,
         "playlist": playlist_title,

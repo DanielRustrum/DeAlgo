@@ -128,10 +128,17 @@ it unless a Lock piece set `view_locked`. When it runs out, or the reader moves 
 `/focus/{id}/finished`. Parts: `model`, `page`, `timer`, `showing`, `queue`, `advancing`, `player`,
 `main`.
 
+**Players are built in.** An item is played only when its source's plugin named one of
+`registry.plugin.PLAYERS` (`player = "youtube"`); every other item is read. A player is browser code
+running with the signed-in session, which a plugin is never handed, so each lives here: the
+`youtube` player is the iframe in `focus.html`, the embed in `showing.ts` and the IFrame API in
+`player.ts`. Adding a player means adding its name to `PLAYERS` and its code in those three places.
+
 ## Service worker — `sw.ts`
 
 Offline means **reading what was already loaded**: the shell, styles, visited pages and their
-thumbnails. Writes need the server and fail visibly offline. The cache name includes the version
+pictures. Any cross-origin request with `destination === "image"` goes into a separate image cache,
+capped at 300 — whichever service it came from, since that is the plugins' business. Writes need the server and fail visibly offline. The cache name includes the version
 query the worker was registered with, so a deploy refreshes everything.
 
 ## Harnesses

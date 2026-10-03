@@ -587,3 +587,23 @@ def test_a_skipped_video_is_still_unwatched_afterwards(client, db):
 
     with db.session_scope() as session:
         assert session.get(Video, order[0]).watched_at is None
+
+
+def test_a_video_from_a_source_with_no_player_is_read_not_played(client, db):
+    """Whether an item is played is its source's plugin's choice of player —
+    only YouTube chose one — not whether it calls itself a video."""
+    from dealgo.models import Channel, Playlist, Video
+
+    with db.session_scope() as session:
+        for video in session.scalars(select(Video)):
+            video.watched_at = utcnow()
+        elsewhere = Channel(channel_id="r/clips", title="Clips", source_kind="reddit")
+        session.add(elsewhere)
+        session.flush()
+        session.add(Video(video_id="item-1", channel_pk=elsewhere.id, title="A clip",
+                          kind="video", status="added", link="https://example.com/1"))
+        playlist = session.scalars(select(Playlist)).first()
+        elsewhere.playlists.append(playlist)
+
+    body = client.get("/focus").text
+    assert "focus-player" not in body

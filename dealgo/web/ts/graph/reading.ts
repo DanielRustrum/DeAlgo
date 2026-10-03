@@ -187,7 +187,7 @@ function asGraphChannel(value: unknown): GraphChannel | null {
 
   const checked = raw["checked"];
   return {
-    source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
+    source: typeof raw["source"] === "string" ? raw["source"] : "",
     colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
     mirrors: raw["mirrors"] !== false,
     feedUrl: typeof raw["feed_url"] === "string" ? raw["feed_url"] : "",
