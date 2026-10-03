@@ -13,7 +13,7 @@ Plugins run in **Lua 5.5**, one sandbox per plugin. A plugin sees only the table
 
 ## Not available
 
-`print`, `require`, `load`, `dofile`, `io`, `os`, `debug`, `coroutine`, `utf8`, `setmetatable`,
+`print`, Lua's own `require` (the plugin's [`require`](Plugin%20Files.md#splitting-a-plugin-across-files) reads only its own files), `load`, `dofile`, `io`, `os`, `debug`, `coroutine`, `utf8`, `setmetatable`,
 `getmetatable`, `rawget`, `rawset`, `_VERSION`.
 
 `unpack` is **not** a global in Lua 5.5 — use `table.unpack`.

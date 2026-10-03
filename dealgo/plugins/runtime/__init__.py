@@ -2,8 +2,9 @@
 
 A plugin is somebody else's code running inside this process, so the question
 is not "what can it do" but "what is it handed". It is handed a table, and
-that table is the whole of its world: no ``io``, no ``os``, no ``require``,
-no ``load``, and no way to reach the Python objects behind the functions it
+that table is the whole of its world: no ``io``, no ``os``, no ``load``, a
+``require`` that reads only ``.lua`` files from the plugin's own folder
+(modules.py), and no way to reach the Python objects behind the functions it
 is given.
 
 A capability it is granted arrives as a Python object, and Lua can ask a

@@ -33,10 +33,12 @@ into a fresh table that is its entire world:
 
 | Present | Absent |
 | --- | --- |
-| `assert error ipairs next pairs pcall select tonumber tostring type xpcall` | `print require load loadfile dofile` |
+| `assert error ipairs next pairs pcall select tonumber tostring type xpcall` | `print load loadfile dofile` |
 | `string table math` | `os io debug coroutine utf8 package` |
 | `_G` (the env itself) | `setmetatable getmetatable rawget rawset collectgarbage` |
 | Capabilities granted: `dealgo` always; `net clock log account` per grant | Any Python object not offered |
+| `settings` always (the plugin's own values) | |
+| `require` — `runtime/modules.py`: `.lua` files in the plugin's folder only, by dotted name; run once in the same env; ≤ 64 modules, 256 KiB each; loops are errors | Lua's `require`/`package` |
 
 (`unpack` is on the allow-list but does not exist in Lua 5.4+; plugins use `table.unpack`.)
 

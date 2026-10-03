@@ -45,7 +45,8 @@ Code from outside the project, running in-process. Defences, in order:
 
 1. **Admin-only install**, with every permission and its reason shown before anything is written.
 2. **Two-pass load**: the manifest is read with nothing granted.
-3. **Sandbox**: no `io`/`os`/`require`/`load`/`debug`/metatables; text chunks only; attribute filter
+3. **Sandbox**: no `io`/`os`/`load`/`debug`/metatables, and a `require` that reads only `.lua` files in
+   the plugin's own folder (name checked, path resolved and kept inside it); text chunks only; attribute filter
    blocks every Python attribute not in `LUA_OFFERS` (and all writes); 16 MiB; 10 M instructions per
    call.
 4. **Capabilities** are absent unless granted and individually capped (requests, bytes, headers,

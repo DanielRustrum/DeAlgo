@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import lupa
 
 from .errors import PluginError, PluginStopped, complaint
 from .guard import only_what_is_offered, world_for
+from .modules import require_for
 from .values import to_lua, to_python
 
 #: Most memory one plugin's Lua may hold. Generous for parsing a feed, and
@@ -83,6 +85,7 @@ def load(
     source: str,
     *,
     given: dict[str, object] | Callable[[Any], dict[str, object]] | None = None,
+    home: Path | None = None,
 ) -> tuple[Sandbox, object]:
     """Run a plugin's file once and return it with whatever it returned.
 
@@ -93,6 +96,9 @@ def load(
     ``given`` may be a function taking the runtime, for capabilities that have
     to build Lua tables to answer with — a Python list handed straight across
     is something `ipairs` cannot walk, which is not an answer.
+
+    ``home`` is the plugin's folder, which `require` reads its other files
+    from. None for a plugin with no folder of its own.
     """
     lua = lupa.LuaRuntime(
         register_eval=False,
@@ -117,6 +123,8 @@ def load(
 
     handing = given(lua) if callable(given) else (given or {})
     env = world_for(lua, handing)
+    # Its other files, from its own folder and nowhere else (modules.py).
+    env["require"] = require_for(lua, env, home)
     try:
         chunk = lua.eval("function(src, name, env) return load(src, name, 't', env) end")(
             source, f"@{name}", env

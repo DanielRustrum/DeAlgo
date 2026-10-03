@@ -19,6 +19,10 @@ def complaint(exc: BaseException) -> str:
     and the message do.
     """
     said = str(exc).split("stack traceback:")[0].strip()
-    # Lua writes "@name:12: message"; the name is already on the row.
-    _, _, after = said.partition(":")
-    return (after.strip() or said) if said.count(":") >= 2 else said
+    # Lua writes "@name:12: message"; the name is already on the row. A
+    # module's is not — "lib/dates.lua:3: …" says which of its files — so a
+    # name ending in .lua stays.
+    first, _, after = said.partition(":")
+    if said.count(":") < 2 or first.endswith(".lua"):
+        return said
+    return after.strip() or said

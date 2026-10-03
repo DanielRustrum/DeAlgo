@@ -24,16 +24,20 @@ def a_plugin(tmp_path, name: str, body: str) -> Path:
 
 
 def test_a_plugin_is_handed_a_world_and_nothing_else():
-    """No io, no os, no require, no load, and no debug to unpick the rest."""
+    """No io, no os, no load, and no debug to unpick the rest — and a
+    `require` that is not Lua's: with no folder of its own, it reads nothing,
+    and the package machinery behind Lua's own (which can load C) is absent."""
     box, made = runtime.load("probe.lua", """
         return { peek = function()
-            return { io = io == nil, os = os == nil, require = require == nil,
-                     load = load == nil, debug = debug == nil, dofile = dofile == nil }
+            local ok, why = pcall(require, "os")
+            return { io = io == nil, os = os == nil, package = package == nil,
+                     load = load == nil, debug = debug == nil, dofile = dofile == nil,
+                     require = not ok and string.find(why, "folder of its own", 1, true) ~= nil }
         end }
     """)
 
     assert box.call(made["peek"]) == {
-        "io": True, "os": True, "require": True,
+        "io": True, "os": True, "package": True, "require": True,
         "load": True, "debug": True, "dofile": True,
     }
 

@@ -4,16 +4,47 @@
 
 ```
 <id>/
-├── plugin.lua      ← the plugin; the only file that runs
+├── plugin.lua      ← the entry file: runs first, and ends with return { … }
+├── parse.lua       ← optional: more code, loaded with require("parse")
+├── lib/
+│   └── dates.lua   ← require("lib.dates")
 ├── README.md       ← optional, kept beside it
 └── LICENSE         ← optional
 ```
 
 - **The folder name is the plugin's id.** Use `a-z`, `0-9`, `-` and `_`. An `id` field in the file is
   ignored.
-- **Only `plugin.lua` runs.** There is no `require`, so a plugin cannot be split across Lua files.
-  Other files are kept for people reading it.
+- **`plugin.lua` is the entry file.** It runs first and its `return { … }` is the plugin. Other files
+  are not run unless something requires them.
 - A loose `<id>.lua` still loads, and is moved into `<id>/plugin.lua` the next time De-Algo starts.
+
+## Splitting a plugin across files
+
+```lua
+-- parse.lua
+local M = {}
+function M.handle(reference) return string.match(reference, "^@([%w_]+)$") end
+return M
+```
+
+```lua
+-- plugin.lua
+local parse = require("parse")
+local dates = require("lib.dates")   -- dots are folders: lib/dates.lua
+```
+
+- **Only `.lua` files in the plugin's own folder**, named with letters, digits, `_` and dots. Nothing
+  outside the folder, no `..`, no slashes, and not `plugin.lua` itself.
+- **A module runs once.** Every `require` of the same name gets what its first run returned (or
+  `true` if it returned nothing).
+- **Modules share the plugin's world**: the same globals and the same capabilities (`settings`,
+  `dealgo`, and whatever was granted), under the same memory and time limits.
+- A module that requires itself, directly or in a loop, is an error. So is a missing file, which names
+  the file it looked for.
+- Up to 64 modules, each up to 256 KiB.
+- A plugin uploaded as a single `.lua` file has no folder, so it has nothing to require. Fetch it from
+  a repository instead ([Distributing](Distributing.md)), which keeps every `.lua` file beside
+  `plugin.lua`.
 
 ## Where plugins are read from
 

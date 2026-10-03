@@ -149,7 +149,7 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
         }
 
     try:
-        box, made = load(plugin.id, source, given=nothing_yet)
+        box, made = load(plugin.id, source, given=nothing_yet, home=plugin.home)
     except PluginError as exc:
         plugin.trouble = str(exc).split(": ", 1)[-1]
         return plugin
@@ -214,7 +214,7 @@ def _grant(plugin: Plugin, allowed: frozenset[str], http: Callable[[], Any] | No
 
     try:
         source = plugin.path.read_text(encoding="utf-8")
-        box, made = load(plugin.id, source, given=able)
+        box, made = load(plugin.id, source, given=able, home=plugin.home)
     except (OSError, UnicodeDecodeError, PluginError) as exc:
         # It loaded a moment ago with nothing, so this is something about the
         # capabilities themselves. It keeps what it had and is left with none.
