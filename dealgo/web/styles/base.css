@@ -8,11 +8,12 @@
 
 body {
   margin: 0;
-  /* Paper, with a wash of sage in one corner and peach in the other. Fixed,
-     so the light stays put while the page scrolls under it. */
+  /* The page colour, with a wash of the accent in one corner and of the
+     first splash in the other. Fixed, so the light stays put while the page
+     scrolls under it. */
   background:
-    radial-gradient(60rem 40rem at 105% -8%, color-mix(in oklab, var(--sage) 30%, transparent), transparent 62%),
-    radial-gradient(50rem 36rem at -8% 108%, color-mix(in oklab, var(--peach) 26%, transparent), transparent 62%),
+    radial-gradient(60rem 40rem at 105% -8%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 62%),
+    radial-gradient(50rem 36rem at -8% 108%, color-mix(in oklab, var(--splash-1) 18%, transparent), transparent 62%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -40,7 +41,7 @@ h1, h2, .display {
 }
 h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
 
-::selection { background: color-mix(in oklab, var(--peach) 55%, transparent); }
+::selection { background: color-mix(in oklab, var(--splash-1) 40%, transparent); }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -96,7 +97,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
   text-transform: uppercase;
 }
 .topbar nav a:hover { background: var(--panel-2); color: var(--text); }
-.topbar nav a.active { background: var(--sage-soft); color: var(--text); }
+.topbar nav a.active { background: var(--accent-soft); color: var(--text); }
 
 /* -- the menu drawer -------------------------------------------------------
 
@@ -308,7 +309,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
   .topbar nav a:hover { background: var(--panel-2); color: var(--text); }
   .topbar nav a:active { background: var(--line); }
   .topbar nav a.active {
-    background: var(--sage-soft);
+    background: var(--accent-soft);
     color: var(--text);
     box-shadow: inset 3px 0 0 var(--accent);
   }

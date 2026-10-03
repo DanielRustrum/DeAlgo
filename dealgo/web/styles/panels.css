@@ -19,13 +19,12 @@
   border-radius: 20px; padding: 2px 9px; margin-left: 6px; font-weight: 600;
 }
 
-/* Colour blocks, in the garden's order: forest, sage, terracotta, peach —
-   and round again. Each block carries its own ink, so they read the same in
-   either theme. */
+/* Colour blocks, the theme's four in turn — and round again. Each block
+   carries its own ink, set beside its colour in tokens.css. */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 22px; }
 .stat {
-  --stat-bg: var(--forest);
-  --stat-ink: var(--cream);
+  --stat-bg: var(--block-1);
+  --stat-ink: var(--block-1-ink);
   position: relative;
   overflow: hidden;
   padding: 18px 18px 20px; text-decoration: none; display: flex; flex-direction: column; gap: 4px;
@@ -35,9 +34,9 @@
   box-shadow: 0 16px 30px -22px var(--shadow);
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
-.stat:nth-child(4n + 2) { --stat-bg: var(--sage); --stat-ink: var(--forest); }
-.stat:nth-child(4n + 3) { --stat-bg: var(--accent); --stat-ink: var(--on-accent); }
-.stat:nth-child(4n + 4) { --stat-bg: var(--peach); --stat-ink: var(--forest); }
+.stat:nth-child(4n + 2) { --stat-bg: var(--block-2); --stat-ink: var(--block-2-ink); }
+.stat:nth-child(4n + 3) { --stat-bg: var(--block-3); --stat-ink: var(--block-3-ink); }
+.stat:nth-child(4n + 4) { --stat-bg: var(--block-4); --stat-ink: var(--block-4-ink); }
 /* A leaf in the corner of every block, drawn in the block's own ink. */
 .stat::after {
   content: "";
@@ -53,12 +52,17 @@
 .stat:hover { color: var(--stat-ink); transform: translateY(-2px); box-shadow: 0 22px 36px -22px var(--shadow); }
 .stat-value { font-family: var(--font-display); font-size: 32px; font-weight: 600; line-height: 1.1; }
 .stat-label { font-size: 11.5px; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.1em; }
-/* Failures are not a colour block: they are a warning, whatever slot they land in. */
-.stat-bad { --stat-bg: var(--bad); --stat-ink: #fff; }
+/* Failures are not a colour block: they are a warning, whatever slot they
+   land in. A red splash can sit in the same row, so a failure is ringed too. */
+.stat-bad {
+  --stat-bg: var(--bad); --stat-ink: #fff;
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--bad), 0 16px 30px -22px var(--shadow);
+}
 @variant motion-reduce { .stat { transition: none; } .stat:hover { transform: none; } }
 
 .banner {
-  background: var(--blush); border: 1px solid color-mix(in oklab, var(--warn) 30%, transparent);
+  background: color-mix(in oklab, var(--splash-1) 14%, var(--panel));
+  border: 1px solid color-mix(in oklab, var(--warn) 30%, transparent);
   border-left: 4px solid var(--warn);
   border-radius: 14px; padding: 14px 18px; margin-bottom: 20px;
 }
