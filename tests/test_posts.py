@@ -96,7 +96,7 @@ def test_denying_posts_stops_them_being_collected(world, db):
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10
         channel = session.scalar(select(Channel))
-        channel_service.set_posts(session, channel, include=False)
+        channel_service.set_take(session, channel, "posts", include=False)
     posted(world, {"id": "Ugk1", "text": "A note"})
 
     sync_service.run_sync()
@@ -113,17 +113,17 @@ def test_allowing_posts_again_brings_back_what_was_skipped(world, db):
 
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
-        channel_service.set_posts(session, channel, include=False)
+        channel_service.set_take(session, channel, "posts", include=False)
         # The post is already here; deny it and it is filtered out on sight.
         post = session.scalar(select(Video).where(Video.kind == "post"))
         post.status = "skipped"
-        post.reason = channel_service.POST_REASON
+        post.reason = "Posts"
         for placement in list(post.placements):
             session.delete(placement)
 
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
-        brought_back = channel_service.set_posts(session, channel, include=True)
+        brought_back = channel_service.set_take(session, channel, "posts", include=True)
         assert brought_back == 1
         assert session.scalar(select(Video).where(Video.kind == "post")).status == "pending"
 

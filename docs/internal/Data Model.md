@@ -28,11 +28,11 @@ SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (i
 | --- | --- | --- |
 | `user` | An account | `username`, `password_hash` (scrypt), `is_admin`, `enabled` |
 | `login_session` | A signed-in browser | `token_hash` (SHA-256 of the cookie), `expires_at` |
-| `settings` | One owner's settings | `initial_backfill`, `shorts_max_seconds`, `post_seconds`, notice flags |
+| `settings` | One owner's settings | `initial_backfill`, `post_seconds`, notice flags |
 | `oauth_token` | One owner's sign-in to one plugin's service | `provider` (plugin id), `access_token`, `refresh_token`, `expires_at`, `refresh_error`, `account_title` |
-| `channel` | A source | `channel_id` (the key a plugin resolved), `source_kind`, `source_url`, `mirror_url`, legacy filter columns, `last_checked_at`, `enabled` |
+| `channel` | A source | `channel_id` (the key a plugin resolved), `source_kind`, `source_url`, `mirror_url`, `left_out` (JSON: the plugin's `takes` it leaves out), legacy filter columns, `last_checked_at`, `enabled` |
 | `playlist` | A feed | `playlist_id` (YouTube id, or `generic:…` for De-Algo feeds), `max_items`, `max_per_run`, `view_order`, `view_show` |
-| `video` | An item | `video_id`, `kind` (`video`/`post`/`link`), `status` (`pending`/`added`/`skipped`/`ignored`/`failed`), `tags`, `view_seconds`, `view_locked`, `watched_at` |
+| `video` | An item | `video_id`, `kind` (`video`/`post`/`link`), `hint` (from `refine`), `status` (`pending`/`added`/`skipped`/`ignored`/`failed`), `tags`, `view_seconds`, `view_locked`, `watched_at` |
 | `placement` | An item in a feed | `playlist_item_id` (NULL = owed), `added_at`, `removed_at`, `expires_at`, `attempts`, `error` |
 | `graph_node` | A box or piece on the canvas | `kind`, `x`/`y`, `enabled`, `channel_pk`/`playlist_pk`, `attached_to`, per-kind columns |
 | `graph_edge` | A wire | `source_pk` → `target_pk` |

@@ -112,14 +112,21 @@ interface GraphFeed {
   generic: boolean;
 }
 
+/** One kind of content a source publishes, with its switch. */
+interface GraphTake {
+  name: string;
+  label: string;
+  on: boolean;
+}
+
 /** What a source box knows about its source. */
 interface GraphChannel {
   /** What kind of somewhere it is, said the way a person would: "Reddit". */
   source: string;
   /** The colour its plugin chose for its boxes; "" for the default. */
   colour: string;
-  /** Only YouTube has Shorts, broadcasts and community posts to sort out. */
-  youtube: boolean;
+  /** Whether a second address for its feed is worth offering. */
+  mirrors: boolean;
   /** Where it is actually polled. */
   feedUrl: string;
   /** Somewhere else the same feed can be read, when the first will not have
@@ -128,7 +135,9 @@ interface GraphChannel {
   /** One worth trying, for the kinds where somebody is known to publish the
    *  same feed. Offered, never filled in: it is a service we do not run. */
   mirrorHint: string | null;
-  takes: Record<string, boolean>;
+  /** The kinds of content its plugin says it publishes, and whether this
+   *  source takes each. Empty for a source that takes everything. */
+  takes: GraphTake[];
   /** When it was last polled. When it next will be is the trigger's business. */
   checked: string | null;
   placed: number;

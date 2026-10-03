@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any
@@ -127,9 +129,25 @@ def _restore_feeds(
 #: The source fields a backup carries as they are.
 _CHANNEL_FIELDS = (
     "title", "handle", "enabled", "priority", "min_pull_minutes", "max_per_run",
-    "skip_videos", "skip_shorts", "skip_live", "title_include", "title_exclude",
+    "title_include", "title_exclude",
     "min_duration_sec", "max_duration_sec",
 )
+
+
+def _left_out(entry: dict[str, Any]) -> list[str] | None:
+    """Which kinds of content a source leaves out, as the file says.
+
+    Files from before plugins declared them carried YouTube's three switches
+    as `skip_*`; those names are the kinds' own, so they read across. None
+    when the file says nothing, which leaves the source as it is.
+    """
+    given = entry.get("left_out")
+    if isinstance(given, list):
+        return sorted(str(one) for one in given)
+    old = [name for name in ("videos", "shorts", "live", "posts") if entry.get(f"skip_{name}")]
+    if any(f"skip_{name}" in entry for name in ("videos", "shorts", "live", "posts")):
+        return old
+    return None
 
 
 def _restore_channels(
@@ -155,6 +173,9 @@ def _restore_channels(
         for key in _CHANNEL_FIELDS:
             if key in entry:
                 setattr(channel, key, entry[key])
+        left_out = _left_out(entry)
+        if left_out is not None:
+            channel.left_out = json.dumps(left_out)
         # Only trust a last-checked time when the file also carries the videos
         # that check found. Without them the channel would look up to date and
         # its whole feed would count as new, dumping fifteen uploads at once;
@@ -202,7 +223,8 @@ def _restore_videos(
         video.title = entry.get("title") or video.title
         video.published_at = _parse_stamp(entry.get("published_at"))
         video.duration_sec = entry.get("duration_sec")
-        video.is_short = bool(entry.get("is_short"))
+        # Older files said whether an item was a Short; that is a hint now.
+        video.hint = entry.get("hint") or ("shorts" if entry.get("is_short") else None)
         video.status = entry.get("status") or "pending"
         video.reason = entry.get("reason")
         video.watched_at = _parse_stamp(entry.get("watched_at"))

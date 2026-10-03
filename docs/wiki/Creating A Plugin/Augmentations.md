@@ -49,7 +49,7 @@ loading. `under` must be `"filter"` or `"sort"`.
 | `duration` | number | Seconds; **`0` means unknown** |
 | `views` | number | **`0` means unknown** |
 | `likes` | number | **`0` means unknown** |
-| `is_short` | boolean | A YouTube Short |
+| `hint` | string | What its source's `refine` said about it; `""` if nothing |
 | `live` | string | `"live"` or `"upcoming"` for a broadcast; `"none"`; `""` if unknown |
 
 Lengths and counts are known only for YouTube videos whose details were read. Treat `0` as "nobody

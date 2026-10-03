@@ -42,7 +42,6 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
             "auto_sync": settings.auto_sync,
             "poll_interval_minutes": settings.poll_interval_minutes,
             "initial_backfill": settings.initial_backfill,
-            "shorts_max_seconds": settings.shorts_max_seconds,
         },
     }
 
@@ -82,9 +81,8 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
             "priority": channel.priority,
             "min_pull_minutes": channel.min_pull_minutes,
             "max_per_run": channel.max_per_run,
-            "skip_videos": channel.skip_videos,
-            "skip_shorts": channel.skip_shorts,
-            "skip_live": channel.skip_live,
+            # The kinds of content its plugin declares that it leaves out.
+            "left_out": sorted(channel.left_out_names),
             "title_include": channel.title_include,
             "title_exclude": channel.title_exclude,
             "min_duration_sec": channel.min_duration_sec,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 
 from sqlalchemy import select
@@ -12,28 +13,23 @@ from ...models import Channel, Video
 from .. import filters
 from .listing import ChannelError
 
-# What the filter wrote as the reason, so a toggle can find exactly what it
-# passed over and nothing else.
-SHORTS_REASON = "Short%"
+def default_left_out(kind: str) -> str | None:
+    """What a new source of this kind leaves out until somebody says otherwise:
+    the kinds its plugin marks `off`, as the JSON the column holds."""
+    from ...plugins import registry
 
-
-LIVE_REASONS = ("live stream", "scheduled premiere")
-
-
-VIDEO_REASON = "regular video"
-
-
-POST_REASON = "community post"
+    names = [one.name for one in registry.current().takes(kind) if one.off]
+    return json.dumps(names) if names else None
 
 
 def _requeue_skipped(
     session: Session, channel: Channel, condition: ColumnElement[bool]
 ) -> int:
-    """Bring back videos this channel skipped for one particular reason.
+    """Bring back items this source skipped for one particular reason.
 
-    Turning a filter off should apply to what it already passed over, not only
-    to future uploads — otherwise everything skipped while it was on is
-    stranded, reachable only by clicking Queue on each one.
+    Turning a kind back on should apply to what it already passed over, not
+    only to what comes next — otherwise everything skipped while it was off
+    is stranded, reachable only by clicking Queue on each one.
     """
     stranded = list(
         session.scalars(
@@ -51,73 +47,28 @@ def _requeue_skipped(
     return len(stranded)
 
 
-def requeue_skipped_shorts(session: Session, channel: Channel) -> int:
-    """Send this source's Shorts held as Shorts back to be filed."""
-    return _requeue_skipped(session, channel, Video.reason.like(SHORTS_REASON))
+def set_take(session: Session, channel: Channel, name: str, *, include: bool) -> int:
+    """Switch one of the source's kinds of content on or off.
 
-
-def requeue_skipped_live(session: Session, channel: Channel) -> int:
-    """Send this source's held live streams and premieres back to be filed."""
-    return _requeue_skipped(session, channel, Video.reason.in_(LIVE_REASONS))
-
-
-def set_shorts(session: Session, channel: Channel, *, include: bool) -> int:
-    """Toggle Shorts for a channel. Returns how many were brought back."""
-    was_skipping = channel.skip_shorts
-    channel.skip_shorts = not include
-    session.flush()
-    if was_skipping and include:
-        return requeue_skipped_shorts(session, channel)
-    # Turning a filter on needs no cleanup: anything still pending is caught on
-    # the next run, and anything already in a playlist stays put.
-    return 0
-
-
-def requeue_skipped_videos(session: Session, channel: Channel) -> int:
-    """Send this source's held videos back to be filed."""
-    return _requeue_skipped(session, channel, Video.reason == VIDEO_REASON)
-
-
-def set_videos(session: Session, channel: Channel, *, include: bool) -> int:
-    """Toggle ordinary uploads — everything that is not a Short or a broadcast."""
-    was_skipping = channel.skip_videos
-    channel.skip_videos = not include
-    session.flush()
-    if was_skipping and include:
-        return requeue_skipped_videos(session, channel)
-    return 0
-
-
-def requeue_skipped_posts(session: Session, channel: Channel) -> int:
-    """Send this source's held posts back to be filed."""
-    return _requeue_skipped(session, channel, Video.reason == POST_REASON)
-
-
-def set_posts(session: Session, channel: Channel, *, include: bool) -> int:
-    """Toggle community posts for a channel.
-
-    Denying them also stops the scrape, which is the expensive half: a Posts
-    page is around a megabyte, and there is no API to ask instead.
+    Returns how many items were brought back: switching a kind back on
+    requeues what was skipped for it, which the filter wrote down as the
+    kind's label. Switching one off needs no cleanup — anything still
+    pending is caught on the next run, and anything already in a playlist
+    stays put. A name its plugin does not declare changes nothing.
     """
-    was_skipping = channel.skip_posts
-    channel.skip_posts = not include
+    take = next((one for one in channel.takes if one.name == name), None)
+    if take is None:
+        return 0
+    left_out = channel.left_out_names
+    was_off = name in left_out
+    if include:
+        left_out.discard(name)
+    else:
+        left_out.add(name)
+    channel.left_out = json.dumps(sorted(left_out))
     session.flush()
-    if was_skipping and include:
-        return requeue_skipped_posts(session, channel)
-    return 0
-
-
-def set_live(session: Session, channel: Channel, *, include: bool) -> int:
-    """Toggle live streams and premieres. Returns how many were brought back.
-
-    A stream skipped while it was live has usually finished by now, so bringing
-    it back gets the recording rather than the broadcast.
-    """
-    was_skipping = channel.skip_live
-    channel.skip_live = not include
-    session.flush()
-    if was_skipping and include:
-        return requeue_skipped_live(session, channel)
+    if was_off and include:
+        return _requeue_skipped(session, channel, Video.reason == take.label)
     return 0
 
 
@@ -146,7 +97,7 @@ def update_filters(session: Session, channel: Channel, form: Mapping[str, str]) 
     channel.title_exclude = title_exclude
     channel.min_duration_sec = as_int("min_duration_sec")
     channel.max_duration_sec = as_int("max_duration_sec")
-    # The Takes toggles and the Checks control own those fields; reading them
+    # The kinds switches and the Checks control own those fields; reading them
     # from this form too would switch them all off whenever it is submitted.
     channel.max_per_run = as_int("max_per_run") or 0
     session.flush()

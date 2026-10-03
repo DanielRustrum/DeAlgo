@@ -10,12 +10,13 @@ from sqlalchemy.orm import Session
 
 from ... import sources
 from ...models import Channel
-from ...plugins.publisher import ChannelInfo, PublishError
+from ...plugins.publisher import ChannelInfo, PublishError, names, publishing_plugin
 from ...sources import newsletter, syndication
 from .. import ordering
 from ..connections import build_client
 from ..scope import OwnerId, owned
 from .listing import ChannelError
+from .switches import default_left_out
 
 
 def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo:
@@ -26,22 +27,32 @@ def resolve(session: Session, reference: str, http: httpx.Client) -> ChannelInfo
     feed address already and finds the title by reading it, which costs
     nothing and needs nobody's permission.
 
-    What is left is the handle, and a handle needs the account's Google
+    What is left is the handle, and a handle needs the account's
     connection to become a channel id.
     """
     client = build_client(session, http)
     if not client.can_read:
+        service = names().service or "the service"
         raise ChannelError(
-            "Handles and vanity URLs need API access. Connect a Google account or set an API key "
-            "in Settings — or paste the channel's UC… id, which needs no credentials."
+            f"That needs looking up, which needs a {service} account connected under Settings, "
+            "or an API key on the plugin's card — or paste the id itself, which needs neither."
         )
     try:
         info = client.resolve_channel(reference)
     except PublishError as exc:
-        raise ChannelError(f"YouTube API error: {exc}") from exc
+        raise ChannelError(f"{names().publisher} refused: {exc}") from exc
     if info is None or not info.channel_id:
         raise ChannelError(f"no channel found for {reference!r}")
     return info
+
+
+def publisher_kind() -> str:
+    """The source kind the publishing plugin can put into its playlists."""
+    plugin = publishing_plugin()
+    kinds = [one.kind for one in plugin.sources if one.playlistable] if plugin else []
+    if not kinds:
+        raise ChannelError("No plugin here can look that up.")
+    return kinds[0]
 
 
 def add_source(
@@ -57,8 +68,8 @@ def add_source(
 
     A plugin says what a reference is and where its feed lives. It is taken
     at its word and checked by being read, which is the only honest test of a
-    feed anyway — the exception being a YouTube handle, which no plugin can
-    finish because resolving one needs the account's Google connection.
+    feed anyway — the exception being an @handle, which no plugin can
+    finish because resolving one needs the account's sign-in.
 
     ``within`` is the kind of box it was typed into, when it was typed into
     one. That box was dragged out on purpose, so its kind is asked first and
@@ -71,8 +82,8 @@ def add_source(
         raise ChannelError(str(exc)) from exc
 
     # A plugin may know what something is without being able to finish. The
-    # one case is a YouTube handle: turning it into a channel id needs this
-    # account's Google connection, which is not a plugin's to hold, so the
+    # one case is an @handle: turning it into a channel id needs this
+    # account's sign-in, which is not a plugin's to hold, so the
     # code that does hold it takes over here.
     if found.needs_host:
         return add_channel(session, typed, http, backfill_days=backfill_days, owner=owner)
@@ -130,6 +141,8 @@ def _keep(
         title=title or found.title,
         source_kind=found.kind,
         source_url=feed_url,
+        # The kinds its plugin keeps off until asked, like YouTube's Shorts.
+        left_out=default_left_out(found.kind),
         # Nothing to send items to yet, so it waits rather than quietly
         # queueing things that have nowhere to go.
         enabled=False,
@@ -149,12 +162,14 @@ def add_channel(
     backfill_days: int | None = None,
     owner: OwnerId = None,
 ) -> Channel:
-    """Watch a YouTube channel by URL, `@handle` or `UC…` id.
+    """Watch a source only the publishing plugin's service can name, like an `@handle`.
 
-    Resolving a handle needs the account's Google connection, which is why YouTube references
-    that need one come here rather than through a plugin. Starts paused.
+    Resolving one needs the account's sign-in, which a plugin is never
+    handed, so the host asks the publishing plugin's `resolve` here. The
+    source is that plugin's own kind. Starts paused.
     """
     info = resolve(session, reference, http)
+    kind = publisher_kind()
     existing = session.scalar(
         owned(select(Channel), Channel, owner).where(Channel.channel_id == info.channel_id)
     )
@@ -168,6 +183,9 @@ def add_channel(
         handle=info.handle,
         thumbnail_url=info.thumbnail_url,
         description=info.description,
+        # Found through the publishing plugin, so it is that plugin's kind.
+        source_kind=kind,
+        left_out=default_left_out(kind),
         # Nothing to send videos to yet, so it waits rather than quietly
         # queueing uploads that have nowhere to go.
         enabled=False,

@@ -167,9 +167,9 @@ def test_an_installs_google_state_moves_into_the_youtube_plugin(db, monkeypatch)
         connection.execute(text("ALTER TABLE settings ADD COLUMN daily_quota INTEGER DEFAULT 10000"))
         connection.execute(text(
             "INSERT INTO settings (owner_pk, auto_sync, poll_interval_minutes, initial_backfill,"
-            " shorts_max_seconds, post_seconds, hide_tour, hide_open_notice, hide_connect_notice,"
+            " post_seconds, hide_tour, hide_open_notice, hide_connect_notice,"
             " client_id, client_secret, daily_quota, updated_at)"
-            " VALUES (NULL, 1, 30, 3, 60, 30, 0, 0, 0, 'old-id', 'old-secret', 10000,"
+            " VALUES (NULL, 1, 30, 3, 30, 0, 0, 0, 'old-id', 'old-secret', 10000,"
             " CURRENT_TIMESTAMP)"
         ))
         connection.execute(text(
@@ -229,3 +229,53 @@ def test_making_a_published_feed_sits_in_its_plugins_block(site):
     assert "Feeds on YouTube" in block
     # And nowhere else on the page.
     assert page.count('id="new-feed"') == 1
+
+
+def test_youtubes_switches_move_into_its_declared_kinds(db):
+    from dealgo.db.engine import get_engine
+    from dealgo.db.migrations import youtube_takes_become_declared
+    from dealgo.models import Channel, Video
+
+    with get_engine().begin() as connection:
+        for column, default in (("skip_videos", 0), ("skip_shorts", 1), ("skip_live", 1),
+                                ("skip_posts", 0)):
+            connection.execute(text(
+                f"ALTER TABLE channel ADD COLUMN {column} BOOLEAN NOT NULL DEFAULT {default}"
+            ))
+        connection.execute(text("ALTER TABLE video ADD COLUMN is_short BOOLEAN NOT NULL DEFAULT 0"))
+        connection.execute(text(
+            "INSERT INTO channel (owner_pk, channel_id, title, enabled, priority, min_pull_minutes,"
+            " max_per_run, source_kind, added_at, skip_videos, skip_shorts, skip_live, skip_posts)"
+            " VALUES (NULL, 'UCx', 'x', 1, 0, 0, 5, 'youtube', CURRENT_TIMESTAMP, 0, 0, 1, 1)"
+        ))
+        connection.execute(text(
+            "INSERT INTO video (owner_pk, video_id, channel_pk, title, status, reason, kind,"
+            " is_short, attempts, view_locked, discovered_at)"
+            " VALUES (NULL, 'v1', 1, 'clip', 'skipped', 'Short (30s)', 'video', 1, 0, 0,"
+            " CURRENT_TIMESTAMP)"
+        ))
+
+    youtube_takes_become_declared()
+
+    with db.session_scope() as session:
+        channel = session.scalar(select(Channel))
+        assert channel.left_out_names == {"live", "posts"}
+        video = session.scalar(select(Video))
+        assert (video.hint, video.reason) == ("shorts", "Shorts")
+
+
+def test_switching_a_kind_back_on_brings_back_what_it_held(db):
+    from dealgo.models import Channel, Video
+    from dealgo.services import channels as channel_service
+
+    with db.session_scope() as session:
+        channel = Channel(channel_id="UCx", title="x", source_kind="youtube")
+        session.add(channel)
+        session.flush()
+        session.add(Video(video_id="v1", channel_pk=channel.id, title="clip",
+                          status="skipped", reason="Shorts"))
+        session.flush()
+        assert channel_service.set_take(session, channel, "shorts", include=True) == 1
+        assert "shorts" not in channel.left_out_names
+        # A name its plugin never declared changes nothing.
+        assert channel_service.set_take(session, channel, "podcasts", include=False) == 0

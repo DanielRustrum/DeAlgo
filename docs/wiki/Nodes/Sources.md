@@ -35,10 +35,12 @@ A feed only lists its newest items (YouTube about 15), so a long backfill reache
 ## The source's panel
 
 - **Active** — on or off.
-- **Takes** *(YouTube only)* — which kinds of upload to take at all: **Videos**, **Shorts**,
-  **Live** (streams and premieres), **Posts** (community posts). New channels take Videos and Posts,
-  not Shorts or Live. Turning one back on also re-queues what it skipped. For other sources
-  everything is taken; narrow it with a [Filter](Filter.md).
+- **Takes** — which kinds of content to take at all, where the source's plugin publishes more than
+  one. YouTube's are **Videos**, **Shorts**, **Live** (streams and premieres) and **Posts** (community
+  posts); new channels take Videos and Posts, not Shorts or Live. How long a video can be and still
+  count as a Short is yours to set, in the YouTube block under Settings → Plugins (60 seconds by
+  default). Turning a kind back on also re-queues what it skipped. A source that publishes one kind of
+  thing takes everything; narrow it with a [Filter](Filter.md).
 - **Mirror** *(where offered)* — a second address for the same feed, used only when the source refuses
   you. Reddit suggests one.
 - **Rename** — see the note on two boxes below.

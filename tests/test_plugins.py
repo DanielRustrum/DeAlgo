@@ -539,3 +539,27 @@ def test_what_went_wrong_names_the_plugin_not_its_file(tmp_path):
     found = registry.read(tmp_path)
 
     assert found.plugins[0].trouble == "spinner ran too long and was stopped"
+
+
+# -- the kinds of content a source publishes ---------------------------------------
+
+
+def test_a_source_that_declares_kinds_must_say_which_an_item_is(tmp_path):
+    found = registry.read(a_plugin(tmp_path, "kinds", """
+        return { api = 1, sources = { { kind = "kinds",
+          takes = { { name = "clips" } },
+          recognise = function() return nil end } } }
+    """))
+    assert "needs a `classify` function" in found.broken[0].trouble
+
+
+def test_a_new_source_leaves_out_what_its_plugin_starts_off(db):
+    from dealgo.models import Channel
+
+    with db.session_scope() as session:
+        youtube = Channel(channel_id="UCx", title="x", source_kind="youtube")
+        reddit = Channel(channel_id="r/x", title="x", source_kind="reddit")
+        session.add_all([youtube, reddit])
+        session.flush()
+        assert youtube.left_out_names == {"shorts", "live"}
+        assert reddit.left_out_names == set() and not reddit.takes

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -19,8 +19,21 @@ from .feed import channel_playlist
 from .times import utcnow
 
 if TYPE_CHECKING:
+    from ..plugins.registry.plugin import Take
     from .feed import Playlist
     from .item import Video
+
+
+def _plugin_left_out(context: Any) -> str | None:
+    """What a new source leaves out when nothing says: the kinds its
+    plugin marks `off` — YouTube's Shorts and broadcasts."""
+    import json
+
+    from ..plugins import registry
+
+    kind = context.get_current_parameters().get("source_kind") or "youtube"
+    names = [one.name for one in registry.current().takes(kind) if one.off]
+    return json.dumps(names) if names else None
 
 
 class Channel(Base):
@@ -66,14 +79,13 @@ class Channel(Base):
     title_exclude: Mapped[Optional[str]] = mapped_column(Text)
     min_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
     max_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
-    skip_shorts: Mapped[bool] = mapped_column(Boolean, default=True)
-    skip_live: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Everything that is neither a Short nor a broadcast — the ordinary uploads.
-    skip_videos: Mapped[bool] = mapped_column(Boolean, default=False)
-    skip_posts: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Where this comes from: "youtube", "reddit", "bluesky", "substack",
-    # "rss". Everything that existed before this column is YouTube, which is
-    # why that is the default rather than something neutral.
+    # Which of the kinds of content its plugin says it publishes (its
+    # `takes`) this source leaves out, as a JSON list of their names. Empty
+    # for a source whose plugin declares none: it takes everything.
+    left_out: Mapped[Optional[str]] = mapped_column(Text, default=lambda context: _plugin_left_out(context))
+    # Where this comes from: a plugin's source kind, or "rss" or "newsletter".
+    # Rows from before this column were all one plugin's, which is why it
+    # has a default rather than none.
     source_kind: Mapped[str] = mapped_column(String(12), default="youtube")
     # Somewhere else the same feed can be read, for when the first place will
     # not have us. Reddit allows an unauthenticated reader about one request a
@@ -112,21 +124,42 @@ class Channel(Base):
         return not self.playlists
 
     @property
-    def takes_nothing(self) -> bool:
-        """True when every content switch is off, so nothing gets in.
+    def left_out_names(self) -> set[str]:
+        """The names of the kinds of content this source leaves out."""
+        import json
 
-        The four switches sort out YouTube's own kinds. Anywhere else
-        publishes one kind of thing and takes all of it, so they decide
-        nothing there and must not be read as switching it off.
-        """
-        if not self.is_youtube:
-            return False
-        return self.skip_shorts and self.skip_live and self.skip_videos and self.skip_posts
+        try:
+            loaded = json.loads(self.left_out or "[]")
+        except (TypeError, ValueError):
+            return set()
+        return {str(one) for one in loaded} if isinstance(loaded, list) else set()
 
     @property
-    def is_youtube(self) -> bool:
-        """Whether this is a YouTube channel."""
-        return self.source_kind == "youtube"
+    def takes(self) -> tuple["Take", ...]:
+        """The kinds of content its plugin says this kind of source publishes."""
+        from ..plugins import registry
+
+        return registry.current().takes(self.source_kind)
+
+    @property
+    def takes_nothing(self) -> bool:
+        """True when it has switches and every one is off, so nothing gets in.
+
+        A source whose plugin declares no kinds takes everything, so there is
+        nothing to switch off and this is never true of it.
+        """
+        takes = self.takes
+        return bool(takes) and {one.name for one in takes} <= self.left_out_names
+
+    @property
+    def wants_extras(self) -> bool:
+        """Whether anything kept outside its feed is still wanted.
+
+        False only when every kind its plugin marks as an extra is left out,
+        which is what stops the extra fetch as well as the filing.
+        """
+        extras = {one.name for one in self.takes if one.extras}
+        return not extras or not extras <= self.left_out_names
 
     @property
     def publishable(self) -> bool:

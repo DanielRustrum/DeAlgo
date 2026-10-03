@@ -184,25 +184,25 @@ def channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
     channels = session.scalars(owned(select(Channel), Channel, owner))
     return {
         channel.id: {
-            # What kind of somewhere it is. The four switches below are
-            # YouTube's own distinctions, so a source elsewhere sends them
-            # rather than pretending they mean something there.
+            # What kind of somewhere it is.
             "source": sources.describe(channel.source_kind).label,
             # The colour its plugin chose, for the bar down the box.
             "colour": sources.describe(channel.source_kind).colour,
-            "youtube": channel.is_youtube,
+            # Whether a second address for its feed is worth offering.
+            "mirrors": sources.describe(channel.source_kind).mirrors,
             "feed_url": channel.feed_url,
             "mirror": channel.mirror_url,
             # What to paste, for the kinds where somebody is known to publish
             # the same feed. A field you have to go and research is a field
             # nobody fills in.
             "mirror_hint": sources.suggest_mirror(channel.source_kind, channel.channel_id),
-            "takes": {
-                "videos": not channel.skip_videos,
-                "shorts": not channel.skip_shorts,
-                "live": not channel.skip_live,
-                "posts": not channel.skip_posts,
-            },
+            # The kinds of content its plugin says it publishes, each with
+            # whether this source takes it. Empty: it takes everything.
+            "takes": [
+                {"name": one.name, "label": one.label, "on": one.name not in left_out}
+                for one in channel.takes
+                for left_out in (channel.left_out_names,)
+            ],
             # When it is next looked at is the trigger's business, and the
             # channel's own gap only applies while none is wired — so the box
             # says when it last happened and leaves the rest to `polled`.

@@ -23,7 +23,7 @@ def populated(db):
             channel_id="UCaaaaaaaaaaaaaaaaaaaaaa",
             title="A Channel",
             min_pull_minutes=360,
-            skip_shorts=False,
+            left_out="[]",
             title_exclude="podcast",
             last_checked_at=utcnow(),
         )
@@ -109,7 +109,7 @@ def test_the_setup_comes_out_whole(populated):
 
     channel = data["channels"][0]
     assert channel["min_pull_minutes"] == 360
-    assert channel["skip_shorts"] is False
+    assert channel["left_out"] == []
     assert channel["title_exclude"] == "podcast"
     assert channel["feeds"] == ["PL_sci"]
 

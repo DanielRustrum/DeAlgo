@@ -38,9 +38,9 @@ ITEM_PREFIX = "item-"
 def _poll(channel: Channel, http: httpx.Client) -> items.Batch:
     """Read whatever kind of feed this source publishes.
 
-    YouTube's own reader knows two things the general one cannot: which
-    entries are Shorts, and the channel id the feed belongs to. Everything
-    else is a feed like any other, and is read as one.
+    Its plugin's `refine` adds what only it knows about each entry — the id
+    to file it under, a hint about what it is. Everything else is a feed
+    like any other, and is read as one.
     """
 
     found = _read_feed(channel, http)
@@ -70,8 +70,8 @@ def _as_entry(
 ) -> items.Entry:
     """What the feed gave, with what its plugin knows laid over the top.
 
-    Only the fields a plugin actually named: a kind with no opinion about
-    Shorts leaves `is_short` false rather than having to say so, and one with
+    Only the fields a plugin actually named: a kind with nothing to say about
+    an item leaves its `hint` empty rather than having to say so, and one with
     no opinion about ids gets the hash every other source gets.
     """
     given = str(said.get("id") or "").strip()
@@ -80,7 +80,7 @@ def _as_entry(
         title=item.title,
         published_at=item.published_at,
         thumbnail_url=item.thumbnail_url,
-        is_short=said.get("is_short") is True,
+        hint=str(said.get("hint") or "")[:16],
         kind=str(said.get("kind") or "link"),
         link=item.link,
         summary=item.summary,
@@ -282,8 +282,9 @@ def _take_in(
 
     # Some sources keep things their feed does not carry — YouTube's
     # community posts are the one shipped example. Whether this is such
-    # a source is the plugin's to say, not a name checked here.
-    if not channel.skip_posts and registry.current().has_extras(channel.source_kind):
+    # a source is the plugin's to say, and whether they are still wanted is
+    # whether every kind it marks as an extra is left out.
+    if channel.wants_extras and registry.current().has_extras(channel.source_kind):
         discover_posts(
             session, channel, result,
             first_check=first_check, backfill=backfill, owner=owner,
@@ -355,7 +356,7 @@ def _keep_what_is_new(
                 title=entry.title,
                 published_at=to_naive_utc(entry.published_at),
                 thumbnail_url=entry.thumbnail_url,
-                is_short=entry.is_short,
+                hint=entry.hint or None,
                 kind=entry.kind,
                 link=entry.link,
                 body=entry.summary,

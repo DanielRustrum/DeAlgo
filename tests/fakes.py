@@ -252,3 +252,16 @@ def give_youtube_a_client() -> None:
     plugin_settings.save(
         "youtube", "app", None, {"client_id": "client-id", "client_secret": "secret"}
     )
+
+
+def set_left_out(channel, name: str, off: bool) -> None:
+    """Switch one of a source's kinds of content off (True) or on (False),
+    the way the old `skip_<name>` column was set."""
+    import json
+
+    names = set(channel.left_out_names)
+    if off:
+        names.add(name)
+    else:
+        names.discard(name)
+    channel.left_out = json.dumps(sorted(names))

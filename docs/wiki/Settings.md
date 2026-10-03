@@ -45,6 +45,5 @@ These used to be settings and now keep their defaults:
 | --- | --- |
 | How often De-Algo wakes to check [triggers](Nodes/Triggers.md) | 30 minutes |
 | Items taken from a new source when no backfill is given | 3 |
-| Longest video counted as a Short when the feed does not say | 60 seconds |
 
 **Related:** [Accounts](Accounts.md) · [Quota](Quota.md)

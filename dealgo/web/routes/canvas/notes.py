@@ -110,21 +110,18 @@ def _trigger_note(node: GraphNode, opening: set[int] | None) -> str:
 
 
 def _source_note(node: GraphNode) -> str:
-    """What a source takes: kinds of YouTube upload, or where it reads from."""
+    """What a source takes: the kinds its plugin declares, or where it reads from."""
     channel = node.channel
     if channel is None:
         return "open it and say where to watch"
-    if not channel.is_youtube:
-        # Nowhere else splits what it publishes into four kinds, so the line
-        # says where it comes from, which is the useful fact instead.
+    takes = channel.takes
+    if not takes:
+        # A source that publishes one kind of thing takes all of it, so the
+        # line says where it comes from, which is the useful fact instead.
         return f"everything from {sources.describe(channel.source_kind).label}"
-    takes = [
-        word
-        for word, off in (("videos", channel.skip_videos), ("shorts", channel.skip_shorts),
-                          ("live", channel.skip_live), ("posts", channel.skip_posts))
-        if not off
-    ]
-    return "takes " + (", ".join(takes) if takes else "nothing")
+    left_out = channel.left_out_names
+    taken = [one.label.lower() for one in takes if one.name not in left_out]
+    return "takes " + (", ".join(taken) if taken else "nothing")
 
 
 def _feed_note(node: GraphNode) -> str:

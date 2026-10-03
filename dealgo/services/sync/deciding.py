@@ -64,7 +64,8 @@ def as_item(video: Video, detail: VideoDetails | None = None) -> dict[str, objec
         "duration": video.duration_sec or 0,
         "views": video.view_count or 0,
         "likes": video.like_count or 0,
-        "is_short": video.is_short,
+        # What its plugin said about it when it was read, if anything.
+        "hint": video.hint or "",
         # Whether it is a broadcast, live or still to come. Only known while
         # the details are in hand — a plugin cannot go and look it up, and a
         # batch is put in order long after they have been let go of.
@@ -112,11 +113,11 @@ def decide(
         if wanted not in carried:
             return filters.Decision(False, f"not tagged “{wanted}”")
 
-    # The one thing that does not generalise. A YouTube playlist holds YouTube
-    # videos and nothing else, so an item from anywhere else can only go into
-    # a feed that lives inside De-Algo — said here, once, rather than failing
-    # at the insert with whatever YouTube makes of it.
-    if not video.is_youtube and path.playlist is not None and not path.playlist.is_generic:
+    # A published playlist holds only what its service does, so an item it
+    # cannot hold can only go into a feed that lives inside De-Algo — said
+    # here, once, rather than failing at the insert with whatever the
+    # service makes of it.
+    if not video.publishable and path.playlist is not None and path.playlist.is_published:
         return filters.Decision(False, WRONG_KIND_OF_FEED)
 
     # Plugin boxes, before the rules that cost anything to work out. Each is
@@ -126,12 +127,13 @@ def decide(
     if refused is not None:
         return refused
 
+    left_out = kind_left_out(video, detail, rules["left_out"])
+
     if video.kind == "link":
-        # Nothing to measure but its words: a feed entry has no duration and
-        # is neither a Short nor a broadcast.
+        # Nothing to measure but its words: a feed entry has no duration.
         return filters.evaluate_post(
             text=f"{video.title} {video.body or ''}",
-            skip_posts=False,
+            left_out=left_out,
             title_include=rules["title_include"],
             title_exclude=rules["title_exclude"],
         )
@@ -139,24 +141,41 @@ def decide(
     if video.is_post:
         return filters.evaluate_post(
             text=video.body or video.title,
-            skip_posts=bool(rules["skip_posts"]),
+            left_out=left_out,
             title_include=rules["title_include"],
             title_exclude=rules["title_exclude"],
         )
     return filters.evaluate(
         title=video.title,
         duration_sec=video.duration_sec,
-        live_state=detail.live_state if detail else None,
-        is_short=video.is_short,
+        left_out=left_out,
         title_include=rules["title_include"],
         title_exclude=rules["title_exclude"],
         min_duration_sec=rules["min_duration_sec"],
         max_duration_sec=rules["max_duration_sec"],
-        skip_shorts=bool(rules["skip_shorts"]),
-        skip_live=bool(rules["skip_live"]),
-        skip_videos=bool(rules["skip_videos"]),
-        shorts_max_seconds=settings.shorts_max_seconds,
     )
+
+
+def kind_left_out(
+    video: Video, detail: VideoDetails | None, left_out: set[str]
+) -> str | None:
+    """The label of the kind of content this item is, if its source leaves it out.
+
+    Which kind it is, its source's plugin says (`classify`), for the account
+    whose item it is. A source with no kinds, or an item its plugin cannot
+    place, leaves nothing out.
+    """
+    channel = video.channel
+    if channel is None or not left_out:
+        return None
+    from ...plugins import registry
+
+    found = registry.current()
+    kind = found.classify(channel.source_kind, as_item(video, detail), channel.owner_pk)
+    if kind is None or kind not in left_out:
+        return None
+    label = next((one.label for one in found.takes(channel.source_kind) if one.name == kind), kind)
+    return label
 
 
 def attribute(

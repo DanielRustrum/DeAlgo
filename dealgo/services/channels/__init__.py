@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from .adding import BACKFILL_CHOICES, add_source, parse_backfill
 from .listing import ChannelError, delete_channel, list_channels
-from .switches import POST_REASON, set_live, set_posts, set_shorts, set_videos
+from .switches import default_left_out, set_take
 
 __all__ = [
     "add_source",
@@ -17,9 +17,6 @@ __all__ = [
     "delete_channel",
     "list_channels",
     "parse_backfill",
-    "POST_REASON",
-    "set_live",
-    "set_posts",
-    "set_shorts",
-    "set_videos",
+    "default_left_out",
+    "set_take",
 ]

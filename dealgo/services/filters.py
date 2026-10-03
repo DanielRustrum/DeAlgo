@@ -41,38 +41,25 @@ def evaluate(
     *,
     title: str,
     duration_sec: int | None,
-    live_state: str | None,
-    is_short: bool = False,
+    left_out: str | None = None,
     title_include: str | None = None,
     title_exclude: str | None = None,
     min_duration_sec: int | None = None,
     max_duration_sec: int | None = None,
-    skip_shorts: bool = True,
-    skip_live: bool = True,
-    skip_videos: bool = False,
-    shorts_max_seconds: int = 60,
 ) -> Decision:
-    """Decide whether one video belongs in the playlist."""
+    """Decide whether one item belongs in the feed.
+
+    `left_out` is the label of the kind of content it is, when its source
+    leaves that kind out — which kind it is was its plugin's to say, and
+    whether that kind is wanted the source's.
+    """
     if title_include and not _matches(title_include, title):
         return Decision(False, f"title does not match include pattern /{title_include}/")
     if title_exclude and _matches(title_exclude, title):
         return Decision(False, f"title matches exclude pattern /{title_exclude}/")
 
-    # Every upload is exactly one of three kinds, and each has its own switch.
-    is_broadcast = live_state in {"live", "upcoming"}
-    looks_short = is_short or (duration_sec is not None and duration_sec <= shorts_max_seconds)
-
-    if is_broadcast:
-        if skip_live:
-            return Decision(
-                False, "live stream" if live_state == "live" else "scheduled premiere"
-            )
-    elif looks_short:
-        if skip_shorts:
-            length = f" ({duration_sec}s)" if duration_sec is not None else ""
-            return Decision(False, f"Short{length}")
-    elif skip_videos:
-        return Decision(False, "regular video")
+    if left_out:
+        return Decision(False, left_out)
 
     if duration_sec is not None:
         if min_duration_sec and duration_sec < min_duration_sec:
@@ -97,20 +84,19 @@ def format_duration(seconds: int | None) -> str:
 def evaluate_post(
     *,
     text: str,
-    skip_posts: bool = False,
+    left_out: str | None = None,
     title_include: str | None = None,
     title_exclude: str | None = None,
 ) -> Decision:
-    """Decide whether one community post belongs in a feed.
+    """Decide whether one item that is only words belongs in a feed.
 
-    A post has no duration, is neither a Short nor a broadcast, and cannot be
-    live, so only the switch and the text patterns apply. The patterns are
-    matched against the whole post rather than its first line: a title here is
-    an excerpt De-Algo made up, and filtering on it would be filtering on our
-    own truncation.
+    A post or a link has no duration, so only the kind and the text
+    patterns apply. The patterns are matched against the whole text rather
+    than its first line: a title here is often an excerpt De-Algo made up,
+    and filtering on it would be filtering on our own truncation.
     """
-    if skip_posts:
-        return Decision(False, "community post")
+    if left_out:
+        return Decision(False, left_out)
     if title_include and not _matches(title_include, text):
         return Decision(False, f"post does not match include pattern /{title_include}/")
     if title_exclude and _matches(title_exclude, text):

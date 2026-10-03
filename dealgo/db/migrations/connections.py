@@ -123,3 +123,86 @@ def youtube_becomes_a_plugin() -> None:
             )
             connection.execute(text("DROP TABLE quota_usage"))
             log.info("moved the quota ledger to the YouTube plugin's allowance")
+
+
+#: YouTube's old switches, and the name of the kind each one leaves out.
+_SWITCHES = (
+    ("skip_videos", "videos"),
+    ("skip_shorts", "shorts"),
+    ("skip_live", "live"),
+    ("skip_posts", "posts"),
+)
+
+#: What a skipped item's reason said, and what the YouTube plugin's `takes`
+#: call that kind now — so switching a kind back on still finds what it held.
+_REASONS = (
+    ("reason GLOB 'Short' OR reason GLOB 'Short (*'", "Shorts"),
+    ("reason IN ('live stream', 'scheduled premiere')", "Live"),
+    ("reason = 'regular video'", "Videos"),
+    ("reason = 'community post'", "Posts"),
+    ("reason = 'not a YouTube video, and that feed is a YouTube playlist'",
+     "not something that feed's playlist can hold"),
+)
+
+
+def youtube_takes_become_declared() -> None:
+    """Carry YouTube's four kinds of content into its plugin's `takes`.
+
+    A channel had four switch columns, an item a Short flag, and every
+    account a "what counts as a Short" figure. The YouTube plugin declares
+    the kinds now, says which an item is, and keeps the figure as a user
+    setting; this moves what an existing install had into that shape.
+    """
+    import json
+
+    engine = get_engine()
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        if "channel" in tables:
+            had = {c["name"] for c in inspector.get_columns("channel")}
+            present = [(column, name) for column, name in _SWITCHES if column in had]
+            if present and "left_out" in had:
+                picked = ", ".join(column for column, _ in present)
+                rows = connection.execute(text(
+                    f"SELECT id, {picked} FROM channel"
+                    f" WHERE source_kind = :youtube AND left_out IS NULL"
+                ), {"youtube": YOUTUBE}).all()
+                for row in rows:
+                    names = [name for (_, name), on in zip(present, row[1:]) if on]
+                    connection.execute(
+                        text("UPDATE channel SET left_out = :names WHERE id = :id"),
+                        {"names": json.dumps(names), "id": row[0]},
+                    )
+
+        if "video" in tables:
+            had = {c["name"] for c in inspector.get_columns("video")}
+            if "is_short" in had and "hint" in had:
+                connection.execute(text(
+                    "UPDATE video SET hint = 'shorts' WHERE is_short = 1 AND hint IS NULL"
+                ))
+            for condition, now in _REASONS:
+                connection.execute(
+                    text(f"UPDATE video SET reason = :now WHERE {condition}"), {"now": now}
+                )
+
+        # What counted as a Short was each account's own: a user setting.
+        if "settings" in tables and "plugin_user_setting" in tables:
+            had = {c["name"] for c in inspector.get_columns("settings")}
+            if "shorts_max_seconds" in had:
+                key = f"{YOUTUBE}:shorts_max_seconds"
+                rows = connection.execute(text(
+                    "SELECT owner_pk, shorts_max_seconds FROM settings"
+                    " WHERE shorts_max_seconds IS NOT NULL AND shorts_max_seconds != 60"
+                    " ORDER BY id"
+                )).all()
+                for owner, seconds in rows:
+                    exists = connection.execute(text(
+                        "SELECT 1 FROM plugin_user_setting WHERE key = :key"
+                        " AND COALESCE(owner_pk, 0) = COALESCE(:owner, 0)"
+                    ), {"key": key, "owner": owner}).first()
+                    if exists is None:
+                        connection.execute(text(
+                            "INSERT INTO plugin_user_setting (owner_pk, key, value, updated_at)"
+                            " VALUES (:owner, :key, :value, CURRENT_TIMESTAMP)"
+                        ), {"owner": owner, "key": key, "value": str(seconds)})

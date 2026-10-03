@@ -53,7 +53,10 @@ class Video(Base):
     view_count: Mapped[Optional[int]] = mapped_column(Integer)
     like_count: Mapped[Optional[int]] = mapped_column(Integer)
     thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
-    is_short: Mapped[bool] = mapped_column(Boolean, default=False)
+    # What its source's plugin said about it when it was read — "shorts", for
+    # a YouTube entry linking to /shorts/ — for the plugin's `classify` to
+    # weigh later. The host does not read it.
+    hint: Mapped[Optional[str]] = mapped_column(String(16))
 
     # Posts only: the words themselves, and a JSON list of image URLs.
     body: Mapped[Optional[str]] = mapped_column(Text)
@@ -112,13 +115,17 @@ class Video(Base):
 
     @property
     def is_post(self) -> bool:
-        """Whether this is a YouTube community post."""
+        """Whether this is one of its source's extras — something kept outside
+        its feed, like a community post — rather than an entry in the feed."""
         return self.kind == "post"
 
     @property
-    def is_youtube(self) -> bool:
-        """Whether a YouTube playlist could ever hold this."""
-        return self.kind in ("video", "post")
+    def publishable(self) -> bool:
+        """Whether a playlist on the publishing plugin's service could ever
+        hold this: its source's plugin says so for the kind as a whole."""
+        if self.kind == "link":
+            return False
+        return self.channel.publishable if self.channel is not None else False
 
     @property
     def pictures(self) -> list[str]:
@@ -139,21 +146,23 @@ class Video(Base):
 
     @property
     def is_link(self) -> bool:
-        """An item from somewhere that is not YouTube: a post on Reddit or
-        Bluesky, an entry in a newsletter, an article in a feed. There is
-        nothing to play, only somewhere to go."""
+        """An item that is only a link: a post on Reddit or Bluesky, an entry
+        in a newsletter, an article in a feed. There is nothing to play, only
+        somewhere to go."""
         return self.kind == "link"
 
     @property
     def url(self) -> str:
-        """Where the item can be opened: its own link, or its YouTube page."""
+        """Where the item can be opened: its own link, or where its source's
+        plugin says an item filed by this id lives."""
         if self.kind == "link":
             # Whatever the feed linked to. Kept whole rather than rebuilt: a
             # feed knows where its own items live and this does not.
             return self.link or ""
-        if self.is_post:
-            return f"https://www.youtube.com/post/{self.video_id}"
-        return f"https://www.youtube.com/watch?v={self.video_id}"
+        from ..sources import kinds
+
+        kind = self.channel.source_kind if self.channel is not None else ""
+        return kinds.item_url(kind, self.video_id, self.link, self.kind) or self.link or ""
 
     @property
     def image_list(self) -> list[str]:

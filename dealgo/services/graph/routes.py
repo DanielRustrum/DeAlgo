@@ -93,10 +93,8 @@ class Route:
         the feed.
         """
         settings: dict[str, Any] = {
-            "skip_videos": self.channel.skip_videos,
-            "skip_shorts": self.channel.skip_shorts,
-            "skip_live": self.channel.skip_live,
-            "skip_posts": self.channel.skip_posts,
+            # The kinds of content its plugin declares that it leaves out.
+            "left_out": self.channel.left_out_names,
             "title_include": self.channel.title_include,
             "title_exclude": self.channel.title_exclude,
             "min_duration_sec": self.channel.min_duration_sec,

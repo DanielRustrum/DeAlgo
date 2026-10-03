@@ -12,7 +12,16 @@ from typing import Any
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import PluginError
-from .plugin import AUGMENTS, SOURCE_COLOURS, Asked, Augmentation, Field, Plugin, SourceKind
+from .plugin import (
+    AUGMENTS,
+    SOURCE_COLOURS,
+    Asked,
+    Augmentation,
+    Field,
+    Plugin,
+    SourceKind,
+    Take,
+)
 from .storage import PLAIN
 
 
@@ -134,6 +143,32 @@ def augmentations_in(plugin: Plugin, given: object) -> list[Augmentation]:
     return made
 
 
+def _takes(kind: str, given: object) -> tuple[Take, ...]:
+    """The kinds of content a source publishes, each a switch on its box."""
+    if given is None:
+        return ()
+    if not isinstance(given, list):
+        raise PluginError(f"source “{kind}”: `takes` has to be a list of tables")
+    made: list[Take] = []
+    for entry in given:
+        if not isinstance(entry, dict):
+            raise PluginError(f"source “{kind}”: every entry in `takes` has to be a table")
+        name = str(entry.get("name") or "").strip()
+        if not name or not set(name) <= PLAIN:
+            raise PluginError(f"source “{kind}”: each of `takes` needs a plain `name`")
+        if any(one.name == name for one in made):
+            raise PluginError(f"source “{kind}”: “{name}” is in `takes` twice")
+        made.append(
+            Take(
+                name=name,
+                label=str(entry.get("label") or name.capitalize())[:40],
+                off=entry.get("off") is True,
+                extras=entry.get("extras") is True,
+            )
+        )
+    return tuple(made)
+
+
 def _colour(kind: str, entry: dict[str, Any]) -> str:
     """The colour a source asks for, from the allowed list; green if it names none.
 
@@ -208,6 +243,9 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
         if not callable(entry.get("recognise")):
             raise PluginError(f"“{name}” needs a `recognise` function")
         colour = _colour(name, entry)
+        takes = _takes(name, entry.get("takes"))
+        if takes and not callable(entry.get("classify")):
+            raise PluginError(f"“{name}” declares `takes`, so it needs a `classify` function")
         # Every other hook is optional; `recognise` is the one the app cannot do without.
         kinds.append(
             SourceKind(
@@ -219,6 +257,8 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
                 noun=str(entry.get("noun") or entry.get("label") or name.title()),
                 blurb=str(entry.get("blurb") or ""),
                 colour=colour,
+                takes=takes,
+                mirrors=entry.get("mirrors") is not False,
                 _recognise=entry.get("recognise"),
                 _accept=entry.get("accept"),
                 _item_url=entry.get("item_url"),
@@ -226,6 +266,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
                 _refine=entry.get("refine"),
                 _posts=entry.get("posts"),
                 _home=entry.get("home"),
+                _classify=entry.get("classify"),
             )
         )
     return kinds

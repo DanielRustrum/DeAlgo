@@ -33,8 +33,6 @@ class Settings(Base):
     # New channels start with only this many of their recent uploads, so adding
     # a channel does not dump its last fifteen videos into the playlist.
     initial_backfill: Mapped[int] = mapped_column(Integer, default=3)
-    # Uploads at or under this length count as Shorts.
-    shorts_max_seconds: Mapped[int] = mapped_column(Integer, default=60)
     # How long Focus mode holds a community post before moving on. A post has
     # no end of its own, so reading time is the only thing that can advance it.
     post_seconds: Mapped[int] = mapped_column(Integer, default=30)

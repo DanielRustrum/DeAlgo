@@ -28,8 +28,9 @@ class Entry:
     title: str
     published_at: dt.datetime | None
     thumbnail_url: str | None = None
-    #: A Short, which only YouTube has and only its own plugin can spot.
-    is_short: bool = False
+    #: What its source's plugin said about it, for its `classify` to weigh
+    #: later — "shorts", for a YouTube entry linking to /shorts/.
+    hint: str = ""
     #: "video" for something with a player, "post" for a community post,
     #: "link" for an item that lives somewhere else entirely.
     kind: str = "link"

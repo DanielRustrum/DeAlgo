@@ -80,7 +80,7 @@ plugins as `net.embedded` and `net.find` (network permission).
 
 ## One item, any source — `items.py`
 
-`Entry` (id, title, published, thumbnail, `is_short`, `kind`, link, summary, images) and `Batch`.
+`Entry` (id, title, published, thumbnail, `hint`, `kind`, link, summary, images) and `Batch`.
 The sync engine builds them from `syndication.Item` plus the plugin's `refine` answer.
 
 **Related:** [Plugin Registry](Plugin%20Registry.md) · [The Sync Engine](The%20Sync%20Engine.md)

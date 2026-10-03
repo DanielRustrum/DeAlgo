@@ -100,9 +100,9 @@ def test_shorts_are_recognised_from_their_link():
     _, refined = read()
     by_id = {said["id"]: said for _, said in refined}
 
-    assert by_id["vid_short"]["is_short"] is True
-    assert by_id["vid_new"]["is_short"] is False
-    assert by_id["vid_old"]["is_short"] is False
+    assert by_id["vid_short"].get("hint") == "shorts"
+    assert not by_id["vid_new"].get("hint")
+    assert not by_id["vid_old"].get("hint")
 
 
 def test_an_empty_channel_is_read_without_complaint():

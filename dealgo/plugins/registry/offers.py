@@ -15,7 +15,10 @@ from typing import Any
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import PluginError, Sandbox
-from .plugin import MOST_POSTS, Augmentation, Plugin, Recognised, SourceKind
+from .plugin import MOST_POSTS, Augmentation, Plugin, Recognised, SourceKind, Take
+
+#: Whose work is in hand: an account id, or None for the implicit one.
+OwnerId = int | None
 
 log = logging.getLogger(__name__)
 
@@ -279,7 +282,35 @@ class Registry:
             log.warning("%s could not answer %s: %s", found.plugin, hook.strip("_"), exc)
             return None
 
-    def item_url(self, kind: str, key: str, link: str | None) -> str | None:
-        """Where one of this kind's items lives, if its plugin says so."""
-        said = self._ask(kind, "_item_url", key, link)
+    def item_url(
+        self, kind: str, key: str, link: str | None, item_kind: str = "video"
+    ) -> str | None:
+        """Where one of this kind's items lives, if its plugin says so.
+
+        Given the item's own kind too, since a source can publish more than
+        one kind of thing and each may live at a different address.
+        """
+        said = self._ask(kind, "_item_url", key, link or "", item_kind)
         return said if isinstance(said, str) and said else link
+
+    def takes(self, kind: str) -> tuple[Take, ...]:
+        """The kinds of content this kind of source publishes, each a switch."""
+        found = self.kind(kind)
+        return found.takes if found is not None else ()
+
+    def classify(self, kind: str, item: dict[str, object], owner: OwnerId) -> str | None:
+        """Which of its `takes` one item is, by its plugin's `classify`.
+
+        Asked for the account whose item it is, so the plugin's user settings
+        are that account's — what counts as a Short is a preference. None
+        when the source declares no kinds, or the answer is not one of them:
+        an item nobody can sort is let through rather than lost.
+        """
+        named = {one.name for one in self.takes(kind)}
+        if not named:
+            return None
+        from ..capabilities import acting_for
+
+        with acting_for(owner):
+            said = self._ask(kind, "_classify", item)
+        return said if isinstance(said, str) and said in named else None

@@ -48,10 +48,9 @@ async def graph_save_node(
     active: str = Form(""),
     max_items: str = Form(""),
     feed_max_per_run: str = Form(""),
-    takes_videos: str = Form(""),
-    takes_shorts: str = Form(""),
-    takes_live: str = Form(""),
-    takes_posts: str = Form(""),
+    # The kinds of content a source takes: one `takes` per ticked switch,
+    # named after the kind its plugin declared.
+    takes: list[str] = Form([]),
     mirror_url: str = Form(""),
     every_minutes: str = Form(""),
     cron: str = Form(""),
@@ -98,10 +97,7 @@ async def graph_save_node(
             answer = _save_channel(
                 session,
                 node.channel,
-                takes={
-                    "videos": takes_videos, "shorts": takes_shorts,
-                    "live": takes_live, "posts": takes_posts,
-                },
+                takes=set(takes),
                 mirror_url=mirror_url,
             )
             if answer is not None:
@@ -275,7 +271,7 @@ def _save_channel(
     session: Session,
     channel: Channel,
     *,
-    takes: dict[str, str],
+    takes: set[str],
     mirror_url: str = "",
 ) -> JSONResponse | None:
     """What kinds the channel takes.
@@ -285,23 +281,18 @@ def _save_channel(
 
     Through the same services the channel's own page uses, not by setting the
     columns: turning something back on brings back what was skipped for that
-    reason, and writing ``skip_shorts = False`` here would quietly lose that.
+    reason, and writing the column directly here would quietly lose that.
     Each is only called when the answer actually changed, so saving the box
     without touching a switch requeues nothing.
 
     Only reached for a form that said it carried these fields, so an unticked
     box here really does mean off.
     """
-    switches = (
-        ("videos", channel.skip_videos, channel_service.set_videos),
-        ("shorts", channel.skip_shorts, channel_service.set_shorts),
-        ("live", channel.skip_live, channel_service.set_live),
-        ("posts", channel.skip_posts, channel_service.set_posts),
-    )
-    for name, skipping, apply in switches:
-        wanted = takes[name] == "1"
-        if wanted is skipping:  # it was off and is wanted on, or the reverse
-            apply(session, channel, include=wanted)
+    left_out = channel.left_out_names
+    for one in channel.takes:
+        wanted = one.name in takes
+        if wanted is (one.name in left_out):  # it was off and is wanted on, or the reverse
+            channel_service.set_take(session, channel, one.name, include=wanted)
 
     wanted_mirror = mirror_url.strip()
     if wanted_mirror and not wanted_mirror.lower().startswith(("http://", "https://")):

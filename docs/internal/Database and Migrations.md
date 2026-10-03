@@ -32,6 +32,7 @@ does nothing if already done. Order matters:
 | `plugin_boxes_become_pieces` | Plugin boxes → a Filter carrying a `rule` piece |
 | `rules_become_pieces` | Fields on Filter/Sort boxes → condition pieces (`_RULES_AS_PIECES`, `_SWITCHES_AS_PLUGIN_RULES`) |
 | `youtube_becomes_a_plugin` | Google client id/secret/API key and non-default quota figures (from `settings`, or `DEALGO_CLIENT_ID` etc.) → the YouTube plugin's app settings; `oauth_token.provider` = `youtube`; per-account `quota_usage` → install-wide `allowance_usage` (busiest account's count per day), then the table is dropped |
+| `youtube_takes_become_declared` | YouTube channels' `skip_*` → `channel.left_out`; `video.is_short` → `hint = 'shorts'`; skipped reasons → the YouTube plugin's kind labels; non-default `shorts_max_seconds` → its user setting |
 | `drop_removed_columns` | Drop `_DROPPED_COLUMNS` — **last**, because earlier steps read them |
 | then | `ensure_admin`, `clear_expired` sessions, `repair_stored_pictures` |
 

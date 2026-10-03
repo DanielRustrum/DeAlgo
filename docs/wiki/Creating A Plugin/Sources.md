@@ -23,7 +23,10 @@ sources = {
     accept    = function(typed) … end,      -- optional
     refine    = function(item) … end,       -- optional
     home      = function(key) … end,        -- optional
-    item_url  = function(key, link) … end,  -- optional
+    item_url  = function(key, link, kind) … end,  -- optional
+    takes     = { … },                      -- optional: kinds of content, each a switch
+    classify  = function(item) … end,       -- required with `takes`
+    mirrors   = false,                      -- optional: never offer a mirror address
     mirror    = function(key) … end,        -- optional
     posts     = function(key) … end,        -- optional
   },
@@ -92,12 +95,42 @@ Called for every entry read from your source's feed. Return only what you want t
 | --- | --- |
 | `id` | The item's identity, used to recognise it next time. **Must be unique across every source an account has** — prefix it, e.g. `example-42`. Omit to let De-Algo hash the guid. |
 | `kind` | `"link"` (default), `"post"`, or `"video"`. Use `"video"` only for a YouTube video id: Focus mode plays those in YouTube's player. |
-| `is_short` | `true` for a YouTube Short. |
+| `hint` | Up to 16 characters about what it is, kept with the item and handed to your `classify` later. YouTube says `"shorts"` for an entry linked as a Short. |
 
-## home(key) and item_url(key, link)
+## home(key) and item_url(key, link, kind)
 
-Where the source itself lives, and where one of its items lives. Used for the **↗** links. Return a
-URL string, or `nil` to use the feed's own link.
+Where the source itself lives, and where one of its items lives. Used for the **↗** links. `kind` is
+the item's own (`"video"`, `"post"` or `"link"`), for a source whose items live at different
+addresses. Return a URL string, or `nil` to use the feed's own link.
+
+## takes and classify(item)
+
+For a source that publishes more than one kind of thing, where people want some and not others.
+YouTube's:
+
+```lua
+takes = {
+  { name = "videos", label = "Videos" },
+  { name = "shorts", label = "Shorts", off = true },          -- off for a new source
+  { name = "live", label = "Live", off = true },
+  { name = "posts", label = "Posts", extras = true },          -- comes from `posts`
+},
+classify = function(item)
+  if item.kind == "post" then return "posts" end
+  if item.live == "live" or item.live == "upcoming" then return "live" end
+  if item.hint == "shorts" then return "shorts" end
+  return "videos"
+end,
+```
+
+Each kind becomes a switch on the source's box. `classify` is handed the item (the same fields an
+[augmentation](Augmentations.md#what-an-item-looks-like) gets) and returns one of the names; an item
+it cannot place is let through. It runs for the account whose item it is, so it can read that
+account's [settings](Settings.md) — what counts as a Short is a YouTube user setting. A held item's
+reason is the kind's `label`, which is how switching it back on finds what it held. When every kind
+marked `extras` is switched off, `posts` is not called at all.
+
+Without `takes`, the source takes everything and its box says so.
 
 ## mirror(key)
 

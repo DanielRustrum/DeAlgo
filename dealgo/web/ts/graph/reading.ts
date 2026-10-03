@@ -171,17 +171,25 @@ function asGraphChannel(value: unknown): GraphChannel | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
 
-  const takes: Record<string, boolean> = {};
-  const given = asGraphRecord(raw["takes"]) ?? {};
-  for (const key of Object.keys(given)) takes[key] = given[key] === true;
+  const takes: GraphTake[] = [];
+  const given = raw["takes"];
+  if (Array.isArray(given)) {
+    for (const one of given) {
+      const take = asGraphRecord(one);
+      if (take === null || typeof take["name"] !== "string") continue;
+      takes.push({
+        name: take["name"],
+        label: typeof take["label"] === "string" ? take["label"] : take["name"],
+        on: take["on"] === true,
+      });
+    }
+  }
 
   const checked = raw["checked"];
   return {
     source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
     colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
-    // Absent means YouTube: everything on a canvas drawn before there was
-    // anywhere else to draw is one.
-    youtube: raw["youtube"] !== false,
+    mirrors: raw["mirrors"] !== false,
     feedUrl: typeof raw["feed_url"] === "string" ? raw["feed_url"] : "",
     mirror: typeof raw["mirror"] === "string" ? raw["mirror"] : null,
     mirrorHint: typeof raw["mirror_hint"] === "string" ? raw["mirror_hint"] : null,

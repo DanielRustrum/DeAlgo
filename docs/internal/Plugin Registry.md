@@ -55,6 +55,7 @@ way to hand a kind to a replacement.
 | --- | --- | --- |
 | `recognise(ref)` / `accept(kind, ref)` | `sources.resolve` | each kind's `recognise` |
 | `refine(kind, item)` | sync polling | `refine` |
+| `takes(kind)` / `classify(kind, item, owner)` | the source's switches, `decide` | `classify` (inside `acting_for(owner)`) |
 | `posts(kind, key)` / `has_extras` | sync polling | `posts` (≤ 200) |
 | `keeps(ref, item, settings)` | `decide` | augmentation `keep` |
 | `ranks(ref, item, settings)` | `reorder` | augmentation `rank` |

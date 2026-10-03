@@ -173,10 +173,10 @@ def test_the_youtube_box_holds_what_the_switch_held(db):
     from dealgo.plugins import registry
 
     found = registry.current()
-    item = {"source": "youtube", "kind": "video", "is_short": True, "live": ""}
+    item = {"source": "youtube", "kind": "video", "hint": "shorts", "live": ""}
 
     assert found.keeps("youtube:no-shorts", item, {}) is False
-    assert found.keeps("youtube:no-shorts", {**item, "is_short": False}, {}) is True
+    assert found.keeps("youtube:no-shorts", {**item, "hint": ""}, {}) is True
 
 
 # -- a sort box -----------------------------------------------------------

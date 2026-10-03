@@ -15,7 +15,8 @@ log = logging.getLogger(__name__)
 # tables, so an existing database needs them added by hand; each is nullable or
 # defaulted, which is what makes a plain ADD COLUMN safe.
 _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
-    ("video", "is_short", "BOOLEAN NOT NULL DEFAULT 0"),
+    # What a source's plugin said about an item when it was read.
+    ("video", "hint", "VARCHAR(16)"),
     ("video", "watched_at", "DATETIME"),
     ("sync_run", "removed", "INTEGER NOT NULL DEFAULT 0"),
     ("oauth_token", "refresh_error", "TEXT"),
@@ -25,9 +26,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("channel", "priority", "INTEGER NOT NULL DEFAULT 0"),
     ("channel", "min_pull_minutes", "INTEGER NOT NULL DEFAULT 0"),
     ("channel", "backfill_days", "INTEGER"),
-    ("channel", "skip_videos", "BOOLEAN NOT NULL DEFAULT 0"),
+    # Which of its plugin's kinds of content a source leaves out.
+    ("channel", "left_out", "TEXT"),
     ("channel", "description", "TEXT"),
-    ("channel", "skip_posts", "BOOLEAN NOT NULL DEFAULT 0"),
     ("video", "kind", "VARCHAR(8) NOT NULL DEFAULT 'video'"),
     ("video", "body", "TEXT"),
     ("video", "images", "TEXT"),
@@ -159,6 +160,15 @@ _DROPPED_COLUMNS: tuple[tuple[str, str], ...] = (
     ("settings", "api_key"),
     ("settings", "daily_quota"),
     ("settings", "quota_reserve"),
+    # YouTube's four kinds of content, its Short marker and what counts as
+    # a Short: the YouTube plugin's `takes`, `hint` and a user setting now.
+    # youtube_takes_become_declared carries them across first.
+    ("channel", "skip_videos"),
+    ("channel", "skip_shorts"),
+    ("channel", "skip_live"),
+    ("channel", "skip_posts"),
+    ("video", "is_short"),
+    ("settings", "shorts_max_seconds"),
 )
 
 

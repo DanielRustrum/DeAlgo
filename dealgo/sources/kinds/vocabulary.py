@@ -57,6 +57,8 @@ class SourceKind:
     #: What its box, palette row and pills wear — one of the plugin source
     #: colours. The two kinds that are not a plugin's keep the default.
     colour: str = "green"
+    #: Whether a second address for its feed is worth offering.
+    mirrors: bool = True
 
 
 #: The floor. Not a plugin, because every plugin's parsing is built on it and
@@ -102,6 +104,7 @@ def all_kinds() -> tuple[SourceKind, ...]:
             noun=kind.noun,
             blurb=kind.blurb,
             colour=kind.colour,
+            mirrors=kind.mirrors,
         )
         for kind in registry.current().source_kinds()
     )

@@ -376,6 +376,14 @@ return {
         hint = "Units syncing leaves for things done by hand late in the day.",
       },
     },
+    -- Each account's own.
+    user = {
+      {
+        name = "shorts_max_seconds", label = "Longest video counted as a Short",
+        type = "number", default = 60,
+        hint = "In seconds. A video linked as a Short is one whatever its length.",
+      },
+    },
   },
 
   -- How Google signs people in. De-Algo does the sign-in and keeps the
@@ -421,6 +429,33 @@ return {
       -- Its boxes on the canvas, from the colours the app allows.
       colour = "red",
       playlistable = true,
+      -- YouTube reads every channel's feed without complaint, so a second
+      -- address for it is never worth offering.
+      mirrors = false,
+
+      -- What a channel publishes, each a switch on its box. Shorts and
+      -- broadcasts start switched off: most people follow a channel for
+      -- its uploads. Posts come from the Posts tab, not the feed, so
+      -- switching them off also stops that page being read.
+      takes = {
+        { name = "videos", label = "Videos" },
+        { name = "shorts", label = "Shorts", off = true },
+        { name = "live", label = "Live", off = true },
+        { name = "posts", label = "Posts", extras = true },
+      },
+
+      -- Which of those one item is. A Short is one the feed linked as a
+      -- Short, or one no longer than this account says a Short can be.
+      classify = function(item)
+        if item.kind == "post" then return "posts" end
+        if item.live == "live" or item.live == "upcoming" then return "live" end
+        local longest = settings.user("shorts_max_seconds") or 60
+        if item.hint == "shorts" then return "shorts" end
+        if item.duration and item.duration > 0 and item.duration <= longest then
+          return "shorts"
+        end
+        return "videos"
+      end,
 
       -- Asked when the box is already a YouTube box. A bare word here is
       -- a channel to go and look up, which `recognise` cannot assume of a
@@ -474,10 +509,11 @@ return {
         return read_posts(channel_id)
       end,
 
-      -- A video is addressed by its id rather than by a link, so the feed's
-      -- own link is what the host already built. Nothing to change.
-      item_url = function(_, link)
-        return link
+      -- Where an item lives: a video by its id, a post on its own page.
+      item_url = function(id, link, kind)
+        if kind == "post" then return "https://www.youtube.com/post/" .. id end
+        if link and link ~= "" then return link end
+        return "https://www.youtube.com/watch?v=" .. id
       end,
 
       -- What is YouTube's about a YouTube feed.
@@ -495,7 +531,8 @@ return {
           -- A video is filed under its own id, not under the feed's guid.
           id = video,
           kind = "video",
-          is_short = string.find(link, "/shorts/", 1, true) ~= nil,
+          -- A Short is linked as one; nothing else gives it away for free.
+          hint = string.find(link, "/shorts/", 1, true) and "shorts" or nil,
         }
       end,
     },
@@ -520,7 +557,7 @@ return {
         if item.kind ~= "video" then return true end
         -- A Short and a broadcast are their own things, each with a
         -- condition of its own. This one is about everything else.
-        if item.is_short then return true end
+        if item.hint == "shorts" then return true end
         if item.live == "live" or item.live == "upcoming" then return true end
         return false
       end,
@@ -552,7 +589,7 @@ return {
       blurb = "Holds Shorts on this path only.",
       keep = function(item)
         if item.source ~= "youtube" then return true end
-        return not item.is_short
+        return item.hint ~= "shorts"
       end,
     },
 
@@ -562,7 +599,7 @@ return {
       blurb = "Keeps Shorts and holds everything else from YouTube.",
       keep = function(item)
         if item.source ~= "youtube" then return true end
-        return item.is_short == true
+        return item.hint == "shorts"
       end,
     },
 

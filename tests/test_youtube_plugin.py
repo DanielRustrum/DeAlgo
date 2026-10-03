@@ -471,7 +471,7 @@ def an_item(**over) -> dict:
     """One item as the host hands it over: plain values only."""
     base = {
         "title": "", "kind": "video", "words": "", "link": "", "duration": 0,
-        "views": 0, "likes": 0, "is_short": False, "live": "", "source": "youtube",
+        "views": 0, "likes": 0, "hint": "", "live": "", "source": "youtube",
     }
     base.update(over)
     return base
@@ -492,7 +492,7 @@ def test_no_videos_holds_an_ordinary_upload_and_nothing_else():
     found = shipped()
 
     assert found.keeps("youtube:no-videos", an_item(), {}) is False
-    assert found.keeps("youtube:no-videos", an_item(is_short=True), {}) is True
+    assert found.keeps("youtube:no-videos", an_item(hint="shorts"), {}) is True
     assert found.keeps("youtube:no-videos", an_item(live="upcoming"), {}) is True
     assert found.keeps("youtube:no-videos", an_item(kind="post"), {}) is True
 
@@ -520,7 +520,7 @@ def test_the_content_conditions_let_everything_else_by():
     Shorts and no premieres, and must not be swallowed by a question about
     either."""
     found = shipped()
-    elsewhere = an_item(source="reddit", kind="post", is_short=True, live="live")
+    elsewhere = an_item(source="reddit", kind="post", hint="shorts", live="live")
 
     for ref in ("youtube:no-videos", "youtube:no-live", "youtube:no-posts"):
         assert found.keeps(ref, elsewhere, {}) is True, ref

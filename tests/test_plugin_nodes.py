@@ -375,7 +375,7 @@ def an_item(**over):
     """One item as `_plugin_refusal` hands it over: plain values only."""
     base = {
         "title": "", "kind": "video", "words": "", "link": "", "duration": 0,
-        "views": 0, "likes": 0, "is_short": False, "source": "youtube",
+        "views": 0, "likes": 0, "hint": "", "source": "youtube",
     }
     base.update(over)
     return base
@@ -426,7 +426,7 @@ def test_shorts_can_be_held_or_demanded_on_one_path():
     """The channel's own switch does this everywhere; a box does it down one
     wire, which is the whole reason a path-specific one is worth having."""
     found = shipped()
-    short, full = an_item(is_short=True), an_item(is_short=False)
+    short, full = an_item(hint="shorts"), an_item(hint="")
 
     assert found.keeps("youtube:no-shorts", short, {}) is False
     assert found.keeps("youtube:no-shorts", full, {}) is True

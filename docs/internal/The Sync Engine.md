@@ -35,7 +35,7 @@ For each enabled channel (by `priority`, `id`):
    `When.due(last_checked_at, now)`. **No trigger, no poll.**
 2. `_poll` → `_read_feed`: fetch `channel.feed_url`; on a refusal (`RateLimited` or 403/429/503)
    try `mirror_url`; if that fails too, raise the original refusal.
-3. Each item passes through the source plugin's `refine` (id, `kind`, `is_short`). Items with no
+3. Each item passes through the source plugin's `refine` (id, `kind`, `hint`). Items with no
    plugin id get `item-` + SHA-1(`channel_id|guid`)[:24].
 4. Known items are refreshed (`_freshen`: newest reading wins, never replaced by empty). New items
    become `Video` rows: `pending`, or `ignored` (*predates the backfill window*) if beyond the

@@ -1276,7 +1276,7 @@ def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, mon
     with db.session_scope() as session:
         item = session.scalar(select(VideoModel).where(VideoModel.kind == "link"))
         assert item.status == "skipped"
-        assert "YouTube playlist" in (item.reason or "")
+        assert "playlist can hold" in (item.reason or "")
     # And nothing was sent to YouTube about it.
     assert world["client"].inserted_into() == []
 

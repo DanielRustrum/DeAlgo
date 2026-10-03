@@ -45,6 +45,23 @@ class Recognised:
 
 
 @dataclass(frozen=True)
+class Take:
+    """One kind of content a source publishes, with a switch of its own.
+
+    YouTube's are videos, Shorts, broadcasts and community posts. Most
+    sources publish one kind of thing and declare none: they take all of it.
+    """
+
+    name: str
+    label: str
+    #: Left out of a new source until somebody switches it on.
+    off: bool = False
+    #: Comes from the source's `posts` hook rather than its feed, so leaving
+    #: every such kind out also stops that fetch.
+    extras: bool = False
+
+
+@dataclass(frozen=True)
 class SourceKind:
     """A kind of somewhere to watch, as a plugin describes it."""
 
@@ -62,6 +79,12 @@ class SourceKind:
     blurb: str = ""
     #: What its box, palette row and pills wear: one of `SOURCE_COLOURS`.
     colour: str = "green"
+    #: The kinds of content it publishes, each with a switch. Empty when it
+    #: publishes one kind of thing and takes all of it.
+    takes: tuple[Take, ...] = ()
+    #: Whether a second address for its feed is worth offering. False for a
+    #: service that never refuses a reader.
+    mirrors: bool = True
     _recognise: Any = None
     _accept: Any = None
     _item_url: Any = None
@@ -69,6 +92,8 @@ class SourceKind:
     _refine: Any = None
     _posts: Any = None
     _home: Any = None
+    #: Which of `takes` one item is.
+    _classify: Any = None
 
     @property
     def has_posts(self) -> bool:

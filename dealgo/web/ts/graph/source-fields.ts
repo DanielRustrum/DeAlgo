@@ -71,20 +71,20 @@ function graphChannelFields(
 
   form.appendChild(graphTakes(channel));
   form.appendChild(graphChecks(node, channel));
-  if (!channel.youtube) form.appendChild(graphMirror(channel));
+  if (channel.mirrors) form.appendChild(graphMirror(channel));
   form.appendChild(graphChannelCounts(node, channel));
 }
 
-/** The four switches, and whether the channel is watched at all.
+/** A switch for each kind of content the source's plugin says it publishes.
  *
- *  Videos, Shorts, broadcasts and community posts are distinctions YouTube
- *  draws. Everywhere else publishes one kind of thing, so the box says so
- *  rather than offering four switches that would decide nothing. */
+ *  YouTube's are videos, Shorts, broadcasts and community posts. A source
+ *  that publishes one kind of thing declares none, so the box says so
+ *  rather than offering switches that would decide nothing. */
 function graphTakes(channel: GraphChannel): HTMLElement {
   const group = graphElement("div", "graph-group");
   group.appendChild(graphElement("span", "graph-group-name", "Takes"));
 
-  if (!channel.youtube) {
+  if (channel.takes.length === 0) {
     group.appendChild(
       graphElement(
         "span",
@@ -96,20 +96,15 @@ function graphTakes(channel: GraphChannel): HTMLElement {
   }
 
   const switches = graphElement("div", "graph-switches");
-  for (const [name, label] of [
-    ["videos", "Videos"],
-    ["shorts", "Shorts"],
-    ["live", "Live"],
-    ["posts", "Posts"],
-  ] as const) {
+  for (const take of channel.takes) {
     const row = graphElement("label", "graph-switch");
     const tick = document.createElement("input");
     tick.type = "checkbox";
-    tick.name = `takes_${name}`;
-    tick.value = "1";
-    tick.checked = channel.takes[name] === true;
+    tick.name = "takes";
+    tick.value = take.name;
+    tick.checked = take.on;
     row.appendChild(tick);
-    row.appendChild(graphElement("span", "graph-switch-name", label));
+    row.appendChild(graphElement("span", "graph-switch-name", take.label));
     switches.appendChild(row);
   }
   group.appendChild(switches);

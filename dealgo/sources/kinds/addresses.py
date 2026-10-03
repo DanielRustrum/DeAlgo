@@ -5,13 +5,13 @@ from __future__ import annotations
 from .vocabulary import NEWSLETTER
 
 
-def item_url(kind: str, key: str, link: str | None) -> str | None:
+def item_url(kind: str, key: str, link: str | None, item_kind: str = "video") -> str | None:
     """Where an item lives. The link the feed gave, unless its plugin knows
-    better — YouTube items are addressed by a video id and are built
-    elsewhere."""
+    better — an item addressed by an id rather than a link is the plugin's
+    to build an address for."""
     from ...plugins import registry
 
-    return registry.current().item_url(kind, key, link)
+    return registry.current().item_url(kind, key, link, item_kind)
 
 
 def home_url(kind: str, key: str) -> str | None:

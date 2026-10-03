@@ -18,7 +18,7 @@ import pytest
 from sqlalchemy import select
 
 from dealgo.models import Channel, GraphEdge, GraphNode, Playlist
-from fakes import unwire, wire
+from fakes import unwire, wire, set_left_out
 from dealgo.services import graph
 from dealgo.web.routes.canvas import running as canvas_running
 from dealgo.web.routes.canvas import saving as canvas_saving
@@ -286,13 +286,13 @@ def test_a_direct_path_uses_the_channels_own_filters(db):
     with db.session_scope() as session:
         graph.load(session)
         source = node_for(session, "source", "UCone")
-        source.channel.skip_shorts = True
+        set_left_out(source.channel, "shorts", True)
         graph.connect(session, source, node_for(session, "feed", "PLone"))
 
     with db.session_scope() as session:
         paths = graph.routes(session)
         assert len(paths) == 1
-        assert paths[0].effective()["skip_shorts"] is True
+        assert "shorts" in paths[0].effective()["left_out"]
         assert paths[0].filters == []
 
 
@@ -876,7 +876,7 @@ def test_a_source_box_takes_somewhere_that_is_not_youtube(canvas, db, monkeypatc
     assert filled["detail"] is not None  # it stands for something now
     assert filled["note"] == "everything from Reddit"
     assert filled["channel"]["source"] == "Reddit"
-    assert filled["channel"]["youtube"] is False
+    assert filled["channel"]["takes"] == []
 
     with db.session_scope() as session:
         made = session.scalar(select(ChannelModel).where(ChannelModel.channel_id == "r/python"))
@@ -1040,14 +1040,16 @@ def test_a_channel_box_carries_what_the_channel_does(canvas, db):
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
-        channel.skip_shorts = True
+        set_left_out(channel, "shorts", True)
         channel.min_pull_minutes = 60
         session.add(VideoModel(video_id="v9", channel_pk=channel.id, title="Placed",
                                status="added"))
 
     node = only(canvas.get("/api/graph").json(), "source")
     facts = node["channel"]
-    assert facts["takes"] == {"videos": True, "shorts": False, "live": False, "posts": True}
+    assert {one["name"]: one["on"] for one in facts["takes"]} == {
+        "videos": True, "shorts": False, "live": False, "posts": True,
+    }
     assert facts["placed"] == 1 and facts["pending"] == 1
     assert facts["checked"] is None  # never polled in this test
     # When it is next looked at belongs to the trigger, and is said once.
@@ -1060,11 +1062,13 @@ def test_a_channels_switches_can_be_set_from_its_box(canvas, db):
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     saved = canvas.post(
         f"/graph/nodes/{node_id}",
-        data={"box_form": "1", "takes_videos": "1", "takes_posts": "1"},
+        data={"box_form": "1", "takes": ["videos", "posts"]},
     ).json()
 
     facts = only(saved, "source")["channel"]
-    assert facts["takes"] == {"videos": True, "shorts": False, "live": False, "posts": True}
+    assert {one["name"]: one["on"] for one in facts["takes"]} == {
+        "videos": True, "shorts": False, "live": False, "posts": True,
+    }
 
 
 def test_a_channel_box_does_not_offer_to_set_its_own_interval(canvas, db):
@@ -1078,7 +1082,7 @@ def test_a_channel_box_does_not_offer_to_set_its_own_interval(canvas, db):
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     canvas.post(
         f"/graph/nodes/{node_id}",
-        data={"box_form": "1", "interval": "180", "takes_videos": "1"},
+        data={"box_form": "1", "interval": "180", "takes": ["videos"]},
     )
 
     with db.session_scope() as session:
@@ -1092,15 +1096,14 @@ def test_turning_a_switch_back_on_brings_back_what_it_skipped(canvas, db):
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
-        channel.skip_shorts = True
+        set_left_out(channel, "shorts", True)
         session.add(VideoModel(video_id="s1", channel_pk=channel.id, title="A short",
-                               is_short=True, status="skipped", reason="Short (30s)"))
+                               hint="shorts", status="skipped", reason="Shorts"))
 
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     canvas.post(
         f"/graph/nodes/{node_id}",
-        data={"box_form": "1", "active": "1", "takes_videos": "1", "takes_shorts": "1",
-              "takes_posts": "1"},
+        data={"box_form": "1", "active": "1", "takes": ["videos", "shorts", "posts"]},
     )
 
     with db.session_scope() as session:
@@ -1115,15 +1118,14 @@ def test_saving_a_box_without_touching_a_switch_requeues_nothing(canvas, db):
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
-        channel.skip_shorts = True
+        set_left_out(channel, "shorts", True)
         session.add(VideoModel(video_id="s1", channel_pk=channel.id, title="A short",
-                               is_short=True, status="skipped", reason="Short (30s)"))
+                               hint="shorts", status="skipped", reason="Shorts"))
 
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     canvas.post(
         f"/graph/nodes/{node_id}",
-        data={"box_form": "1", "label": "Renamed", "takes_videos": "1",
-              "takes_posts": "1"},
+        data={"box_form": "1", "label": "Renamed", "takes": ["videos", "posts"]},
     )
 
     with db.session_scope() as session:
@@ -1215,7 +1217,7 @@ def test_a_channel_box_does_not_offer_to_filter(canvas, db):
 
     canvas.post(
         f"/graph/nodes/{node['id']}",
-        data={"box_form": "1", "takes_videos": "1", "channel_title_include": "changed"},
+        data={"box_form": "1", "channel_title_include": "changed", "takes": ["videos"]},
     )
     with db.session_scope() as session:
         assert session.scalars(select(ChannelModel)).one().title_include == "weekly"
@@ -1228,7 +1230,7 @@ def test_a_channel_can_be_paused_from_its_box(canvas, db):
 
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     canvas.post(
-        f"/graph/nodes/{node_id}", data={"box_form": "1", "takes_videos": "1"}
+        f"/graph/nodes/{node_id}", data={"box_form": "1", "takes": ["videos"]}
     )  # Active unticked
 
     with db.session_scope() as session:
@@ -1236,7 +1238,7 @@ def test_a_channel_can_be_paused_from_its_box(canvas, db):
 
     canvas.post(
         f"/graph/nodes/{node_id}",
-        data={"box_form": "1", "active": "1", "takes_videos": "1"},
+        data={"box_form": "1", "active": "1", "takes": ["videos"]},
     )
     with db.session_scope() as session:
         assert session.scalars(select(ChannelModel)).one().enabled is True
@@ -1251,7 +1253,7 @@ def test_a_form_that_never_showed_a_switch_cannot_turn_it_off(canvas, db):
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).one()
         channel.enabled = True
-        channel.skip_shorts = False
+        set_left_out(channel, "shorts", False)
 
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     canvas.post(f"/graph/nodes/{node_id}", data={"label": "Just a rename"})
@@ -1259,7 +1261,7 @@ def test_a_form_that_never_showed_a_switch_cannot_turn_it_off(canvas, db):
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).one()
         assert channel.enabled is True
-        assert channel.skip_shorts is False
+        assert "shorts" not in channel.left_out_names
 
 
 # -- triggers over HTTP ----------------------------------------------------
@@ -1669,7 +1671,7 @@ def test_a_trial_says_where_everything_would_land(canvas, db):
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
         session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
-                               is_short=True, duration_sec=30, status="pending"))
+                               hint="shorts", duration_sec=30, status="pending"))
 
     drawn = canvas.get("/api/graph").json()
     source, feed = only(drawn, "source"), only(drawn, "feed")
@@ -1718,7 +1720,7 @@ def test_a_trial_says_a_reddit_thread_cannot_go_into_a_youtube_playlist(canvas, 
 
     held = trial["items"][str(reddit["id"])]["held"]
     assert [item["title"] for item in held] == ["A thread"]
-    assert "YouTube playlist" in held[0]["reason"]
+    assert "playlist can hold" in held[0]["reason"]
 
 
 def test_backfill_brings_back_what_was_passed_over_as_too_old(canvas, db, monkeypatch):
@@ -1968,8 +1970,8 @@ def test_a_trial_names_the_filter_that_held_something(canvas, db):
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
         session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
-                               is_short=True, duration_sec=30, status="pending"))
-        channel.skip_shorts = False  # the channel lets them by; the filter will not
+                               hint="shorts", duration_sec=30, status="pending"))
+        set_left_out(channel, "shorts", False)  # the channel lets them by; the filter will not
 
     added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "No shorts"}).json()
     source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
@@ -2029,9 +2031,9 @@ def test_every_box_the_trial_touched_gets_its_own_share(canvas, db):
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
-        channel.skip_shorts = False
+        set_left_out(channel, "shorts", False)
         session.add(VideoModel(video_id="short1", channel_pk=channel.id, title="A short",
-                               is_short=True, duration_sec=30, status="pending"))
+                               hint="shorts", duration_sec=30, status="pending"))
 
     added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "No shorts"}).json()
     source, feed, middle = only(added, "source"), only(added, "feed"), only(added, "filter")
@@ -2209,7 +2211,7 @@ def test_a_filter_says_what_it_lets_through_and_what_it_holds_back(canvas, db):
     with db.session_scope() as session:
         channel_pk = session.scalars(select(Channel)).one().id
         session.add(VideoModel(video_id="short1", channel_pk=channel_pk, title="A short",
-                               is_short=True, duration_sec=30, status="pending"))
+                               hint="shorts", duration_sec=30, status="pending"))
 
     added = canvas.post("/graph/nodes", data={"kind": "filter", "title": "No shorts"}).json()
     source, middle = only(added, "source"), only(added, "filter")
@@ -2246,7 +2248,7 @@ def test_an_earlier_filter_on_the_path_still_counts(canvas, db):
     with db.session_scope() as session:
         channel_pk = session.scalars(select(Channel)).one().id
         session.add(VideoModel(video_id="short1", channel_pk=channel_pk, title="A short",
-                               is_short=True, duration_sec=30, status="pending"))
+                               hint="shorts", duration_sec=30, status="pending"))
 
     first = canvas.post("/graph/nodes", data={"kind": "filter", "title": "First"}).json()
     first_id = [n for n in boxes(first, "filter") if n["title"] == "First"][0]["id"]
@@ -2375,7 +2377,7 @@ def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
     from fakes import entry
 
     with db.session_scope() as session:
-        session.scalars(select(ChannelModel)).one().skip_videos = True
+        set_left_out(session.scalars(select(ChannelModel)).one(), "videos", True)
         graph.load(session)
         source_pk = next(n for n in graph.nodes(session) if n.kind == "source").id
         feed_pk = next(n for n in graph.nodes(session) if n.kind == "feed").id
@@ -3434,7 +3436,6 @@ def test_a_group_can_be_given_away_and_loaded_back(db):
         feed.x, feed.y = 400, 100
         session.flush()
         middle = graph.add_filter(session, label="No shorts", x=250, y=100)
-        middle.skip_shorts = True
         graph.connect(session, source, middle)
         graph.connect(session, middle, feed)
 
