@@ -209,3 +209,23 @@ def site_session():
     from dealgo.db import session_scope
 
     return session_scope()
+
+
+# -- feeds published through it ----------------------------------------------------
+
+
+def test_a_feeds_link_is_where_the_plugin_says(db):
+    from dealgo.models import Playlist
+
+    assert Playlist(playlist_id="PLabc", title="x").url == (
+        "https://www.youtube.com/playlist?list=PLabc"
+    )
+    assert Playlist(playlist_id="generic:abc", title="x").url is None
+
+
+def test_making_a_published_feed_sits_in_its_plugins_block(site):
+    page = site.get("/settings").text
+    block = page.split('id="plugin-youtube"', 1)[1].split("</article>", 1)[0]
+    assert "Feeds on YouTube" in block
+    # And nowhere else on the page.
+    assert page.count('id="new-feed"') == 1

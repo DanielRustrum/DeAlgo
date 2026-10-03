@@ -35,16 +35,17 @@ channel_playlist = Table(
 )
 
 
-# A generic feed — one not backed by a YouTube playlist — carries an id with
+# A generic feed — one not backed by a playlist on the publishing plugin's
+# service — carries an id with
 # this prefix instead of a real one. A sentinel rather than NULL because the
 # column is NOT NULL on every database already out there, and SQLite cannot
 # alter that in place.
 GENERIC_PLAYLIST_PREFIX = "generic:"
 
 
-# Stand-ins for a YouTube playlistItem id. "generic-" marks a feed that lives
-# only in De-Algo; "offline-" marks a video held in a YouTube-linked feed while
-# no account is connected — same effect for reading the feed, but a later run
+# Stand-ins for a published playlist's item id. "generic-" marks a feed that
+# lives only in De-Algo; "offline-" marks an item held in a published feed
+# while no account is connected — same effect for reading the feed, but a later run
 # with an account turns it into a real playlist item.
 GENERIC_ITEM_PREFIX = "generic-"
 
@@ -53,7 +54,8 @@ OFFLINE_ITEM_PREFIX = "offline-"
 
 
 class Playlist(Base):
-    """A feed De-Algo keeps filled — a YouTube playlist, or just a local list."""
+    """A feed De-Algo keeps filled — a playlist on the publishing plugin's
+    service, or just a local list."""
 
     __tablename__ = "playlist"
     __table_args__ = (owned_unique("playlist", "playlist_id"),)
@@ -105,12 +107,20 @@ class Playlist(Base):
 
     @property
     def is_generic(self) -> bool:
-        """True when the feed is backed by no YouTube playlist at all."""
+        """True when the feed is backed by no playlist on any service at all."""
         return self.playlist_id.startswith(GENERIC_PLAYLIST_PREFIX)
 
     @property
+    def is_published(self) -> bool:
+        """True when a playlist on the publishing plugin's service is behind it."""
+        return not self.is_generic
+
+    @property
     def url(self) -> str | None:
-        """The YouTube playlist's address, or None for a feed that lives here."""
+        """Where the playlist behind it can be opened, as the publishing plugin
+        says; None for a feed that lives here, or when the plugin will not say."""
         if self.is_generic:
             return None
-        return f"https://www.youtube.com/playlist?list={self.playlist_id}"
+        from ..plugins.publisher import address
+
+        return address(self.playlist_id)

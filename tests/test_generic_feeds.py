@@ -272,7 +272,7 @@ def test_a_generic_feed_has_nothing_to_unlink(db):
         feed = playlist_service.create_generic(session, "Kept here")
         with pytest.raises(playlist_service.PlaylistError) as caught:
             playlist_service.unlink(session, feed)
-    assert "no YouTube playlist" in str(caught.value)
+    assert "no playlist behind it" in str(caught.value)
 
 
 def test_renaming_a_generic_feed_touches_nothing_outside(world, db):

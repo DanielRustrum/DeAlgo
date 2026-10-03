@@ -25,12 +25,12 @@ your history and stops writing to that service. Where the service has a daily al
 shows how much of it is spent today, for everyone on this De-Algo. See
 [Connecting YouTube](Connecting%20YouTube.md) and [Quota](Quota.md).
 
+**Feeds on YouTube.** The plugin feeds are published through (YouTube) also has a section for
+making a feed backed by a new or existing playlist on that service. Needs a connected account. See
+[Feeds](Nodes/Feeds.md).
+
 Settings that apply to everyone, such as a plugin's OAuth client, are the admin's, on the plugin's
 card under Admin → Plugins.
-
-## Feeds on YouTube
-
-Make a feed backed by a new or existing YouTube playlist. Needs a connected account. See [Feeds](Nodes/Feeds.md).
 
 ## Back up your setup
 

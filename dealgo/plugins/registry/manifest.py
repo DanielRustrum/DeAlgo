@@ -62,7 +62,7 @@ def publisher_in(given: object) -> tuple[dict[str, Any], dict[str, int]]:
     doing = {
         name: given[name]
         for name in (
-            "resolve", "describe", "details", "whoami",
+            "resolve", "describe", "details", "whoami", "address",
             "playlists", "playlist", "create", "rename",
             "contents", "add", "remove",
         )

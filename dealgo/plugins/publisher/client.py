@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from ...services.scope import OwnerId
@@ -167,6 +168,48 @@ class Publisher:
                 )
             except Exception as exc:
                 raise PublishError(f"{plugin.title}: {exc}") from exc
+
+
+@dataclass(frozen=True)
+class Names:
+    """What to call the publishing plugin and its service, in a sentence.
+
+    "Connect a **Google** account", "Open on **YouTube**" — whichever plugin
+    publishes. Empty when none does, which a sentence should check for.
+    """
+
+    plugin_id: str = ""
+    #: The plugin: "YouTube".
+    publisher: str = ""
+    #: What its sign-in is called: "Google". The plugin's own name when it
+    #: has no sign-in.
+    service: str = ""
+
+
+def names() -> Names:
+    """What the publishing plugin and its service are called."""
+    plugin = publishing_plugin()
+    if plugin is None:
+        return Names()
+    service = plugin.connect.name if plugin.connect is not None else plugin.title
+    return Names(plugin_id=plugin.id, publisher=plugin.title, service=service)
+
+
+def address(playlist_id: str) -> str | None:
+    """Where a playlist can be opened, by the publishing plugin's `address`.
+
+    None when no plugin publishes, it does not say, or it fails: a feed
+    with no link is a feed with no "Open" button, not an error.
+    """
+    plugin = publishing_plugin()
+    fn = plugin.publishes.get("address") if plugin is not None else None
+    if plugin is None or fn is None or plugin.box is None:
+        return None
+    try:
+        said = plugin.box.call(fn, playlist_id)
+    except Exception:
+        return None
+    return str(said) if isinstance(said, str) and said.startswith("https://") else None
 
 
 def cost_of(what: str) -> int:

@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from ...plugins.publisher import names
 from ...db import session_scope
 from ...models import (
     Channel,
@@ -220,8 +221,10 @@ def remove_watched(request: Request) -> Response:
         if not feeds:
             blocker = "No feeds are set up."
         elif not connected and all(not feed.is_generic for feed in feeds):
-            # Local feeds need no account; YouTube ones do.
-            blocker = "Connect a Google account before removing videos from the playlist."
+            # Local feeds need no account; published ones do.
+            blocker = (
+                f"Connect a {names().service} account before removing items from the playlist."
+            )
 
     # Checked here, not just in the worker: promising a removal that cannot
     # happen would leave the failure invisible in a background thread.

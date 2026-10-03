@@ -1,4 +1,4 @@
-"""Making, editing and removing feeds, and the YouTube playlists behind them."""
+"""Making, editing and removing feeds, and the published playlists behind them."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ... import outgoing
+from ...plugins.publisher import names
 from ...db import session_scope
 from ...models import (
     Channel,
@@ -188,7 +189,7 @@ def rename_playlist(
         if playlist is None:
             return _playlists_response(request, err="That feed is no longer a target.", back=back)
         try:
-            on_youtube = playlist_service.rename(session, playlist, title, http)
+            renamed_there = playlist_service.rename(session, playlist, title, http)
         except playlist_service.PlaylistError as exc:
             # The local rename may well have gone through; say so either way.
             return _playlists_response(request, err=str(exc), back=back)
@@ -196,14 +197,14 @@ def rename_playlist(
 
     forget_account_playlists()
     message = f"Renamed to {new_title!r}."
-    if on_youtube:
-        message += " The YouTube playlist was renamed too."
+    if renamed_there:
+        message += f" The {names().publisher} playlist was renamed too."
     return _playlists_response(request, ok=message, back=back)
 
 
 @router.post("/settings/playlists/{playlist_pk}/unlink")
 def unlink_playlist(request: Request, playlist_pk: int, back: str = Form("")) -> Response:
-    """Keep the feed, drop the YouTube playlist behind it."""
+    """Keep the feed, drop the published playlist behind it."""
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
@@ -217,14 +218,14 @@ def unlink_playlist(request: Request, playlist_pk: int, back: str = Form("")) ->
     forget_account_playlists()
     return _playlists_response(
         request,
-        ok=f"{title} is now a generic feed. Its YouTube playlist and videos are untouched.",
+        ok=f"{title} is now a generic feed. Its {names().publisher} playlist is untouched.",
         back=back,
     )
 
 
 @router.post("/settings/playlists/{playlist_pk}/delete")
 def delete_playlist(request: Request, playlist_pk: int, back: str = Form("")) -> Response:
-    """Stop filling a feed. A YouTube playlist itself is left on YouTube."""
+    """Stop filling a feed. A published playlist itself is left where it is."""
     with session_scope() as session:
         playlist = session.get(Playlist, playlist_pk)
         if playlist is None:
@@ -232,8 +233,9 @@ def delete_playlist(request: Request, playlist_pk: int, back: str = Form("")) ->
         title = playlist.title
         playlist_service.remove(session, playlist)
     forget_account_playlists()
-    return _playlists_response(request, ok=f"Stopped feeding {title!r}. The playlist itself is untouched on YouTube."
-    , back=back)
+    return _playlists_response(
+        request, ok=f"Stopped feeding {title!r}. The playlist itself is left as it is.", back=back
+    )
 
 
 @router.post("/settings/playlists/{playlist_pk}/channels")

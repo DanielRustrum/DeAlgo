@@ -27,7 +27,7 @@ so you do this once.
 ## Making a feed that writes to YouTube
 
 Feeds you drag onto the canvas live inside De-Algo. To make one backed by a YouTube playlist, use
-**Settings → Feeds on YouTube**: create a new playlist (choose private, unlisted or public) or adopt
+**Settings → Plugins → YouTube → Feeds on YouTube**: create a new playlist (choose private, unlisted or public) or adopt
 one you already have. See [Feeds](Nodes/Feeds.md).
 
 ## If Google refuses the sign-in

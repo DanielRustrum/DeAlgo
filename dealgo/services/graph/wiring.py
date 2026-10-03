@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ...plugins.publisher import names
 from ...models import (
     Channel,
     GraphEdge,
@@ -44,9 +45,10 @@ def connect(
         # A wire that could never carry anything, refused where it is drawn
         # rather than discovered sixty skipped items later.
         if not source.channel.publishable and not target.playlist.is_generic:
+            publisher = names().publisher
             raise GraphError(
-                f"{target.playlist.title} is a YouTube playlist, and a YouTube playlist "
-                "holds YouTube videos only. Wire this one to a feed that lives here — "
+                f"{target.playlist.title} is a {publisher} playlist, and a {publisher} playlist "
+                f"holds {publisher} items only. Wire this one to a feed that lives here — "
                 "make a new feed and keep it generic."
             )
 
@@ -75,14 +77,14 @@ def _bring_back_what_it_can_now_hold(
 ) -> int:
     """Requeue items this source had nowhere to put.
 
-    A source that is not YouTube wired only to YouTube playlists has every
+    A source the publishing service cannot hold, wired only to its playlists, has every
     item turned away. Giving it a feed that can hold them should fill that
     feed, not leave the backlog stranded and wait for the next new post —
     the same courtesy turning a filter off already gets.
     """
     from .. import sync as sync_service
 
-    # Only a feed here can take what a YouTube playlist turned away, and only a non-YouTube source
+    # Only a feed here can take what a published playlist turned away, and only an unpublishable source
     # was turned away.
     if not playlist.is_generic or channel.publishable:
         return 0

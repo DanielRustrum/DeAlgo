@@ -23,6 +23,7 @@ publisher = {
   contents = function(id) … end,
   add      = function(playlist_id, video_id) … end,
   remove   = function(item_id) … end,
+  address  = function(playlist_id) … end,
 },
 ```
 
@@ -38,6 +39,7 @@ Rows are tables. A function that returns one table instead of a list is read as 
 | `describe` | a list of channel ids | channel rows |
 | `details` | a list of video ids | detail rows |
 | `whoami` | — | a list holding `{ title }`, the account's name |
+| `address` | a playlist id | the `https://` address it opens at, for a feed's "Open on …" link. Called without an account. |
 | `playlists` | — | playlist rows: the account's playlists |
 | `playlist` | a playlist id | a list holding one playlist row |
 | `create` | title, description, privacy (`"private"`, `"unlisted"`, `"public"`) | a list holding the new playlist row |

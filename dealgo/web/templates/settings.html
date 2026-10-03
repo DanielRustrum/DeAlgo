@@ -126,6 +126,8 @@
       {% endfor %}
     </div>
     {% if panel.connection %}{{ connection_block(plugin, panel.connection) }}{% endif %}
+    {# The plugin feeds are published through: making a feed on its service. #}
+    {% if plugin.id == state.plugin_id %}{% include "_new_feed.html" %}{% endif %}
     {% if panel.fields %}
     {{ settings_form('/settings/plugins/' ~ plugin.id, panel.fields, 'user', plugin.id, 'Save') }}
     {% endif %}
@@ -134,7 +136,6 @@
 </section>
 {% endif %}
 
-{% include "_new_feed.html" %}
 
 <section class="panel">
   <h2>Back up your setup</h2>

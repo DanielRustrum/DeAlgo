@@ -19,11 +19,14 @@ the other end.
 from __future__ import annotations
 
 from .answers import ChannelInfo, PlaylistInfo, PlaylistItem, PublishError, VideoDetails
-from .client import Publisher, cost_of, publishing_plugin
+from .client import Names, Publisher, address, cost_of, names, publishing_plugin
 
 __all__ = [
+    "address",
     "ChannelInfo",
     "cost_of",
+    "Names",
+    "names",
     "PlaylistInfo",
     "PlaylistItem",
     "Publisher",

@@ -20,7 +20,7 @@
     <h2 class="titled">
       {{ playlist.title }}
       {% if playlist.is_generic %}
-        <span class="pill" title="No YouTube playlist behind it">generic</span>
+        <span class="pill" title="No playlist behind it on any service">generic</span>
       {% elif publishing_offline(identity.user_pk if identity else none) %}
         <span class="pill pill-dormant"
               title="No {{ publishing().service }} account, so this one collects inside De-Algo for now">
@@ -31,7 +31,7 @@
     <div class="row-buttons">
       <a class="btn btn-quiet" href="{{ back }}?rename=1">Rename</a>
       {% if playlist.url %}
-      <a class="btn btn-quiet" href="{{ playlist.url }}" target="_blank" rel="noopener">Open on YouTube ↗</a>
+      <a class="btn btn-quiet" href="{{ playlist.url }}" target="_blank" rel="noopener">Open on {{ publishing().publisher }} ↗</a>
       {% endif %}
     </div>
     {% endif %}
@@ -159,20 +159,20 @@
   <div class="row-buttons">
     {% if not playlist.is_generic %}
     <form method="post" action="/settings/playlists/{{ playlist.id }}/unlink" hx-boost="false"
-          onsubmit="return confirm('Unlink this feed from its YouTube playlist? It keeps its channels, limits and videos and becomes a generic feed. The playlist on YouTube is left as it is.');">
+          onsubmit="return confirm('Unlink this feed from its {{ publishing().publisher }} playlist? It keeps its sources, limits and items and becomes a generic feed. The playlist itself is left as it is.');">
       <input type="hidden" name="back" value="{{ back }}">
-      <button class="btn btn-warn" type="submit">Unlink from YouTube</button>
+      <button class="btn btn-warn" type="submit">Unlink from {{ publishing().publisher }}</button>
     </form>
     {% endif %}
     <form method="post" action="/settings/playlists/{{ playlist.id }}/delete" hx-boost="false"
-          onsubmit="return confirm('Remove this feed from De-Algo? Its channel links and the record of what went into it go too. A YouTube playlist stays where it is, with its videos.');">
+          onsubmit="return confirm('Remove this feed from De-Algo? Its channel links and the record of what went into it go too. A published playlist stays where it is, with what is in it.');">
       <button class="btn btn-danger" type="submit">Remove feed</button>
     </form>
   </div>
   <p class="hint">
-    <strong>Unlink</strong> keeps the feed and stops writing to YouTube.
-    <strong>Remove</strong> discards the feed itself. Either way the playlist and its videos stay on
-    YouTube.
+    <strong>Unlink</strong> keeps the feed and stops writing to {{ publishing().publisher }}.
+    <strong>Remove</strong> discards the feed itself. Either way the playlist and what is in it stay on
+    {{ publishing().publisher }}.
   </p>
 </section>
 <section class="panel">

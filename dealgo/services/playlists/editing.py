@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models import GENERIC_PLAYLIST_PREFIX, Placement, Playlist
-from ...plugins.publisher import PublishError
+from ...plugins.publisher import PublishError, names
 from ..connections import build_client
 from .listing import PlaylistError
 
@@ -18,9 +18,10 @@ from .listing import PlaylistError
 def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client) -> bool:
     """Retitle a feed, and the playlist behind it where there is one.
 
-    Returns True if YouTube was updated too. A generic feed has nothing to
-    update; for the rest, the local name still changes even when the call
-    cannot be made, so the two only drift when YouTube refuses.
+    Returns True if the playlist behind it was renamed too. A generic feed
+    has nothing to update; for the rest, the local name still changes even
+    when the call cannot be made, so the two only drift when the service
+    refuses.
     """
     title = (title or "").strip()
     if not title:
@@ -28,7 +29,7 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
     if title == playlist.title:
         return False
 
-    # The feed's own name changes whatever YouTube says.
+    # The feed's own name changes whatever the service says.
     playlist.title = title
     session.flush()
 
@@ -42,18 +43,18 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
     client = build_client(session, http, playlist.owner_pk)
     if not client.has_write_access:
         raise PlaylistError(
-            "Renamed here, but not on YouTube: no account is connected."
+            f"Renamed here, but not on {names().publisher}: no account is connected."
         )
     if not quota.can_afford(session, cost_of("add"), use_reserve=True):
         raise PlaylistError(
-            "Renamed here, but not on YouTube: the daily API quota is spent."
+            f"Renamed here, but not on {names().publisher}: today's allowance is spent."
         )
     try:
         client.rename_playlist(playlist.playlist_id, title)
     except PublishError as exc:
         if exc.is_quota_error:
             quota.mark_exhausted(session)
-        raise PlaylistError(f"Renamed here, but YouTube refused: {exc}") from exc
+        raise PlaylistError(f"Renamed here, but {names().publisher} refused: {exc}") from exc
     return True
 
 
@@ -95,16 +96,16 @@ def set_view(session: Session, playlist: Playlist, *, order: str = "", show: str
 
 
 def unlink(session: Session, playlist: Playlist) -> str:
-    """Cut a feed loose from its YouTube playlist, keeping the feed itself.
+    """Cut a feed loose from the playlist behind it, keeping the feed itself.
 
     Everything De-Algo holds stays — the name, channels, limits, fill order and
-    the videos already in it — but nothing is written to YouTube again. The
+    the videos already in it — but nothing is written to that playlist again. The
     playlist over there is left exactly as it is, videos and all.
 
-    Returns the YouTube id it was detached from.
+    Returns the playlist id it was detached from.
     """
     if playlist.is_generic:
-        raise PlaylistError(f"{playlist.title!r} has no YouTube playlist to unlink.")
+        raise PlaylistError(f"{playlist.title!r} has no playlist behind it to unlink.")
 
     was = playlist.playlist_id
     playlist.playlist_id = f"{GENERIC_PLAYLIST_PREFIX}{uuid4().hex[:16]}"
@@ -141,5 +142,5 @@ def update(session: Session, playlist: Playlist, form: Mapping[str, str]) -> Pla
 
 
 def remove(session: Session, playlist: Playlist) -> None:
-    """Stop feeding a playlist. The playlist itself is left alone on YouTube."""
+    """Stop feeding a playlist. The playlist itself is left alone on its service."""
     session.delete(playlist)

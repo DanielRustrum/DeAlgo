@@ -7,7 +7,7 @@ A feed is where items end up. You read feeds on [The Feed Page](../The%20Feed%20
 
 | | Lives in De-Algo | Backed by a YouTube playlist |
 | --- | --- | --- |
-| Make it | Drag **Feed** from the palette and name it | **Settings → Feeds on YouTube** |
+| Make it | Drag **Feed** from the palette and name it | **Settings → Plugins → YouTube → Feeds on YouTube** |
 | Holds | Anything: videos, posts, Reddit, RSS, newsletters | YouTube videos only |
 | Needs | Nothing | A connected Google account and [quota](../Quota.md) |
 

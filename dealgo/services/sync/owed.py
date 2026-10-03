@@ -19,7 +19,7 @@ from ...models import (
     Video,
     utcnow,
 )
-from ...plugins.publisher import Publisher, PublishError, cost_of
+from ...plugins.publisher import Publisher, PublishError, cost_of, names
 from .. import graph, quota
 from ..scope import OwnerId, belongs_to, owned
 from .placements import MAX_INSERT_ATTEMPTS, local_item_id
@@ -33,9 +33,9 @@ log = logging.getLogger(__name__)
 def reconsider_routing(session: Session, result: SyncResult, owner: OwnerId = None) -> int:
     """Bring back items that only had nowhere to go.
 
-    "Not a YouTube video, and that feed is a YouTube playlist" is a verdict
+    "Not something the service holds, and that feed is its playlist" is a verdict
     about the *route*, not about the item — and routes change. A wire is
-    redrawn, a second feed is added, or a YouTube playlist is turned into a
+    redrawn, a second feed is added, or a published playlist is turned into a
     feed that lives here, and suddenly the thing that was refused is welcome.
 
     Connecting a wire already brings these back, but that only catches one of
@@ -119,7 +119,7 @@ def retry_deferred(
         if not quota.can_afford(session, cost_of("add")):
             result.stopped_on_quota = True
             result.messages.append(
-                f"YouTube API quota is spent; {len(open_placements) - index} playlist insertion(s) "
+                f"{names().publisher}'s allowance is spent today; {len(open_placements) - index} playlist insertion(s) "
                 f"wait for the reset {quota.describe_reset()}."
             )
             return True
@@ -132,7 +132,7 @@ def retry_deferred(
                 quota.mark_exhausted(session)
                 result.stopped_on_quota = True
                 result.messages.append(
-                    f"YouTube refused further writes: the daily quota is gone. Queued videos "
+                    f"{names().publisher} refused further writes: today's allowance is spent. Queued items "
                     f"resume after the reset {quota.describe_reset()}."
                 )
                 return True
@@ -159,7 +159,7 @@ def _owed(session: Session, owner: OwnerId) -> list[Placement]:
             .where(
                 or_(
                     Placement.playlist_item_id.is_(None),
-                    # Filled locally while signed out: still owed to YouTube.
+                    # Filled locally while signed out: still owed to the service.
                     Placement.playlist_item_id.startswith(OFFLINE_ITEM_PREFIX),
                 ),
                 Placement.removed_at.is_(None),
@@ -178,7 +178,7 @@ def _pay(
     added_per_playlist: Tally,
     result: SyncResult,
 ) -> None:
-    """An owed placement filled, here or on YouTube, and counted."""
+    """An owed placement filled, here or on the service, and counted."""
     placement.playlist_item_id = item_id
     placement.error = None
     placement.added_at = utcnow()

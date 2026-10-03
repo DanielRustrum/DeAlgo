@@ -618,6 +618,11 @@ return {
     -- is dearer than a hundred reads, which is why it is a last resort.
     costs = { read = 1, add = 50, remove = 50, create = 50, rename = 50, search = 100 },
 
+    -- Where a playlist is opened, for the "Open on YouTube" link on a feed.
+    address = function(playlist_id)
+      return "https://www.youtube.com/playlist?list=" .. playlist_id
+    end,
+
     resolve = function(reference)
       local found = yt_channel_by_reference(reference)
       return found and { found } or {}

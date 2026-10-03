@@ -18,7 +18,7 @@ from ...models import (
     SyncRun,
     utcnow,
 )
-from ...plugins.publisher import Publisher, cost_of
+from ...plugins.publisher import Publisher, cost_of, names
 from .. import quota, runlog
 from ..connections import build_client
 from ..scope import OwnerId, owned
@@ -81,7 +81,7 @@ def run_sync(
     way to read an archive that was never published.
 
     One account at a time, because everything a pass depends on belongs to
-    one: its channels, its feeds, its Google connection and its quota.
+    one: its channels, its feeds and its sign-ins.
     """
     # Claimed here unless the caller claimed it already — which the canvas
     # does, so that what it draws is this run from the first moment it asks.
@@ -116,7 +116,7 @@ def run_for_everyone(trigger: str = "scheduled") -> list[SyncResult]:
     """One pass per account, in turn.
 
     Sequential on purpose: they share a SQLite file and the lock that guards
-    playlist writes, and one account's YouTube quota has nothing to say about
+    playlist writes, and the publishing service's allowance has nothing to say about
     another's. The scheduler calls this; a person pressing Sync now syncs only
     their own.
     """
@@ -220,28 +220,34 @@ def _fill(
     )
     quota_state = quota.state(session)
     # Feeds that live only in De-Algo need neither an account nor quota, so a
-    # missing sign-in holds back the YouTube ones without stopping the run.
-    youtube_feeds = [playlist for playlist in playlists if not playlist.is_generic]
+    # missing sign-in holds back the published ones without stopping the run.
+    published = [playlist for playlist in playlists if playlist.is_published]
+    pub = names()
     if not playlists:
         result.messages.append("No feeds are set up — new videos are queued in Pending.")
-    elif youtube_feeds and not client.has_write_access:
-        # Not an error: the app is usable without Google. The feeds still fill,
-        # they just fill inside De-Algo until an account is connected.
+    elif published and not client.has_write_access:
+        # Not an error: the app is usable without a sign-in. The feeds still
+        # fill, they just fill inside De-Algo until an account is connected.
         result.messages.append(
-            f"No Google account connected — {len(youtube_feeds)} YouTube feed(s) are collecting "
-            "inside De-Algo. Nothing is written to YouTube until you connect one."
+            f"No {pub.service} account connected — {len(published)} {pub.publisher} feed(s) "
+            f"are collecting inside De-Algo. Nothing is written to {pub.publisher} until you "
+            "connect one."
         )
         publish(session, client, settings, result, owner, pen=pen, sources=sources)
         session.commit()
-    elif youtube_feeds and quota_state.spendable < cost_of("add"):
+    elif published and quota_state.limited and quota_state.spendable < cost_of("add"):
         # Feeds cost nothing, so discovery already ran; only writing stops.
         result.stopped_on_quota = True
         result.messages.append(
-            f"YouTube API quota is spent ({quota_state.used}/{quota_state.budget} units). "
-            f"Queued videos will be added after it resets {quota.describe_reset()}."
+            f"{pub.publisher}'s allowance is spent ({quota_state.used}/{quota_state.budget} "
+            f"{quota_state.unit}). Queued items will be added after it resets "
+            f"{quota.describe_reset()}."
         )
         log.info("skipping the insert phase: quota exhausted until %s", quota_state.resets_at)
-        pen.warn(f"YouTube quota is spent ({quota_state.used}/{quota_state.budget} units).")
+        pen.warn(
+            f"{pub.publisher}'s allowance is spent "
+            f"({quota_state.used}/{quota_state.budget} {quota_state.unit})."
+        )
         publish(session, client, settings, result, owner, pen=pen, sources=sources)
         session.commit()
     else:

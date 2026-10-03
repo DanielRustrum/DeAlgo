@@ -16,7 +16,7 @@ from ...models import (
     Video,
     utcnow,
 )
-from ...plugins.publisher import Publisher, PublishError, VideoDetails, cost_of
+from ...plugins.publisher import Publisher, PublishError, VideoDetails, cost_of, names
 from .. import graph, quota, runlog
 from ..scope import OwnerId
 from .deciding import attribute, decide, reject
@@ -56,7 +56,7 @@ class Placing:
     """Putting each waiting item into every feed its paths say it belongs in.
 
     One per run. It carries what the run has done so far — how many each feed
-    and each source has taken, what each YouTube playlist already holds, and
+    and each source has taken, what each published playlist already holds, and
     whether the quota has run out — so every item is placed knowing what the
     ones before it did.
     """
@@ -79,7 +79,7 @@ class Placing:
         self.say = say
         self.added_per_playlist: Tally = {}
         self.added_per_channel: Tally = {}
-        #: Set when YouTube's quota is gone, which ends the filing for this run.
+        #: Set when the service's allowance is gone, which ends the filing for this run.
         self.quota_spent = False
         # Each target playlist is read once, so videos already in it (added by
         # hand, or by a previous install) are adopted rather than inserted twice.
@@ -217,7 +217,7 @@ class Placing:
                 continue
             if playlist.is_generic or not self.client.has_write_access:
                 self._place_here(video, playlist, placed, outcome)
-            elif not self._place_on_youtube(video, playlist, targets, placed, outcome):
+            elif not self._place_published(video, playlist, targets, placed, outcome):
                 break  # the quota is spent
         return outcome
 
@@ -242,7 +242,7 @@ class Placing:
         outcome.landed = True
         self.session.flush()
 
-    def _place_on_youtube(
+    def _place_published(
         self,
         video: Video,
         playlist: Playlist,
@@ -250,7 +250,7 @@ class Placing:
         placed: dict[int, Placement],
         outcome: _Outcome,
     ) -> bool:
-        """Into a YouTube playlist. False when the quota has run out."""
+        """Into a published playlist. False when the allowance has run out."""
         if self._full(playlist):
             # Record what this playlist still owes so the next run finishes
             # it, exactly as a quota stop does.
@@ -280,7 +280,7 @@ class Placing:
             # next run finishes the job instead of forgetting it.
             outcome.deferred += defer(self.session, video, targets, placed)
             self._stop_on_quota(
-                f"YouTube API quota is spent; {still_queued(self.session)} video(s) wait for the "
+                f"{names().publisher}'s allowance is spent today; {still_queued(self.session)} video(s) wait for the "
                 f"reset {quota.describe_reset()}."
             )
             log.info("insert budget reached, pausing until quota resets")
@@ -293,7 +293,7 @@ class Placing:
                 quota.mark_exhausted(self.session)
                 outcome.deferred += defer(self.session, video, targets, placed)
                 self._stop_on_quota(
-                    f"YouTube refused further writes: the daily quota is gone. Queued videos "
+                    f"{names().publisher} refused further writes: today's allowance is spent. Queued items "
                     f"resume after the reset {quota.describe_reset()}."
                 )
                 log.warning("quota exhausted, stopping insert phase")
@@ -343,7 +343,7 @@ class Placing:
         self.quota_spent = True
 
     def _contents_of(self, playlist: Playlist) -> dict[str, str] | None:
-        """What a YouTube playlist already holds, read once per run."""
+        """What a published playlist already holds, read once per run."""
         if playlist.is_generic:
             return {}  # nothing outside De-Algo to reconcile against
         if playlist.id in self._contents:
@@ -373,7 +373,7 @@ def place_locally(
 ) -> None:
     """Put a community post into each of its channel's feeds.
 
-    Posts never reach YouTube — there is no playlist that takes them — so this
+    Posts never reach the service — there is no playlist that takes them — so this
     is the whole act: no API call, no quota, no deferral. What is left over
     after a cap is simply picked up by the next run, like anything else.
     """

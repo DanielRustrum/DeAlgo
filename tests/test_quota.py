@@ -102,7 +102,7 @@ def test_syncing_stops_at_the_budget_and_queues_the_rest(loaded):
 
     assert result.stopped_on_quota
     assert len(loaded["client"].contents()) < 3
-    assert "quota" in result.message.lower()
+    assert "allowance is spent" in result.message.lower()
     with loaded["db"].session_scope() as session:
         # Whatever did not fit is still pending, not failed or dropped.
         pending = list(session.scalars(select(Video).where(Video.status == "pending")))

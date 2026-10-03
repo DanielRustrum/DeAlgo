@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import outgoing
 from ..db import session_scope
 from ..models import Placement, Playlist, SyncRun, Video, utcnow
-from ..plugins.publisher import Publisher, PublishError, cost_of
+from ..plugins.publisher import Publisher, PublishError, cost_of, names
 from . import quota
 from .connections import build_client
 from .scope import OwnerId, belongs_to, owned
@@ -158,7 +158,7 @@ def _remove(
     session.add(run)
     session.commit()
 
-    stranded = 0  # really on YouTube, and no account to delete them with
+    stranded = 0  # really on the service, and no account to delete them with
     for placement in candidates:
         outcome = _take_out(session, client, placement, result)
         if outcome == "stranded":
@@ -194,9 +194,9 @@ def _nothing_to_remove(session: Session, client: Publisher, owner: OwnerId) -> s
         .where(belongs_to(Video, owner))
         .where(Video.watched_at.is_not(None), Placement.playlist_item_id.is_not(None))
     ):
-        # An account is only needed for rows that really are on YouTube. With
-        # nothing watched at all there is nothing to say but this.
-        return "No Google account is connected."
+        # An account is only needed for rows that really are on the service.
+        # With nothing watched at all there is nothing to say but this.
+        return f"No {names().service} account is connected."
     return None
 
 
@@ -219,7 +219,7 @@ def _take_out(
 ) -> str:
     """Take one watched item out of its feed.
 
-    "stranded" when it is on YouTube with no account to remove it with,
+    "stranded" when it is on the service with no account to remove it with,
     "stop" when the quota has run out, and "" otherwise.
     """
     title = placement.video.title
@@ -253,8 +253,8 @@ def _take_out(
     try:
         client.delete_playlist_item(item_id)
     except PublishError as exc:
-        if exc.status == 404 or exc.reason == "playlistItemNotFound":
-            # Already gone from YouTube's side; just reconcile our record.
+        if exc.status == 404:
+            # Already gone from the service's side; just reconcile our record.
             _clear(placement, "watched — already gone from the playlist")
             result.missing += 1
             session.flush()
@@ -263,7 +263,8 @@ def _take_out(
             quota.mark_exhausted(session)
             result.stopped_on_quota = True
             result.messages.append(
-                f"YouTube says the daily quota is gone; the rest can be removed after the reset "
+                f"{names().publisher} says today's allowance is spent; the rest can be removed "
+                "after the reset "
                 f"{quota.describe_reset()}."
             )
             log.warning("quota exhausted while removing watched videos")
@@ -286,7 +287,7 @@ def _summary(result: RemovalResult, total: int, stranded: int) -> str:
         said += f" {result.failed} could not be removed."
     if stranded:
         said += (
-            f" {stranded} sit in a YouTube playlist and need a connected account "
+            f" {stranded} sit in a {names().publisher} playlist and need a connected account "
             "before they can be taken out."
         )
     return said

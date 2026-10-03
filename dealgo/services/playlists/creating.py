@@ -1,4 +1,5 @@
-"""Making a feed: one that lives here, or one backed by a YouTube playlist."""
+"""Making a feed: one that lives here, or one backed by a playlist on the
+publishing plugin's service."""
 
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models import GENERIC_PLAYLIST_PREFIX, Playlist
-from ...plugins.publisher import PublishError
+from ...plugins.publisher import PublishError, names
 from .. import ordering
 from ..connections import build_client
 from ..scope import OwnerId, owned
@@ -31,11 +32,11 @@ def add_existing(
 
     client = build_client(session, http, owner)
     if not client.has_write_access:
-        raise PlaylistError("Connect a Google account first.")
+        raise PlaylistError(f"Connect a {names().service} account first.")
     try:
         info = client.get_playlist(playlist_id)
     except PublishError as exc:
-        raise PlaylistError(f"YouTube API error: {exc}") from exc
+        raise PlaylistError(f"{names().publisher} refused: {exc}") from exc
     if info is None:
         raise PlaylistError("That playlist could not be found on your account.")
     return store_feed(session, info.playlist_id, info.title, owner)
@@ -45,7 +46,7 @@ PRIVACY_CHOICES = ("private", "unlisted", "public")
 
 
 def create_generic(session: Session, title: str, owner: OwnerId = None) -> Playlist:
-    """A generic feed: no YouTube playlist behind it, so no quota and no account."""
+    """A generic feed: no playlist behind it, so no quota and no account."""
     title = (title or "").strip()
     if not title:
         raise PlaylistError("Give the feed a name.")
@@ -60,7 +61,7 @@ def create(
     privacy: str = "private",
     owner: OwnerId = None,
 ) -> Playlist:
-    """Make a YouTube playlist on the connected account and a feed filling it."""
+    """Make a playlist on the connected account and a feed filling it."""
     title = (title or "").strip()
     if not title:
         raise PlaylistError("Give the new playlist a name.")
@@ -69,7 +70,7 @@ def create(
 
     client = build_client(session, http, owner)
     if not client.has_write_access:
-        raise PlaylistError("Connect a Google account first.")
+        raise PlaylistError(f"Connect a {names().service} account first.")
     try:
         info = client.create_playlist(
             title,
@@ -77,7 +78,7 @@ def create(
             privacy=privacy,
         )
     except PublishError as exc:
-        raise PlaylistError(f"YouTube API error: {exc}") from exc
+        raise PlaylistError(f"{names().publisher} refused: {exc}") from exc
     return store_feed(session, info.playlist_id, info.title, owner)
 
 

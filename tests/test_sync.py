@@ -173,7 +173,7 @@ def test_running_out_of_quota_stops_the_filing_and_says_so_once(world):
 
     assert result.added == 1
     assert result.stopped_on_quota
-    assert sum("quota is spent" in message for message in result.messages) == 1
+    assert sum("allowance is spent" in message for message in result.messages) == 1
     assert len(world["client"].inserted_into()) == 1
 
 
