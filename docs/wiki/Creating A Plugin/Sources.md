@@ -16,6 +16,7 @@ sources = {
     noun = "Example account",               -- what its box is called
     example = "@name, or https://example.com/@name",   -- shown in the empty box
     blurb = "One account. Everything it posts.",        -- shown in the palette
+    colour = "jade",                        -- its boxes' colour, from the list below
     playlistable = false,                   -- true only if items can go in a YouTube playlist
 
     recognise = function(reference) … end,  -- required
@@ -28,6 +29,18 @@ sources = {
   },
 },
 ```
+
+## colour
+
+What the source's boxes wear on the canvas: the bar down the box, its palette row, and the pills that
+name it. Pick one of these, or leave it out for green. `color` works too.
+
+`green` (the default) · `moss` · `jade` · `sky` · `pink` · `red` · `slate`
+
+Only these, because each is drawn for both light and dark themes, and none is a colour the canvas
+already uses for another kind of box: violet triggers, amber filters, blue sorts, teal stamps, brown
+repositories, terracotta feeds. Anything else stops the plugin loading, with a message listing the
+allowed names. The shipped plugins use `red` (YouTube) and `sky` (Bluesky).
 
 ## recognise(reference) — required
 

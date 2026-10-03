@@ -193,7 +193,9 @@
       {% else %}data-plugin-node="{{ node.ref }}"
         data-under="{{ host_kinds(node.palette, node.ref) }}"{% endif %}
       tabindex="0" role="button">
-    <span class="palette-swatch kind-{{ node.swatch }}"></span>
+    {# A source wears the colour its plugin chose; a condition is a piece, and neutral. #}
+    <span class="palette-swatch kind-{{ node.swatch }}"
+          {%- if node.colour %} data-colour="{{ node.colour }}"{% endif %}></span>
     <span class="palette-text">
       <strong>{{ node.label }}</strong>
       <span class="palette-blurb">{{ node.blurb or 'From ' ~ plugin ~ '.' }}</span>

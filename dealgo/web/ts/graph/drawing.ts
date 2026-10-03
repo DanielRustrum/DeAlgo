@@ -50,6 +50,8 @@ interface GraphAsks {
    *  switched off, which is worth saying rather than silently refusing
    *  everything typed into it. */
   known: boolean;
+  /** The colour its plugin chose for its boxes; "" for the default. */
+  colour: string;
 }
 
 /** An augmentation: what it is slotted under, and what it carries. */
@@ -219,6 +221,9 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   box.setAttribute("aria-label", `${graphTriggerLabel(node)}: ${node.title}`);
   if (state.picked.has(node.id)) box.classList.add("is-picked");
   if (!node.enabled) box.classList.add("is-off");
+  // A source wears the colour its plugin chose (kinds.css reads it).
+  const colour = node.channel?.colour ?? node.asks?.colour ?? "";
+  if (colour !== "") box.dataset["colour"] = colour;
 
   if (node.piece !== null) {
     // A piece is slotted, not wired: nothing runs into or out of one, so it

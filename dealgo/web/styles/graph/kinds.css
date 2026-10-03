@@ -34,6 +34,11 @@
   &.kind-rule { --kind-colour: var(--kind-piece); }
 }
 
+/* A source in the colour its plugin chose (plugin-colours.css). */
+:is(.graph-node.kind-source, .palette-swatch.kind-source)[data-colour] {
+  --kind-colour: var(--plugin-colour);
+}
+
 /* A slotted piece is part of its box, so it wears the box's colour: an Order
    under a Sort is blue, a Timer under an Expire teal. The canvas script marks
    each piece with the kind of the box at the top of its stack. */

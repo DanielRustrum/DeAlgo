@@ -357,6 +357,8 @@ return {
       example = "@handle, a channel URL, or a UC… id",
       noun = "YouTube channel",
       blurb = "One channel. Uploads, and community posts if you want them.",
+      -- Its boxes on the canvas, from the colours the app allows.
+      colour = "red",
       playlistable = true,
 
       -- Asked when the box is already a YouTube box. A bare word here is

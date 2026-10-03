@@ -832,6 +832,8 @@ def test_a_channel_box_arrives_empty_and_is_told_what_it_is(canvas, db):
         "source": "YouTube",
         "example": "@handle, a channel URL, or a UC… id",
         "known": True,
+        # The colour the YouTube plugin chose for its boxes.
+        "colour": "red",
     }
     assert "open it" in empty[0]["note"]
     assert (empty[0]["x"], empty[0]["y"]) == (40, 60)

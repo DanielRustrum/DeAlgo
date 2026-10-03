@@ -136,7 +136,7 @@
       {% else %}
       <div class="plugin-gives">
         {% for kind in plugin.sources %}
-        <span class="pill pill-kind kind-{{ kind.kind }}">{{ kind.label }}</span>
+        <span class="pill pill-kind kind-{{ kind.kind }}" data-colour="{{ kind.colour }}">{{ kind.label }}</span>
         {% endfor %}
         {% if not plugin.sources %}<span class="meta">offers nothing yet</span>{% endif %}
       </div>

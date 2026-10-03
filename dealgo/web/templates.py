@@ -118,6 +118,7 @@ def clock(value: dt.datetime | None) -> str:
 
 
 TEMPLATES.env.globals["source_label"] = lambda kind: sources.describe(kind).label
+TEMPLATES.env.globals["source_colour"] = lambda kind: sources.describe(kind).colour
 
 
 # Whether a palette row is for an augmentation — something that slots under a

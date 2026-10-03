@@ -44,7 +44,7 @@
        r/ name or a host, and calling that a channel id helps nobody. #}
     <dt>{{ 'Channel id' if channel.is_youtube else 'Source' }}</dt>
     <dd><code>{{ channel.channel_id }}</code>
-      <span class="pill pill-kind kind-{{ channel.source_kind }}">{{ source_label(channel.source_kind) }}</span></dd>
+      <span class="pill pill-kind kind-{{ channel.source_kind }}" data-colour="{{ source_colour(channel.source_kind) }}">{{ source_label(channel.source_kind) }}</span></dd>
     <dt>Added</dt><dd>{{ channel.added_at | stamp }}</dd>
     <dt>Last checked</dt>
     <dd>

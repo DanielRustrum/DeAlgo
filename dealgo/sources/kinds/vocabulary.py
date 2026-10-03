@@ -54,6 +54,9 @@ class SourceKind:
     noun: str = ""
     #: The line under that name in the palette.
     blurb: str = ""
+    #: What its box, palette row and pills wear — one of the plugin source
+    #: colours. The two kinds that are not a plugin's keep the default.
+    colour: str = "green"
 
 
 #: The floor. Not a plugin, because every plugin's parsing is built on it and
@@ -98,6 +101,7 @@ def all_kinds() -> tuple[SourceKind, ...]:
             plugin=kind.plugin,
             noun=kind.noun,
             blurb=kind.blurb,
+            colour=kind.colour,
         )
         for kind in registry.current().source_kinds()
     )

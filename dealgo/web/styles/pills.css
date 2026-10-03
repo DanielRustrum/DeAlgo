@@ -11,12 +11,11 @@
 .pill-paused { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
 .pill-post { color: var(--accent); border-color: var(--accent-dim); }
 
-
 /* What kind of somewhere a source is. Coloured so a list of them reads as a
-   list of kinds rather than a list of names. */
+   list of kinds rather than a list of names: in the colour its plugin chose
+   (plugin-colours.css), the same one its box wears on the canvas. */
 .pill-kind { border-color: var(--line); color: var(--muted); }
-.pill-kind.kind-youtube { color: var(--source-youtube); border-color: color-mix(in oklab, var(--source-youtube) 45%, transparent); }
-.pill-kind.kind-reddit { color: var(--source-reddit); border-color: color-mix(in oklab, var(--source-reddit) 45%, transparent); }
-.pill-kind.kind-bluesky { color: var(--source-bluesky); border-color: color-mix(in oklab, var(--source-bluesky) 45%, transparent); }
-.pill-kind.kind-substack { color: var(--source-substack); border-color: color-mix(in oklab, var(--source-substack) 45%, transparent); }
-.pill-kind.kind-rss { color: var(--source-rss); border-color: color-mix(in oklab, var(--source-rss) 45%, transparent); }
+.pill-kind[data-colour] {
+  color: var(--plugin-colour);
+  border-color: color-mix(in oklab, var(--plugin-colour) 45%, transparent);
+}

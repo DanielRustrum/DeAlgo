@@ -87,6 +87,7 @@ function asGraphAsks(value: unknown): GraphAsks | null {
     source: typeof raw["source"] === "string" ? raw["source"] : "",
     example: typeof raw["example"] === "string" ? raw["example"] : "",
     known: raw["known"] === true,
+    colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
   };
 }
 
@@ -177,6 +178,7 @@ function asGraphChannel(value: unknown): GraphChannel | null {
   const checked = raw["checked"];
   return {
     source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
+    colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
     // Absent means YouTube: everything on a canvas drawn before there was
     // anywhere else to draw is one.
     youtube: raw["youtube"] !== false,

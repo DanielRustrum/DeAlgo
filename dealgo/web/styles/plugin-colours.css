@@ -1,0 +1,13 @@
+/* The colour a plugin chose for its sources, read from data-colour wherever
+   one is drawn — the box on the canvas, its palette row, its pills — and
+   handed on as --plugin-colour for each of those to use. The names are the
+   allowed list, SOURCE_COLOURS in plugins/registry/plugin.py; the colours
+   are tokens (--plugin-*, tokens.css). */
+
+[data-colour="green"] { --plugin-colour: var(--plugin-green); }
+[data-colour="moss"] { --plugin-colour: var(--plugin-moss); }
+[data-colour="jade"] { --plugin-colour: var(--plugin-jade); }
+[data-colour="sky"] { --plugin-colour: var(--plugin-sky); }
+[data-colour="pink"] { --plugin-colour: var(--plugin-pink); }
+[data-colour="red"] { --plugin-colour: var(--plugin-red); }
+[data-colour="slate"] { --plugin-colour: var(--plugin-slate); }

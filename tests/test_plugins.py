@@ -241,6 +241,62 @@ def test_two_plugins_cannot_both_own_a_source_kind(tmp_path):
     assert "already provided by First" in found.broken[0].trouble
 
 
+# -- the colour of a source's boxes -------------------------------------------
+
+
+def coloured(tmp_path, line: str):
+    """A plugin with one source, and `line` added to that source's table."""
+    return registry.read(a_plugin(tmp_path, "tinted", f"""
+        return {{ api = 1, name = "Tinted", sources = {{
+            {{ kind = "tinted", {line} recognise = function() return nil end }} }} }}
+    """))
+
+
+def test_a_source_that_names_no_colour_is_green(tmp_path):
+    found = coloured(tmp_path, "")
+    assert found.source_kinds()[0].colour == "green"
+
+
+@pytest.mark.parametrize("line", ['colour = "pink",', 'color = "pink",', 'colour = " Pink ",'])
+def test_a_source_may_choose_its_colour_from_the_list(tmp_path, line):
+    """Either spelling, and not fussy about case or spaces."""
+    found = coloured(tmp_path, line)
+    assert found.source_kinds()[0].colour == "pink"
+
+
+@pytest.mark.parametrize("asked", ["violet", "#ff00ff", "amber"])
+def test_a_colour_off_the_list_refuses_the_plugin(tmp_path, asked):
+    """Including the colours other kinds of box wear: a violet source would
+    read as a trigger. Refused rather than ignored, so the author finds out."""
+    found = coloured(tmp_path, f'colour = "{asked}",')
+
+    assert found.working == []
+    trouble = found.broken[0].trouble
+    assert "`colour` has to be one of" in trouble and asked in trouble
+
+
+def test_every_allowed_colour_is_drawn_in_both_themes():
+    """The list lives in Python and the colours in CSS. One added to the list
+    and not to the stylesheet would be a box with no colour at all."""
+    from dealgo.plugins.registry.plugin import SOURCE_COLOURS
+
+    styles = SHIPPED.parent.parent / "web" / "styles"
+    tokens = (styles / "tokens.css").read_text()
+    mapping = (styles / "plugin-colours.css").read_text()
+    for name in SOURCE_COLOURS:
+        assert f'[data-colour="{name}"]' in mapping, name
+        assert f"--plugin-{name}:" in tokens, name
+
+
+def test_the_shipped_plugins_choose_colours_from_the_list():
+    from dealgo.plugins.registry.plugin import SOURCE_COLOURS
+
+    found = registry.read(SHIPPED)
+    chosen = {kind.kind: kind.colour for kind in found.source_kinds()}
+    assert chosen["youtube"] == "red"
+    assert set(chosen.values()) <= set(SOURCE_COLOURS)
+
+
 def test_a_plugin_that_throws_while_recognising_does_not_stop_the_rest(tmp_path):
     a_plugin(tmp_path, "aaa", """
         return { api = 1, name = "Cross", sources = {

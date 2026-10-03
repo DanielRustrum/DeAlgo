@@ -58,7 +58,9 @@ def asks_for(node: GraphNode) -> Context | None:
         return None
     wanted = (node.source_kind or "").strip()
     if not wanted:
-        return {"kind": "", "label": "", "source": "", "example": "", "known": False}
+        return {
+            "kind": "", "label": "", "source": "", "example": "", "known": False, "colour": "",
+        }
     known = sources.describe(wanted)
     return {
         "kind": wanted,
@@ -67,6 +69,7 @@ def asks_for(node: GraphNode) -> Context | None:
         # box reads the same thing off its channel.
         "source": known.label,
         "example": known.example,
+        "colour": known.colour,
         # False when the plugin that offered this kind has been switched off
         # or removed, which is worth saying rather than drawing an empty box
         # that refuses everything typed into it.
@@ -185,6 +188,8 @@ def channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
             # YouTube's own distinctions, so a source elsewhere sends them
             # rather than pretending they mean something there.
             "source": sources.describe(channel.source_kind).label,
+            # The colour its plugin chose, for the bar down the box.
+            "colour": sources.describe(channel.source_kind).colour,
             "youtube": channel.is_youtube,
             "feed_url": channel.feed_url,
             "mirror": channel.mirror_url,

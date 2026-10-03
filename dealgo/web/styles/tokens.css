@@ -54,12 +54,16 @@
   --stat-quiet: #ece2d3;
   --stat-quiet-ink: #4c5650;
 
-  /* Where a source comes from, on its pill. */
-  --source-youtube: #c8402b;
-  --source-reddit: #d4672a;
-  --source-bluesky: #3f7cb8;
-  --source-substack: #b47a17;
-  --source-rss: #5f7f7a;
+  /* The colours a plugin may give its source boxes (SOURCE_COLOURS in
+     plugins/registry/plugin.py). None is a colour the canvas uses for
+     another kind of box; green is a source's own. */
+  --plugin-green: var(--kind-source);
+  --plugin-moss: #6b7f22;
+  --plugin-jade: #1d8a68;
+  --plugin-sky: #2b8fc6;
+  --plugin-pink: #b8487c;
+  --plugin-red: #b5333a;
+  --plugin-slate: #5b6b78;
 
   /* The tab that joins two pieces on the canvas. */
   --graph-tab: 18px;
@@ -101,11 +105,12 @@
     --stat-quiet: #22332e;
     --stat-quiet-ink: #c3cbbd;
 
-    --source-youtube: #f08068;
-    --source-reddit: #f39a62;
-    --source-bluesky: #82b4e8;
-    --source-substack: #e8b35e;
-    --source-rss: #9fbcb6;
+    --plugin-moss: #b3c86a;
+    --plugin-jade: #5cc9a0;
+    --plugin-sky: #7cc4ea;
+    --plugin-pink: #ec8fbb;
+    --plugin-red: #f07a7e;
+    --plugin-slate: #a5b3bf;
   }
 }
 

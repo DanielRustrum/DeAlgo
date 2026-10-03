@@ -55,6 +55,7 @@ def _palette_plugins() -> list[Context]:
                 "label": kind.noun or kind.label,
                 "blurb": kind.blurb or f"One {kind.label} source.",
                 "swatch": "source",
+                "colour": kind.colour,
             }
         )
     # One condition piece per thing a plugin knows how to ask. A plugin has no

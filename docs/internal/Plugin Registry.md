@@ -34,7 +34,9 @@ The registry is held in memory and rebuilt on demand, never stored: the folder i
 1. **Judge** (`_judge`): load with a `dealgo` granted nothing. Check it returned a table,
    `api == 1`, id is `[a-z0-9_-]`. Parse `permissions`, `sources`, `augmentations` (and legacy
    `nodes`), `publisher`. Any problem becomes `plugin.trouble` — shown on the Plugins page — and
-   the rest of the app carries on.
+   the rest of the app carries on. A source's `colour` must be in `SOURCE_COLOURS`
+   (`registry/plugin.py`); each name has a `--plugin-*` token and a `data-colour` rule in
+   `web/styles/plugin-colours.css`, and a test keeps the three in step.
 2. **Grant** (`_grant`): granted = stored grant ∩ what it asked for ∩ known permissions. If it asked
    for anything, load it **again** with those capabilities and re-read its declarations.
 

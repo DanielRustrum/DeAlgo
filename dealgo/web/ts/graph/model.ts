@@ -116,6 +116,8 @@ interface GraphFeed {
 interface GraphChannel {
   /** What kind of somewhere it is, said the way a person would: "Reddit". */
   source: string;
+  /** The colour its plugin chose for its boxes; "" for the default. */
+  colour: string;
   /** Only YouTube has Shorts, broadcasts and community posts to sort out. */
   youtube: boolean;
   /** Where it is actually polled. */

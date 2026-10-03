@@ -994,6 +994,8 @@ function drawGraphGroup(state, node) {
 }
 /** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
+    var _a, _b;
+    var _c, _d;
     const box = graphElement("div", `graph-node kind-${node.kind}`);
     box.dataset["node"] = String(node.id);
     box.style.left = `${node.x}px`;
@@ -1005,6 +1007,10 @@ function drawGraphNode(state, node) {
         box.classList.add("is-picked");
     if (!node.enabled)
         box.classList.add("is-off");
+    // A source wears the colour its plugin chose (kinds.css reads it).
+    const colour = (_d = (_c = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _c !== void 0 ? _c : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _d !== void 0 ? _d : "";
+    if (colour !== "")
+        box.dataset["colour"] = colour;
     if (node.piece !== null) {
         // A piece is slotted, not wired: nothing runs into or out of one, so it
         // has no ports at all.
@@ -2713,6 +2719,7 @@ function asGraphAsks(value) {
         source: typeof raw["source"] === "string" ? raw["source"] : "",
         example: typeof raw["example"] === "string" ? raw["example"] : "",
         known: raw["known"] === true,
+        colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
     };
 }
 /** A piece's slot and settings. */
@@ -2802,6 +2809,7 @@ function asGraphChannel(value) {
     const checked = raw["checked"];
     return {
         source: typeof raw["source"] === "string" ? raw["source"] : "YouTube",
+        colour: typeof raw["colour"] === "string" ? raw["colour"] : "",
         // Absent means YouTube: everything on a canvas drawn before there was
         // anywhere else to draw is one.
         youtube: raw["youtube"] !== false,

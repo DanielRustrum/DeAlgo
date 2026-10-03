@@ -12,7 +12,7 @@ from typing import Any
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import PluginError
-from .plugin import AUGMENTS, Asked, Augmentation, Field, Plugin, SourceKind
+from .plugin import AUGMENTS, SOURCE_COLOURS, Asked, Augmentation, Field, Plugin, SourceKind
 from .storage import PLAIN
 
 
@@ -134,6 +134,23 @@ def augmentations_in(plugin: Plugin, given: object) -> list[Augmentation]:
     return made
 
 
+def _colour(kind: str, entry: dict[str, Any]) -> str:
+    """The colour a source asks for, from the allowed list; green if it names none.
+
+    Spelled either way, since a plugin is as likely to be written by an
+    American. Anything off the list refuses the plugin rather than falling
+    back, so its author finds out it was ignored.
+    """
+    given = entry.get("colour", entry.get("color"))
+    if given is None:
+        return SOURCE_COLOURS[0]
+    colour = str(given).strip().lower()
+    if colour not in SOURCE_COLOURS:
+        allowed = ", ".join(f"“{one}”" for one in SOURCE_COLOURS)
+        raise PluginError(f"source “{kind}”: `colour` has to be one of {allowed}, not “{given}”")
+    return colour
+
+
 def declared_in(made: dict[str, object]) -> object:
     """What a plugin's file offered, under either name.
 
@@ -190,6 +207,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
             raise PluginError(f"“{name}” is not a usable kind name")
         if not callable(entry.get("recognise")):
             raise PluginError(f"“{name}” needs a `recognise` function")
+        colour = _colour(name, entry)
         # Every other hook is optional; `recognise` is the one the app cannot do without.
         kinds.append(
             SourceKind(
@@ -200,6 +218,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
                 plugin=plugin.title,
                 noun=str(entry.get("noun") or entry.get("label") or name.title()),
                 blurb=str(entry.get("blurb") or ""),
+                colour=colour,
                 _recognise=entry.get("recognise"),
                 _accept=entry.get("accept"),
                 _item_url=entry.get("item_url"),

@@ -50,7 +50,9 @@ plain CSS with native nesting, plus a few Tailwind directives:
   (`--kind-trigger`, `--kind-source`, `--kind-filter`, `--kind-sort`, `--kind-stamp`, `--kind-store`,
   `--kind-feed`, `--kind-piece`) as `--kind-colour`, which the box's bar, the palette swatch and the
   palette pill read. A slotted piece gets `data-host` (the kind of the box at the top of its stack)
-  from `placeGraphPieces`, and wears that box's colour.
+  from `placeGraphPieces`, and wears that box's colour. A source box, its palette swatch and its
+  pills carry `data-colour` (the colour its plugin chose); `plugin-colours.css` turns that into
+  `--plugin-colour`.
 - **`@apply surface`** is the raised-panel look (background, border, radius, shadow).
 - **Type.** DM Sans for text, Fraunces for headings (`h1`, `h2`, `.display`), both variable fonts
   served from `static/fonts/` so an installed copy has them offline.

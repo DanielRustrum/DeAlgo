@@ -29,6 +29,7 @@
 /* Controls, in every page. */
 @import "./buttons.css" layer(components);
 @import "./forms.css" layer(components);
+@import "./plugin-colours.css" layer(components);
 @import "./pills.css" layer(components);
 @import "./bubbles.css" layer(components);
 @import "./htmx.css" layer(components);

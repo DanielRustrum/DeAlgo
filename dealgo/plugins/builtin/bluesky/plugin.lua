@@ -25,6 +25,8 @@ return {
       blurb = "One account. Its posts, as they are made.",
       label = "Bluesky",
       example = "@name.bsky.social, or a profile URL",
+      -- Its boxes on the canvas, from the colours the app allows.
+      colour = "sky",
       playlistable = false,
 
       -- Asked when the box is already a Bluesky box. A handle here is a

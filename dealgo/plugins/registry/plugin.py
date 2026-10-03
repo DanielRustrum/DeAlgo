@@ -58,6 +58,8 @@ class SourceKind:
     noun: str = ""
     #: The line under that name in the palette.
     blurb: str = ""
+    #: What its box, palette row and pills wear: one of `SOURCE_COLOURS`.
+    colour: str = "green"
     _recognise: Any = None
     _accept: Any = None
     _item_url: Any = None
@@ -121,6 +123,14 @@ class Field:
 #: Timer or an Alive is about clocks and sittings, which is the host's own
 #: machinery and nothing a plugin could implement.
 AUGMENTS: dict[str, str] = {"filter": "keep", "sort": "rank"}
+
+
+#: The colours a plugin may give its source boxes, the first being what a
+#: source wears when its plugin names none. A list rather than any colour,
+#: so every one is drawn for both themes and none is a colour the canvas
+#: already uses to mean another kind of box — violet triggers, amber
+#: filters, blue sorts, teal stamps, brown stores, terracotta feeds.
+SOURCE_COLOURS: tuple[str, ...] = ("green", "moss", "jade", "sky", "pink", "red", "slate")
 
 
 @dataclass(frozen=True)

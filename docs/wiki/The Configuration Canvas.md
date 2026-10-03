@@ -36,7 +36,7 @@ The bar down a box's left edge says what kind of box it is. The palette uses the
 | Colour | Kind |
 | --- | --- |
 | Violet | Triggers — Pulse, Schedule |
-| Green | Sources — channels, newsletters, feed addresses |
+| Green | Sources — channels, newsletters, feed addresses. A plugin may give its sources one of a few [other colours](Creating%20A%20Plugin/Sources.md#colour) instead: YouTube's are red, Bluesky's sky blue |
 | Amber | Filter |
 | Blue | Sort |
 | Teal | Tag, Decay, Expire — they mark what passes and turn nothing away |
