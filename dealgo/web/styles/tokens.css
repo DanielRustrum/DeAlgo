@@ -1,54 +1,39 @@
 /* Colour, type and shape, in one place. Everything else reads these.
 
-   The look is a botanical one, and each theme has one accent and two
-   splashes. Light: warm paper, with green for whatever acts and splashes of
-   orange and red. Dark: a deep olive-brown, with orange for whatever acts and
-   splashes of yellow and red. Nothing outside this file names a colour; it
-   names a role, and the theme decides what the role looks like. */
+   The look is a botanical one: warm paper, forest-green ink, terracotta for
+   whatever acts, and sage, peach and ochre around it. Light is the default;
+   a dark system preference gets the same garden at night. */
 
 :root {
-  --bg: #f6eee3;
+  --bg: #f6eee2;
   --panel: #fffaf3;
-  --panel-2: #f1e7d9;
-  --line: #e5d7c3;
+  --panel-2: #f2e8da;
+  --line: #e6d8c4;
   --text: #22332e;
-  --muted: #6b7068;
-  --accent: #3d7a4c;
-  --accent-dim: #2e5f3a;
-  /* A wash of the accent: the current tab, a chosen chip. */
-  --accent-soft: #dde9d9;
+  --muted: #6b766d;
+  --accent: #cf5530;
+  --accent-dim: #b0431f;
   /* What is written on the accent: a button's label, a count's number. */
   --on-accent: #fffaf3;
-  --ok: #3d7a4c;
-  --warn: #b0661a;
-  --bad: #b3301e;
+  --ok: #3f7d4e;
+  --warn: #a8641a;
+  --bad: #be3a27;
   --radius: 18px;
   /* Behind the menu drawer and a modal: the ink, thinned, not black. */
   --scrim: rgba(34, 51, 46, 0.38);
   /* Every drop shadow. Brown rather than grey, so it reads as paper lifting. */
   --shadow: rgba(92, 64, 34, 0.18);
 
-  /* The splashes: colour that decorates rather than acts — stat blocks,
-     flowers, the light in the corners. */
-  --splash-1: #e2793a;
-  --splash-2: #cf4a35;
-  --splash-soft: #f4bf98;
-
-  /* The illustrations: stems, leaves, the hill and the ground behind it. */
-  --stem: #23413a;
+  /* The garden. Fixed in both themes: these are the colour blocks — stat
+     cards, the illustrations — and each is paired with its own text colour. */
+  --forest: #23413a;
   --leaf: #5f8a6a;
   --sage: #9fb8a1;
-  --sage-soft: #e0e8da;
-
-  /* The four colour blocks of the stat row, each with its own ink. */
-  --block-1: #2f6b45;
-  --block-1-ink: #fffaf3;
-  --block-2: #9fb8a1;
-  --block-2-ink: #1f3a30;
-  --block-3: var(--splash-1);
-  --block-3-ink: #2a1608;
-  --block-4: var(--splash-2);
-  --block-4-ink: #fffaf3;
+  --sage-soft: #dfe8dc;
+  --peach: #f2b196;
+  --blush: #f8dccb;
+  --ochre: #e3a24a;
+  --cream: #fffaf3;
 
   /* The kinds of box on the Configuration canvas. */
   --kind-sort: #4f7fa0;
@@ -72,51 +57,36 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #26241b;
-    --panel: #2f2c22;
-    --panel-2: #38352a;
-    --line: #4a4636;
-    --text: #f3ead8;
-    --muted: #b3ab95;
-    --accent: #ec8a3a;
-    --accent-dim: #f3a262;
-    --accent-soft: #4a3a24;
-    /* White on orange is too thin to read; the page's own dark is not. */
-    --on-accent: #26241b;
-    --ok: #a9c46a;
-    --warn: #e8c24f;
-    --bad: #ef6248;
-    --scrim: rgba(12, 11, 7, 0.62);
+    --bg: #131d1a;
+    --panel: #1a2824;
+    --panel-2: #22332e;
+    --line: #2f443d;
+    --text: #f2e9db;
+    --muted: #a2ad9f;
+    --accent: #ee7a4f;
+    --accent-dim: #f29170;
+    /* White on a light terracotta is too thin to read; the ink is not. */
+    --on-accent: #1b1410;
+    --ok: #7fbf7c;
+    --warn: #e3a24a;
+    --bad: #f07a63;
+    --scrim: rgba(5, 10, 8, 0.6);
     --shadow: rgba(0, 0, 0, 0.45);
-
-    --splash-1: #e8c24f;
-    --splash-2: #df5a3e;
-    --splash-soft: #8c6f2a;
-
-    --stem: #c9bc98;
-    --leaf: #8d8a52;
-    --sage: #4a4636;
-    --sage-soft: #34311f;
-
-    --block-1: var(--accent);
-    --block-1-ink: #26241b;
-    --block-2: #4a4636;
-    --block-2-ink: #f3ead8;
-    --block-3: var(--splash-1);
-    --block-3-ink: #26241b;
-    --block-4: var(--splash-2);
-    --block-4-ink: #fff4ea;
+    /* A step lighter than by day, or the forest blocks sink into the page. */
+    --forest: #2e544b;
+    --sage-soft: #26382f;
+    --blush: #3a2a22;
 
     --kind-sort: #8fb4d4;
-    --kind-withdraw: #e8c24f;
+    --kind-withdraw: #e8b35e;
     --kind-expire: #5cc3bb;
-    --kind-piece: #a9c46a;
+    --kind-piece: #9ccc7f;
 
     --source-youtube: #f08068;
     --source-reddit: #f39a62;
     --source-bluesky: #82b4e8;
-    --source-substack: #e8c24f;
-    --source-rss: #b9b49a;
+    --source-substack: #e8b35e;
+    --source-rss: #9fbcb6;
   }
 }
 
@@ -138,14 +108,14 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
-  --color-accent-soft: var(--accent-soft);
-  --color-splash-1: var(--splash-1);
-  --color-splash-2: var(--splash-2);
-  --color-splash-soft: var(--splash-soft);
-  --color-stem: var(--stem);
+  --color-forest: var(--forest);
   --color-leaf: var(--leaf);
   --color-sage: var(--sage);
   --color-sage-soft: var(--sage-soft);
+  --color-peach: var(--peach);
+  --color-blush: var(--blush);
+  --color-ochre: var(--ochre);
+  --color-cream: var(--cream);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);

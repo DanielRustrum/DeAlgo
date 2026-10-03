@@ -38,12 +38,10 @@ plain CSS with native nesting, plus a few Tailwind directives:
 - **Layers.** Every file is imported into the `components` layer and the utilities come after, so
   a utility in a template always beats a component rule. Tailwind's preflight reset is not used:
   `base.css` is the app's own reset.
-- **The theme** is `tokens.css`: colours as roles, not names. Each theme has one accent and two
-  splashes — light (`#f6eee3`): green, with orange and red; dark (`#26241b`): orange, with yellow
-  and red — plus surfaces (`--bg`, `--panel`…), the four stat blocks (`--block-1`…`4`, each with
-  its ink) and the drawing colours (`--stem`, `--leaf`, `--sage`). `@theme inline` exposes them to
-  Tailwind as `bg-panel`, `text-ink`, `fill-splash-1`, `font-display`. Colours are never written
-  anywhere else.
+- **The theme** is `tokens.css`: the colours as custom properties (`--bg`, `--panel`, `--accent`…,
+  the garden colours `--forest`, `--sage`, `--peach`…), a dark palette under
+  `prefers-color-scheme: dark`, and `@theme inline`, which exposes the same tokens to Tailwind as
+  `bg-panel`, `text-ink`, `fill-forest`, `font-display`. Colours are never written anywhere else.
 - **Widths and input.** `@variant phone { … }` (≤ 640px) and `@variant tablet { … }` (≤ 860px) are
   custom variants; `pointer-coarse` and `motion-reduce` are Tailwind's. Write them at the top
   level of a file or at the end of a rule, never between a rule's declarations: the compiler

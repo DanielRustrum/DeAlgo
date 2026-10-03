@@ -6,7 +6,7 @@
   font-weight: 600; cursor: pointer; text-decoration: none; font-family: inherit;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
-.btn:hover { border-color: var(--accent); color: var(--text); }
+.btn:hover { border-color: var(--leaf); color: var(--text); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn-primary {
   background: var(--accent); border-color: var(--accent); color: var(--on-accent);
@@ -37,8 +37,8 @@
   border: 1px solid var(--line); color: var(--muted); background: var(--panel); font-family: inherit;
   cursor: pointer;
 }
-.chip:hover { color: var(--text); border-color: color-mix(in oklab, var(--accent) 50%, var(--line)); }
-.chip-on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.chip:hover { color: var(--text); border-color: var(--sage); }
+.chip-on { background: var(--sage-soft); border-color: var(--leaf); color: var(--text); }
 .chip-count { color: var(--muted); font-size: 11px; }
 .chip-form { margin-left: auto; min-width: 200px; }
 
