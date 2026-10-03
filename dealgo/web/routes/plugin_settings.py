@@ -88,7 +88,7 @@ async def save_app_settings(request: Request, plugin_id: str) -> Response:
     A switched-off plugin may still be set up, so that it is ready when it is
     switched back on.
     """
-    back = f"/admin/plugins#plugin-{plugin_id}"
+    back = f"/admin/plugins#plugin-{plugin_id}-setup"
     plugin = _plugin(plugin_id)
     if plugin is None or not plugin.loaded or not plugin.settings.app:
         return redirect("/admin/plugins", err="That plugin has no settings to save.")

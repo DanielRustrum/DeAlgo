@@ -110,3 +110,11 @@ details.plugin-card[open] > summary { margin-bottom: 4px; }
   details.plugin-card > summary::after,
   .plugin-section-fold > summary::after { transition: none; }
 }
+
+/* Inside the card's one fold, its parts are headed but not ruled again:
+   the fold already draws the plugin's rule down their side. */
+.plugin-setup > .plugin-section {
+  border-left: none;
+  padding-left: 0;
+  margin-top: 14px;
+}

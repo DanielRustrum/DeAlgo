@@ -40,12 +40,13 @@ A plugin can do nothing outside its own code unless granted:
 | **Write to the log** | Write lines to De-Algo's log. |
 
 Untick any you would rather it did without — it still loads, and simply finds that ability missing.
-Change them later on its row. Shipped plugins start with what they asked for; you can revoke it.
+Change them later on its card, in the folded section under its name. Shipped plugins start with what they asked for; you can revoke it.
 
 ## Settings for everyone
 
 A plugin that needs setting up for the whole install, such as a server address or an API key, has a
-**Settings for everyone** block on its card, below **Allowed to**. Both use the plugin's colour and
+**Settings for everyone** part on its card. It is folded, with **Allowed to** and (for a plugin that
+signs people in) the redirect address to register, into one section you click to open. It uses the plugin's colour and
 badge, so it is clear whose settings they are. Values apply to every account. A secret, such as a
 token, is never shown again once saved: leave it blank to keep it, or tick **Clear what is saved**.
 

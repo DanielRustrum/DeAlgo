@@ -266,3 +266,13 @@ def member_id() -> int:
 
     with session_scope() as session:
         return next(user.id for user in accounts.list_users(session) if user.username == MEMBER[0])
+
+
+def test_what_the_admin_decides_is_folded_together_on_the_card(site):
+    """What it may do, how it signs in and its settings for everyone: one
+    section, folded until opened, and reopened by a save."""
+    page = signed_in(site, ADMIN).get("/admin/plugins").text
+    card = page.split('id="plugin-tuned"', 1)[1].split("</li>", 1)[0]
+    fold = card.split('id="plugin-tuned-setup"', 1)[1].split("</details>", 1)[0]
+    assert "Settings for everyone" in fold
+    assert "settings for everyone" in fold.split("</summary>", 1)[0]

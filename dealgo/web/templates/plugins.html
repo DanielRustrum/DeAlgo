@@ -151,6 +151,17 @@
       {% endfor %}
       {% endif %}
 
+      {# What the admin decides about how it runs here — what it may do, how
+         its service signs people in, its settings for everyone — folded
+         into one section until opened. A save comes back to it open. #}
+      {% set parts = [] %}
+      {% if plugin.wants %}{% set _ = parts.append('what it may do') %}{% endif %}
+      {% if plugin.connect %}{% set _ = parts.append('signing in with ' ~ plugin.connect.name) %}{% endif %}
+      {% if plugin.settings %}{% set _ = parts.append('settings for everyone') %}{% endif %}
+      {% if parts %}
+      <details class="plugin-section plugin-section-fold plugin-setup" id="plugin-{{ plugin.id }}-setup">
+        <summary class="plugin-section-head">{{ parts | join(' · ') }}</summary>
+
       {% if plugin.wants %}
       <form class="plugin-permissions plugin-section" method="post"
             action="/admin/plugins/{{ plugin.id }}/permissions">
@@ -169,22 +180,10 @@
         {% endfor %}
         <button class="btn btn-quiet" type="submit">Save what it may do</button>
       </form>
-      {% if plugin.wanting %}
-      <p class="meta">
-        It asked for
-        {% for want in plugin.wanting %}{{ want.detail.label | lower }}
-        {%- if not loop.last %}, {% endif %}{% endfor %}
-        and has not been given
-        {{ 'it' if plugin.wanting | length == 1 else 'them' }}. It still runs,
-        and may quietly do less than it was written to.
-      </p>
-      {% endif %}
-      {% else %}
-      <div class="meta">Asks for nothing: it can compute, and that is all.</div>
       {% endif %}
 
-      {# How it signs people in, when it does. The admin's half: register this
-         address with the service, then set the OAuth client below. #}
+      {# How it signs people in. The admin's half: register this address with
+         the service, then set the OAuth client below. #}
       {% if plugin.connect %}
       <section class="plugin-section">
         <strong class="plugin-section-head">Signing in with {{ plugin.connect.name }}</strong>
@@ -203,13 +202,10 @@
       </section>
       {% endif %}
 
-      {# The admin's settings for it: one value for every account. Beside
-         what it is allowed to do, because both are the admin deciding how
-         this plugin runs here. #}
+      {# The admin's settings for it: one value for every account. #}
       {% if plugin.settings %}
-      {# Folded until opened, like a plugin's block under Settings. #}
-      <details class="plugin-section plugin-section-fold">
-        <summary class="plugin-section-head">Settings for everyone</summary>
+      <section class="plugin-section">
+        <strong class="plugin-section-head">Settings for everyone</strong>
         <p class="hint plugin-section-note">
           Set once for this whole De-Algo.
           {%- if plugin.has_user_settings %} Each account also has settings of its own for
@@ -217,8 +213,26 @@
         </p>
         {{ settings_form('/admin/plugins/' ~ plugin.id ~ '/settings', plugin.settings, 'app',
                          plugin.id, 'Save settings for everyone') }}
+      </section>
+      {% endif %}
       </details>
-      {% elif plugin.has_user_settings %}
+      {% endif %}
+
+      {# Said outside the fold: these are facts about it, not decisions. #}
+      {% if plugin.wanting %}
+      <p class="meta">
+        It asked for
+        {% for want in plugin.wanting %}{{ want.detail.label | lower }}
+        {%- if not loop.last %}, {% endif %}{% endfor %}
+        and has not been given
+        {{ 'it' if plugin.wanting | length == 1 else 'them' }}. It still runs,
+        and may quietly do less than it was written to.
+      </p>
+      {% endif %}
+      {% if not plugin.wants %}
+      <div class="meta">Asks for nothing: it can compute, and that is all.</div>
+      {% endif %}
+      {% if not plugin.settings and plugin.has_user_settings %}
       <p class="meta">Each account sets {{ plugin.title }} up for itself, under Settings.</p>
       {% endif %}
 

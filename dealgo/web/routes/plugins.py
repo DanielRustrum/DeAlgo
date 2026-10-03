@@ -296,10 +296,12 @@ async def set_plugin_permissions(request: Request, plugin_id: str) -> Response:
 
     gained = granting - found.granted
     lost = found.granted - granting
+    # Back to its own section, which reopens: the answer is about it.
+    back = f"/admin/plugins#plugin-{plugin_id}-setup"
     if not gained and not lost:
-        return redirect("/admin/plugins", ok=f"{found.title} is unchanged.")
+        return redirect(back, ok=f"{found.title} is unchanged.")
     return redirect(
-        "/admin/plugins",
+        back,
         ok=f"{found.title} now has {len(granting)} of the "
         f"{len(wanted)} thing{'s' if len(wanted) != 1 else ''} it asked for.",
     )
