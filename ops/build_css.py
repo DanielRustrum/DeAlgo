@@ -1,46 +1,43 @@
-"""Compile the SCSS sources into the stylesheet the app serves.
+"""Compile the stylesheet sources into the one stylesheet the app serves.
 
-The compiled CSS is committed and shipped inside the package, so running or
-containerising De-Algo needs no compiler — only editing the styles does. A
-test compares the two, so the committed file cannot quietly fall behind.
+Tailwind does the work: it bundles `web/styles/` into one file, adds the
+utility classes the templates use, and minifies the lot. The compiled CSS is
+committed and shipped inside the package, so running or containerising
+De-Algo needs no Node — only editing the styles does (`npm install` first).
+A test compares the two, so the committed file cannot quietly fall behind —
+which is also why package.json pins Tailwind to an exact version: another
+release may minify the same sources a little differently.
 """
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "dealgo" / "web"
-SOURCE = WEB / "scss" / "app.scss"
+SOURCE = WEB / "styles" / "app.css"
 TARGET = WEB / "static" / "app.css"
+TAILWIND = ROOT / "node_modules" / ".bin" / "tailwindcss"
 
 # Kept short: it is the one part of this file that is not minified.
-BANNER = "/* Generated from web/scss/ by `make css` — do not edit. */\n"
+BANNER = "/* Generated from web/styles/ by `make css` — do not edit. */\n"
 
 
 def compile_css() -> str:
     """The stylesheet the sources describe, banner and all."""
-    import sass  # a build-time dependency; the app never imports it
-
-    # Minified: this file is served, not read. The SCSS partials are the
-    # readable copy, and they are what anyone editing the styles works from.
-    # libsass ships no type information, so the boundary is stated here
-    # rather than leaking Any through the rest of the module.
-    css: str = sass.compile(
-        filename=str(SOURCE),
-        output_style="compressed",
-        include_paths=[str(SOURCE.parent)],
+    if not TAILWIND.exists():
+        raise SystemExit("Tailwind is not installed: run `npm install` first.")
+    # Run from the repository root, so the paths in its messages are short;
+    # `@source` and `@import` resolve against the source file either way.
+    built = subprocess.run(
+        [str(TAILWIND), "--input", str(SOURCE), "--output", "-", "--minify"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
     )
-    # Whatever marks the encoding — a BOM when minified, an @charset rule
-    # otherwise — only counts as the very first thing in the file. Pushing it
-    # down with a banner would leave a stray character glued to the opening
-    # selector, so the banner goes after it instead.
-    if css.startswith("\ufeff"):
-        return "\ufeff" + BANNER + css[1:]
-    if css.startswith("@charset"):
-        first, _, rest = css.partition("\n")
-        return f"{first}\n{BANNER}{rest}"
-    return BANNER + css
+    return BANNER + built.stdout
 
 
 def build() -> Path:

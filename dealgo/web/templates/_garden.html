@@ -1,0 +1,85 @@
+{# The botanical drawings: inline SVG, coloured by Tailwind's fill and stroke
+   utilities so they follow the palette in tokens.css. All of them are
+   decoration — aria-hidden, and never the only way to learn anything.
+
+   Leaves are one shape, drawn once in base.html as #g-leaf and placed with
+   <use>, which takes its fill from the class on the <use>. #}
+
+{# The shape every leaf is cut from: 40 long, pointing right from 0,0. Lives in
+   base.html, once per page. #}
+{% macro leaf_defs() -%}
+<svg width="0" height="0" class="absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <path id="g-leaf" d="M0 0C8-11 26-13 40 0C26 13 8 11 0 0Z"/>
+  </defs>
+</svg>
+{%- endmacro %}
+
+{# A leafy stem, 120 × 200. #}
+{% macro sprig(classes='', leaf='fill-leaf', stem='stroke-forest') -%}
+<svg class="{{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <path class="{{ stem }}" d="M60 198C55 140 68 80 60 12" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+  {% for y, side in [(170, 'r'), (148, 'l'), (122, 'r'), (98, 'l'), (72, 'r'), (50, 'l'), (30, 'r')] %}
+  <use href="#g-leaf" class="{{ leaf }}"
+       transform="translate({{ 61 if side == 'r' else 59 }} {{ y }}) rotate({{ -32 if side == 'r' else 212 }}) scale({{ 1.15 - loop.index0 * 0.08 }})"/>
+  {% endfor %}
+  <use href="#g-leaf" class="{{ leaf }}" transform="translate(60 14) rotate(-90) scale(0.6)"/>
+</svg>
+{%- endmacro %}
+
+{# A stem of round terracotta and ochre leaves, 120 × 200. #}
+{% macro bloom(classes='') -%}
+<svg class="{{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <path class="stroke-forest" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+  <path class="stroke-forest" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2" stroke-linecap="round"/>
+  <ellipse class="fill-accent" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
+  <ellipse class="fill-ochre" cx="91" cy="60" rx="12" ry="16" transform="rotate(24 91 60)"/>
+  <ellipse class="fill-peach" cx="64" cy="30" rx="14" ry="18"/>
+  <ellipse class="fill-accent" cx="76" cy="138" rx="9" ry="12" transform="rotate(40 76 138)"/>
+</svg>
+{%- endmacro %}
+
+{# The large drawing: a sage hill under a peach sun, with plants either side.
+   400 × 300. Used where a page has room to breathe — signing in, mostly. #}
+{% macro scene(classes='') -%}
+<svg class="{{ classes }}" viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+  <path class="fill-sage-soft" d="M58 252C18 182 40 92 122 60c70-28 158-20 210 30 50 48 40 140-22 172-60 30-200 40-252-10Z"/>
+  <circle class="fill-peach" cx="322" cy="76" r="28"/>
+  <path class="fill-sage" d="M30 262c80-58 196-64 340-22v30c-110 26-230 26-340 6Z"/>
+  <path class="fill-leaf" opacity=".55" d="M150 266c50-30 120-34 200-16v18c-70 14-140 14-200 6Z"/>
+  <g transform="translate(70 92) scale(.95)">
+    <path class="stroke-forest" d="M60 198C55 140 68 80 60 12" fill="none" stroke-width="3" stroke-linecap="round"/>
+    {% for y, side in [(170, 'r'), (148, 'l'), (122, 'r'), (98, 'l'), (72, 'r'), (50, 'l'), (30, 'r')] %}
+    <use href="#g-leaf" class="fill-forest"
+         transform="translate({{ 61 if side == 'r' else 59 }} {{ y }}) rotate({{ -32 if side == 'r' else 212 }}) scale({{ 1.2 - loop.index0 * 0.08 }})"/>
+    {% endfor %}
+  </g>
+  <g transform="translate(236 104) scale(.85)">
+    <path class="stroke-forest" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="3" stroke-linecap="round"/>
+    <path class="stroke-forest" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse class="fill-accent" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
+    <ellipse class="fill-ochre" cx="91" cy="60" rx="12" ry="16" transform="rotate(24 91 60)"/>
+    <ellipse class="fill-accent" cx="64" cy="30" rx="14" ry="18"/>
+    <ellipse class="fill-peach" cx="76" cy="138" rx="9" ry="12" transform="rotate(40 76 138)"/>
+  </g>
+  <use href="#g-leaf" class="fill-accent" transform="translate(196 70) rotate(-140) scale(.5)"/>
+  <use href="#g-leaf" class="fill-leaf" transform="translate(352 150) rotate(-60) scale(.55)"/>
+  <use href="#g-leaf" class="fill-peach" transform="translate(40 150) rotate(-120) scale(.5)"/>
+</svg>
+{%- endmacro %}
+
+{# A page's own heading: a title in the display face, a line about it, and a
+   sprig beside them. `caller()`, when given, is whatever sits on the right —
+   a button that belongs to the whole page. #}
+{% macro page_head(title, lede='') -%}
+<header class="relative mb-6 flex items-end justify-between gap-4 phone:mb-4">
+  <div class="flex items-end gap-3">
+    {{ sprig('h-16 w-10 shrink-0 -mb-1 phone:hidden') }}
+    <div>
+      <h1 class="m-0 text-[34px] leading-tight phone:text-[26px]">{{ title }}</h1>
+      {% if lede %}<p class="m-0 mt-1 text-[14.5px] text-muted">{{ lede }}</p>{% endif %}
+    </div>
+  </div>
+  {% if caller %}<div class="flex shrink-0 items-center gap-2">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro %}

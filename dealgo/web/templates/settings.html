@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% from "_garden.html" import page_head %}
 {% block title %}De-Algo — Settings{% endblock %}
 {% block content %}
+{{ page_head('Settings', 'Your account, your Google connection, and how De-Algo behaves.') }}
 
 {% if identity %}
 <section class="panel account-panel">

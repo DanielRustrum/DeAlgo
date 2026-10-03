@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% from "_garden.html" import page_head %}
 {% block title %}De-Algo — Admin{% endblock %}
 {% block content %}
+{{ page_head('Admin', 'The accounts on this De-Algo, and the plugins they share.') }}
 
 {% if not auth_enabled %}
 <section class="panel">

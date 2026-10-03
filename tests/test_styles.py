@@ -9,22 +9,43 @@ from __future__ import annotations
 import pytest
 
 from ops import build_css as styles
+from ops import vendor_fonts as fonts
 
-sass = pytest.importorskip("sass", reason="libsass is a build-time dependency")
+# Tailwind lives in node_modules, which is a developer's tool and not part of
+# the app. Where it is absent — a container, a fresh clone — this skips rather
+# than fails, as the TypeScript checks do.
+needs_tailwind = pytest.mark.skipif(
+    not styles.TAILWIND.exists(), reason="Tailwind is not installed (npm install)"
+)
 
 
+@needs_tailwind
 def test_the_committed_stylesheet_matches_its_sources():
     assert styles.TARGET.read_text() == styles.compile_css(), (
-        "static/app.css is out of date with web/scss/ — run `make css`."
+        "static/app.css is out of date with web/styles/ or the templates — run `make css`."
     )
 
 
-def test_every_partial_is_reachable_from_the_entry_point():
-    """A partial nobody imports is dead weight that still looks live."""
+def test_every_file_is_reachable_from_the_entry_point():
+    """A file nobody imports is dead weight that still looks live."""
     entry = styles.SOURCE.read_text()
-    partials = sorted(p.stem.lstrip("_") for p in styles.SOURCE.parent.glob("_*.scss"))
-    unused = [name for name in partials if f'@import "{name}"' not in entry]
+    folder = styles.SOURCE.parent
+    files = sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*.css") if p != styles.SOURCE)
+    unused = [name for name in files if f'@import "./{name}"' not in entry]
     assert unused == []
+
+
+def test_every_font_the_stylesheet_names_is_served():
+    """A font face pointing at a missing file fails silently: the browser
+    falls back to the system font, and nothing says why the page looks off."""
+    import re
+
+    named = re.findall(r"/static/fonts/([\w.-]+\.woff2)", (styles.SOURCE.parent / "fonts.css").read_text())
+    assert named, "fonts.css names no fonts"
+    for name in named:
+        assert (fonts.TARGET / name).is_file(), f"{name} is missing — run `make fonts`."
+    copied = sorted(name for names in fonts.FONTS.values() for name in names)
+    assert sorted(named) == copied
 
 
 def test_the_compiled_file_says_not_to_edit_it():
@@ -102,7 +123,8 @@ def test_the_modal_close_button_is_styled_as_one():
     and a button carries a border and a background unless told otherwise."""
     css = squashed()
     rule = css.split(".modal-close{", 1)[1].split("}", 1)[0]
-    assert "border:none" in rule and "background:none" in rule
+    # The minifier writes `background:none` as its shortest form, `0 0`.
+    assert "border:none" in rule and ("background:none" in rule or "background:00" in rule)
 
 
 def test_the_two_sides_of_a_filter_are_told_apart_by_colour():
@@ -160,7 +182,7 @@ def test_a_numbered_list_keeps_its_numbers_inside_the_box():
     count reaches ten, which in a 380px panel pushes them off the edge."""
     css = squashed()
     assert ".graph-sheet-list.is-numbered{counter-reset:landing}" in css
-    marker = css.split(".graph-sheet-list.is-numbered .graph-sheet-row::before{".replace(" ", ""), 1)
+    marker = css.split(".graph-sheet-list.is-numbered .graph-sheet-row:before{".replace(" ", ""), 1)
     assert "position:absolute" in marker[1].split("}", 1)[0]
 
 
@@ -213,6 +235,6 @@ def test_only_the_boxes_that_read_a_piece_show_a_slot():
 
     root = pathlib.Path(__file__).resolve().parent.parent
     css = (root / "dealgo" / "web" / "static" / "app.css").read_text(encoding="utf-8")
-    drawn = set(re.findall(r"\.graph-node\.kind-([a-z]+):not\(\.has-piece\)::after", css))
+    drawn = set(re.findall(r"\.graph-node\.kind-([a-z]+):not\(\.has-piece\)::?after", css))
 
     assert drawn == set(graph.SLOTTED)

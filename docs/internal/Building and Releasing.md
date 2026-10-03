@@ -3,8 +3,8 @@
 ## Local development
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -e . pytest mypy libsass
-npm install                  # TypeScript, for editing scripts
+python -m venv .venv && .venv/bin/pip install -e . pytest mypy
+npm install                  # TypeScript and Tailwind, for editing scripts and styles
 make dev                     # rebuild assets, run on :8080 with ./data, reading .env
 ```
 

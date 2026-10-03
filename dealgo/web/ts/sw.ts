@@ -56,6 +56,9 @@ function shellUrls(): string[] {
     "/offline",
     "/login",
     "/static/app.css",
+    // The typefaces, or an offline first visit falls back to the system font.
+    "/static/fonts/dm-sans-latin-wght-normal.woff2",
+    "/static/fonts/fraunces-latin-wght-normal.woff2",
     "/static/htmx.min.js",
     "/static/dialog.js",
     "/static/sections.js",

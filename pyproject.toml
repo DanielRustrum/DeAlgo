@@ -19,10 +19,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# libsass compiles web/scss into static/app.css. The app itself never imports
-# it: the compiled stylesheet is committed and ships in the package, so running
-# De-Algo needs no compiler — only restyling it does.
-dev = ["pytest>=8.0", "libsass>=0.22", "mypy>=1.11"]
+# The stylesheet is compiled by Tailwind, from npm (see package.json): it is
+# committed and ships in the package, so running De-Algo needs no Node — only
+# restyling it does.
+dev = ["pytest>=8.0", "mypy>=1.11"]
 # pdoc builds the Python half of docs/internal/autodoc from the docstrings.
 docs = ["pdoc==16.0.0"]
 
@@ -46,7 +46,7 @@ dealgo = [
     "web/templates/*.html",
     "web/static/*",
     "web/static/icons/*",
-    "web/scss/*.scss",
+    "web/static/fonts/*",
     "web/ts/*.ts",
     # Without this the image ships with no plugins at all, and every kind of
     # source stops being recognised — the app would start and understand
@@ -88,6 +88,6 @@ show_error_codes = true
 # is worse than no stub, so the module is untyped here on purpose and every
 # value crossing out of it is checked in `runtime`.
 [[tool.mypy.overrides]]
-module = ["sass", "apscheduler.*", "lupa"]
+module = ["apscheduler.*", "lupa"]
 ignore_missing_imports = true
 

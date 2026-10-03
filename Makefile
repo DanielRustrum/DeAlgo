@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js docs toc wiki release-image dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts docs toc wiki release-image dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -97,8 +97,11 @@ typecheck: ## Check the types, both languages (mypy --strict, tsc --noEmit)
 	npx tsc -p tsconfig.sw.json --noEmit
 	npx tsc -p tsconfig.parts.json --noEmit
 
-css: ## Compile web/scss into the stylesheet the app serves
+css: ## Compile web/styles with Tailwind into the stylesheet the app serves (needs npm install)
 	$(PY) ops/build_css.py
+
+fonts: ## Copy the typefaces from node_modules into static/fonts (needs npm install)
+	$(PY) ops/vendor_fonts.py
 
 js: ## Compile web/ts into the scripts the app serves
 	npx tsc
@@ -110,15 +113,10 @@ js: ## Compile web/ts into the scripts the app serves
 watch-js: ## Recompile the page scripts on save (the worker and the scripts written as parts need `make js`)
 	npx tsc --watch
 
-assets: css js ## Rebuild both the stylesheet and the scripts
+assets: fonts css js ## Rebuild the fonts, the stylesheet and the scripts
 
-watch-css: ## Recompile the stylesheet whenever a partial changes
-	@command -v inotifywait >/dev/null || { echo "needs inotify-tools"; exit 2; }
-	@echo "watching dealgo/web/scss — ctrl-c to stop"
-	@while true; do \
-		inotifywait -qq -r -e close_write dealgo/web/scss; \
-		$(PY) ops/build_css.py >/dev/null && echo "rebuilt $$(date +%H:%M:%S)"; \
-	done
+watch-css: ## Recompile the stylesheet on every save to web/styles or a template (run `make css` before committing)
+	npx tailwindcss --input dealgo/web/styles/app.css --output dealgo/web/static/app.css --watch
 
 AUTODOC := docs/internal/autodoc
 

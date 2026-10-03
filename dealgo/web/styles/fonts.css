@@ -1,0 +1,29 @@
+/* The two typefaces, served by the app itself so an installed copy has them
+   offline. `make fonts` copies them out of node_modules into static/fonts.
+
+   Both are variable fonts: one file each covers every weight. Latin only;
+   anything else falls back to the system stacks in tokens.css. */
+
+@font-face {
+  font-family: "DM Sans Variable";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("/static/fonts/dm-sans-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+@font-face {
+  font-family: "DM Sans Variable";
+  font-style: italic;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("/static/fonts/dm-sans-latin-wght-italic.woff2") format("woff2-variations");
+}
+
+@font-face {
+  font-family: "Fraunces Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/static/fonts/fraunces-latin-wght-normal.woff2") format("woff2-variations");
+}

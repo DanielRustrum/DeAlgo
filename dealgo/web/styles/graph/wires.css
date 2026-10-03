@@ -1,0 +1,56 @@
+/* Wires, and the fat invisible line under each that a pointer can hit. */
+
+.graph-wire {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.graph-wire.is-picked { stroke: var(--accent); stroke-width: 3; }
+.graph-wire.is-through { stroke: var(--ok); stroke-width: 3; }
+.graph-wire.is-stopped { stroke: var(--bad); stroke-dasharray: 5 5; }
+.wire-ghost { stroke: var(--accent); stroke-dasharray: 6 5; }
+
+/* A wire out of the box the run is working on: something is coming down it. */
+.graph-wire.is-carrying {
+  stroke: var(--accent);
+  stroke-dasharray: 7 6;
+  animation: wire-flow 0.7s linear infinite;
+
+  @variant motion-reduce {
+    animation: none;
+  }
+}
+@keyframes wire-flow {
+  to { stroke-dashoffset: -13; }
+}
+
+/* Invisible, fat, and the only part a pointer can actually hit. */
+.graph-wire-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+
+  @variant pointer-coarse {
+    stroke-width: 26;
+  }
+}
+
+.graph-cut {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.graph-cut:hover { background: var(--accent); color: var(--on-accent); }

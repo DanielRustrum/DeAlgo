@@ -1,13 +1,17 @@
 {
   "name": "dealgo-frontend",
   "private": true,
-  "description": "TypeScript sources for De-Algo's browser scripts. The compiled JavaScript is committed under dealgo/web/static/, so running De-Algo needs no Node — only editing the scripts does.",
+  "description": "Build tools for De-Algo's browser side: TypeScript for the scripts, Tailwind for the stylesheet, and the typefaces. Everything they produce is committed under dealgo/web/static/, so running De-Algo needs no Node \u2014 only editing the scripts or styles does.",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
     "check": "tsc --noEmit"
   },
   "devDependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource-variable/fraunces": "5.3.0",
+    "@tailwindcss/cli": "4.3.3",
+    "tailwindcss": "4.3.3",
     "typescript": "^7.0.0"
   }
 }

@@ -833,10 +833,12 @@ def test_the_tabs_become_a_drawer_below_tablet_width(client):
     """Five tabs, a brand and two sync buttons never shared a row honestly.
     Below 860px the tabs move behind a hamburger instead."""
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1]
+    tablet = css.split("@media (max-width:860px){", 1)[1]
 
     assert ".menu-button" in tablet          # the hamburger appears
-    assert "translateX(100%)" in tablet      # the drawer waits off-screen
+    # The drawer waits off-screen. The minifier writes translateX(100%) as
+    # translate(100%), which is the same thing.
+    assert "translate(100%)" in tablet
     assert ".menu-check:checked~.menu-panel" in squashed(tablet)
 
 
@@ -889,7 +891,7 @@ def test_the_hamburger_stays_reachable_over_the_open_drawer(client):
     """The drawer is a later sibling with a higher z-index, so without this it
     paints over the very button that closes it."""
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     import re
 
@@ -911,7 +913,7 @@ def test_the_bar_outranks_the_page_while_the_drawer_is_open(client):
     """The drawer lives inside the bar, so the bar's stacking context has to
     sit above content that raises itself — a tooltip is z-index 30."""
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     import re
 
@@ -931,12 +933,13 @@ def test_the_current_page_is_marked_the_way_the_app_marks_things(client):
     """Accent for what is current, the same as a primary button or an open
     tab — not a different idea invented for the menu."""
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     assert "inset 3px 0 0 var(--accent)" in tablet
     # Drawn transparent when not current, so arriving at a page moves the mark
     # rather than nudging the text sideways.
-    assert "inset 3px 0 0 transparent" in tablet
+    # (#0000 is how the minifier spells transparent.)
+    assert "inset 3px 0 #0000" in tablet or "inset 3px 0 0 transparent" in tablet
 
 
 def test_the_scrim_is_a_token_so_it_suits_both_themes(client):
@@ -949,14 +952,15 @@ def test_the_scrim_is_a_token_so_it_suits_both_themes(client):
 
 def test_the_rows_arrive_a_beat_apart(client):
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     import re
 
-    delays = re.findall(r"nth-child\((\d)\)\{transition-delay:(\d+)ms\}", tablet)
+    # The minifier writes 90ms as .09s.
+    delays = re.findall(r"nth-child\((\d)\)\{transition-delay:([\d.]+)s\}", tablet)
     assert len(delays) >= 6
     # Each one a little after the last, in order.
-    steps = [int(ms) for _, ms in delays]
+    steps = [float(seconds) for _, seconds in delays]
     assert steps == sorted(steps)
 
 
@@ -964,11 +968,13 @@ def test_nothing_waits_on_an_animation_that_will_not_happen(client):
     """With motion turned down there is no stagger — so the rows must not be
     left sitting at zero opacity waiting for one."""
     css = client.get("/static/app.css").text
-    reduced = css.split("@media (prefers-reduced-motion: reduce){", 1)[1]
+    reduced = css.split("@media (prefers-reduced-motion:reduce){", 1)[1]
     # Up to the end of this media block, not just its first rule.
     block = squashed(reduced.split("@media", 1)[0])
 
-    assert "transition-delay:0s" in block
+    # `transition: none` resets the delay along with the rest, and the
+    # minifier folds a separate `transition-delay: 0s` into it.
+    assert "transition-delay:0s" in block or ".menu-bars:after{transition:none}" in block
     assert ".topbarnav>*{opacity:1;transform:none}" in block
 
 
@@ -982,7 +988,7 @@ def test_the_desktop_tabs_are_a_styled_row(client):
     """The default state, which is easy to delete while working on the other
     one."""
     css = client.get("/static/app.css").text
-    desktop = css.split("@media (max-width: 860px){", 1)[0]
+    desktop = css.split("@media (max-width:860px){", 1)[0]
 
     import re
 
@@ -1000,8 +1006,12 @@ def test_both_shapes_of_the_nav_share_their_look(client):
     """The drawer overrides what it must and inherits the rest, so the tabs
     are recognisably the same control in either place."""
     css = client.get("/static/app.css").text
-    base_at = css.index(".topbar nav{display:flex")
-    drawer_at = css.index(".menu-panel{display:flex;position:fixed")
+    import re
+
+    base_at = css.index(".topbar nav{")
+    drawer = re.search(r"\.menu-panel\{[^}]*position:fixed", css)
+    assert drawer is not None
+    drawer_at = drawer.start()
 
     # The shared rules have to come first, or the drawer loses to them.
     assert base_at < drawer_at
@@ -1011,7 +1021,7 @@ def test_the_drawer_stacks_its_tabs(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
     tabs = re.search(r"\.topbar nav\{([^}]*)\}", tablet)
 
     assert tabs is not None
@@ -1025,19 +1035,19 @@ def test_the_hamburger_matches_the_buttons_beside_it(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
     button = re.search(r"(?:^|[,}])\.menu-button\{([^}]*)\}", tablet).group(1)
 
     assert "width:38px" in button and "height:38px" in button
     # The same recipe as .btn: it belongs to that row of controls.
     assert "border:1px solid var(--line)" in button
-    assert "background:var(--panel-2)" in button
-    assert "border-radius:8px" in button
+    assert "background:var(--panel)" in button
+    assert "border-radius:10px" in button
 
 
 def test_the_hamburger_answers_to_a_pointer(client):
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     assert ".menu-button:hover{border-color:var(--muted)}" in squashed(tablet)
     assert ".menu-button:active" in tablet
@@ -1049,7 +1059,7 @@ def test_an_open_menu_marks_its_own_button(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
     open_state = re.search(r"\.menu-check:checked~\.menu-button\{([^}]*)\}", squashed(tablet))
 
     assert open_state is not None
@@ -1066,7 +1076,7 @@ def test_the_buttons_name_is_readable_even_though_its_word_is_not(client):
     assert 'class="menu-word">Menu</span>' in body
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
     word = re.search(r"\.menu-word\{([^}]*)\}", tablet).group(1)
     assert "clip-path:inset(50%)" in word      # hidden, not removed
     assert "display:none" not in word
@@ -1111,7 +1121,7 @@ def test_what_is_left_of_the_sync_corner_gets_the_width(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     assert re.search(r"\.menu-panel \.topbar-action \.btn\{flex:1\}", tablet)
     assert "width:100%" in re.search(r"\.menu-panel \.btn\{([^}]*)\}", tablet).group(1)
@@ -1120,8 +1130,14 @@ def test_what_is_left_of_the_sync_corner_gets_the_width(client):
 def test_the_buttons_are_a_second_group_in_the_drawer(client):
     """A hairline after the tabs, written against whatever follows them —
     Tour is only there when the setting says so."""
+    import re
+
     css = squashed(client.get("/static/app.css").text)
-    assert ".menu-panel>nav+*{margin-top:6px;padding-top:14px;border-top:1pxsolidvar(--line)}" in css
+    rule = re.search(r"\.menu-panel>nav\+\*\{([^}]*)\}", css)
+    assert rule is not None
+    assert set(rule.group(1).split(";")) == {
+        "margin-top:6px", "padding-top:14px", "border-top:1pxsolidvar(--line)"
+    }
 
 
 def test_the_drawer_is_a_box_of_its_own(client):
@@ -1136,7 +1152,7 @@ def test_the_drawer_is_a_box_of_its_own(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
     drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet)
 
     assert drawer is not None
@@ -1146,7 +1162,7 @@ def test_the_drawer_is_a_box_of_its_own(client):
     )
     # And the things that only work because it does.
     assert "position:fixed" in declarations
-    assert "transform:translateX(100%)" in declarations
+    assert "transform:translate(100%)" in declarations
 
 
 def test_anything_positioned_declares_its_own_display(client):
@@ -1178,7 +1194,7 @@ def test_the_hamburger_sits_at_the_right_of_the_bar(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
     button = re.search(r"(?:^|[,}])\.menu-button\{([^}]*)\}", tablet).group(1)
 
     assert "margin-left:auto" in button
@@ -1191,7 +1207,7 @@ def test_the_close_button_lands_on_the_drawers_corner(client):
     import re
 
     css = client.get("/static/app.css").text
-    tablet = css.split("@media (max-width: 860px){", 1)[1].split("@media", 1)[0]
+    tablet = css.split("@media (max-width:860px){", 1)[1].split("@media", 1)[0]
 
     bar = re.search(r"\.topbar\{([^}]*)\}", tablet).group(1)
     drawer = re.search(r"\.menu-panel\{([^}]*)\}", tablet).group(1)

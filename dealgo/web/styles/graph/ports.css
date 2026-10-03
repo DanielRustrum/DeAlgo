@@ -1,0 +1,32 @@
+/* The dots wires are drawn from and to. */
+
+/* Half the dot's width, so its centre sits exactly on the box's edge — which
+   is where the wires are drawn to and from. */
+.port-in { left: -8px; }
+.port-out { right: -8px; }
+
+/* A feed's second input, below the first: what goes in it, and when it may be
+   read, are different questions and are asked at different places.
+   A feed used to have a second input, for a trigger saying when it could be
+   read. That is a Timer and a Reset slotted under it now. */
+
+@variant pointer-coarse {
+  .port-in { left: -11px; }
+  .port-out { right: -11px; }
+}
+.graph-node:hover .graph-port { border-color: var(--accent); color: var(--accent); }
+
+/* The mark inside: a bolt for a signal to run, a play mark for the videos and
+   posts being carried. Two things travel these wires and they are not alike. */
+.graph-port-icon {
+  width: 8px;
+  height: 8px;
+  fill: currentColor;
+  pointer-events: none;
+
+  @variant pointer-coarse {
+    width: 11px; height: 11px;
+  }
+}
+/* A signal is a different kind of thing from what it sets off, and reads as one. */
+.graph-port.carries-signal { border-color: var(--text); color: var(--text); }

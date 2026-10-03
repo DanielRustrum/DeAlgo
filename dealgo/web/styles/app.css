@@ -1,0 +1,57 @@
+/* De-Algo's stylesheet. Edit these files, never the compiled static/app.css —
+   `make css` runs Tailwind over them to regenerate it, and a test fails if the
+   two have drifted apart.
+
+   Tailwind's preflight reset is left out on purpose: base.css is the app's own
+   reset, and every rule below was written against it.
+
+   Each file goes into a cascade layer. Utilities come last, so a utility
+   class in a template always beats a component rule; within a layer, order
+   is cascade order — later files may lean on earlier ones. */
+
+@layer theme, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+/* The only place utility classes are written. */
+@source "../templates";
+
+@import "./tokens.css";
+@import "./fonts.css";
+
+/* The page itself. */
+@import "./base.css" layer(components);
+@import "./panels.css" layer(components);
+@import "./tables.css" layer(components);
+@import "./lists.css" layer(components);
+
+/* Controls, in every page. */
+@import "./buttons.css" layer(components);
+@import "./forms.css" layer(components);
+@import "./pills.css" layer(components);
+@import "./bubbles.css" layer(components);
+@import "./htmx.css" layer(components);
+
+/* Individual pages and features. */
+@import "./feeds.css" layer(components);
+@import "./watched.css" layer(components);
+@import "./focus.css" layer(components);
+@import "./channels.css" layer(components);
+
+/* The Configuration canvas: boxes, wires, and the panel beside them.
+   Positions come from the database and are written as inline left/top by
+   the canvas script (web/ts/graph/), so nothing here may move a box — only
+   dress it. */
+@import "./graph/canvas.css" layer(components);
+@import "./graph/wires.css" layer(components);
+@import "./graph/boxes.css" layer(components);
+@import "./graph/states.css" layer(components);
+@import "./graph/ports.css" layer(components);
+@import "./graph/groups.css" layer(components);
+@import "./graph/panel.css" layer(components);
+@import "./graph/palette.css" layer(components);
+
+@import "./offline.css" layer(components);
+@import "./dialogs.css" layer(components);
+@import "./tour.css" layer(components);

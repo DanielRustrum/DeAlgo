@@ -1,0 +1,86 @@
+/* Data tables, and keeping wide ones inside their panel. */
+
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line);
+}
+.table td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table tr:last-child td { border-bottom: none; }
+.row-off { opacity: 0.55; }
+.row-bad td { color: var(--bad); }
+.row-note td { font-size: 12px; color: var(--muted); padding-top: 0; border-bottom: none; }
+
+.table-videos .thumb { width: 100px; }
+.table-videos .thumb img { width: 100px; border-radius: 6px; display: block; }
+.channel-name { font-weight: 600; text-decoration: none; }
+
+/* The channel table carries eleven columns. Without this it simply overflows
+   its panel, drawing rows and buttons past the rounded edge. Only tables with
+   no info bubbles are wrapped: a scroll container clips a tooltip that renders
+   above its row. */
+.table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.table-scroll > .table { min-width: 940px; }
+.table-scroll > .table-videos { min-width: 720px; }
+/* The run log lives in a half-width column, so it needs far less room. */
+.columns .table-scroll > .table { min-width: 380px; }
+
+/* Keep a panel from being stretched by its own content instead of scrolling. */
+.panel { min-width: 0; }
+.columns > .panel { min-width: 0; }
+
+
+/* -- the run log -----------------------------------------------------------
+
+   One <details> per run. Native, so it is keyboard-operable and needs no
+   script; the summary carries everything you need to decide whether to open
+   it, because most runs are not the one you are looking for. */
+
+.log-runs { list-style: none; margin: 0; padding: 0; }
+.log-run { border-bottom: 1px solid var(--line); }
+.log-run:last-child { border-bottom: none; }
+.log-run > details > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.log-run > details > summary:hover { background: var(--panel-2); }
+
+/* Who started it. The first question asked of any line in a log, so it is the
+   first thing on the line and the two answers do not look alike. */
+.log-how {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.log-how.by-hand { color: var(--accent); border-color: var(--accent-dim); }
+.log-how.by-clock { color: var(--muted); }
+
+.log-when { color: var(--muted); }
+.log-tally { color: var(--muted); margin-left: auto; font-size: 13px; }
+.log-count { color: var(--muted); font-size: 12px; }
+.log-message { margin: 0 4px 10px; font-size: 13px; color: var(--muted); }
+.log-run.is-bad .log-how { color: var(--bad); border-color: var(--bad); }
+
+.log-lines td { font-size: 13px; }
+.log-at, .log-stage { color: var(--muted); white-space: nowrap; }
+.log-about { color: var(--text); }
+.log-line.is-warn td { color: var(--warn); }
+.log-line.is-bad td { color: var(--bad); }
+
+.log-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.log-filters .is-on { color: var(--text); border-color: var(--accent-dim); }
+
+/* The lines table has four narrow columns and no reason to force a scrollbar
+   at phone width the way the video tables do. */
+.table-scroll > .log-lines { min-width: 520px; }

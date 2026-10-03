@@ -1,4 +1,5 @@
 <!doctype html>
+{% from "_garden.html" import leaf_defs, sprig, bloom %}
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -7,7 +8,8 @@
 
   {# Installable, and themed to match the app rather than the browser. #}
   <meta name="dealgo-build" content="{{ asset_version }}">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#f6eee2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131d1a" media="(prefers-color-scheme: dark)">
   <meta name="description" content="Your feed, in the order it was published.">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
@@ -16,6 +18,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
 
+  {# The body face is needed for the first paint; the display face can follow. #}
+  <link rel="preload" href="/static/fonts/dm-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
   <script src="/static/htmx.min.js?v={{ asset_version }}" defer></script>
   <script src="/static/sections.js?v={{ asset_version }}" defer></script>
@@ -28,10 +32,25 @@
    whole app navigates without full reloads and still works with no JS. #}
 <body hx-boost="true" hx-indicator="#progress">
 <div id="progress" class="progress"></div>
+{{ leaf_defs() }}
+
+{# Plants at the edges of the page, behind everything. Only where there is
+   room beside the column: on a narrow screen they would sit under the text. #}
+<div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden tablet:hidden" aria-hidden="true">
+  {{ sprig('absolute -bottom-4 -left-2 h-64 w-40 opacity-70') }}
+  {{ bloom('absolute -bottom-6 left-20 h-48 w-28 opacity-80') }}
+  {{ sprig('absolute -right-6 top-24 h-56 w-36 rotate-[200deg] opacity-40', leaf='fill-sage') }}
+</div>
 
 <header class="topbar">
   <a class="brand" href="/">
-    <span class="brand-mark">▶</span>
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 21V9"/>
+        <path d="M12 13c-4 0-6.5-2.6-6.5-6.5C9.5 6.5 12 9 12 13Z" fill="currentColor"/>
+        <path d="M12 11c0-4 2.3-6.8 6.5-6.8 0 4-2.5 6.8-6.5 6.8Z"/>
+      </svg>
+    </span>
     <span class="brand-name">De-Algo</span>
   </a>
 

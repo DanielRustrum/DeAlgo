@@ -7,7 +7,8 @@ No framework, no bundler, no Node at runtime.
 
 | Source | Compiled to (committed) | Does |
 | --- | --- | --- |
-| `web/scss/app.scss` + partials | `web/static/app.css` | All styles; `_tokens.scss` holds colours, spacing, dark mode; `graph/` the canvas |
+| `web/styles/app.css` + files, and the templates' utility classes | `web/static/app.css` | All styles; `tokens.css` holds the theme and dark mode; `graph/` the canvas |
+| `@fontsource-variable/*` in `node_modules` | `static/fonts/*.woff2` | The two typefaces, served by the app (`make fonts`) |
 | `web/ts/graph/` (18 parts) | `static/graph.js` | The Configuration canvas |
 | `web/ts/focus/` (8 parts) | `static/focus.js` | Focus mode: one item at a time, timers |
 | `web/ts/sections.ts` | `static/sections.js` | Collapsible sections |
@@ -17,13 +18,44 @@ No framework, no bundler, no Node at runtime.
 | `web/ts/sw.ts` | `static/sw.js` | Service worker (separate `tsconfig.sw.json`, WebWorker lib) |
 | — | `static/htmx.min.js` | htmx, vendored |
 
-Build: `make css` (libsass via `ops/build_css.py`), `make js`, `make assets` (both). Tests
-fail if committed output differs from sources (`test_styles.py`, `test_scripts.py`).
+Build: `make css` (Tailwind via `ops/build_css.py`), `make js`, `make fonts`, `make assets` (all
+three). Tests fail if committed output differs from sources (`test_styles.py`, `test_scripts.py`).
 
 `make js` runs three TypeScript programs: the single-file page scripts (`tsconfig.json`), the
 service worker (`tsconfig.sw.json`), and the scripts written as a folder of parts
 (`tsconfig.parts.json`, into `build/scripts/`). `ops/join_scripts.py` then joins each
 folder's parts into the one file its page loads, `main.js` last.
+
+## Styles — Tailwind, `web/styles/`
+
+`web/styles/app.css` is the entry point Tailwind (v4, pinned in `package.json`) compiles. It is
+plain CSS with native nesting, plus a few Tailwind directives:
+
+- **Two kinds of style.** Component classes (`.panel`, `.btn`, `.graph-node`…) live in the files
+  under `web/styles/`, one file per area, and are what most markup uses. Tailwind utility classes
+  (`flex`, `text-muted`, `fill-sage`…) are written straight into templates for one-off layout and
+  for the illustrations. Only `web/templates/` is scanned for them; scripts use component classes.
+- **Layers.** Every file is imported into the `components` layer and the utilities come after, so
+  a utility in a template always beats a component rule. Tailwind's preflight reset is not used:
+  `base.css` is the app's own reset.
+- **The theme** is `tokens.css`: the colours as custom properties (`--bg`, `--panel`, `--accent`…,
+  the garden colours `--forest`, `--sage`, `--peach`…), a dark palette under
+  `prefers-color-scheme: dark`, and `@theme inline`, which exposes the same tokens to Tailwind as
+  `bg-panel`, `text-ink`, `fill-forest`, `font-display`. Colours are never written anywhere else.
+- **Widths and input.** `@variant phone { … }` (≤ 640px) and `@variant tablet { … }` (≤ 860px) are
+  custom variants; `pointer-coarse` and `motion-reduce` are Tailwind's. Write them at the top
+  level of a file or at the end of a rule, never between a rule's declarations: the compiler
+  hoists a nested block above the declarations that follow it.
+- **`@apply surface`** is the raised-panel look (background, border, radius, shadow).
+- **Type.** DM Sans for text, Fraunces for headings (`h1`, `h2`, `.display`), both variable fonts
+  served from `static/fonts/` so an installed copy has them offline.
+- **Illustrations** are inline SVG macros in `templates/_garden.html`: `sprig`, `bloom`, `scene`,
+  and `page_head`, the heading at the top of each tab. They are decoration (`aria-hidden`).
+
+The compiled file is minified by Lightning CSS, which rewrites some values: `translateX(100%)`
+becomes `translate(100%)`, `120ms` becomes `.12s`, `transparent` becomes `#0000`, `::before`
+becomes `:before`, and declarations within a rule may be reordered. Tests that read the compiled
+CSS match on those forms.
 
 ## Scripts written as parts
 

@@ -5,7 +5,8 @@ tests run them.
 
 | Script | Does | Run by |
 | --- | --- | --- |
-| `build_css.py` | Compiles `dealgo/web/scss/` into `dealgo/web/static/app.css` | `make css` |
+| `build_css.py` | Runs Tailwind over `dealgo/web/styles/` (and the templates' utility classes) into `dealgo/web/static/app.css` | `make css` |
+| `vendor_fonts.py` | Copies the typefaces from `node_modules` into `dealgo/web/static/fonts/` | `make fonts` |
 | `join_scripts.py` | Joins scripts written as parts (`web/ts/graph/`, `web/ts/focus/`) into one file each, after `tsc` | `make js` |
 | `build_toc.py` | Writes the Table of Contents for `docs/wiki` and `docs/internal` | `make toc` |
 | `publish_wiki.py` | Builds `docs/wiki` into Forgejo wiki pages, and publishes them | `make wiki` (preview), `.gitea/workflows/wiki.yml` |

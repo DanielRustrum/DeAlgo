@@ -1,0 +1,39 @@
+/* Plain video and feed listings. */
+
+.video-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+
+    &:last-child { border-bottom: none; }
+  }
+
+  img { width: 84px; border-radius: 6px; align-self: flex-start; }
+  a { text-decoration: none; font-weight: 500; }
+}
+
+.feed-summary {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+
+    &:last-child { border-bottom: none; }
+  }
+
+  .channel-name { text-decoration: none; }
+  .meta { margin-left: auto; }
+}

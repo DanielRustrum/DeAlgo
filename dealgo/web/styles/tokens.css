@@ -1,0 +1,144 @@
+/* Colour, type and shape, in one place. Everything else reads these.
+
+   The look is a botanical one: warm paper, forest-green ink, terracotta for
+   whatever acts, and sage, peach and ochre around it. Light is the default;
+   a dark system preference gets the same garden at night. */
+
+:root {
+  --bg: #f6eee2;
+  --panel: #fffaf3;
+  --panel-2: #f2e8da;
+  --line: #e6d8c4;
+  --text: #22332e;
+  --muted: #6b766d;
+  --accent: #cf5530;
+  --accent-dim: #b0431f;
+  /* What is written on the accent: a button's label, a count's number. */
+  --on-accent: #fffaf3;
+  --ok: #3f7d4e;
+  --warn: #a8641a;
+  --bad: #be3a27;
+  --radius: 18px;
+  /* Behind the menu drawer and a modal: the ink, thinned, not black. */
+  --scrim: rgba(34, 51, 46, 0.38);
+  /* Every drop shadow. Brown rather than grey, so it reads as paper lifting. */
+  --shadow: rgba(92, 64, 34, 0.18);
+
+  /* The garden. Fixed in both themes: these are the colour blocks — stat
+     cards, the illustrations — and each is paired with its own text colour. */
+  --forest: #23413a;
+  --leaf: #5f8a6a;
+  --sage: #9fb8a1;
+  --sage-soft: #dfe8dc;
+  --peach: #f2b196;
+  --blush: #f8dccb;
+  --ochre: #e3a24a;
+  --cream: #fffaf3;
+
+  /* The kinds of box on the Configuration canvas. */
+  --kind-sort: #4f7fa0;
+  --kind-withdraw: #c58a2e;
+  --kind-expire: #2f8c86;
+  --kind-piece: #5f9a55;
+
+  /* Where a source comes from, on its pill. */
+  --source-youtube: #c8402b;
+  --source-reddit: #d4672a;
+  --source-bluesky: #3f7cb8;
+  --source-substack: #b47a17;
+  --source-rss: #5f7f7a;
+
+  /* The tab that joins two pieces on the canvas. */
+  --graph-tab: 18px;
+
+  --font-body: "DM Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, "Times New Roman", serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131d1a;
+    --panel: #1a2824;
+    --panel-2: #22332e;
+    --line: #2f443d;
+    --text: #f2e9db;
+    --muted: #a2ad9f;
+    --accent: #ee7a4f;
+    --accent-dim: #f29170;
+    /* White on a light terracotta is too thin to read; the ink is not. */
+    --on-accent: #1b1410;
+    --ok: #7fbf7c;
+    --warn: #e3a24a;
+    --bad: #f07a63;
+    --scrim: rgba(5, 10, 8, 0.6);
+    --shadow: rgba(0, 0, 0, 0.45);
+    /* A step lighter than by day, or the forest blocks sink into the page. */
+    --forest: #2e544b;
+    --sage-soft: #26382f;
+    --blush: #3a2a22;
+
+    --kind-sort: #8fb4d4;
+    --kind-withdraw: #e8b35e;
+    --kind-expire: #5cc3bb;
+    --kind-piece: #9ccc7f;
+
+    --source-youtube: #f08068;
+    --source-reddit: #f39a62;
+    --source-bluesky: #82b4e8;
+    --source-substack: #e8b35e;
+    --source-rss: #9fbcb6;
+  }
+}
+
+/* -- Tailwind --------------------------------------------------------------
+
+   The same tokens under Tailwind's names, so a template can say `bg-panel`,
+   `text-muted` or `font-display` and follow the theme. `inline` keeps them
+   as references to the variables above rather than copies, which is what
+   lets the dark palette reach the utilities too. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-forest: var(--forest);
+  --color-leaf: var(--leaf);
+  --color-sage: var(--sage);
+  --color-sage-soft: var(--sage-soft);
+  --color-peach: var(--peach);
+  --color-blush: var(--blush);
+  --color-ochre: var(--ochre);
+  --color-cream: var(--cream);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --radius-panel: var(--radius);
+}
+
+/* -- widths ----------------------------------------------------------------
+
+   Named rather than scattered, so "phone" means the same thing everywhere.
+   Chosen from the layouts themselves: phone is where the top bar can no
+   longer hold a row of tabs, tablet where two columns stop being worth it.
+   Written `@variant phone { … }` in these files, and `phone:` in a template.
+
+   A finger is not a mouse pointer: hit areas grow under Tailwind's own
+   `pointer-coarse`, and anything that moves stops under `motion-reduce`. */
+@custom-variant phone (@media (max-width: 640px));
+@custom-variant tablet (@media (max-width: 860px));
+
+/* The panel look: three declarations that travel together everywhere a raised
+   surface appears. `@apply surface` in a rule, or `surface` in a template. */
+@utility surface {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--line) 60%, transparent), 0 18px 40px -28px var(--shadow);
+}

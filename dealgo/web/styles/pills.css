@@ -1,0 +1,22 @@
+/* Small status labels. */
+
+.pill {
+  display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 20px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+  text-transform: lowercase; letter-spacing: 0.3px;
+}
+.pill-added { color: var(--ok); border-color: var(--ok); }
+.pill-pending { color: var(--warn); border-color: var(--warn); }
+.pill-failed { color: var(--bad); border-color: var(--bad); }
+.pill-paused { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
+.pill-post { color: var(--accent); border-color: var(--accent-dim); }
+
+
+/* What kind of somewhere a source is. Coloured so a list of them reads as a
+   list of kinds rather than a list of names. */
+.pill-kind { border-color: var(--line); color: var(--muted); }
+.pill-kind.kind-youtube { color: var(--source-youtube); border-color: color-mix(in oklab, var(--source-youtube) 45%, transparent); }
+.pill-kind.kind-reddit { color: var(--source-reddit); border-color: color-mix(in oklab, var(--source-reddit) 45%, transparent); }
+.pill-kind.kind-bluesky { color: var(--source-bluesky); border-color: color-mix(in oklab, var(--source-bluesky) 45%, transparent); }
+.pill-kind.kind-substack { color: var(--source-substack); border-color: color-mix(in oklab, var(--source-substack) 45%, transparent); }
+.pill-kind.kind-rss { color: var(--source-rss); border-color: color-mix(in oklab, var(--source-rss) 45%, transparent); }

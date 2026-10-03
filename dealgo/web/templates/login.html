@@ -1,8 +1,14 @@
 {% extends "base.html" %}
+{% from "_garden.html" import scene %}
 {% block title %}De-Algo — Sign in{% endblock %}
 {% block content %}
-<section class="panel sign-in">
-  <h2>Sign in</h2>
+{# A welcome on one side, the garden on the other; on a phone the drawing
+   goes, and the form is the whole page. #}
+<div class="mx-auto mt-6 grid max-w-[920px] items-center gap-8 md:grid-cols-[1fr_1.1fr] phone:mt-0">
+<section class="panel sign-in relative z-10 m-0 p-8 phone:p-5">
+  <p class="m-0 mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-accent">Welcome back</p>
+  <h1>Your feed, in the order it was published.</h1>
+  <p class="mb-6 mt-0 text-muted">No algorithm deciding what comes next — just the channels you chose.</p>
 
   {# Not boosted, deliberately. htmx would send this as an XHR, the XHR would
      follow the redirect itself, and htmx would push /login as the address —
@@ -24,7 +30,7 @@
         <input type="password" name="password" autocomplete="current-password" required>
       </label>
     </div>
-    <button class="btn btn-primary" type="submit">Sign in</button>
+    <button class="btn btn-primary px-7" type="submit">Sign in</button>
   </form>
 
   <p class="hint">
@@ -32,4 +38,6 @@
     <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code>.
   </p>
 </section>
+{{ scene('hidden w-full md:block') }}
+</div>
 {% endblock %}

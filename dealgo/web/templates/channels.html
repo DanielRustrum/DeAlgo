@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% from "_garden.html" import page_head %}
 {% block title %}De-Algo — Configuration{% endblock %}
 {% block content %}
+{{ page_head('Configuration', 'Channels, feeds, and how they are wired together.') }}
 
 {# What there is, before what it is wired into: the counts answer "is this
    working" and each leads to the list behind it. At the top because it is
@@ -35,7 +37,8 @@
    canvas, where the wires between them can be seen. #}
 <section class="panel graph-panel">
   <div class="panel-head">
-    <h2>Configuration</h2>
+    {# The page's own heading already says Configuration; this names the part. #}
+    <h2>The canvas</h2>
   </div>
 
   <p class="error-note" data-graph-error hidden></p>

@@ -1,0 +1,145 @@
+/* The canvas itself: the page it fills, the drawing on it, and what floats over it. */
+
+/* The canvas is the page, so it takes the width of the window rather than the
+   column the rest of the app reads in. The negative margin is the width of
+   main's own gutter, undone. */
+.graph-panel {
+  /* 50% is half of main's content width, so this reaches the window edge at
+     any width, and the 16px gives it a gutter — wide enough that a vertical
+     scrollbar, which 100vw counts and the layout does not, cannot push the
+     page sideways. */
+  margin-inline: calc(50% - 50vw + 16px);
+
+  @variant phone {
+    margin-inline: -14px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+}
+
+.graph-panel .graph-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.graph-trace { display: flex; gap: 6px; align-items: center; }
+.graph-trace select { max-width: 260px; }
+
+/* One column. The detail panel that used to take the second one is drawn on
+   the canvas now, beside the box it belongs to. */
+.graph-frame { display: block; }
+
+/* The canvas fills what is left of the page. It is the configuration, not a
+   picture of it, so it gets the room. */
+.graph-canvas {
+  position: relative;
+  overflow: hidden;
+  /* Everything above and below it is a title bar and a footer; the rest of
+     the window is the drawing. */
+  height: max(calc(100vh - 230px), 560px);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  /* A faint grid, moved by the pan so the drawing reads as sliding over it. */
+  background-image: radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0);
+  background-size: 26px 26px;
+  /* The background is draggable: it moves the whole drawing under the window. */
+  cursor: grab;
+  touch-action: none;
+}
+.graph-canvas.is-panning { cursor: grabbing; }
+.graph-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Everything drawn, moved as one. Zero-sized on purpose: its children are
+   placed against its origin, which may be anywhere at all. */
+.graph-scene { position: absolute; top: 0; left: 0; width: 0; height: 0; }
+.graph-wires { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+/* The boxes are painted over the wires. Only the boxes themselves answer a
+   pointer; everything else falls through to the wire or the canvas beneath,
+   which is what lets a wire be clicked at all. */
+.graph-nodes { position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; }
+/* Under the wires, so a wire crossing a group is still the thing being
+   pointed at. Zero-sized like the others: its children are placed against its
+   origin, which may be anywhere at all. */
+.graph-groups { position: absolute; top: 0; left: 0; width: 0; height: 0; }
+.graph-node, .graph-cut { pointer-events: auto; }
+
+/* Sits on the canvas, out of the way of the drawing under it. */
+.graph-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+/* A plus, not a sentence: it sits over the drawing and every pixel it takes
+   is a pixel of canvas. */
+.graph-add {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--shadow);
+}
+.graph-add:hover { background: var(--accent-dim); }
+.graph-add svg { width: 16px; height: 16px; display: block; margin: 0 auto; }
+
+/* The second one is a companion to the first, not a rival: same shape, quieter. */
+.graph-add.is-quiet {
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.graph-add.is-quiet:hover { color: var(--accent); border-color: var(--accent); }
+.graph-add:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+/* How many are picked, and the one thing to do with several at once. */
+.graph-picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 5px 3px 11px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  font-size: 11.5px;
+  color: var(--text);
+}
+.graph-picked .btn { font-size: 11.5px; padding: 2px 9px; }
+
+/* Dragged round the canvas with shift held: what it covers gets picked. */
+.graph-marquee {
+  position: absolute;
+  border: 1px solid var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.graph-zoom {
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 3px 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.graph-empty {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-width: 320px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: none;
+}

@@ -42,9 +42,9 @@ The [API reference](autodoc/README.md) has the rest.
 
 ```
 dealgo/web/templates/      Jinja2 pages; files starting _ are partials
-dealgo/web/scss/           Stylesheet sources; graph/ is the canvas, one partial per part
+dealgo/web/styles/         Stylesheet sources for Tailwind; tokens.css is the theme, graph/ the canvas
 dealgo/web/ts/             Browser scripts; graph/ and focus/ are scripts written as parts
-dealgo/web/static/         Compiled app.css and *.js (committed), icons, htmx
+dealgo/web/static/         Compiled app.css and *.js (committed), fonts, icons, htmx
 dealgo/plugins/builtin/    Shipped plugins: youtube, reddit, bluesky, substack, shape
 ops/                       DevOps scripts: build CSS, join scripts, docs TOC, publish the wiki and releases
 tests/                     pytest suite, fakes.py, and Node harnesses for the scripts

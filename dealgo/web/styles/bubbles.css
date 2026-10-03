@@ -1,0 +1,39 @@
+/* Hover explanations. */
+
+/* The whole thing is the hover target: label text as well as the mark. */
+.info {
+  position: relative; display: inline-flex; align-items: center; gap: 5px;
+  vertical-align: middle; cursor: help;
+}
+.info > label { cursor: help; }
+.info > label { text-decoration: underline dotted var(--line); text-underline-offset: 3px; }
+.info:hover > label { text-decoration-color: var(--muted); }
+/* …except the fields themselves, which should still feel like fields. */
+.info input { cursor: auto; }
+.info input[type=checkbox] { cursor: pointer; }
+
+.info-bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 260px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; font-weight: 400; line-height: 1.45;
+  text-align: left; white-space: normal; text-transform: none; letter-spacing: 0;
+  box-shadow: 0 6px 20px var(--shadow);
+  opacity: 0; visibility: hidden; transition: opacity 120ms; z-index: 30;
+  pointer-events: none;
+}
+/* A little arrow, so it is clear which control it belongs to. */
+.info-bubble::after {
+  content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+  border: 5px solid transparent; border-top-color: var(--line);
+}
+.info:hover .info-bubble, .info:focus-within .info-bubble { opacity: 1; visibility: visible; }
+
+/* Near the right edge the bubble would overflow the panel; pull it back in. */
+td:last-of-type .info-bubble, .actions .info-bubble { left: auto; right: 0; transform: none; }
+td:last-of-type .info-bubble::after, .actions .info-bubble::after { left: auto; right: 12px; }
+
+@variant motion-reduce {
+  .info-bubble { transition: none; }
+}

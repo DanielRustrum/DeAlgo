@@ -21,7 +21,7 @@ STATIC = ROOT / "dealgo" / "web" / "static"
 
 # tsc lives in node_modules, which is a developer's tool and not part of the
 # app. Where it is absent — a container, a fresh clone — these skip rather
-# than fail, exactly as the SCSS check does without libsass.
+# than fail, exactly as the stylesheet check does without Tailwind.
 TSC = ROOT / "node_modules" / ".bin" / "tsc"
 needs_tsc = pytest.mark.skipif(not TSC.exists(), reason="TypeScript is not installed")
 
