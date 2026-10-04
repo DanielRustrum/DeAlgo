@@ -42,7 +42,7 @@ class PageTheme:
 def image_url(slot: str, version: str) -> str:
     """Where one of an account's pictures is served. The version changes the
     address when the picture changes, so it can be kept for good."""
-    return f"/settings/theming/image/{slot}?v={version}"
+    return f"/settings/picture/{slot}?v={version}"
 
 
 def _number(value: float) -> str:

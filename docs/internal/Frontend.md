@@ -99,6 +99,15 @@ plain CSS with native nesting, plus a few Tailwind directives:
   - Choosing a picture that isn't there falls back to the stock layer and plants, rather than
     showing nothing.
   - The `own` drawing set draws `<img>` from `theme.images`, slot to address.
+  - A gradient is `--gradient-stops` (two colours with `--gradient-balance` as a colour hint, or
+    three with the middle colour at the balance), put into `linear-`, `radial-` or
+    `conic-gradient()` by `data-gradient-type`, `--gradient-angle` and `--gradient-at`.
+  - A texture is `body::before`, a fixed layer between the page background and the plants.
+    It's a grey noise tile from `static/textures/`, blended in with `--texture-blend`. For
+    darkening or lightening, the tile is first brought near white or near black
+    (`--texture-tone`), so only its grain shows. The preview draws the same thing as its own
+    `::before`, inside `isolation: isolate`.
+  - The account picture (`theme.images.avatar`) replaces the letter in the bar and on Settings.
 
 The compiled file is minified by Lightning CSS, which rewrites some values: `translateX(100%)`
 becomes `translate(100%)`, `120ms` becomes `.12s`, `transparent` becomes `#0000`, `::before`

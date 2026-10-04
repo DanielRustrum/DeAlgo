@@ -128,13 +128,13 @@ def _restore_theme(
     """
     # Its pictures are checked as hard as an upload: a backup is only a file.
     for slot, entry in (payload.get("theme_pictures") or {}).items():
-        if slot not in theme_images.SLOTS or not isinstance(entry, dict):
+        if slot not in theme_images.ALL_SLOTS or not isinstance(entry, dict):
             continue
         try:
             raw = base64.b64decode(str(entry.get("data", "")), validate=True)
             themes.put_picture(session, owner, slot, theme_images.accept(raw))
         except (binascii.Error, theme_images.ImageError):
-            summary.pictures_refused.append(theme_images.SLOTS[slot].lower())
+            summary.pictures_refused.append(theme_images.ALL_SLOTS[slot].lower())
     if "theme" not in payload:
         return
     try:

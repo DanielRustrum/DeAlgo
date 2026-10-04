@@ -79,7 +79,8 @@ encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See
 - **Theming** (`services/theming/`) never takes CSS. A theme is hex colours, numbers within limits
   and keys from fixed lists. `theme.parse` refuses anything else by name, and `css.py` writes the
   overrides from those checked values alone.
-- **Theme pictures** (`services/theming/images.py`), uploaded per account:
+- **Theme pictures and the account picture** (`services/theming/images.py`), uploaded per
+  account:
   - A raster picture is accepted only on a PNG, JPEG, GIF or WebP signature (3 MB at most), and
     is kept and served as that type.
   - An SVG (512 KB at most) is refused if it declares a DOCTYPE or entities. Otherwise it is
@@ -87,12 +88,14 @@ encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See
     script, style, `foreignObject`, `image`, `a` or animation survives, and nor does an `on*`
     handler, a non-local `href`, a `url()` that isn't `#…`, `javascript:` or `data:`. The cleaned
     copy is what is stored.
-  - Pictures are served only to their owner, from `/settings/theming/image/<slot>`, with
+  - Pictures are served only to their owner, from `/settings/picture/<slot>`, with
     `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none';
     style-src 'unsafe-inline'; sandbox`, so one opened directly still runs nothing.
   - The page reaches a picture only through an address the server builds from a fixed slot name
     and a hex fingerprint.
   - A backup's pictures go through the same checks on restore.
+  - The texture tiles (`static/textures/*.svg`) are the app's own: filter-drawn noise, with no
+    script and no references.
 
 ## Gaps
 

@@ -77,14 +77,18 @@ function themingDialValue(form, dial) {
     const parsed = input ? parseFloat(input.value) : NaN;
     return Number.isFinite(parsed) ? parsed : dial.default;
 }
-/** A dial's value the way its slider reads it: 110%, 1.55, 600, 3px. */
-function themingShown(value, show) {
+/** A dial's value the way its slider reads it: 110%, 1.55, 600, 3px, 180°. */
+function themingShown(value, show, unit) {
     if (show === "%")
         return `${Math.round(value * 100)}%`;
     if (show === "x")
         return value.toFixed(2);
     if (show === "px")
         return `${value}px`;
+    if (show === "deg")
+        return `${value}°`;
+    if (show === "unit")
+        return `${value}${unit}`;
     return String(value);
 }
 function themingPreview() {
@@ -184,7 +188,7 @@ function themingApply(data, form) {
         const value = themingDialValue(form, dial);
         const output = form.querySelector(`output[for="dial-${dial.name}"]`);
         if (output)
-            output.textContent = themingShown(value, dial.show);
+            output.textContent = themingShown(value, dial.show, dial.unit);
         if (!preview)
             continue;
         if (dial.name === "depth") {

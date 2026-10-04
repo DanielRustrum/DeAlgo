@@ -109,11 +109,13 @@ function themingDialValue(form: HTMLFormElement, dial: ThemingDial): number {
   return Number.isFinite(parsed) ? parsed : dial.default;
 }
 
-/** A dial's value the way its slider reads it: 110%, 1.55, 600, 3px. */
-function themingShown(value: number, show: string): string {
+/** A dial's value the way its slider reads it: 110%, 1.55, 600, 3px, 180°. */
+function themingShown(value: number, show: string, unit: string): string {
   if (show === "%") return `${Math.round(value * 100)}%`;
   if (show === "x") return value.toFixed(2);
   if (show === "px") return `${value}px`;
+  if (show === "deg") return `${value}°`;
+  if (show === "unit") return `${value}${unit}`;
   return String(value);
 }
 
@@ -211,7 +213,7 @@ function themingApply(data: ThemingData, form: HTMLFormElement): void {
   for (const dial of data.dials) {
     const value = themingDialValue(form, dial);
     const output = form.querySelector<HTMLOutputElement>(`output[for="dial-${dial.name}"]`);
-    if (output) output.textContent = themingShown(value, dial.show);
+    if (output) output.textContent = themingShown(value, dial.show, dial.unit);
     if (!preview) continue;
     if (dial.name === "depth") {
       const [r, g, b, alpha] = data.shadow[mode] ?? [0, 0, 0, 0.2];

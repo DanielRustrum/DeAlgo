@@ -96,6 +96,8 @@
   font-size: calc(13px * var(--text-scale));
 }
 .account-icon:hover .avatar-letter { border-color: var(--accent); }
+/* A picture in the same box, cropped to fill it rather than squeezed. */
+.avatar-picture { display: block; object-fit: cover; background: var(--panel-2); }
 .account-icon:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 
 /* The same icon, at the size a page heading wants. */

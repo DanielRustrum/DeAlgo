@@ -6,11 +6,12 @@
 {{ page_head('Settings', 'Your account, your plugins, and how De-Algo behaves.') }}
 
 {% if identity %}
-<section class="panel account-panel">
+<section class="panel account-panel" id="account">
   <div class="panel-head">
     <h2 class="titled">
       <span class="account-icon account-icon-large">
-        <span class="avatar-letter" style="--hue: {{ identity.hue }}">{{ identity.initial }}</span>
+        {% if theme.images.avatar %}<img class="avatar-letter avatar-picture" src="{{ theme.images.avatar }}" alt="Your account picture">
+        {% else %}<span class="avatar-letter" style="--hue: {{ identity.hue }}">{{ identity.initial }}</span>{% endif %}
       </span>
       {{ identity.username }}
     </h2>
@@ -29,6 +30,29 @@
       separate from every other account's.
     {% endif %}
   </p>
+
+  <h3>Account picture</h3>
+  <p class="hint">
+    Shown in place of your letter in the bar, and only to you. PNG, JPEG, GIF or WebP up to 3 MB,
+    or SVG up to 512 KB; it is cropped to a square. An SVG keeps its drawing and loses anything
+    that is not one.
+  </p>
+  {# Real form posts: a file needs one, and the bar's picture is in every page. #}
+  <div class="row-buttons">
+    <form class="inline-form" method="post" action="/settings/avatar"
+          enctype="multipart/form-data" hx-boost="false">
+      <input type="file" name="picture" required
+             accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
+             aria-label="A picture for your account">
+      <button class="btn" type="submit">{{ 'Replace' if theme.images.avatar else 'Upload' }}</button>
+    </form>
+    {% if theme.images.avatar %}
+    <form method="post" action="/settings/avatar/remove" hx-boost="false">
+      <button class="btn btn-danger" type="submit">Remove</button>
+    </form>
+    {% endif %}
+  </div>
+
 </section>
 {% endif %}
 

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+<!-- Fine grain, like film. Grey noise averaging mid-grey, tiled seamlessly: blended into
+     the page by backdrop.css, so it neither darkens nor lightens overall. -->
+<filter id="t" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="7" stitchTiles="stitch" result="n"/><feColorMatrix type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1"/><feComponentTransfer><feFuncR type="linear" slope="1.8" intercept="-0.400"/><feFuncG type="linear" slope="1.8" intercept="-0.400"/><feFuncB type="linear" slope="1.8" intercept="-0.400"/></feComponentTransfer></filter>
+<rect width="300" height="300" filter="url(#t)"/>
+</svg>

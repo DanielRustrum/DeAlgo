@@ -63,7 +63,9 @@
   <a class="account-icon" href="/settings"
      title="Signed in as {{ identity.username }} — your settings"
      aria-label="Your settings, signed in as {{ identity.username }}">
-    <span class="avatar-letter" style="--hue: {{ identity.hue }}">{{ identity.initial }}</span>
+    {# Their own picture when they have given one (Settings), the letter otherwise. #}
+    {% if theme.images.avatar %}<img class="avatar-letter avatar-picture" src="{{ theme.images.avatar }}" alt="">
+    {% else %}<span class="avatar-letter" style="--hue: {{ identity.hue }}">{{ identity.initial }}</span>{% endif %}
   </a>
   {% endif %}
 

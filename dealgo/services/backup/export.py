@@ -100,7 +100,7 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
     theme = themes.load(owner)
     if not theme.is_empty():
         exported["theme"] = theme.to_json()
-    # And its own pictures, which the theme names by slot.
+    # And its own pictures: the theme's, by slot, and the account picture.
     pictures = themes.all_pictures(owner)
     if pictures:
         exported["theme_pictures"] = {

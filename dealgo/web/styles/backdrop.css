@@ -48,7 +48,7 @@
 :is(:root, .theme-scope)[data-background="gradient"] {
   --layer-wash-a: linear-gradient(transparent, transparent);
   --layer-wash-b: linear-gradient(transparent, transparent);
-  --layer-ground: linear-gradient(180deg, var(--bg), var(--bg-end));
+  --layer-ground: linear-gradient(var(--gradient-angle), var(--gradient-stops));
 }
 :is(:root, .theme-scope)[data-background="plain"] {
   --layer-wash-a: linear-gradient(transparent, transparent);
@@ -77,6 +77,34 @@
     linear-gradient(var(--bg), var(--bg));
 }
 
+/* -- how a gradient runs -------------------------------------------------- */
+
+/* Its colours: two, with the balance as the point where they meet, or three,
+   with the balance as where the middle one sits. */
+:root,
+.theme-scope {
+  --gradient-at: 50% 50%;
+  --gradient-stops: var(--bg-start), var(--gradient-balance), var(--bg-end);
+}
+:is(:root, .theme-scope)[data-gradient-stops="three"] {
+  --gradient-stops: var(--bg-start), var(--bg-mid) var(--gradient-balance), var(--bg-end);
+}
+:is(:root, .theme-scope)[data-gradient-at="top"] { --gradient-at: 50% 0%; }
+:is(:root, .theme-scope)[data-gradient-at="bottom"] { --gradient-at: 50% 100%; }
+:is(:root, .theme-scope)[data-gradient-at="top-left"] { --gradient-at: 0% 0%; }
+:is(:root, .theme-scope)[data-gradient-at="top-right"] { --gradient-at: 100% 0%; }
+:is(:root, .theme-scope)[data-gradient-at="bottom-left"] { --gradient-at: 0% 100%; }
+:is(:root, .theme-scope)[data-gradient-at="bottom-right"] { --gradient-at: 100% 100%; }
+/* Out from a point, to the furthest corner so the end colour is reached. */
+:is(:root, .theme-scope)[data-background="gradient"][data-gradient-type="radial"] {
+  --layer-ground: radial-gradient(circle farthest-corner at var(--gradient-at), var(--gradient-stops));
+}
+/* Round a point, closing on the colour it began with so there is no seam. */
+:is(:root, .theme-scope)[data-background="gradient"][data-gradient-type="conic"] {
+  --layer-ground: conic-gradient(from var(--gradient-angle) at var(--gradient-at),
+    var(--gradient-stops), var(--bg-start));
+}
+
 /* -- a pattern over it ---------------------------------------------------- */
 
 :is(:root, .theme-scope)[data-pattern="dots"] {
@@ -96,6 +124,43 @@
 }
 
 :root[data-background-moves="scrolls"] body { background-attachment: scroll; }
+
+/* -- a texture over it ---------------------------------------------------------
+
+   A tile of grey noise (static/textures/), laid over the whole background
+   and blended into it: soft light lifts and deepens alike, so one tile serves
+   any colour. Its own layer rather than a background layer, because a
+   background layer cannot be faded or blended by itself. */
+
+:root,
+.theme-scope { --texture-blend: soft-light; --texture-tone: none; }
+/* Multiplying by mid-grey would halve the page's brightness, and screening
+   would lift it as far. So the tile is first brought near white to darken
+   with, or near black to lighten with: only its grain shows, not its tone. */
+:is(:root, .theme-scope)[data-texture-blend="darken"] { --texture-blend: multiply; --texture-tone: brightness(1.75); }
+:is(:root, .theme-scope)[data-texture-blend="lighten"] { --texture-blend: screen; --texture-tone: brightness(0.3); }
+
+:is(:root, .theme-scope)[data-texture="paper"] { --texture-image: url("/static/textures/paper.svg"); }
+:is(:root, .theme-scope)[data-texture="grain"] { --texture-image: url("/static/textures/grain.svg"); }
+:is(:root, .theme-scope)[data-texture="linen"] { --texture-image: url("/static/textures/linen.svg"); }
+:is(:root, .theme-scope)[data-texture="canvas"] { --texture-image: url("/static/textures/canvas.svg"); }
+:is(:root, .theme-scope)[data-texture="concrete"] { --texture-image: url("/static/textures/concrete.svg"); }
+:is(:root, .theme-scope)[data-texture="watercolour"] { --texture-image: url("/static/textures/watercolour.svg"); }
+
+/* Behind the plants (-z-10) and everything else, over the page's own
+   background. Drawn only when there is a texture: a blended layer the size of
+   the window costs something even when it is empty. */
+:root[data-texture] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -20;
+  pointer-events: none;
+  background: var(--texture-image) 0 0 / calc(300px * var(--texture-scale));
+  opacity: var(--texture-strength);
+  filter: var(--texture-tone);
+  mix-blend-mode: var(--texture-blend);
+}
 
 /* -- the drawings ----------------------------------------------------------
 

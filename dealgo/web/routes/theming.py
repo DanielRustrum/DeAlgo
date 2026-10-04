@@ -43,10 +43,12 @@ PAGE = "/settings/theming"
 PARTS = {
     "all": "Everything is back as De-Algo comes.",
     "colours": "The colours are back as De-Algo comes.",
-    "page": "Light or dark, movement and decoration are back as De-Algo comes.",
+    "page": "Light or dark and movement are back as De-Algo comes.",
     "type": "The type is back as De-Algo comes.",
     "shape": "Corners, spacing, shadows and the focus ring are back as De-Algo comes.",
     "background": "The background is back as De-Algo comes.",
+    "gradient": "The gradient is back as De-Algo comes.",
+    "texture": "The pattern and texture are back as De-Algo comes.",
     "drawings": "The drawings are back as De-Algo comes.",
 }
 
@@ -80,7 +82,7 @@ def _script_data(theme: Theme) -> dict[str, Any]:
     }
 
 
-def _shown(value: float, show: str) -> str:
+def _shown(value: float, show: str, unit: str = "") -> str:
     """A dial's value the way its slider reads it."""
     if show == "%":
         return f"{round(value * 100)}%"
@@ -88,6 +90,10 @@ def _shown(value: float, show: str) -> str:
         return f"{value:.2f}"
     if show == "px":
         return f"{value:g}px"
+    if show == "deg":
+        return f"{value:g}°"
+    if show == "unit":
+        return f"{value:g}{unit}"
     return f"{value:g}"
 
 
@@ -104,7 +110,7 @@ def theming_page(request: Request) -> HTMLResponse:
             group,
             [c for c in CHOICES if c.group == group.key],
             [
-                (d, current.dial(d.name), _shown(current.dial(d.name), d.show))
+                (d, current.dial(d.name), _shown(current.dial(d.name), d.show, d.unit))
                 for d in DIALS if d.group == group.key
             ],
             # Background and drawings carry their own colours with them.
@@ -247,11 +253,11 @@ _PICTURE_HEADERS = {
 }
 
 
-@router.get(PAGE + "/image/{slot}")
+@router.get("/settings/picture/{slot}")
 def serve_picture(request: Request, slot: str) -> Response:
-    """One of the signed-in account's own pictures. Nobody else's: there is no
-    address that names another account."""
-    kept = store.picture(owner_of(request), slot) if slot in images.SLOTS else None
+    """One of the signed-in account's own pictures — a theme's, or its account
+    picture. Nobody else's: there is no address that names another account."""
+    kept = store.picture(owner_of(request), slot) if slot in images.ALL_SLOTS else None
     if kept is None:
         return Response(status_code=404)
     return Response(content=kept.data, media_type=kept.media_type, headers=_PICTURE_HEADERS)

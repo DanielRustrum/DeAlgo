@@ -25,6 +25,14 @@ SLOTS: dict[str, str] = {
     "heading": "Beside headings",
 }
 
+#: Pictures that belong to the account rather than its theme.
+ACCOUNT_SLOTS: dict[str, str] = {
+    "avatar": "Account",
+}
+
+#: Every place a picture can be kept, and so served from.
+ALL_SLOTS: dict[str, str] = {**SLOTS, **ACCOUNT_SLOTS}
+
 #: The slots that make up an account's own plants.
 DRAWING_SLOTS = ("edge-left", "edge-right", "heading")
 

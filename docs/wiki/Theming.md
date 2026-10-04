@@ -48,23 +48,46 @@ Picking one replaces your changes. Your choice of light or dark stays, unless th
 
 What lies behind the panels:
 
-- **Background:** light in two corners (as De-Algo comes), a glow from above, a gradient from top
-  to bottom, or plain.
+- **Background:** light in two corners (as De-Algo comes), a glow from above, a gradient (see
+  below), your own picture, or plain.
 - **Where the light falls:** top right and bottom left, along the top, along the bottom, or either
   side. This applies to light in two corners.
 - **Strength** and **spread of the light:** how strongly the light shows and how far it reaches.
   Strength 0 gives plain paper.
-- **Pattern:** none, dots, a grid or diagonal lines, drawn over the light and under everything else.
-  Its **size** and **strength** have sliders of their own.
 - **When the page scrolls:** the background stays put, or scrolls with the page.
 - **Your own picture:** upload one under the section's *Your own picture* and the background
   becomes it. Choose whether it fills the page (cropping the edges), shows whole, or repeats as
   tiles, and which part stays in view when cropped. **Veil over the picture** lays the page
   colour over it, so writing stays readable. The contrast check can't see into a picture, so
   raise the veil if text gets hard to read.
-- **Colours:** the two lights, where a gradient ends, and the pattern, by day and by night. Each
-  starts as one of the garden colours (sage, peach, the inset and the lines) until you untick
-  **Same as …**.
+- **Colours:** the two lights, by day and by night. Each starts as one of the garden colours (sage
+  and peach) until you untick **Same as …**.
+
+## Gradient
+
+For a gradient background:
+
+- **Kind of gradient:** *linear*, in a straight line; *radial*, out from a point to the furthest
+  corner; or *conic*, sweeping round a point and closing where it began.
+- **Direction:** which way a linear gradient runs (180° is top to bottom), or where a conic one
+  starts.
+- **Centred on:** the middle, the top or bottom, or a corner. This is where a radial or conic
+  gradient is centred.
+- **Colours:** two (start and end) or three (start, middle and end), each by day and by night.
+  They start as the page, panel and inset colours.
+- **Where the colours meet:** with two colours, the point where they're half-blended; with three,
+  where the middle colour sits.
+
+## Pattern and texture
+
+Laid over whatever background you chose, under everything else:
+
+- **Pattern:** none, dots, a grid or diagonal lines, with its own **size**, **strength** and colour.
+- **Texture:** paper, fine grain, linen, canvas, concrete or watercolour. It's a surface rather
+  than a shape, and it works over light, a gradient or your own picture.
+  - **Texture strength** and **texture scale** set how strongly it shows and how coarse it is.
+  - **How the texture lies:** *softly* lightens and darkens alike and suits either mode;
+    *darkening* shows best by day; *lightening* shows best by night.
 
 ## Drawings
 
@@ -86,6 +109,9 @@ The plants drawn at the page's edges and beside each page's heading:
 **Reset** on Background or Drawings also puts back that section's colours.
 
 ## Your own pictures
+
+Your **account picture** is set under Settings, on your account's panel. It replaces your letter
+in the bar, is cropped to a square, and only you see it.
 
 PNG, JPEG, GIF or WebP files up to 3 MB, or SVG up to 512 KB. Uploading one puts it in use straight
 away, so save any other changes first. **Remove** takes it away. Removing your background picture,

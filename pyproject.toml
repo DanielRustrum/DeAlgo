@@ -47,6 +47,7 @@ dealgo = [
     "web/static/*",
     "web/static/icons/*",
     "web/static/fonts/*",
+    "web/static/textures/*",
     "web/ts/*.ts",
     # Without this the image ships with no plugins at all, and every kind of
     # source stops being recognised — the app would start and understand

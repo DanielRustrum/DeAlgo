@@ -85,6 +85,8 @@
      and the pattern. Each is another colour until a theme says otherwise. */
   --wash-1: var(--sage);
   --wash-2: var(--peach);
+  --bg-start: var(--bg);
+  --bg-mid: var(--panel);
   --bg-end: var(--panel-2);
   --pattern: var(--line);
 
@@ -116,6 +118,12 @@
   --wash-size: 1;
   --pattern-size: 24px;
   --pattern-strength: 0.6;
+  /* A gradient background: its direction, and where its colours meet. */
+  --gradient-angle: 180deg;
+  --gradient-balance: 50%;
+  /* A texture over the background: how strongly, and how coarse. */
+  --texture-strength: 0.35;
+  --texture-scale: 1;
   /* How much of the page colour lies over a person's own background picture. */
   --image-veil: 0.25;
   /* The plants at the edges: how big, and how strongly they show. */

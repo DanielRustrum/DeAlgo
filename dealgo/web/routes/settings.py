@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from ... import scheduler
 from ...db import get_settings, session_scope
 from ...services import backup as backup_service
+from ...services.theming import images
 from ...services.theming import store as themes
 from ..responses import owner_of, redirect, render
 
@@ -89,3 +90,30 @@ def restore_backup(request: Request, backup_file: UploadFile = File(...)) -> Red
     # The restore may have brought a theme; pages read it from what is held.
     themes.drop_held()
     return redirect("/settings", ok=message)
+
+
+@router.post("/settings/avatar")
+def upload_avatar(request: Request, picture: UploadFile = File(...)) -> RedirectResponse:
+    """The account's own picture, in place of its letter in the bar.
+
+    Checked like a theme's pictures, and shown only to the account itself:
+    accounts here are private, so nobody else has a page it would appear on.
+    """
+    raw = picture.file.read(images.MAX_RASTER + 1)
+    try:
+        kept = images.accept(raw)
+    except images.ImageError as exc:
+        return redirect("/settings#account", err=str(exc))
+    with session_scope() as session:
+        themes.put_picture(session, owner_of(request), "avatar", kept)
+    themes.drop_held()
+    return redirect("/settings#account", ok="Your account picture is in place.")
+
+
+@router.post("/settings/avatar/remove")
+def remove_avatar(request: Request) -> RedirectResponse:
+    """Back to the letter."""
+    with session_scope() as session:
+        themes.put_picture(session, owner_of(request), "avatar", None)
+    themes.drop_held()
+    return redirect("/settings#account", ok="Your account picture is gone; the letter is back.")

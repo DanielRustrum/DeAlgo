@@ -129,6 +129,8 @@
 .colour-name { font-size: calc(14px * var(--text-scale)); display: flex; flex-direction: column; }
 .colour-name .hint { margin: 0; font-size: calc(12px * var(--text-scale)); }
 .colour-follow { font-size: calc(12.5px * var(--text-scale)) !important; color: var(--muted) !important; }
+/* On the colour's own row, at its end, even where the follow box wraps below. */
+.colour-reset { grid-row: 1; grid-column: -2 / -1; }
 @variant phone {
   .colour-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
   .colour-follow { grid-column: 2 / -1; }
@@ -227,6 +229,20 @@
   overflow: hidden;
 }
 .theme-sample[data-mode="dark"] { color-scheme: dark; }
+/* Its texture, blended into its own background only: isolation keeps the
+   blend from reaching through to the page behind the preview. */
+.theme-sample { isolation: isolate; }
+.theme-sample[data-texture]:not([data-texture="none"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--texture-image) 0 0 / calc(300px * var(--texture-scale));
+  opacity: var(--texture-strength);
+  filter: var(--texture-tone);
+  mix-blend-mode: var(--texture-blend);
+}
 /* Everything in the sample stands in front of its plants. */
 .theme-sample > :not(.sample-edges) { position: relative; z-index: 1; }
 

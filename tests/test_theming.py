@@ -538,7 +538,7 @@ def test_an_uploaded_background_is_used_served_and_private(site):
     page = sam.get("/feed").text
     assert 'data-background="image"' in page
     address = re.search(r'--user-image: url\("([^"]+)"\)', page).group(1)
-    assert address.startswith("/settings/theming/image/background?v=")
+    assert address.startswith("/settings/picture/background?v=")
 
     served = sam.get(address)
     assert served.status_code == 200 and served.content == PNG
@@ -555,7 +555,7 @@ def test_an_svg_is_served_as_cleaned_not_as_sent(site):
     sam = signed_in(site, MEMBER)
     sam.post("/settings/theming/image/heading",
              files={"picture": ("plant.svg", HOSTILE_SVG, "image/svg+xml")})
-    served = sam.get("/settings/theming/image/heading")
+    served = sam.get("/settings/picture/heading")
 
     assert served.headers["content-type"].startswith("image/svg+xml")
     assert b"script" not in served.content and b"onload" not in served.content
@@ -578,7 +578,7 @@ def test_own_pictures_are_drawn_as_the_plants(site):
 
     edges = page.split('class="garden-art garden-edges', 1)[1].split("</div>", 1)[0]
     assert '<img class="garden-edge garden-edge-left' in edges
-    assert 'src="/settings/theming/image/edge-left?v=' in edges
+    assert 'src="/settings/picture/edge-left?v=' in edges
     # Only the slots that hold one: no right edge, no heading picture.
     assert "garden-edge-right" not in edges
 
@@ -618,3 +618,83 @@ def test_a_backup_carries_the_pictures_checked_again_on_the_way_back(site):
     owner = accounts_id(site, MEMBER[0])
     assert set(store.versions(owner)) == {"background"}
     assert "beside+headings+picture" in restored.headers["location"]
+
+
+# -- gradients and textures -----------------------------------------------------------
+
+
+def test_a_gradient_is_built_from_its_settings():
+    page = page_theme(parse({
+        "choices": {"background": "gradient", "gradient-type": "conic", "gradient-at": "top-left",
+                    "gradient-stops": "three"},
+        "dials": {"gradient-angle": 90, "gradient-balance": 30},
+        "colours": {"light": {"bg-mid": "#123456"}},
+    }))
+    attributes = dict(page.attributes)
+    assert attributes["data-gradient-type"] == "conic"
+    assert attributes["data-gradient-at"] == "top-left"
+    assert "--gradient-angle: 90deg;" in page.css and "--gradient-balance: 30%;" in page.css
+    assert "--bg-mid: #123456" in page.css
+
+
+def test_every_texture_has_its_tile():
+    for option in [c for c in CHOICES if c.name == "texture"][0].options:
+        if option.key == "none":
+            continue
+        tile = BASE_DIR / "static" / "textures" / f"{option.key}.svg"
+        assert tile.exists(), option.key
+        # Drawn by a filter and nothing else: no script, nothing fetched.
+        text = tile.read_text(encoding="utf-8")
+        assert "<feTurbulence" in text and "script" not in text and "href" not in text
+
+
+def test_a_texture_is_laid_over_the_page_only_when_chosen(site):
+    sam = signed_in(site, MEMBER)
+    assert "data-texture" not in sam.get("/feed").text.split("<head>", 1)[0]
+    sam.post("/settings/theming", data={"texture": "linen", "texture-strength": "0.5"})
+    page = sam.get("/feed").text
+    assert 'data-texture="linen"' in page and "--texture-strength: 0.5;" in page
+
+
+# -- the account picture ------------------------------------------------------------
+
+
+def test_an_account_picture_replaces_the_letter_for_its_account_only(site):
+    sam = signed_in(site, MEMBER)
+    sent = sam.post("/settings/avatar", files={"picture": ("me.png", PNG, "image/png")},
+                    follow_redirects=False)
+    assert "ok=" in sent.headers["location"]
+
+    bar = sam.get("/feed").text.split('class="account-icon"', 1)[1].split("</a>", 1)[0]
+    assert 'class="avatar-letter avatar-picture"' in bar
+    address = re.search(r'src="(/settings/picture/avatar\?v=[0-9a-f]+)"', bar).group(1)
+    assert sam.get(address).content == PNG
+    assert signed_in(site, ADMIN).get(address).status_code == 404
+    # It is the account's, not the theme's: no theme setting changed.
+    assert store.load(accounts_id(site, MEMBER[0])).is_empty()
+
+    sam.post("/settings/avatar/remove")
+    bar = sam.get("/feed").text.split('class="account-icon"', 1)[1].split("</a>", 1)[0]
+    assert "avatar-picture" not in bar and "avatar-letter" in bar
+
+
+def test_a_hostile_account_picture_is_refused(site):
+    sam = signed_in(site, MEMBER)
+    answer = sam.post("/settings/avatar",
+                      files={"picture": ("x.svg", b"<html><script/></html>", "image/svg+xml")},
+                      follow_redirects=False)
+    assert "err=" in answer.headers["location"]
+    assert store.versions(accounts_id(site, MEMBER[0])) == {}
+
+
+def test_the_account_picture_travels_in_the_backup(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/avatar", files={"picture": ("me.png", PNG, "image/png")})
+    backup = sam.get("/settings/backup").json()
+    assert "avatar" in backup["theme_pictures"]
+
+    sam.post("/settings/avatar/remove")
+    sam.post("/settings/restore", files={
+        "backup_file": ("b.json", json.dumps(backup).encode(), "application/json"),
+    })
+    assert "avatar" in store.versions(accounts_id(site, MEMBER[0]))
