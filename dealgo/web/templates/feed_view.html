@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_garden.html" import page_head with context %}
+{% block title %}De-Algo — {{ playlist.title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/feed">Feeds</a> › {{ playlist.title }}</p>
+{% set lede = (section.videos | length) ~ ' waiting' if not section.shut else 'Shut for now' %}
+{% call page_head(playlist.title, lede) %}
+{% set back = 'feed' %}
+{% include "_feed_star.html" %}
+{% endcall %}
+{% if playlist.tag_list or not playlist.enabled %}
+<p class="feed-view-tags">
+  {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+  {% for one in playlist.tag_list %}
+  <a class="pill pill-tag" href="/feed?tag={{ one | urlencode }}" title="Every feed tagged {{ one }}">{{ one }}</a>
+  {% endfor %}
+</p>
+{% endif %}
+{% include "_feed_section.html" %}
+{% endblock %}

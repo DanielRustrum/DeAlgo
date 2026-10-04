@@ -85,6 +85,12 @@ class Playlist(Base):
         String(10), default="unwatched", server_default="unwatched"
     )
 
+    # How the account arranges its feeds on the Feed page: its favourites
+    # first, then the order it put them in. Nothing to do with `priority`,
+    # which is the order feeds are filled in when the quota runs short.
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    shelf_position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     added_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     last_error: Mapped[Optional[str]] = mapped_column(Text)
 

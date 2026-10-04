@@ -3366,7 +3366,13 @@ def test_a_shut_feed_says_it_is_shut_rather_than_going_quiet(canvas, db):
         made.last_fired_at = utcnow() - dt.timedelta(hours=1)
         graph.add_piece(session, kind="reset", host=feed, cron="0 0 1 1 *")
 
-    body = canvas.get("/feed").text
+    # On the shelf its tile says it is shut; its own page says why, and when.
+    import re
+
+    shelf = canvas.get("/feed").text
+    assert "is-shut" in shelf
+    shut = re.search(r'<li class="feed-tile[^"]*is-shut[^"]*"\s+data-feed="(\d+)"', shelf).group(1)
+    body = canvas.get(f"/feed/{shut}").text
     assert "This feed is shut" in body
     assert "1 minute once you start reading" in body
 

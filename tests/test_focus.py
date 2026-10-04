@@ -188,9 +188,17 @@ def test_finishing_an_unknown_video_is_refused(client):
 
 
 def test_the_feed_offers_a_way_in(client):
-    body = client.get("/feed").text
-    assert "/focus?order=oldest" in body
-    assert "/focus?start=" in body
+    """From the shelf, every feed at once; from a feed's page, that feed, or an item."""
+    import re
+
+    from dealgo.models import Playlist
+
+    shelf = client.get("/feed").text
+    assert 'href="/focus"' in shelf
+    first = re.search(r'class="tile-link" href="/feed/(\d+)"', shelf).group(1)
+    page = client.get(f"/feed/{first}").text
+    assert "/focus?order=oldest" in page
+    assert "/focus?start=" in page
 
 
 def test_the_page_offers_a_way_to_rebuild_a_stuck_player(client):

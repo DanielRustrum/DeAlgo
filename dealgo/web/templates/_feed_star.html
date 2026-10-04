@@ -1,0 +1,21 @@
+{# A feed's star: on the shelf, it moves the tile between Favourites and the
+   rest, so the whole shelf comes back; on the feed's own page only the star
+   changes. `back` says which, `playlist` which feed. Every shelf view the
+   page carries (sort, search, tag, arranging) rides along. #}
+<form class="feed-star-form" method="post" action="/feeds/{{ playlist.id }}/favorite"
+      hx-post="/feeds/{{ playlist.id }}/favorite"
+      {% if back == 'shelf' %}hx-target="#feed-shelf" hx-swap="outerHTML"
+      {% else %}hx-target="this" hx-swap="outerHTML"{% endif %}>
+  <input type="hidden" name="on" value="{{ '0' if playlist.favorite else '1' }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  {% if back == 'shelf' %}
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="q" value="{{ query or '' }}">
+  <input type="hidden" name="tag" value="{{ tag or '' }}">
+  <input type="hidden" name="arrange" value="{{ '1' if arrange else '' }}">
+  {% endif %}
+  <button class="feed-star" type="submit" aria-pressed="{{ 'true' if playlist.favorite else 'false' }}"
+          title="{{ 'Remove from favourites' if playlist.favorite else 'Add to favourites' }}"
+          aria-label="{{ ('Remove ' ~ playlist.title ~ ' from favourites') if playlist.favorite else ('Add ' ~ playlist.title ~ ' to favourites') }}">
+    {{ '★' if playlist.favorite else '☆' }}</button>
+</form>

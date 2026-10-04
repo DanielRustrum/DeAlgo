@@ -79,7 +79,12 @@ def fragment(
     headers: dict[str, str] | None = None,
 ) -> HTMLResponse:
     """Render one piece of a page, with the flash area swapped out of band."""
-    body = TEMPLATES.get_template(template).render({"request": request, **context})
+    # Who is asking, as a full page would have it: a piece of a page that
+    # depends on the account (its sign-in, its pictures) must not quietly
+    # answer for the implicit owner instead.
+    body = TEMPLATES.get_template(template).render(
+        {"request": request, "identity": getattr(request.state, "identity", None), **context}
+    )
     if ok or err:
         body += TEMPLATES.get_template("_flash.html").render(
             {"request": request, "ok_message": ok, "error_message": err, "oob": True}

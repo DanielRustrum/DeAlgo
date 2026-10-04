@@ -15,6 +15,7 @@ No framework, no bundler, no Node at runtime.
 | `web/ts/menu.ts` | `static/menu.js` | Menus |
 | `web/ts/toast.ts` | `static/toast.js` | Flash messages as toasts |
 | `web/ts/theming.ts` | `static/theming.js` | Settings → Theming: live preview and contrast check |
+| `web/ts/shelf.ts` | `static/shelf.js` | The Feed shelf: dragging tiles into your own order |
 | `web/ts/pwa.ts` | `static/pwa.js` | Service-worker registration, install prompt, offline banner |
 | `web/ts/sw.ts` | `static/sw.js` | Service worker (separate `tsconfig.sw.json`, WebWorker lib) |
 | — | `static/htmx.min.js` | htmx, vendored |

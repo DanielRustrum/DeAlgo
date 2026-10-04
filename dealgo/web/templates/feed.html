@@ -1,25 +1,44 @@
 {% extends "base.html" %}
 {% from "_macros.html" import search %}
 {% from "_garden.html" import page_head with context %}
-{% block title %}De-Algo — Feed{% endblock %}
+{% block title %}De-Algo — Feeds{% endblock %}
 {% block content %}
-{{ page_head('Your feed', 'Everything waiting to be watched, in the order it was published.') }}
-{# Show and order live on each feed now; what stays here applies to the page. #}
-<div class="filterbar feed-controls">
-  {{ search('/feed', query, 'Search feeds and tags…', '#feed-sections',
-            {'playlist': playlist_filter}) }}
+{% call page_head('Your feeds', 'Every feed you follow. Star the ones you read most to keep them at the top.') %}
+<a class="btn btn-primary focus-link" href="/focus"
+   title="Play everything unwatched, from every feed, straight through">Focus ▶</a>
+{% endcall %}
 
-  <a class="btn btn-primary focus-link"
-     href="/focus{{ '?playlist=' ~ playlist_filter if playlist_filter }}"
-     title="Play everything unwatched straight through">Focus ▶</a>
+{# Finding a feed among many: search, a tag, a sort — and arranging your own
+   order, which is what the shelf shows unless asked otherwise. Each control
+   reloads only the shelf. #}
+<div class="filterbar shelf-controls">
+  {{ search('/feed', query, 'Search feeds and tags…', '#feed-shelf',
+            {'sort': sort if sort != 'mine' else '', 'tag': tag}) }}
+
+  <form class="shelf-sort" method="get" action="/feed"
+        hx-get="/feed" hx-target="#feed-shelf" hx-select="#feed-shelf" hx-swap="outerHTML"
+        hx-push-url="true" hx-trigger="change">
+    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+    {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
+    <label>
+      <span class="filter-label">Sort</span>
+      <select name="sort" aria-label="Sort feeds by">
+        {% for key, label in sorts.items() %}
+        <option value="{{ key }}" {% if key == sort %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button class="btn btn-quiet" type="submit">Sort</button></noscript>
+  </form>
+
+  <a class="btn {{ 'btn-primary' if arrange else '' }} shelf-arrange-toggle"
+     href="/feed{{ '' if arrange else '?arrange=1' }}"
+     hx-get="/feed{{ '' if arrange else '?arrange=1' }}" hx-target="#feed-shelf"
+     hx-select="#feed-shelf" hx-swap="outerHTML" hx-push-url="true"
+     title="{{ 'Done arranging' if arrange else 'Drag feeds into your own order' }}">
+    {{ 'Done' if arrange else 'Arrange' }}</a>
 </div>
 
-{% if filtered_feed %}
-<p class="banner banner-filtered">
-  Showing <strong>{{ filtered_feed.title }}</strong> only.
-  <a href="/feed{{ '?q=' ~ query if query }}">Show every feed</a>
-</p>
-{% endif %}
-
-{% include "_feed_sections.html" %}
+{% include "_feed_shelf.html" %}
+<script src="/static/shelf.js?v={{ asset_version }}" defer></script>
 {% endblock %}

@@ -60,6 +60,24 @@ def client(db, monkeypatch):
         yield test_client
 
 
+def every_feed(client) -> str:
+    """Every feed's own page, in the shelf's order: what one page used to show.
+
+    The Feed tab is a shelf of tiles now, and each feed's items are on its own
+    page, so a test about items reads the pages the tiles lead to.
+    """
+    import re
+
+    shelf = client.get("/feed").text
+    ids = dict.fromkeys(re.findall(r'class="tile-link" href="/feed/(\d+)"', shelf))
+    return "".join(client.get(f"/feed/{pk}").text for pk in ids)
+
+
+def feed_id(db, title: str) -> int:
+    with db.session_scope() as session:
+        return session.scalar(select(Playlist.id).where(Playlist.title == title))
+
+
 def order_of(body: str) -> list[str]:
     import re
 
@@ -72,29 +90,33 @@ def test_the_feed_is_a_tab(client):
     assert client.get("/feed").status_code == 200
 
 
-def test_videos_are_grouped_under_their_playlist(client):
-    body = client.get("/feed").text
-    assert "Science" in body and "Music" in body
-    # The section header links to the playlist on YouTube.
-    assert "playlist?list=PL_sci" in body
-    assert "playlist?list=PL_mus" in body
-    # Science comes first because it is first in the fill order.
-    assert body.index("PL_sci") < body.index("PL_mus")
+def test_each_feed_is_a_tile_leading_to_its_own_page(client, db):
+    shelf = client.get("/feed").text
+    assert f'href="/feed/{feed_id(db, "Science")}"' in shelf
+    assert f'href="/feed/{feed_id(db, "Music")}"' in shelf
+    # Science comes first: the shelf is in the account's own order, which
+    # starts as the order the feeds were made in.
+    assert shelf.index(">Science<") < shelf.index(">Music<")
+
+    # Each feed's page holds its items and links to its playlist on YouTube.
+    science = client.get(f"/feed/{feed_id(db, 'Science')}").text
+    assert "playlist?list=PL_sci" in science and "Old science video" in science
+    assert "A concert" not in science
 
 
 def test_watched_videos_are_hidden_by_default(client, db):
     from dealgo.models import Playlist
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     assert "Seen already" not in body
-    # …and the count says what is being held back.
-    assert "2 of 3" in body
+    # …and the shelf's count says what is waiting, and of how many.
+    assert 'title="2 unwatched of 3"' in client.get("/feed").text
 
     # Each feed decides for itself, and remembers.
     with db.session_scope() as session:
         session.scalar(select(Playlist).where(Playlist.title == "Science")).view_show = "all"
 
-    everything = client.get("/feed").text
+    everything = every_feed(client)
     assert "Seen already" in everything
     assert "card-watched" in everything
 
@@ -115,7 +137,7 @@ def test_showing_everything_is_set_on_one_feed_only(client, db):
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
         assert science.view_show == "unwatched"
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     assert "A concert" in body          # watched, but its feed shows everything
     assert "Seen already" not in body   # the other feed still hides them
 
@@ -123,7 +145,7 @@ def test_showing_everything_is_set_on_one_feed_only(client, db):
 def test_oldest_first_by_default_and_newest_per_feed(client, db):
     from dealgo.models import Playlist
 
-    assert order_of(client.get("/feed").text)[:2] == ["v1", "v2"]
+    assert order_of(every_feed(client))[:2] == ["v1", "v2"]
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -132,7 +154,7 @@ def test_oldest_first_by_default_and_newest_per_feed(client, db):
     client.post(
         f"/feeds/{science_id}/view", data={"order": "newest"}, headers={"HX-Request": "true"}
     )
-    assert order_of(client.get("/feed").text)[:2] == ["v2", "v1"]
+    assert order_of(every_feed(client))[:2] == ["v2", "v1"]
 
     with db.session_scope() as session:
         # Set on that feed, remembered, and not imposed on the other.
@@ -146,7 +168,11 @@ def test_one_playlist_can_be_singled_out(client, db):
         music = session.scalar(select(Playlist).where(Playlist.title == "Music"))
         music_id = music.id
 
-    body = client.get(f"/feed?playlist={music_id}").text
+    # An old link to one feed goes to that feed's own page.
+    moved = client.get(f"/feed?playlist={music_id}", follow_redirects=False)
+    assert moved.status_code == 303 and moved.headers["location"].endswith(f"/feed/{music_id}")
+
+    body = client.get(f"/feed/{music_id}").text
     assert "A concert" in body
     assert "Old science video" not in body
 
@@ -156,9 +182,11 @@ def test_a_caught_up_playlist_says_so(client, db):
         for video in session.scalars(select(Video)):
             video.watched_at = utcnow()
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     assert "All 3 watched" in body
     assert "All 1 watched" in body
+    # And on the shelf, a tile with nothing waiting says it is caught up.
+    assert "All caught up" in client.get("/feed").text
 
 
 def test_a_thumbnail_opens_focus_mode(client, db):
@@ -172,7 +200,7 @@ def test_a_thumbnail_opens_focus_mode(client, db):
         science.view_order = "newest"
         science_id = science.id
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     thumb = re.search(r'<a class="card-thumb"[^>]*>', body).group(0)
 
     assert "/focus?start=" in thumb
@@ -216,13 +244,13 @@ def test_the_videos_page_still_gets_a_table_row(client):
 
 
 def test_a_video_removed_from_a_playlist_leaves_the_feed(client, db):
-    assert "Old science video" in client.get("/feed").text
+    assert "Old science video" in every_feed(client)
 
     with db.session_scope() as session:
         placement = session.scalar(select(Placement).where(Placement.video_pk == 1))
         placement.playlist_item_id = None  # as a watched-removal would leave it
 
-    assert "Old science video" not in client.get("/feed").text
+    assert "Old science video" not in every_feed(client)
 
 
 def test_the_watch_page_does_not_label_generic_feeds(client, db):
@@ -233,41 +261,37 @@ def test_the_watch_page_does_not_label_generic_feeds(client, db):
     with db.session_scope() as session:
         session.scalar(select(Playlist).where(Playlist.title == "Music")).playlist_id = "generic:x"
 
-    assert ">generic<" not in client.get("/feed").text
+    assert ">generic<" not in every_feed(client)
     # Nor in the list you scan; only where the setting itself lives.
     assert ">generic<" not in client.get("/channels").text
 
 
-def test_feed_sections_start_collapsed(client):
-    """With several feeds the page should open as an index, not a wall."""
+def test_the_shelf_shows_tiles_not_every_feeds_items(client):
+    """With many feeds the page opens as an index of them, not a wall."""
     body = client.get("/feed").text
 
-    assert "<details id=\"feed-" in body
-    assert "<summary>" in body
-    # No section carries the open attribute.
-    import re
-
-    assert not re.search(r"<details id=\"feed-\d+\" open", body)
+    assert body.count('class="feed-tile') == 2
+    # Their items are a click away, on each feed's own page.
+    assert '<article class="card' not in body
 
 
-def test_a_section_summary_is_only_a_toggle(client):
-    """A link inside <summary> would fire the toggle when clicked."""
+def test_a_tiles_own_buttons_sit_outside_its_link(client):
+    """A button inside the link would follow it when pressed."""
     import re
 
     body = client.get("/feed").text
-    summary = re.search(r"<summary>.*?</summary>", body, re.S).group(0)
+    link = re.search(r'<a class="tile-link".*?</a>', body, re.S).group(0)
 
-    assert "<a " not in summary
-    assert "<button" not in summary
-    assert "Science" in summary  # the title is there, just not as a link
+    assert "<button" not in link and "<form" not in link
+    assert "Science" in link
 
 
-def test_the_actions_moved_into_the_section_body(client):
-    body = client.get("/feed").text
+def test_a_feeds_page_has_its_actions(client, db):
+    body = client.get(f"/feed/{feed_id(db, 'Science')}").text
 
     assert "/focus?order=oldest&playlist=" in body   # focus mode
     assert "playlist?list=PL_sci" in body            # the YouTube link
-    assert "/feeds/" in body                         # and its settings page
+    assert f'href="/feeds/{feed_id(db, "Science")}"' in body  # and its settings page
 
 
 def test_open_sections_survive_a_refresh(client):
@@ -276,28 +300,19 @@ def test_open_sections_survive_a_refresh(client):
     assert "/static/sections.js" in page
 
 
-def test_the_controls_sit_inside_each_section(client):
-    """Show and order belong to a feed, so they render once per feed."""
-    import re
+def test_show_and_order_are_on_each_feeds_own_page(client, db):
+    """Show and order belong to a feed, so they are on its page, not the shelf."""
+    page = client.get(f"/feed/{feed_id(db, 'Music')}").text
+    assert 'class="section-view"' in page
+    assert f'/feeds/{feed_id(db, "Music")}/view' in page
+    assert "unwatched" in page and "oldest first" in page
 
-    body = client.get("/feed").text
-    sections = re.findall(r"<section class=\"panel feed-section\">.*?</section>", body, re.S)
-    assert len(sections) == 2
-
-    for section in sections:
-        assert 'class="section-view"' in section
-        assert "/view" in section          # posts to that feed
-        assert "unwatched" in section and "oldest first" in section
-
-    # And no page-wide pair remains. (The Focus link's tooltip mentions
-    # "unwatched", so look for the controls themselves, not the word.)
-    header = body.split('id="feed-sections"')[0]
-    assert 'class="section-view"' not in header
-    assert "/view" not in header
-    assert "oldest first" not in header
+    shelf = client.get("/feed").text
+    assert 'class="section-view"' not in shelf
+    assert "oldest first" not in shelf
 
 
-def test_each_section_launches_focus_its_own_way(client, db):
+def test_each_feed_launches_focus_its_own_way(client, db):
     from dealgo.models import Playlist
 
     with db.session_scope() as session:
@@ -305,7 +320,7 @@ def test_each_section_launches_focus_its_own_way(client, db):
         science.view_order = "newest"
         science_id = science.id
 
-    body = client.get("/feed").text
+    body = client.get(f"/feed/{science_id}").text
     assert f"/focus?order=newest&playlist={science_id}" in body
 
 
@@ -336,14 +351,14 @@ def test_the_feed_select_is_now_a_search_box(client):
     assert 'name="q"' in body
     assert "Search feeds and tags…" in body
     # The old dropdown of every feed is gone.
-    assert "Every feed" not in body
+    assert '<select name="playlist"' not in body
 
 
 def test_the_feed_search_survives_typing(client):
     """As on the other pages, the box must sit outside what it swaps."""
     body = client.get("/feed").text
-    assert body.index('name="q"') < body.index('id="feed-sections"')
-    assert 'hx-target="#feed-sections"' in body
+    assert body.index('name="q"') < body.index('id="feed-shelf"')
+    assert 'hx-target="#feed-shelf"' in body
 
 
 def test_tags_are_edited_on_the_feeds_own_page(client, db):
@@ -375,7 +390,7 @@ def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
     with db.session_scope() as session:
         session.get(Video, 1).thumbnail_url = "https://i.ytimg.example/1.jpg"
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     card = re.search(r'<article class="card[^"]*".*?</article>', body, re.S).group(0)
 
     assert "<img" in card and "card-age" in card
@@ -421,7 +436,7 @@ def test_a_daily_window_is_open_when_you_first_come_to_it(client, db):
     UTC — whatever hour you actually sat down."""
     daily_window(db)
 
-    body = client.get("/feed").text
+    body = every_feed(client)
 
     assert "This feed is shut" not in body
     assert "Old science video" in body
@@ -431,7 +446,11 @@ def test_coming_to_the_feed_starts_the_sitting(client, db):
     from dealgo.models import GraphNode
 
     pulse_pk = daily_window(db)
+    # Arriving at the feed's own page is sitting down to read it; the shelf is not.
     client.get("/feed")
+    with db.session_scope() as session:
+        assert session.get(GraphNode, pulse_pk).last_fired_at is None
+    client.get(f"/feed/{feed_id(db, 'Science')}")
 
     with db.session_scope() as session:
         assert session.get(GraphNode, pulse_pk).last_fired_at is not None
@@ -447,7 +466,7 @@ def test_a_spent_sitting_shuts_the_feed_and_says_when_it_opens(client, db):
     began = utcnow().replace(hour=0, minute=0, second=1, microsecond=0)
     daily_window(db, minutes=1, last_fired_at=began)
 
-    body = client.get("/feed").text
+    body = every_feed(client)
 
     assert "This feed is shut" in body
     assert "1 minute once you start reading" in body
@@ -461,7 +480,7 @@ def test_a_sync_landing_does_not_spend_the_days_reading(client, db):
     from dealgo.models import GraphNode
 
     pulse_pk = daily_window(db)
-    client.get("/partials/feed", headers={"HX-Request": "true"})
+    client.get(f"/partials/feed/{feed_id(db, 'Science')}", headers={"HX-Request": "true"})
 
     with db.session_scope() as session:
         assert session.get(GraphNode, pulse_pk).last_fired_at is None
@@ -495,7 +514,7 @@ def test_a_card_for_an_item_from_elsewhere_says_where_it_came_from(client, db):
         )
         item_pk = item.id
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     card = re.search(
         rf'<article class="card[^"]*" *\n? *id="feed-card-{item_pk}".*?</article>', body, re.S
     ).group(0)
@@ -515,7 +534,7 @@ def test_the_watched_action_is_still_reachable_from_a_card(client, db):
 
     from dealgo.models import Video
 
-    body = client.get("/feed").text
+    body = every_feed(client)
     card = re.search(r'<article class="card[^"]*".*?</article>', body, re.S).group(0)
     assert "/videos/1/watched" in card
     assert "card-quick" in card
@@ -606,37 +625,35 @@ def test_leaving_focus_returns_to_every_feed(client, db):
     assert "Science" in listing and "Music" in listing
 
 
-def test_a_feed_page_filtered_to_one_feed_says_so(client, db):
-    """The filter is still reachable — changing a feed's view keeps it — so it
-    has to be visible, with a way out."""
-    from dealgo.models import Playlist
+def test_a_tag_filters_the_shelf_and_says_which(client, db):
+    from dealgo.services import playlists as playlist_service
 
     with db.session_scope() as session:
-        music_id = session.scalar(select(Playlist).where(Playlist.title == "Music")).id
+        science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
+        playlist_service.set_tags(session, science, "weekly")
 
-    body = client.get(f"/feed?playlist={music_id}").text
+    body = client.get("/feed?tag=weekly").text
+    shelf = body.split('id="feed-shelf"', 1)[1]
+    assert ">Science<" in shelf and ">Music<" not in shelf
+    # The chosen tag is marked, and "All" is the way back.
+    assert 'class="chip chip-on" href="/feed?sort=mine&amp;q=&amp;tag=weekly"' in shelf
+    assert ">All</a>" in shelf
 
-    assert "Showing" in body and "Music" in body
-    assert "Show every feed" in body
-    assert 'href="/feed"' in body
 
-
-def test_the_unfiltered_feed_page_says_nothing_about_filtering(client):
+def test_the_unfiltered_shelf_says_nothing_about_filtering(client):
     body = client.get("/feed").text
     assert "Show every feed" not in body
 
 
-def test_clearing_the_filter_keeps_a_search(client, db):
-    from dealgo.models import Playlist
+def test_clearing_the_tag_keeps_a_search(client, db):
+    from dealgo.services import playlists as playlist_service
 
     with db.session_scope() as session:
-        music_id = session.scalar(select(Playlist).where(Playlist.title == "Music")).id
+        science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
+        playlist_service.set_tags(session, science, "weekly")
 
-    body = client.get(f"/feed?playlist={music_id}&q=mus").text
-    assert 'href="/feed?q=mus"' in body
-
-
-# -- when something leaves the feed ----------------------------------------
+    body = client.get("/feed?q=sci&tag=weekly").text
+    assert 'href="/feed?sort=mine&amp;q=sci"' in body
 
 
 def expiring(db, title, *, hours):
@@ -707,7 +724,7 @@ def test_a_card_shows_what_the_boxes_left_on_it(client, db):
             select(Placement).where(Placement.video_pk == video.id)
         ).expires_at = utcnow() + dt.timedelta(days=6)
 
-    said = marks(client.get("/feed").text, "New science video")
+    said = marks(every_feed(client), "New science video")
 
     assert said == ["long reads", "3 min · no pause", "leaves in 6 days"]
 
@@ -715,7 +732,7 @@ def test_a_card_shows_what_the_boxes_left_on_it(client, db):
 def test_a_card_the_boxes_left_alone_shows_nothing(client, db):
     """Which is almost all of them: a feed with none of these boxes on its
     paths reads exactly as it did before there were any."""
-    assert marks(client.get("/feed").text, "New science video") == []
+    assert marks(every_feed(client), "New science video") == []
 
 
 def test_a_card_says_when_it_leaves_the_feed(client, db):
@@ -723,7 +740,7 @@ def test_a_card_says_when_it_leaves_the_feed(client, db):
     of the use of it going."""
     expiring(db, "New science video", hours=3)
 
-    said = pills(client.get("/feed").text)
+    said = pills(every_feed(client))
 
     assert said == ["leaves in 3 hours"]
 
@@ -731,7 +748,7 @@ def test_a_card_says_when_it_leaves_the_feed(client, db):
 def test_a_card_with_no_end_on_it_says_nothing(client, db):
     """Which is almost all of them: a feed with no Expire box anywhere on
     its paths should read exactly as it did before there were any."""
-    assert pills(client.get("/feed").text) == []
+    assert pills(every_feed(client)) == []
 
 
 def test_the_count_is_rounded_the_way_a_countdown_reads(client, db):

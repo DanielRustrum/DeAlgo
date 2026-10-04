@@ -9,7 +9,7 @@ interface Htmx {
   ajax(
     method: "GET" | "POST" | "DELETE",
     url: string,
-    context: { target: string; swap: string },
+    context: { target: string; swap: string; values?: Record<string, string> },
   ): Promise<void>;
 }
 

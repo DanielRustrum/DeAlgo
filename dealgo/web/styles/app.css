@@ -37,6 +37,7 @@
 
 /* Individual pages and features. */
 @import "./feeds.css" layer(components);
+@import "./shelf.css" layer(components);
 @import "./watched.css" layer(components);
 @import "./focus.css" layer(components);
 @import "./channels.css" layer(components);

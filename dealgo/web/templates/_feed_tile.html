@@ -1,0 +1,68 @@
+{# One feed on the shelf: its latest few items as a mosaic, its name, what is
+   waiting, its tags, and a star. The whole tile is the way in, except its
+   own buttons. While arranging it is draggable, and grows arrows for the
+   keyboard; the link still works, but a drag does not follow it. #}
+{% set feed = tile.playlist %}
+{% set offline = feed.url and publishing_offline(identity.user_pk if identity else none) %}
+<li class="feed-tile {{ 'is-paused' if not feed.enabled }} {{ 'is-shut' if tile.shut }} {{ 'is-favourite' if feed.favorite }}"
+    data-feed="{{ feed.id }}" {% if arrange %}draggable="true"{% endif %}>
+  <a class="tile-link" href="/feed/{{ feed.id }}" {% if arrange %}draggable="false"{% endif %}
+     aria-label="{{ feed.title }}: {{ tile.waiting }} waiting{{ ', shut' if tile.shut }}">
+    <span class="tile-mosaic tile-mosaic-{{ tile.previews | length }}" aria-hidden="true">
+      {% for preview in tile.previews %}
+        {% if preview.picture %}
+        <img src="{{ preview.picture }}" alt="" loading="lazy" referrerpolicy="no-referrer"
+             {% if arrange %}draggable="false"{% endif %}>
+        {% else %}
+        <span class="tile-words">{{ preview.words }}</span>
+        {% endif %}
+      {% else %}
+        <span class="tile-empty">{{ 'All caught up' if tile.total else 'Nothing yet' }}</span>
+      {% endfor %}
+    </span>
+    <span class="tile-body">
+      <span class="tile-title">{{ feed.title }}</span>
+      <span class="tile-meta">
+        {% if tile.shut %}
+          shut{% if tile.opens_at %} · opens {{ tile.opens_at | ago }}{% endif %}
+        {% elif tile.latest %}
+          last arrival {{ tile.latest | ago }}
+        {% else %}
+          nothing has arrived yet
+        {% endif %}
+      </span>
+      {% if feed.tag_list or not feed.enabled or offline %}
+      <span class="tile-pills">
+        {% if not feed.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+        {% if offline %}<span class="pill pill-dormant">local only</span>{% endif %}
+        {% for one in feed.tag_list %}<span class="pill pill-tag">{{ one }}</span>{% endfor %}
+      </span>
+      {% endif %}
+    </span>
+  </a>
+
+  {# What is waiting, over the mosaic's corner: the number a shelf is read for. #}
+  {% if tile.waiting %}
+  <span class="tile-count" title="{{ tile.waiting }} unwatched of {{ tile.total }}">{{ tile.waiting }}</span>
+  {% endif %}
+
+  {% set back = 'shelf' %}
+  {% set playlist = feed %}
+  {% include "_feed_star.html" %}
+
+  {% if arrange %}
+  <div class="tile-moves" role="group" aria-label="Move {{ feed.title }}">
+    {% for where, glyph, label in [('first', '⇤', 'to the start'), ('earlier', '←', 'one earlier'),
+                                    ('later', '→', 'one later'), ('last', '⇥', 'to the end')] %}
+    <form method="post" action="/feeds/{{ feed.id }}/move"
+          hx-post="/feeds/{{ feed.id }}/move" hx-target="#feed-shelf" hx-swap="outerHTML">
+      <input type="hidden" name="where" value="{{ where }}">
+      <input type="hidden" name="arrange" value="1">
+      <button class="tile-move" type="submit" title="Move {{ label }}"
+              aria-label="Move {{ feed.title }} {{ label }}">{{ glyph }}</button>
+    </form>
+    {% endfor %}
+    <span class="tile-grip" aria-hidden="true" title="Drag to move">⠿</span>
+  </div>
+  {% endif %}
+</li>

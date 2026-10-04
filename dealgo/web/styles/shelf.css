@@ -1,0 +1,199 @@
+/* The Feed page's shelf: every feed as a tile, favourites first. */
+
+.shelf-controls { gap: var(--gap); }
+.shelf-controls .search { flex: 1; min-width: 200px; }
+.shelf-sort label { display: inline-flex; align-items: center; gap: 6px; }
+.shelf-sort select { width: auto; padding-block: 6px; }
+.shelf-tags { margin-bottom: var(--gap-block); }
+
+.shelf-part + .shelf-part { margin-top: var(--gap-section); }
+.shelf-heading {
+  margin: 0 0 10px;
+  font-family: var(--font-body);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.shelf-arrange-hint { margin: 0 0 var(--gap-block); }
+
+.shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--gap-block);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* -- a tile ---------------------------------------------------------------------- */
+
+.feed-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--line) 60%, transparent), 0 18px 40px -28px var(--shadow);
+  overflow: hidden;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+.feed-tile:hover { border-color: var(--leaf); transform: translateY(-2px); box-shadow: 0 22px 36px -24px var(--shadow); }
+.feed-tile:focus-within { border-color: var(--focus); }
+.feed-tile.is-favourite { border-color: color-mix(in oklab, var(--ochre) 55%, var(--line)); }
+.feed-tile.is-paused { opacity: 0.6; }
+
+.tile-link { display: flex; flex-direction: column; color: inherit; text-decoration: none; flex: 1; }
+.tile-link:hover { color: inherit; }
+.tile-link:focus-visible { outline: none; }
+
+/* The latest few items as a mosaic: one fills it, two side by side, three and
+   four in a grid, so a tile always reads as a picture of what is waiting. */
+/* Rows and columns may shrink below their content (minmax 0), so a long
+   text post is cut off rather than stretching the tile past 16:9. */
+.tile-mosaic {
+  display: grid;
+  aspect-ratio: 16 / 9;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 2px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.tile-mosaic-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile-mosaic-3 {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.tile-mosaic-3 > :first-child { grid-row: span 2; }
+.tile-mosaic-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.tile-mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; min-height: 0; }
+.tile-words,
+.tile-empty {
+  display: block;
+  min-height: 0;
+  padding: 8px;
+  overflow: hidden;
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.35;
+  color: var(--muted);
+  background: var(--panel-2);
+}
+.tile-empty {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: calc(15px * var(--text-scale));
+}
+.feed-tile.is-shut .tile-mosaic { filter: grayscale(0.8); opacity: 0.6; }
+
+.tile-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
+.tile-title {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: calc(16px * var(--text-scale));
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  /* Two lines, then an ellipsis: a long name must not make one tile tower. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tile-meta { font-size: calc(12px * var(--text-scale)); color: var(--muted); }
+.tile-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+
+/* What is waiting, over the mosaic's top-left corner. */
+.tile-count {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  min-width: 26px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* -- the star ----------------------------------------------------------------------- */
+
+.feed-star-form { display: inline; }
+.feed-star {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font-size: calc(19px * var(--text-scale));
+  line-height: 1;
+  cursor: pointer;
+}
+.feed-star:hover { color: var(--ochre); background: var(--panel-2); }
+.feed-star[aria-pressed="true"] { color: var(--ochre); }
+/* On a tile: over the mosaic's top-right corner, on a disc of the panel so it
+   reads over any picture — the count has the other corner. */
+.feed-tile > .feed-star-form { position: absolute; top: 6px; right: 6px; }
+.feed-tile .feed-star {
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+.feed-tile .feed-star:hover { background: var(--panel); }
+/* On a feed's own page, beside its heading: a little larger. */
+header .feed-star { width: 40px; height: 40px; font-size: calc(26px * var(--text-scale)); }
+
+.feed-view-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 var(--gap-block); }
+.feed-view-tags a.pill { text-decoration: none; }
+
+/* -- arranging ---------------------------------------------------------------------- */
+
+.is-arranging .feed-tile { cursor: grab; border-style: dashed; }
+.is-arranging .feed-tile:hover { transform: none; }
+.is-arranging .feed-tile.is-dragging { opacity: 0.4; cursor: grabbing; border-color: var(--accent); }
+.tile-moves {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px 8px;
+}
+.tile-moves form { display: contents; }
+.tile-move {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.tile-move:hover { border-color: var(--accent); color: var(--accent); }
+.tile-grip { margin-left: auto; color: var(--muted); font-size: calc(18px * var(--text-scale)); cursor: grab; }
+
+@variant pointer-coarse {
+  .tile-move { width: 40px; height: 40px; }
+  .feed-star { width: 40px; height: 40px; }
+}
+@variant phone {
+  .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--gap); }
+}
+@variant motion-reduce {
+  .feed-tile { transition: none; }
+  .feed-tile:hover { transform: none; }
+}

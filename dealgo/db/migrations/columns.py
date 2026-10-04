@@ -38,6 +38,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("playlist", "tags", "TEXT"),
     ("playlist", "view_order", "VARCHAR(8) NOT NULL DEFAULT 'oldest'"),
     ("playlist", "view_show", "VARCHAR(10) NOT NULL DEFAULT 'unwatched'"),
+    # How the account arranges its feeds on the Feed page.
+    ("playlist", "favorite", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("playlist", "shelf_position", "INTEGER NOT NULL DEFAULT 0"),
     ("sync_run", "forced", "BOOLEAN NOT NULL DEFAULT 0"),
     ("sync_run", "quota_spent", "INTEGER NOT NULL DEFAULT 0"),
     ("sync_run", "stopped_on_quota", "BOOLEAN NOT NULL DEFAULT 0"),

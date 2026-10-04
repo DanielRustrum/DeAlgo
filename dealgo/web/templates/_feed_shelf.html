@@ -1,0 +1,66 @@
+{# The shelf: favourites, then everything else, each a grid of tiles.
+
+   Refreshed when a sync lands, so its counts and pictures keep up, and
+   swapped whole by every action on it: a star moves a tile from one part to
+   the other, and a move reorders the part it is in. #}
+<div id="feed-shelf" class="feed-shelf {{ 'is-arranging' if arrange }}"
+     hx-get="/partials/feed?{{ shelf_query }}"
+     hx-trigger="dealgo:sync-finished from:body" hx-swap="outerHTML"
+     data-shelf-query="{{ shelf_query }}">
+
+  {# The tags every feed wears, as filters. Hidden while arranging: the
+     whole shelf is what is being put in order. #}
+  {% if tags and not arrange %}
+  <div class="filterbar shelf-tags" aria-label="Show feeds tagged">
+    <a class="chip {{ 'chip-on' if not tag }}" href="/feed?{{ {'sort': sort, 'q': query} | urlencode }}"
+       hx-get="/feed?{{ {'sort': sort, 'q': query} | urlencode }}" hx-target="#feed-shelf"
+       hx-select="#feed-shelf" hx-swap="outerHTML" hx-push-url="true">All</a>
+    {% for one in tags %}
+    {% set link = '/feed?' ~ ({'sort': sort, 'q': query, 'tag': one} | urlencode) %}
+    <a class="chip {{ 'chip-on' if one == tag }}" href="{{ link }}"
+       hx-get="{{ link }}" hx-target="#feed-shelf" hx-select="#feed-shelf"
+       hx-swap="outerHTML" hx-push-url="true">{{ one }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if arrange %}
+  <p class="hint shelf-arrange-hint">
+    Drag a feed to where you want it, or use its arrows. Favourites keep their own order at the
+    top; star or unstar a feed to move it between the two.
+  </p>
+  {% endif %}
+
+  {% if favourites %}
+  <section class="shelf-part" aria-labelledby="shelf-favourites">
+    <h2 class="shelf-heading" id="shelf-favourites">★ Favourites</h2>
+    <ul class="shelf-grid" data-shelf-part="favourites">
+      {% for tile in favourites %}{% include "_feed_tile.html" %}{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if rest %}
+  <section class="shelf-part" aria-labelledby="shelf-rest">
+    {% if favourites %}<h2 class="shelf-heading" id="shelf-rest">Everything else</h2>
+    {% else %}<h2 class="sr-only" id="shelf-rest">Feeds</h2>{% endif %}
+    <ul class="shelf-grid" data-shelf-part="rest">
+      {% for tile in rest %}{% include "_feed_tile.html" %}{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if not favourites and not rest %}
+  <section class="panel">
+    {% if query or tag %}
+    <p class="empty">No feed matches{% if query %} “{{ query }}”{% endif %}{% if tag %} tagged {{ tag }}{% endif %}.
+      <a href="/feed">Show every feed</a></p>
+    {% else %}
+    <p class="empty">
+      No feeds yet. <a href="/channels">Set one up and track a source</a>, then press Run now
+      on a trigger box.
+    </p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>

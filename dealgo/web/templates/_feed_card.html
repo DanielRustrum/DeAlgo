@@ -11,6 +11,8 @@
    says which kind of somewhere it came from instead of a duration. #}
 {% set from_feed = '&playlist=' ~ section.playlist.id ~ '&order=' ~ section.playlist.view_order
                    if section is defined else '' %}
+{# Where a non-script mark sends you back to: this feed's page, or the shelf. #}
+{% set back_to = '/feed/' ~ section.playlist.id if section is defined else '/feed' %}
 <article class="card {{ 'card-watched' if video.watched }} {{ 'card-post' if video.is_post }} {{ 'card-link' if video.is_link }}"
          id="feed-card-{{ video.id }}">
   <a class="card-thumb" href="/focus?start={{ video.id }}{{ from_feed }}"
@@ -73,7 +75,7 @@
             hx-post="/videos/{{ video.id }}/unwatched"
             hx-target="#feed-card-{{ video.id }}" hx-swap="outerHTML">
         <input type="hidden" name="view" value="feed">
-        <input type="hidden" name="back" value="/feed">
+        <input type="hidden" name="back" value="{{ back_to }}">
         <button class="card-action" type="submit" title="Mark unwatched">↺</button>
       </form>
       {% else %}
@@ -81,7 +83,7 @@
             hx-post="/videos/{{ video.id }}/watched"
             hx-target="#feed-card-{{ video.id }}" hx-swap="outerHTML">
         <input type="hidden" name="view" value="feed">
-        <input type="hidden" name="back" value="/feed">
+        <input type="hidden" name="back" value="{{ back_to }}">
         <button class="card-action" type="submit" title="Mark watched">✓</button>
       </form>
       {% endif %}
