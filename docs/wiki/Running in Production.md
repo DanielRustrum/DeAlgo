@@ -58,6 +58,26 @@ a README with the load command. No tag, forge or buildx setup is needed.
   builds both, which needs emulation for the other one.
 - It won't overwrite a version it has already built; bump the version, or pass `FORCE=1`.
 
+### Publishing it to Docker Hub and other registries
+
+`make push-release` takes `releases/<version>/`, checks its files against their checksums, and
+pushes the image to every *hub* listed in `ops/hubs.toml`.
+
+- **The hubs file:** each `[[hub]]` block gives a registry, a repository and the tags to push
+  (`{version}` and `latest` by default). Add a block to publish somewhere else; delete it, or set
+  `enabled = false`, to stop. The Docker Hub entry needs its `repository` filled in (like
+  `yourname/dealgo`) before it will push.
+- **Signing in:** either run `docker login` for each registry once beforehand, or set the
+  environment variables a hub names (for Docker Hub, `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN`
+  holding an access token). The token goes to Docker on standard input and is never printed.
+- **Options:**
+  - `make push-release DRY_RUN=1` prints every command without running any.
+  - `HUB=docker-hub` sends to that hub only, even a disabled one.
+  - `VERSION=0.1.0` publishes an older build than the one in the code.
+
+A release with several platforms is pushed once per platform, then joined under each tag, so
+`docker pull` picks the right one on any machine.
+
 ## Pushing the image to a registry
 
 ```bash

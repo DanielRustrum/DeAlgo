@@ -11,5 +11,8 @@ tests run them.
 | `build_toc.py` | Writes the Table of Contents for `docs/wiki` and `docs/internal` | `make toc` |
 | `publish_wiki.py` | Builds `docs/wiki` into Forgejo wiki pages, and publishes them | `make wiki` (preview), `.gitea/workflows/wiki.yml` |
 | `publish_release.py` | Builds the Docker image as files per platform, and attaches them to a tag's release; or, with `local`, builds this checkout into `releases/<version>/` | `make release` (local), `make release-image` (build only, as CI), `.gitea/workflows/release.yml` |
+| `publish_image.py` | Publishes a release from `releases/<version>/` to every hub listed in `hubs.toml` (Docker Hub and any other registry), after checking its checksums | `make push-release` |
+
+`hubs.toml` lists where `publish_image.py` publishes to; it says how to add and remove a hub.
 
 Run any of them from the repository root, e.g. `.venv/bin/python ops/build_toc.py`.

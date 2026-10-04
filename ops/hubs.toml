@@ -1,0 +1,39 @@
+# Where `make push-release` publishes a release built by `make release`.
+#
+# One [[hub]] block per place the image goes. To publish somewhere new, add a
+# block; to stop, delete it or set `enabled = false`. `make push-release`
+# sends to every enabled hub, or only the ones named with HUB=name,name.
+#
+#   name        what this hub is called here, for HUB= and the output
+#   registry    the registry's host: docker.io for Docker Hub
+#   repository  where in it: <user or organisation>/<image>
+#   tags        what to push it as; {version} is the release's version
+#   enabled     whether a plain `make push-release` sends to it
+#
+# Signing in: by default the script uses whatever `docker login <registry>`
+# you have already done. Alternatively name two environment variables, and
+# the script signs in with them first (the token goes to docker on standard
+# input, never on the command line or in the output):
+#
+#   username_env = "DOCKERHUB_USERNAME"
+#   token_env    = "DOCKERHUB_TOKEN"
+
+[[hub]]
+name = "docker-hub"
+registry = "docker.io"
+# Your Docker Hub account or organisation, then the image name, e.g.
+# "yourname/dealgo". Left empty, the script refuses to push here and says so.
+repository = ""
+tags = ["{version}", "latest"]
+enabled = true
+username_env = "DOCKERHUB_USERNAME"
+token_env = "DOCKERHUB_TOKEN"
+
+# Another hub looks the same. For example, a private registry:
+#
+# [[hub]]
+# name = "home"
+# registry = "registry.home.infra"
+# repository = "rusty/dealgo"
+# tags = ["{version}"]
+# enabled = true

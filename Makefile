@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts docs toc wiki release-image release dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts docs toc wiki release-image release push-release dev clean
 
 help: ## Show this help
 	@echo "Dealgo — usage: make <target>"
@@ -145,6 +145,9 @@ release-image: ## Build the release image files into build/release, as CI does (
 
 release: ## Build the image into releases/<version>/ locally (PLATFORMS=linux/amd64,linux/arm64, FORCE=1)
 	$(if $(PLATFORMS),RELEASE_PLATFORMS=$(PLATFORMS)) FORCE=$(FORCE) $(PY) ops/publish_release.py local releases
+
+push-release: ## Publish releases/<version>/ to the hubs in ops/hubs.toml (HUB=name,name VERSION=x.y.z DRY_RUN=1)
+	$(PY) ops/publish_image.py $(if $(VERSION),--version $(VERSION)) $(if $(HUB),--hub $(HUB)) $(if $(DRY_RUN),--dry-run)
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
 	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
