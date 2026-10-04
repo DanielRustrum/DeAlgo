@@ -211,10 +211,18 @@
 }
 .sample-tab-on { background: var(--sage-soft); color: var(--text); }
 .sample-title { margin: 0; font-size: calc(26px * var(--text-scale)); }
-.sample-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+/* Centred, not stretched: a quiet button is shorter than the others, and
+   stretched to their height its label would sit at the top. */
+.sample-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .sample-focus { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 .sample-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sample-boxes .graph-node { position: static; width: auto; cursor: default; }
+/* In the flow rather than placed on a canvas, but still the containing block:
+   the notch under a feed, filter or sort box is positioned against its box,
+   and without one it lands at the bottom of the whole preview column. */
+.sample-boxes .graph-node { position: relative; width: auto; cursor: default; }
+/* The notch says a piece can be slotted in. Nothing can be here, so it goes.
+   As specific as the rules in graph/boxes.css that draw it, and one more. */
+.theme-sample .sample-boxes .graph-node:not(.has-piece)::after { content: none; }
 .sample-marks { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .contrast-report { font-size: calc(13px * var(--text-scale)); }
