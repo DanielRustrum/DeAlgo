@@ -11,8 +11,10 @@ fixed list in tokens.py. Nothing a person typed reaches this text unchecked.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
+from .images import DRAWING_SLOTS
 from .theme import Theme
 from .tokens import CHOICES, COLOURS, DIALS, FONTS, SHADOW
 
@@ -33,6 +35,14 @@ class PageTheme:
     chrome_dark: str
     #: Which set of plants the page draws (tokens.py's "drawings" choice).
     drawings: str = "garden"
+    #: The account's own pictures, slot to address, for the page to draw.
+    images: dict[str, str] = field(default_factory=dict)
+
+
+def image_url(slot: str, version: str) -> str:
+    """Where one of an account's pictures is served. The version changes the
+    address when the picture changes, so it can be kept for good."""
+    return f"/settings/theming/image/{slot}?v={version}"
 
 
 def _number(value: float) -> str:
@@ -90,10 +100,25 @@ def settings(theme: Theme) -> list[str]:
     return out
 
 
-def page_theme(theme: Theme) -> PageTheme:
+def page_theme(theme: Theme, pictures: Mapping[str, str] | None = None) -> PageTheme:
+    """A theme as a page carries it. `pictures` is which slots hold a picture
+    (slot to fingerprint): a choice of one's own picture with none uploaded
+    falls back to the stock look rather than to nothing."""
+    pictures = dict(pictures or {})
+    images = {slot: image_url(slot, version) for slot, version in pictures.items()}
+    fallback: dict[str, str] = {}
+    if theme.choice("background") == "image" and "background" not in images:
+        fallback["background"] = "wash"
+    if theme.choice("drawings") == "own" and not any(s in images for s in DRAWING_SLOTS):
+        fallback["drawings"] = "garden"
+
     mode = theme.choice("mode")
     parts = []
     shared = settings(theme)
+    if "background" in images and "background" not in fallback:
+        # An address this module made from a fixed slot name and a hex
+        # fingerprint: nothing in it came from the person.
+        shared.append(f'--user-image: url("{images["background"]}")')
     if mode == "dark":
         # Specific enough to beat the stylesheet's own night block, which a
         # dark device would otherwise still apply on top of this.
@@ -113,10 +138,13 @@ def page_theme(theme: Theme) -> PageTheme:
 
     # Every choice the stylesheet acts on, when it is not the default: the
     # stylesheet's own rules are the default, so it needs no attribute.
+    def chosen(name: str) -> str:
+        return fallback.get(name, theme.choice(name))
+
     attributes = [
-        (f"data-{choice.name}", theme.choice(choice.name))
+        (f"data-{choice.name}", chosen(choice.name))
         for choice in CHOICES
-        if choice.attribute and theme.choice(choice.name) != choice.default
+        if choice.attribute and chosen(choice.name) != choice.default
     ]
 
     light_bg = theme.colour("light", "bg")
@@ -130,6 +158,7 @@ def page_theme(theme: Theme) -> PageTheme:
         attributes=tuple(attributes),
         chrome_light=light_bg,
         chrome_dark=dark_bg,
-        drawings=theme.choice("drawings"),
+        drawings=chosen("drawings"),
+        images=images,
     )
 

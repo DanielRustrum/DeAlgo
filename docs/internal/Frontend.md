@@ -92,7 +92,13 @@ plain CSS with native nesting, plus a few Tailwind directives:
   `data-background-moves` on the root, and swap a layer rather than restyling the body. Drawing
   visibility (`data-illustrations`, `data-drawings-side`) is there too. The root's rules skip
   `.theme-scope *`, so the Theming preview shows the form, not the saved theme. The layers are
-  declared on `:root, .theme-scope` like the radii.
+  declared on `:root, .theme-scope` like the radii. With a picture background (`data-background=
+  "image"`), the ground layer is `var(--user-image)` under a veil of `--bg`.
+  - `--user-image` is written by `css.py` only when the account has a background picture.
+  - `data-image-fit` and `data-image-at` size and place it.
+  - Choosing a picture that isn't there falls back to the stock layer and plants, rather than
+    showing nothing.
+  - The `own` drawing set draws `<img>` from `theme.images`, slot to address.
 
 The compiled file is minified by Lightning CSS, which rewrites some values: `translateX(100%)`
 becomes `translate(100%)`, `120ms` becomes `.12s`, `transparent` becomes `#0000`, `::before`

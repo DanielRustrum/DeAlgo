@@ -76,6 +76,23 @@ encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See
 - State-changing routes are POST. CSRF protection relies on `SameSite=Lax` cookies; there are no
   CSRF tokens.
 - OAuth `state` is a random token checked on callback.
+- **Theming** (`services/theming/`) never takes CSS. A theme is hex colours, numbers within limits
+  and keys from fixed lists. `theme.parse` refuses anything else by name, and `css.py` writes the
+  overrides from those checked values alone.
+- **Theme pictures** (`services/theming/images.py`), uploaded per account:
+  - A raster picture is accepted only on a PNG, JPEG, GIF or WebP signature (3 MB at most), and
+    is kept and served as that type.
+  - An SVG (512 KB at most) is refused if it declares a DOCTYPE or entities. Otherwise it is
+    parsed and rebuilt from an allow-list of drawing elements and presentation attributes. No
+    script, style, `foreignObject`, `image`, `a` or animation survives, and nor does an `on*`
+    handler, a non-local `href`, a `url()` that isn't `#…`, `javascript:` or `data:`. The cleaned
+    copy is what is stored.
+  - Pictures are served only to their owner, from `/settings/theming/image/<slot>`, with
+    `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none';
+    style-src 'unsafe-inline'; sandbox`, so one opened directly still runs nothing.
+  - The page reaches a picture only through an address the server builds from a fixed slot name
+    and a hex fingerprint.
+  - A backup's pictures go through the same checks on restore.
 
 ## Gaps
 

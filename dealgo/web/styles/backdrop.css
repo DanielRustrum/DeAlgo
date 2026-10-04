@@ -55,6 +55,28 @@
   --layer-wash-b: linear-gradient(transparent, transparent);
 }
 
+/* A person's own picture (services/theming/images.py). The address arrives
+   as --user-image, written by the server; without one the layer is empty and
+   the ground still paints. The veil is the page colour laid over it, so
+   writing on top stays readable. */
+:root,
+.theme-scope {
+  --image-size: cover;
+  --image-repeat: no-repeat;
+  --image-at: center;
+  --image-ink: color-mix(in oklab, var(--bg) calc(100% * var(--image-veil)), transparent);
+}
+:is(:root, .theme-scope)[data-image-fit="contain"] { --image-size: contain; }
+:is(:root, .theme-scope)[data-image-fit="tile"] { --image-size: auto; --image-repeat: repeat; }
+:is(:root, .theme-scope)[data-image-at="top"] { --image-at: top; }
+:is(:root, .theme-scope)[data-image-at="bottom"] { --image-at: bottom; }
+:is(:root, .theme-scope)[data-background="image"] {
+  --layer-wash-a: linear-gradient(transparent, transparent);
+  --layer-wash-b: linear-gradient(var(--image-ink), var(--image-ink));
+  --layer-ground: var(--user-image, none) var(--image-at) / var(--image-size) var(--image-repeat),
+    linear-gradient(var(--bg), var(--bg));
+}
+
 /* -- a pattern over it ---------------------------------------------------- */
 
 :is(:root, .theme-scope)[data-pattern="dots"] {

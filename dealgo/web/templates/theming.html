@@ -2,7 +2,29 @@
 {% from "_garden.html" import page_head, edges, heading_art with context %}
 {% block title %}De-Algo — Theming{% endblock %}
 {% set mode_names = {'light': 'By day', 'dark': 'By night'} %}
-{% set drawing_sets = ['garden', 'meadow', 'fern', 'blossom'] %}
+{% set drawing_sets = ['garden', 'meadow', 'fern', 'blossom', 'own'] %}
+{% set picture_slots = {'background': ['background'], 'drawings': ['edge-left', 'edge-right', 'heading']} %}
+
+{# One place for a picture: what is there now, a file to send, and the way to
+   take it away. Its forms sit outside the theme's form (HTML has no forms
+   within forms), so these controls name them with form=. #}
+{% macro picture_slot(slot, label, url) -%}
+<div class="picture-slot">
+  <div class="picture-thumb">
+    {% if url %}<img src="{{ url }}" alt="Your {{ label | lower }} picture">{% else %}<span class="hint">None yet</span>{% endif %}
+  </div>
+  <div class="picture-controls">
+    <strong>{{ label }}</strong>
+    <input type="file" name="picture" form="picture-{{ slot }}" required
+           accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
+           aria-label="A picture for {{ label | lower }}">
+    <div class="row-buttons">
+      <button class="btn" type="submit" form="picture-{{ slot }}">{{ 'Replace' if url else 'Upload' }}</button>
+      {% if url %}<button class="btn btn-danger" type="submit" form="picture-remove-{{ slot }}">Remove</button>{% endif %}
+    </div>
+  </div>
+</div>
+{%- endmacro %}
 
 {# One colour, in one mode: its picker, its name, and — for a colour that is
    another until told otherwise — whether it still is. #}
@@ -107,6 +129,20 @@
       {% endfor %}
     </div>
 
+    {% if group.key in picture_slots %}
+    <div class="picture-slots">
+      <h3>Your own {{ 'picture' if group.key == 'background' else 'pictures' }}</h3>
+      <p class="hint">
+        PNG, JPEG, GIF or WebP up to 3 MB, or SVG up to 512 KB. An SVG keeps its drawing and
+        loses anything that is not one: scripts, styles, links and embedded pages. Uploading
+        puts it in use straight away, so save any other changes first.
+        {% if group.key == 'drawings' %}Your pictures keep their own colours; the colours below
+        are for the drawn plants.{% endif %}
+      </p>
+      {% for slot in picture_slots[group.key] %}{{ picture_slot(slot, slots[slot], pictures.get(slot)) }}{% endfor %}
+    </div>
+    {% endif %}
+
     {% if colours %}
     {# Both modes side by side: there are few of them, and a light and its
        night counterpart are easier judged together. #}
@@ -159,6 +195,13 @@
   </div>
 </form>
 
+{% for slot in slots %}
+<form id="picture-{{ slot }}" method="post" action="/settings/theming/image/{{ slot }}"
+      enctype="multipart/form-data" hx-boost="false"></form>
+<form id="picture-remove-{{ slot }}" method="post" action="/settings/theming/image/{{ slot }}/remove"
+      hx-boost="false" onsubmit="return confirm('Remove this picture?');"></form>
+{% endfor %}
+
 {% for part in parts %}
 <form id="reset-{{ part }}" method="post" action="/settings/theming/reset" hx-boost="false"
       onsubmit="return confirm('Put this back as De-Algo comes?');">
@@ -209,7 +252,7 @@
     {# Every set of plants, drawn small; the preview shows the one the form
        has chosen (theming.css), so changing it needs no trip to the server. #}
     <div class="sample-edges garden-art garden-edges" aria-hidden="true">
-      {% for set in drawing_sets %}<div class="sample-art-set" data-set="{{ set }}">{{ edges(set) }}</div>{% endfor %}
+      {% for set in drawing_sets %}<div class="sample-art-set" data-set="{{ set }}">{{ edges(set, pictures) }}</div>{% endfor %}
     </div>
     <div class="sample-bar">
       <span class="brand-mark" aria-hidden="true">
@@ -223,7 +266,7 @@
     </div>
 
     <div class="sample-heading">
-      {% for set in drawing_sets %}<span class="sample-art-set" data-set="{{ set }}">{{ heading_art(set, 'h-12 w-8') }}</span>{% endfor %}
+      {% for set in drawing_sets %}<span class="sample-art-set" data-set="{{ set }}">{{ heading_art(set, 'h-12 w-8', pictures) }}</span>{% endfor %}
       <h1 class="sample-title">Up next</h1>
     </div>
     <div class="stats">

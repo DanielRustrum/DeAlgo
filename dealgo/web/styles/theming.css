@@ -134,6 +134,32 @@
   .colour-follow { grid-column: 2 / -1; }
 }
 
+/* A place for one of your own pictures: what is there, and what to do. */
+.picture-slots { margin-top: var(--gap-block); padding-top: 4px; border-top: 1px solid var(--line); }
+.picture-slots > .hint { margin: 0 0 var(--gap-block); }
+.picture-slot {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--gap-row) var(--gap-block);
+  align-items: center;
+  padding: 8px 0;
+}
+/* A checkerboard behind the picture, so a transparent one reads as such. */
+.picture-thumb {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 14px 14px;
+}
+.picture-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.picture-thumb .hint { margin: 0; }
+.picture-controls { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.picture-controls input[type=file] { font-size: calc(13px * var(--text-scale)); }
+
 /* A section's own colours, day beside night. */
 .section-colours {
   display: grid;
@@ -224,7 +250,8 @@
 .theme-sample[data-drawings="garden"] .sample-art-set[data-set="garden"],
 .theme-sample[data-drawings="meadow"] .sample-art-set[data-set="meadow"],
 .theme-sample[data-drawings="fern"] .sample-art-set[data-set="fern"],
-.theme-sample[data-drawings="blossom"] .sample-art-set[data-set="blossom"] { display: block; }
+.theme-sample[data-drawings="blossom"] .sample-art-set[data-set="blossom"],
+.theme-sample[data-drawings="own"] .sample-art-set[data-set="own"] { display: block; }
 .theme-sample .panel { margin: 0; padding: 14px; }
 .theme-sample .panel p { margin: 0 0 4px; }
 .theme-sample .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }

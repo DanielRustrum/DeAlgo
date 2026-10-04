@@ -216,6 +216,8 @@ DIALS: tuple[Dial, ...] = (
          about="How far apart the dots, lines or squares are.", show="px"),
     Dial("pattern-strength", "Pattern strength", "background", 0.6, 0.1, 1, 0.05,
          about="How strongly the pattern shows."),
+    Dial("image-veil", "Veil over the picture", "background", 0.25, 0, 0.9, 0.05,
+         about="The page colour laid over your picture, so writing on it stays readable."),
     Dial("art-size", "Size", "drawings", 1, 0.6, 1.6, 0.1,
          about="How big the plants at the edges are."),
     Dial("art-opacity", "Strength", "drawings", 1, 0.2, 1, 0.05,
@@ -267,7 +269,18 @@ CHOICES: tuple[Choice, ...] = (
         Option("glow", "A glow from above"),
         Option("gradient", "A gradient, top to bottom"),
         Option("plain", "Plain"),
-    ), about="What lies behind the panels."),
+        Option("image", "My own picture"),
+    ), about="What lies behind the panels. Your own picture is uploaded below."),
+    Choice("image-fit", "How the picture fills the page", "background", "cover", (
+        Option("cover", "Fill the page, cropping the edges"),
+        Option("contain", "Show all of it"),
+        Option("tile", "Repeat it as tiles"),
+    ), about="For your own picture."),
+    Choice("image-at", "Which part stays in view", "background", "center", (
+        Option("center", "The middle"),
+        Option("top", "The top"),
+        Option("bottom", "The bottom"),
+    ), about="When the picture is cropped to fill the page."),
     Choice("wash-at", "Where the light falls", "background", "corners", (
         Option("corners", "Top right and bottom left"),
         Option("top", "Along the top"),
@@ -289,7 +302,8 @@ CHOICES: tuple[Choice, ...] = (
         Option("meadow", "Meadow: grasses and wildflowers"),
         Option("fern", "Fern: arching fronds"),
         Option("blossom", "Blossom: a flowering branch"),
-    ), about="Which plants are drawn."),
+        Option("own", "My own pictures"),
+    ), about="Which plants are drawn. Your own pictures are uploaded below."),
     Choice("illustrations", "Where they grow", "drawings", "on", (
         Option("on", "At the edges and beside headings"),
         Option("edges", "At the edges only"),

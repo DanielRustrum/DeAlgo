@@ -471,3 +471,150 @@ def test_the_theming_page_has_the_background_and_drawings_sections(site):
     # And the preview carries every set, to show whichever is chosen.
     for plants in ("garden", "meadow", "fern", "blossom"):
         assert f'data-set="{plants}"' in page
+
+
+# -- your own pictures --------------------------------------------------------------
+
+from dealgo.services.theming import images  # noqa: E402
+
+#: A real one-pixel PNG.
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360f8cf0000000301010018dd8db00000000049454e44ae426082"
+)
+
+HOSTILE_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+  onload="alert(1)" viewBox="0 0 10 10">
+  <script>alert(1)</script>
+  <style>@import url(https://example.com/x.css);</style>
+  <foreignObject><iframe xmlns="http://www.w3.org/1999/xhtml" src="javascript:alert(1)"/></foreignObject>
+  <a href="javascript:alert(1)"><circle r="5"/></a>
+  <use xlink:href="https://example.com/x.svg#a"/>
+  <image href="https://example.com/y.png"/>
+  <animate attributeName="href" to="javascript:alert(1)"/>
+  <path id="leaf" d="M0 0L10 10" fill="url(#g)" stroke="url(https://example.com)" style="fill:red"/>
+  <use href="#leaf"/>
+  <linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient>
+</svg>"""
+
+
+def test_an_svg_keeps_its_drawing_and_loses_everything_else():
+    cleaned = images.accept(HOSTILE_SVG).data.decode()
+
+    for gone in ("script", "onload", "style", "foreignObject", "iframe", "javascript",
+                 "example.com", "<image", "<animate", "<a "):
+        assert gone not in cleaned, gone
+    assert '<path id="leaf" d="M0 0L10 10" fill="url(#g)"' in cleaned
+    assert '<use href="#leaf"' in cleaned and "<linearGradient" in cleaned
+
+
+@pytest.mark.parametrize("sent", [
+    b'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]><svg/>',
+    b"<html><body><script>alert(1)</script></body></html>",
+    b"just some text",
+    b"",
+    b"<svg><unclosed",
+    b'<svg xmlns="http://www.w3.org/1999/xhtml"/>',
+])
+def test_anything_that_is_not_a_picture_is_refused(sent):
+    with pytest.raises(images.ImageError):
+        images.accept(sent)
+
+
+def test_a_picture_is_known_by_its_first_bytes_not_its_name():
+    assert images.accept(PNG).media_type == "image/png"
+    assert images.accept(b"\xff\xd8\xff\xe0" + b"0" * 20).media_type == "image/jpeg"
+    assert images.accept(b"RIFF\x00\x00\x00\x00WEBPVP8 ").media_type == "image/webp"
+    with pytest.raises(images.ImageError):
+        images.accept(b"\x89PNG\r\n\x1a\n" + b"0" * images.MAX_RASTER)
+
+
+def test_an_uploaded_background_is_used_served_and_private(site):
+    sam = signed_in(site, MEMBER)
+    sent = sam.post("/settings/theming/image/background",
+                    files={"picture": ("me.png", PNG, "image/png")}, follow_redirects=False)
+    assert "ok=" in sent.headers["location"]
+
+    page = sam.get("/feed").text
+    assert 'data-background="image"' in page
+    address = re.search(r'--user-image: url\("([^"]+)"\)', page).group(1)
+    assert address.startswith("/settings/theming/image/background?v=")
+
+    served = sam.get(address)
+    assert served.status_code == 200 and served.content == PNG
+    assert served.headers["content-type"] == "image/png"
+    assert served.headers["x-content-type-options"] == "nosniff"
+    assert "sandbox" in served.headers["content-security-policy"]
+
+    # Another account's address is its own, and holds nothing.
+    assert signed_in(site, ADMIN).get(address).status_code == 404
+    assert TestClient(site).get(address, follow_redirects=False).status_code in (303, 401, 404)
+
+
+def test_an_svg_is_served_as_cleaned_not_as_sent(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming/image/heading",
+             files={"picture": ("plant.svg", HOSTILE_SVG, "image/svg+xml")})
+    served = sam.get("/settings/theming/image/heading")
+
+    assert served.headers["content-type"].startswith("image/svg+xml")
+    assert b"script" not in served.content and b"onload" not in served.content
+
+
+def test_a_hostile_upload_is_refused_and_nothing_changes(site):
+    sam = signed_in(site, MEMBER)
+    answer = sam.post("/settings/theming/image/background",
+                      files={"picture": ("x.svg", b"<html><script/></html>", "image/svg+xml")},
+                      follow_redirects=False)
+    assert "err=" in answer.headers["location"]
+    owner = accounts_id(site, MEMBER[0])
+    assert store.versions(owner) == {} and store.load(owner).is_empty()
+
+
+def test_own_pictures_are_drawn_as_the_plants(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming/image/edge-left", files={"picture": ("l.png", PNG, "image/png")})
+    page = sam.get("/settings").text
+
+    edges = page.split('class="garden-art garden-edges', 1)[1].split("</div>", 1)[0]
+    assert '<img class="garden-edge garden-edge-left' in edges
+    assert 'src="/settings/theming/image/edge-left?v=' in edges
+    # Only the slots that hold one: no right edge, no heading picture.
+    assert "garden-edge-right" not in edges
+
+
+def test_removing_the_last_picture_puts_the_choice_back(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming/image/background", files={"picture": ("b.png", PNG, "image/png")})
+    owner = accounts_id(site, MEMBER[0])
+    assert store.load(owner).choice("background") == "image"
+
+    sam.post("/settings/theming/image/background/remove")
+    assert store.versions(owner) == {}
+    assert store.load(owner).choice("background") == "wash"
+
+
+def test_choosing_ones_own_picture_with_none_uploaded_falls_back():
+    page = page_theme(parse({"choices": {"background": "image", "drawings": "own"}}))
+    assert page.attributes == () and page.drawings == "garden"
+    assert "--user-image" not in page.css
+
+
+def test_a_backup_carries_the_pictures_checked_again_on_the_way_back(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming/image/background", files={"picture": ("b.png", PNG, "image/png")})
+    backup = sam.get("/settings/backup").json()
+    assert set(backup["theme_pictures"]) == {"background"}
+
+    sam.post("/settings/theming/image/background/remove")
+    backup["theme_pictures"]["heading"] = {
+        "type": "image/svg+xml",
+        "data": __import__("base64").b64encode(b"<html><script/></html>").decode(),
+    }
+    restored = sam.post("/settings/restore", files={
+        "backup_file": ("b.json", json.dumps(backup).encode(), "application/json"),
+    }, follow_redirects=False)
+
+    owner = accounts_id(site, MEMBER[0])
+    assert set(store.versions(owner)) == {"background"}
+    assert "beside+headings+picture" in restored.headers["location"]

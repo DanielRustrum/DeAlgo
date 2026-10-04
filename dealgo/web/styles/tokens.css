@@ -116,6 +116,8 @@
   --wash-size: 1;
   --pattern-size: 24px;
   --pattern-strength: 0.6;
+  /* How much of the page colour lies over a person's own background picture. */
+  --image-veil: 0.25;
   /* The plants at the edges: how big, and how strongly they show. */
   --art-size: 1;
   --art-opacity: 1;

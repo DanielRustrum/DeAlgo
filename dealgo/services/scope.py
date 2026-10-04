@@ -28,6 +28,7 @@ from ..models import (
     RunEvent,
     Settings,
     SyncRun,
+    UserImage,
     UserTheme,
     Video,
 )
@@ -37,6 +38,7 @@ from ..models import (
 Owned = (
     Channel | Playlist | Video | Settings | SyncRun | GraphNode | GraphEdge
     | RunEvent | RepositoryItem | PluginUserSetting | OAuthToken | UserTheme
+    | UserImage
 )
 
 # A select of anything: one column, several, or a count. The rows it yields

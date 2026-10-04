@@ -57,6 +57,11 @@ What lies behind the panels:
 - **Pattern:** none, dots, a grid or diagonal lines, drawn over the light and under everything else.
   Its **size** and **strength** have sliders of their own.
 - **When the page scrolls:** the background stays put, or scrolls with the page.
+- **Your own picture:** upload one under the section's *Your own picture* and the background
+  becomes it. Choose whether it fills the page (cropping the edges), shows whole, or repeats as
+  tiles, and which part stays in view when cropped. **Veil over the picture** lays the page
+  colour over it, so writing stays readable. The contrast check can't see into a picture, so
+  raise the veil if text gets hard to read.
 - **Colours:** the two lights, where a gradient ends, and the pattern, by day and by night. Each
   starts as one of the garden colours (sage, peach, the inset and the lines) until you untick
   **Same as …**.
@@ -66,7 +71,10 @@ What lies behind the panels:
 The plants drawn at the page's edges and beside each page's heading:
 
 - **Plants:** *Garden* (leafy sprigs and round blooms, as De-Algo comes), *Meadow* (grasses and
-  wildflowers), *Fern* (arching fronds) or *Blossom* (a flowering branch).
+  wildflowers), *Fern* (arching fronds), *Blossom* (a flowering branch), or *My own pictures*.
+  Your own pictures fill three places: the left edge, the right edge, and beside headings.
+  A place you leave empty stays bare. They keep their own colours; the drawing colours below
+  only apply to the drawn plants.
 - **Where they grow:** at the edges and beside headings, at the edges only, beside headings only,
   or nowhere. Narrow screens never show the edges, where the plants would sit under the text.
 - **Which edges:** both sides, left only or right only.
@@ -76,6 +84,17 @@ The plants drawn at the page's edges and beside each page's heading:
   Colours changes the drawn leaves too, unless you have set theirs.
 
 **Reset** on Background or Drawings also puts back that section's colours.
+
+## Your own pictures
+
+PNG, JPEG, GIF or WebP files up to 3 MB, or SVG up to 512 KB. Uploading one puts it in use straight
+away, so save any other changes first. **Remove** takes it away. Removing your background picture,
+or your last plant picture, also switches that section back to how it comes.
+
+An SVG is cleaned before it is kept. The drawing stays (shapes, paths, gradients and text), and
+anything that isn't drawing goes: scripts, styles, links, embedded pages and references to
+anything outside the file. If a picture comes out looking different, that is usually why.
+Your pictures are only shown to you.
 
 ## Colours
 
@@ -113,12 +132,12 @@ pairings fall short. The stock look and every theme under Start from pass every 
 ## Share or start again
 
 - **Download theme:** saves your theme as a small JSON file holding only what you changed. It
-  contains nothing else of yours.
+  contains nothing else of yours, and none of your pictures.
 - **Load a theme:** choose a file, or paste one. Anything in it that isn't a known setting with a
   value of the right kind is refused, and the reason is named.
 - **Reset everything:** goes back to the look De-Algo comes with.
 
-Your theme is also part of your [setup file](Backup%20and%20Restore.md), so it comes back when you
-restore one.
+Your theme and your pictures are also part of your [setup file](Backup%20and%20Restore.md), so they
+come back when you restore one.
 
 **Related:** [Settings](Settings.md) · [Installing as an App](Installing%20as%20an%20App.md)

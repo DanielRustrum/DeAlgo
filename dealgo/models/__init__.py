@@ -26,7 +26,7 @@ from .repository import RepositoryItem
 from .run import RunEvent, SyncRun
 from .settings import Settings
 from .source import Channel
-from .theme import UserTheme
+from .theme import UserImage, UserTheme
 from .times import to_naive_utc, utcnow
 
 __all__ = [
@@ -53,6 +53,7 @@ __all__ = [
     "SyncRun",
     "to_naive_utc",
     "User",
+    "UserImage",
     "UserTheme",
     "utcnow",
     "Video",

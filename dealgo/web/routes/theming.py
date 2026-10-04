@@ -15,7 +15,9 @@ from typing import Any
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from ...services.theming import contrast, store
+from ...db import session_scope
+from ...services.theming import contrast, images, store
+from ...services.theming.css import image_url
 from ...services.theming.presets import PRESET_BY_KEY, PRESETS
 from ...services.theming.theme import Theme, ThemeError, from_form, loads, parse
 from ...services.theming.tokens import (
@@ -120,6 +122,12 @@ def theming_page(request: Request) -> HTMLResponse:
         "presets": [(p, _swatches(p.theme())) for p in PRESETS],
         "shortfalls": contrast.shortfalls(current),
         "script_data": _script_data(current),
+        # The account's own pictures, slot to address, and what each slot is.
+        "pictures": {
+            slot: image_url(slot, version)
+            for slot, version in store.versions(owner_of(request)).items()
+        },
+        "slots": images.SLOTS,
         "parts": PARTS,
     }
     return render(request, "theming.html", context)
@@ -225,3 +233,77 @@ def import_theme(
         return redirect(PAGE, err="That theme could not be used. " + " ".join(exc.problems[:5]))
     store.save(owner_of(request), theme)
     return redirect(PAGE, ok=_saved(theme).replace("saved", "loaded"))
+
+
+# -- pictures -----------------------------------------------------------------
+
+#: Served as a picture and nothing else: no sniffing it into something that
+#: runs, and a policy under which an SVG opened by itself still runs nothing.
+_PICTURE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    # The address carries the picture's fingerprint, so a copy never goes stale.
+    "Cache-Control": "private, max-age=31536000, immutable",
+}
+
+
+@router.get(PAGE + "/image/{slot}")
+def serve_picture(request: Request, slot: str) -> Response:
+    """One of the signed-in account's own pictures. Nobody else's: there is no
+    address that names another account."""
+    kept = store.picture(owner_of(request), slot) if slot in images.SLOTS else None
+    if kept is None:
+        return Response(status_code=404)
+    return Response(content=kept.data, media_type=kept.media_type, headers=_PICTURE_HEADERS)
+
+
+@router.post(PAGE + "/image/{slot}")
+def upload_picture(
+    request: Request, slot: str, picture: UploadFile = File(...)
+) -> RedirectResponse:
+    """Put a picture in a slot, and switch to using it."""
+    if slot not in images.SLOTS:
+        return redirect(PAGE, err="There is no such place for a picture.")
+    raw = picture.file.read(images.MAX_RASTER + 1)
+    try:
+        kept = images.accept(raw)
+    except images.ImageError as exc:
+        return redirect(PAGE, err=str(exc))
+    owner = owner_of(request)
+    theme = store.load(owner)
+    # Uploading one is choosing it: a picture that sits unused until a second
+    # setting is found would look like an upload that did not work.
+    if slot == "background":
+        theme.choices["background"] = "image"
+    else:
+        theme.choices["drawings"] = "own"
+    with session_scope() as session:
+        store.put_picture(session, owner, slot, kept)
+        store.write(session, owner, theme)
+    store.drop_held()
+    where = "#background" if slot == "background" else "#drawings"
+    return redirect(PAGE + where, ok=f"{images.SLOTS[slot]} picture in place, and in use.")
+
+
+@router.post(PAGE + "/image/{slot}/remove")
+def remove_picture(request: Request, slot: str) -> RedirectResponse:
+    """Take a picture away. Without any, the choice that used it goes back too."""
+    if slot not in images.SLOTS:
+        return redirect(PAGE, err="There is no such place for a picture.")
+    owner = owner_of(request)
+    left = set(store.versions(owner)) - {slot}
+    theme = store.load(owner)
+    if slot == "background" and theme.choice("background") == "image":
+        theme.choices.pop("background", None)
+    elif (
+        slot != "background"
+        and theme.choice("drawings") == "own"
+        and not left & set(images.DRAWING_SLOTS)
+    ):
+        theme.choices.pop("drawings", None)
+    with session_scope() as session:
+        store.put_picture(session, owner, slot, None)
+        store.write(session, owner, theme)
+    store.drop_held()
+    where = "#background" if slot == "background" else "#drawings"
+    return redirect(PAGE + where, ok=f"{images.SLOTS[slot]} picture removed.")

@@ -129,10 +129,14 @@
    side. A piece standing in a corner grows from that corner; one hanging
    upside down turns and grows about its middle, since turned about a corner
    it would swing off the page. #}
-{% macro edges(set='garden') -%}
+{% macro edges(set='garden', images={}) -%}
 {% set left = 'garden-edge garden-edge-left origin-bottom-left absolute ' %}
 {% set right = 'garden-edge garden-edge-right absolute ' %}
-{% if set == 'meadow' %}
+{% if set == 'own' %}
+  {# A person's own pictures, as they drew them: no palette colours apply. #}
+  {% if images.get('edge-left') %}<img class="{{ left }}bottom-0 left-0 max-h-72 max-w-64 object-contain" src="{{ images['edge-left'] }}" alt="">{% endif %}
+  {% if images.get('edge-right') %}<img class="{{ right }}origin-bottom-right bottom-0 right-0 max-h-72 max-w-64 object-contain" src="{{ images['edge-right'] }}" alt="">{% endif %}
+{% elif set == 'meadow' %}
   {{ grass(left ~ '-bottom-2 -left-4 h-56 w-36 opacity-80') }}
   {{ wildflowers(left ~ '-bottom-2 left-20 h-52 w-32 opacity-90') }}
   {{ grass(right ~ 'origin-bottom-right -bottom-2 -right-4 h-48 w-32 opacity-60', mirror=true) }}
@@ -151,9 +155,10 @@
 {%- endmacro %}
 
 {# What stands beside a page's heading, for one set. #}
-{% macro heading_art(set='garden', classes='') -%}
+{% macro heading_art(set='garden', classes='', images={}) -%}
 {% set classes = 'garden-heading ' ~ classes %}
-{% if set == 'meadow' %}{{ wildflowers(classes) }}
+{% if set == 'own' %}{% if images.get('heading') %}<img class="garden-art {{ classes }} w-auto! max-w-28 object-contain" src="{{ images['heading'] }}" alt="">{% endif %}
+{% elif set == 'meadow' %}{{ wildflowers(classes) }}
 {% elif set == 'fern' %}{{ fern(classes) }}
 {% elif set == 'blossom' %}{{ branch(classes) }}
 {% else %}{{ sprig(classes) }}{% endif %}
@@ -195,7 +200,7 @@
 {% macro page_head(title, lede='') -%}
 <header class="relative mb-6 flex items-end justify-between gap-4 phone:mb-4">
   <div class="flex items-end gap-3">
-    {{ heading_art(theme.drawings if theme is defined else 'garden', 'h-16 w-10 shrink-0 -mb-1 phone:hidden') }}
+    {{ heading_art(theme.drawings if theme is defined else 'garden', 'h-16 w-10 shrink-0 -mb-1 phone:hidden', theme.images if theme is defined else {}) }}
     <div>
       <h1 class="m-0 text-[length:calc(34px*var(--text-scale))] leading-tight phone:text-[length:calc(26px*var(--text-scale))]">{{ title }}</h1>
       {% if lede %}<p class="m-0 mt-1 text-[length:calc(14.5px*var(--text-scale))] text-muted">{{ lede }}</p>{% endif %}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 from typing import Any
 
@@ -99,6 +100,13 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
     theme = themes.load(owner)
     if not theme.is_empty():
         exported["theme"] = theme.to_json()
+    # And its own pictures, which the theme names by slot.
+    pictures = themes.all_pictures(owner)
+    if pictures:
+        exported["theme_pictures"] = {
+            slot: {"type": kept.media_type, "data": base64.b64encode(kept.data).decode("ascii")}
+            for slot, kept in sorted(pictures.items())
+        }
 
     exported["counts"] = {
         "feeds": len(exported["feeds"]),

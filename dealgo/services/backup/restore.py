@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 
 import datetime as dt
@@ -15,6 +17,7 @@ from ...db import get_settings
 from ...models import Channel, Placement, Playlist, Video
 from ..scope import OwnerId, owned
 from ..theming import store as themes
+from ..theming import images as theme_images
 from ..theming.theme import ThemeError, parse as parse_theme
 from .export import FORMAT_VERSION
 
@@ -36,6 +39,8 @@ class RestoreSummary:
     skipped: list[str] = field(default_factory=list)
     #: Whether the file carried a theme and it was used; None when it had none.
     theme: bool | None = None
+    #: Theme pictures in the file that did not pass the checks an upload does.
+    pictures_refused: list[str] = field(default_factory=list)
 
     def describe(self) -> str:
         """The summary as one sentence for the person who restored it."""
@@ -50,7 +55,14 @@ class RestoreSummary:
             sentence += ", and your theme"
         elif self.theme is False:
             sentence += ". The theme in the file could not be used"
-        return sentence + "."
+        sentence += "."
+        if self.pictures_refused:
+            sentence += (
+                " Left out the " + " and ".join(self.pictures_refused)
+                + " picture" + ("s" if len(self.pictures_refused) > 1 else "")
+                + ", which did not pass the checks an upload does."
+            )
+        return sentence
 
 
 def _parse_stamp(value: str | None) -> dt.datetime | None:
@@ -109,11 +121,20 @@ def _restore_settings(session: Session, payload: dict[str, Any]) -> None:
 def _restore_theme(
     session: Session, payload: dict[str, Any], owner: OwnerId, summary: RestoreSummary
 ) -> None:
-    """The file's theme, when it has one, checked like any imported theme.
+    """The file's theme and pictures, when it has them, checked like any import.
 
     One that does not read is left out rather than failing the restore: the
     feeds and channels are what a backup is for.
     """
+    # Its pictures are checked as hard as an upload: a backup is only a file.
+    for slot, entry in (payload.get("theme_pictures") or {}).items():
+        if slot not in theme_images.SLOTS or not isinstance(entry, dict):
+            continue
+        try:
+            raw = base64.b64decode(str(entry.get("data", "")), validate=True)
+            themes.put_picture(session, owner, slot, theme_images.accept(raw))
+        except (binascii.Error, theme_images.ImageError):
+            summary.pictures_refused.append(theme_images.SLOTS[slot].lower())
     if "theme" not in payload:
         return
     try:

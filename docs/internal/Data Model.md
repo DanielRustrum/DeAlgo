@@ -41,6 +41,7 @@ SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (i
 | `plugin_app_setting` | A plugin's setting for everyone | `key` (`<plugin>:<name>`), `value` |
 | `plugin_user_setting` | A plugin's setting for one owner | `key`, `value` |
 | `user_theme` | One owner's theme, as the JSON an exported theme file holds | `slot` (always `current`), `data` |
+| `user_image` | One owner's theme picture, as cleaned (`services/theming/images.py`) | `slot` (`background`, `edge-left`, `edge-right`, `heading`), `media_type`, `data` |
 | `sync_run` | One run | counts, `trigger`, `forced`, `ok`, `quota_spent` |
 | `run_event` | One line of a run's log | `seq`, `level`, `stage`, `about`, `message` |
 | `plugin_state` | Admin decisions about a plugin | `plugin_id`, `enabled`, `granted` (JSON), `origin`, `origin_ref`, `fetched_at` |
