@@ -13,6 +13,10 @@ Each section remembers its own choices:
   counts what is hidden, e.g. `2 of 3`.
 - **oldest first / newest first** — oldest first matches the order a playlist reads in.
 - **Focus ▶** — play this feed straight through.
+- **Clear**: take everything out of this feed, watched or not, after you confirm. A feed backed
+  by a real playlist is cleared there too when your account is connected; each removal costs quota,
+  and it stops and says so if the day's allowance runs out. Cleared items stay in your history and
+  in any other feed, and the next run doesn't put them back.
 
 **Focus ▶** at the top of the page plays every feed's unwatched items in one queue.
 

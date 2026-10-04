@@ -286,3 +286,38 @@ def test_renaming_a_generic_feed_touches_nothing_outside(world, db):
         assert on_youtube is False  # nothing to update
         assert feed.title == "New name"
     assert world["client"].inserted == [] and world["client"].deleted == []
+
+
+def test_a_local_feed_is_cleared_from_its_section_and_stays_clear(world, db, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from dealgo import scheduler
+    from dealgo.web import app as web_app
+
+    with db.session_scope() as session:
+        unwire(session, session.scalar(select(Channel)))
+    feed = make_generic(db, "Kept here")
+    uploads(world, count=2)
+    sync_service.run_sync()
+
+    monkeypatch.setattr(scheduler, "start", lambda: None)
+    monkeypatch.setattr(scheduler, "shutdown", lambda: None)
+    monkeypatch.setattr(scheduler, "next_run_time", lambda: None)
+    monkeypatch.setattr(web_app, "init_db", lambda: None)
+    with TestClient(web_app.app) as client:
+        page = client.get(f"/feed?playlist={feed}").text
+        assert f'hx-post="/feeds/{feed}/clear"' in page
+        assert "Clear “Kept here”? Its 2 items leave the feed." in page
+
+        answer = client.post(f"/feeds/{feed}/clear", data={"playlist": str(feed)},
+                             headers={"HX-Request": "true"})
+        assert "Cleared 2 items from “Kept here”." in answer.text
+        assert f'hx-post="/feeds/{feed}/clear"' not in answer.text  # nothing left to clear
+
+    assert world["client"].deleted == []  # a local feed asks nothing of YouTube
+    sync_service.run_sync()
+    with db.session_scope() as session:
+        held = session.scalars(
+            select(Placement).where(Placement.playlist_pk == feed, Placement.playlist_item_id.is_not(None))
+        ).all()
+        assert held == []

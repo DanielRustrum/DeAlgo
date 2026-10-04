@@ -180,3 +180,58 @@ def test_running_out_of_quota_stops_the_removal_and_says_so_once(world):
     assert result.stopped_on_quota
     assert sum("Quota ran out" in message for message in result.messages) == 1
     assert len(world["client"].deleted) == 1
+
+
+# -- clearing a feed -----------------------------------------------------------------
+
+
+def feed_pk(world) -> int:
+    from dealgo.models import Playlist
+
+    with world["db"].session_scope() as session:
+        return session.scalar(select(Playlist.id).where(Playlist.playlist_id == MAIN_PLAYLIST))
+
+
+def test_clearing_a_feed_takes_everything_out_watched_or_not(world):
+    fill_playlist(world)
+    with world["db"].session_scope() as session:
+        watched_service.mark_watched(session, [session.scalar(select(Video).where(Video.video_id == "v1")).id])
+
+    result = watched_service.clear_feed(feed_pk(world))
+
+    assert result.ok and result.removed == 3
+    assert "Cleared 3 items" in result.message
+    assert world["client"].contents() == []
+    for video_id in ("v0", "v1", "v2"):
+        placement = video_by(world["db"], video_id).placements[0]
+        assert placement.playlist_item_id is None
+        assert placement.removal_reason == "cleared from the feed and its playlist"
+
+
+def test_what_is_cleared_is_not_put_back_by_the_next_run(world):
+    fill_playlist(world)
+    watched_service.clear_feed(feed_pk(world))
+    world["client"].inserted.clear()
+
+    result = sync_service.run_sync()
+
+    assert result.added == 0
+    assert world["client"].contents() == []
+    # Still in the history: clearing a feed is not forgetting what was seen.
+    assert video_by(world["db"], "v0") is not None
+
+
+def test_clearing_an_empty_or_unknown_feed_says_so(world):
+    assert "already empty" in watched_service.clear_feed(feed_pk(world)).message
+    missing = watched_service.clear_feed(999_999)
+    assert not missing.ok and "not here" in missing.message
+
+
+def test_clearing_stops_when_the_quota_runs_out(world):
+    fill_playlist(world)
+    set_quota(daily=0, reserve=0)
+
+    result = watched_service.clear_feed(feed_pk(world))
+
+    assert result.stopped_on_quota and result.removed == 0
+    assert world["client"].contents() != []

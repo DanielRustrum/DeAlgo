@@ -20,6 +20,7 @@ from ...models import (
 )
 from ...services import graph as graph_service
 from ...services import playlists as playlist_service
+from ...services import watched as watched_service
 from ...services.scope import OwnerId, owned
 from ..contexts import feed_window_words
 from ..responses import fragment, is_htmx, owner_of, redirect, render
@@ -199,3 +200,18 @@ def set_feed_view(
             )
         return fragment(request, "_feed_sections.html", context)
     return redirect(f"/feed?{urlencode({'playlist': playlist, 'q': q})}")
+
+
+@router.post("/feeds/{playlist_pk}/clear")
+def clear_feed(
+    request: Request, playlist_pk: int, playlist: str = Form(""), q: str = Form("")
+) -> Response:
+    """Empty one feed, from the button on its section."""
+    owner = owner_of(request)
+    result = watched_service.clear_feed(playlist_pk, owner)
+    ok, err = (result.message, None) if result.ok else (None, result.message)
+    if is_htmx(request):
+        with session_scope() as session:
+            context = _feed_context(session, playlist=playlist, query=q, owner=owner)
+        return fragment(request, "_feed_sections.html", context, ok=ok, err=err)
+    return redirect(f"/feed?{urlencode({'playlist': playlist, 'q': q})}", ok=ok, err=err)

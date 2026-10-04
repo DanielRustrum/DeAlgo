@@ -65,6 +65,20 @@
           {% endif %}
         {% endif %}
         <a class="btn btn-quiet" href="/feeds/{{ section.playlist.id }}">Settings</a>
+        {% if section.total %}
+        {# Everything leaves the feed, watched or not — and its real playlist,
+           where it has one and an account to do it with. Kept as removed, so
+           the next run does not put it all back. #}
+        <form method="post" action="/feeds/{{ section.playlist.id }}/clear"
+              hx-post="/feeds/{{ section.playlist.id }}/clear"
+              hx-target="#feed-sections" hx-swap="outerHTML"
+              hx-confirm="Clear “{{ section.playlist.title }}”? Its {{ section.total }} item{{ 's' if section.total != 1 }} leave the feed{{ ' and its playlist' if section.playlist.url and not publishing_offline(identity.user_pk if identity else none) }}. They stay in your history and are not added again.">
+          <input type="hidden" name="playlist" value="{{ playlist_filter or '' }}">
+          <input type="hidden" name="q" value="{{ query or '' }}">
+          <button class="btn btn-danger" type="submit"
+                  title="Take everything out of this feed">Clear</button>
+        </form>
+        {% endif %}
       </div>
 
       {% if section.shut %}
