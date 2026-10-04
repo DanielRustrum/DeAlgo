@@ -19,6 +19,26 @@ Pick one of these themes, then change anything you like:
 | Ink | Black and white, nearly square corners, your device's own typeface and no plants. |
 | Compact | The usual colours, with tighter spacing, slightly smaller text and less rounding. |
 
+**Popular themes**, each with its day and night palette:
+
+| Theme | By day | By night |
+| --- | --- | --- |
+| Catppuccin | Latte | Mocha |
+| Dracula | Alucard | Dracula |
+| Nord | Snow Storm | Polar Night |
+| Gruvbox | Light | Dark |
+| Solarized | Light | Dark |
+| Tokyo Night | Day | Night |
+| Rosé Pine | Dawn | Main |
+| Everforest | Light | Dark |
+
+Each palette's colours are mapped onto De-Algo's: its accent for buttons and links, its green for
+"worked", its purple for trigger boxes, and so on. Some editor palettes put pale text or white on
+yellow in places De-Algo uses for writing. Where a published colour would read below the
+recommended contrast, it is nudged darker or lighter just far enough; the rest is exactly as
+published. The light palettes of the softer themes (Catppuccin Latte, Nord, Everforest) are nudged
+the most.
+
 Picking one replaces your changes. Your choice of light or dark stays, unless the theme you pick sets it.
 
 ## Page

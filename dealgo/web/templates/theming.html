@@ -62,8 +62,17 @@
     A whole look at once. Picking one replaces what you have changed, but keeps whether
     De-Algo is light or dark; change anything from there.
   </p>
+  {% for family, heading in [('own', 'De-Algo’s own'), ('popular', 'Popular themes')] %}
+  <h3>{{ heading }}</h3>
+  {% if family == 'popular' %}
+  <p class="hint">
+    Well-known editor themes, each with its day and its night palette. Where a published colour
+    would be hard to read in De-Algo — pale text, white on yellow — it is nudged just far enough
+    to read; the rest is as published.
+  </p>
+  {% endif %}
   <div class="preset-grid">
-    {% for preset, swatches in presets %}
+    {% for preset, swatches in presets if preset.family == family %}
     <form method="post" action="/settings/theming/preset" hx-boost="false">
       <button class="preset-card" type="submit" name="preset" value="{{ preset.key }}">
         <span class="preset-swatches" aria-hidden="true">
@@ -79,6 +88,7 @@
     </form>
     {% endfor %}
   </div>
+  {% endfor %}
 </section>
 
 {# One form for every setting, saved together. A full post rather than a

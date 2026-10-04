@@ -62,7 +62,12 @@ plain CSS with native nesting, plus a few Tailwind directives:
   `data-mode`, `data-motion` and `data-illustrations` on `<html>`. Forced dark states every colour
   under `:root[data-mode="dark"]`, because it has no stylesheet block to fall back on.
   `contrast.py` lists the pairings the app paints and their minimums. `ts/theming.ts` runs the same
-  check live and copies the form onto the preview. Theme saves are full posts, not boosted swaps:
+  check live and copies the form onto the preview. `presets.py` has De-Algo's own presets and
+  the popular ones. Those are built from published palettes in `palettes.py`, mapped onto the
+  roles by `roles()`, then `settle()`d: each pairing below its minimum moves its mover (text over
+  its ground, a fill under its ink) 4% at a time toward black or white until it passes. The accent
+  and the failure red are also text on surfaces, so their ink is fixed by mode; other fills take
+  whichever of the palette's darkest and lightest colours reads better. Theme saves are full posts, not boosted swaps:
   the theme lives in `<head>`, which an htmx swap leaves alone.
 - **Widths and input.** `@variant phone { … }` (≤ 640px) and `@variant tablet { … }` (≤ 860px) are
   custom variants; `pointer-coarse` and `motion-reduce` are Tailwind's. Write them at the top

@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from . import palettes
 from .theme import Theme, parse
 
 
@@ -20,6 +21,8 @@ class Preset:
     label: str
     about: str
     data: dict[str, Any]
+    #: "own" for De-Algo's, "popular" for a well-known editor theme.
+    family: str = "own"
 
     def theme(self) -> Theme:
         return parse(self.data)
@@ -89,5 +92,28 @@ PRESETS: tuple[Preset, ...] = (
         "dials": {"density": 0.8, "text-scale": 0.95, "roundness": 0.6, "depth": 0.5},
     }),
 )
+
+#: Well-known editor and terminal themes, each with its day and night palette.
+#: Built from the published palettes in palettes.py, settled for contrast.
+POPULAR: tuple[Preset, ...] = (
+    Preset("catppuccin", "Catppuccin", "Soothing pastels: Latte by day, Mocha by night.",
+           palettes.theme(palettes.CATPPUCCIN), "popular"),
+    Preset("dracula", "Dracula", "Vivid on deep purple-grey: Alucard by day, Dracula by night.",
+           palettes.theme(palettes.DRACULA), "popular"),
+    Preset("nord", "Nord", "Arctic blues: Snow Storm by day, Polar Night by night.",
+           palettes.theme(palettes.NORD), "popular"),
+    Preset("gruvbox", "Gruvbox", "Retro and warm, earthy browns and oranges.",
+           palettes.theme(palettes.GRUVBOX), "popular"),
+    Preset("solarized", "Solarized", "Precision colours on cream and deep teal.",
+           palettes.theme(palettes.SOLARIZED), "popular"),
+    Preset("tokyo-night", "Tokyo Night", "Neon city blues: Day and Night.",
+           palettes.theme(palettes.TOKYO_NIGHT), "popular"),
+    Preset("rose-pine", "Rosé Pine", "Muted rose and pine: Dawn by day, Main by night.",
+           palettes.theme(palettes.ROSE_PINE), "popular"),
+    Preset("everforest", "Everforest", "Soft forest greens, easy on the eyes.",
+           palettes.theme(palettes.EVERFOREST), "popular"),
+)
+
+PRESETS = PRESETS + POPULAR
 
 PRESET_BY_KEY = {preset.key: preset for preset in PRESETS}

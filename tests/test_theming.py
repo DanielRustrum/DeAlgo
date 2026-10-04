@@ -698,3 +698,53 @@ def test_the_account_picture_travels_in_the_backup(site):
         "backup_file": ("b.json", json.dumps(backup).encode(), "application/json"),
     })
     assert "avatar" in store.versions(accounts_id(site, MEMBER[0]))
+
+
+# -- popular themes -------------------------------------------------------------------
+
+from dealgo.services.theming import palettes  # noqa: E402
+from dealgo.services.theming.presets import POPULAR  # noqa: E402
+
+
+@pytest.mark.parametrize("preset", POPULAR, ids=lambda p: p.key)
+def test_a_popular_theme_has_its_own_day_and_night(preset):
+    theme = preset.theme()
+    published = {
+        "catppuccin": palettes.CATPPUCCIN, "dracula": palettes.DRACULA, "nord": palettes.NORD,
+        "gruvbox": palettes.GRUVBOX, "solarized": palettes.SOLARIZED,
+        "tokyo-night": palettes.TOKYO_NIGHT, "rose-pine": palettes.ROSE_PINE,
+        "everforest": palettes.EVERFOREST,
+    }[preset.key]
+    # Its page and surfaces are the palette's own, by day and by night. (One
+    # that happens to match De-Algo's own colour is simply not stored.)
+    for mode in ("light", "dark"):
+        assert theme.colour(mode, "bg") == published[mode].bg
+        assert theme.colour(mode, "panel") == published[mode].panel
+    assert theme.colour("light", "bg") != theme.colour("dark", "bg")
+    # Light or dark stays the person's to choose.
+    assert "mode" not in theme.choices
+
+
+def test_a_published_palette_that_already_reads_is_left_as_published():
+    mocha = palettes.roles(palettes.CATPPUCCIN["dark"], "dark")
+    theme = [p for p in POPULAR if p.key == "catppuccin"][0].theme()
+    for name in ("bg", "panel", "text", "accent", "ok", "warn", "bad", "kind-trigger"):
+        assert theme.colour("dark", name) == mocha[name], name
+
+
+def test_settling_nudges_only_what_falls_short_and_only_as_far_as_it_must():
+    faint = parse({"colours": {"light": {"muted": "#c8c8c8"}}})
+    settled = palettes.settle(faint)
+
+    assert contrast.shortfalls(settled) == []
+    assert settled.colours["light"].keys() == {"muted"}
+    # Darker, but no darker than it needed to be to reach 4.5:1 on the inset.
+    assert 4.5 <= contrast.ratio(settled.colour("light", "muted"), "#f2e8da") < 4.9
+
+
+def test_the_popular_themes_have_a_heading_of_their_own(site):
+    page = signed_in(site, MEMBER).get("/settings/theming").text
+    own, popular = page.split("Popular themes", 1)
+    assert 'value="garden"' in own and 'value="catppuccin"' not in own
+    for preset in POPULAR:
+        assert f'value="{preset.key}"' in popular
