@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .theme import Theme
-from .tokens import COLOURS, DIALS, FONTS, SHADOW
+from .tokens import CHOICES, COLOURS, DIALS, FONTS, SHADOW
 
 #: The dials that are stylesheet variables. Depth is not one: it is worked
 #: into the shadow colour.
@@ -31,6 +31,8 @@ class PageTheme:
     #: The browser's own chrome colour (`theme-color`) by day and by night.
     chrome_light: str
     chrome_dark: str
+    #: Which set of plants the page draws (tokens.py's "drawings" choice).
+    drawings: str = "garden"
 
 
 def _number(value: float) -> str:
@@ -109,13 +111,13 @@ def page_theme(theme: Theme) -> PageTheme:
                 + "}\n"
             )
 
-    attributes = []
-    if mode != "system":
-        attributes.append(("data-mode", mode))
-    if theme.choice("motion") == "reduce":
-        attributes.append(("data-motion", "reduce"))
-    if theme.choice("illustrations") == "off":
-        attributes.append(("data-illustrations", "off"))
+    # Every choice the stylesheet acts on, when it is not the default: the
+    # stylesheet's own rules are the default, so it needs no attribute.
+    attributes = [
+        (f"data-{choice.name}", theme.choice(choice.name))
+        for choice in CHOICES
+        if choice.attribute and theme.choice(choice.name) != choice.default
+    ]
 
     light_bg = theme.colour("light", "bg")
     dark_bg = theme.colour("dark", "bg")
@@ -128,5 +130,6 @@ def page_theme(theme: Theme) -> PageTheme:
         attributes=tuple(attributes),
         chrome_light=light_bg,
         chrome_dark=dark_bg,
+        drawings=theme.choice("drawings"),
     )
 

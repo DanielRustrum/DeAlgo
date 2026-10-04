@@ -78,8 +78,21 @@ plain CSS with native nesting, plus a few Tailwind directives:
 - **`@apply surface`** is the raised-panel look (background, border, radius, shadow).
 - **Type.** DM Sans for text, Fraunces for headings (`h1`, `h2`, `.display`), both variable fonts
   served from `static/fonts/` so an installed copy has them offline.
-- **Illustrations** are inline SVG macros in `templates/_garden.html`: `sprig`, `bloom`, `scene`,
-  and `page_head`, the heading at the top of each tab. They are decoration (`aria-hidden`).
+- **Illustrations** are inline SVG macros in `templates/_garden.html`: four sets of plants
+  (`sprig` and `bloom` for garden, `grass` and `wildflowers` for meadow, `fern`, `branch` for
+  blossom, all built from `#g-leaf` and `flower`), `edges(set)` for the page's edges and
+  `heading_art(set)` beside `page_head`. The set comes from the theme (`theme.drawings`), which is
+  why `page_head` is imported `with context`. They are decoration (`aria-hidden`), coloured by
+  the drawing tokens (`fill-art-leaf`, `stroke-art-stem`…), not the palette's own. An edge piece
+  is `.garden-edge` plus `-left` or `-right`. A piece standing in a corner grows from it
+  (`origin-bottom-left`); a hanging, rotated one grows about its centre.
+- **Backdrop** (`backdrop.css`): the body background is four layers held in variables
+  (`--layer-pattern`, `--layer-wash-a`, `--layer-wash-b` and `--layer-ground`) built from tokens
+  and dials. Theme choices arrive as `data-background`, `data-wash-at`, `data-pattern` and
+  `data-background-moves` on the root, and swap a layer rather than restyling the body. Drawing
+  visibility (`data-illustrations`, `data-drawings-side`) is there too. The root's rules skip
+  `.theme-scope *`, so the Theming preview shows the form, not the saved theme. The layers are
+  declared on `:root, .theme-scope` like the radii.
 
 The compiled file is minified by Lightning CSS, which rewrites some values: `translateX(100%)`
 becomes `translate(100%)`, `120ms` becomes `.12s`, `transparent` becomes `#0000`, `::before`

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_garden.html" import page_head %}
+{% from "_garden.html" import page_head with context %}
 {% block title %}De-Algo — Configuration{% endblock %}
 {% block content %}
 {{ page_head('Configuration', 'Channels, feeds, and how they are wired together.') }}

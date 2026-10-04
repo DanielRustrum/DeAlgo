@@ -81,6 +81,21 @@
   --plugin-slate: #5b6b78;
   --on-plugin: #ffffff;
 
+  /* The background (backdrop.css): the two lights, where a gradient ends,
+     and the pattern. Each is another colour until a theme says otherwise. */
+  --wash-1: var(--sage);
+  --wash-2: var(--peach);
+  --bg-end: var(--panel-2);
+  --pattern: var(--line);
+
+  /* The drawings (_garden.html), likewise the garden's own colours to start. */
+  --art-stem: var(--forest);
+  --art-leaf: var(--leaf);
+  --art-leaf-soft: var(--sage);
+  --art-bloom: var(--accent);
+  --art-bloom-2: var(--ochre);
+  --art-bloom-3: var(--peach);
+
   /* The tab that joins two pieces on the canvas. */
   --graph-tab: 18px;
 
@@ -95,8 +110,15 @@
   --roundness: 1;
   --density: 1;
   --focus-width: 2px;
-  /* How strongly the page's sage and peach washes show: 0 is plain paper. */
+  /* How strongly the page's light shows, 0 being plain paper, and how far
+     it reaches. */
   --wash: 1;
+  --wash-size: 1;
+  --pattern-size: 24px;
+  --pattern-strength: 0.6;
+  /* The plants at the edges: how big, and how strongly they show. */
+  --art-size: 1;
+  --art-opacity: 1;
 }
 
 /* The shapes the dials make. Declared on .theme-scope as well as the root so
@@ -187,9 +209,6 @@
   animation-iteration-count: 1 !important;
 }
 
-/* The plants at the page's edges, for an account that would rather not. */
-:root[data-illustrations="off"] .garden-art { display: none; }
-
 /* -- Tailwind --------------------------------------------------------------
 
    The same tokens under Tailwind's names, so a template can say `bg-panel`,
@@ -216,6 +235,12 @@
   --color-blush: var(--blush);
   --color-ochre: var(--ochre);
   --color-cream: var(--cream);
+  --color-art-stem: var(--art-stem);
+  --color-art-leaf: var(--art-leaf);
+  --color-art-leaf-soft: var(--art-leaf-soft);
+  --color-art-bloom: var(--art-bloom);
+  --color-art-bloom-2: var(--art-bloom-2);
+  --color-art-bloom-3: var(--art-bloom-3);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);

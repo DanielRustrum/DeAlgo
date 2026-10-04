@@ -134,6 +134,20 @@
   .colour-follow { grid-column: 2 / -1; }
 }
 
+/* A section's own colours, day beside night. */
+.section-colours {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 calc(20px * var(--density));
+  margin-top: var(--gap-block);
+  border-top: 1px solid var(--line);
+}
+.section-colours .colour-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
+.section-colours .colour-follow { grid-column: 2 / -1; }
+@variant tablet {
+  .section-colours { grid-template-columns: 1fr; }
+}
+
 .theming-save {
   position: sticky;
   bottom: 0;
@@ -170,13 +184,13 @@
 /* The sample is a page of its own: it paints its own ground and sets its
    own type, so it shows the theme rather than inheriting the saved one. */
 .theme-sample {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
-  background:
-    radial-gradient(20rem 14rem at 110% -10%, color-mix(in oklab, var(--sage) calc(30% * var(--wash)), transparent), transparent 62%),
-    var(--bg);
+  /* The page's own layers (backdrop.css), built from the preview's values. */
+  background: var(--layer-pattern), var(--layer-wash-a), var(--layer-wash-b), var(--layer-ground);
   color: var(--text);
   font-family: var(--font-body);
   font-size: calc(15px * var(--text-scale));
@@ -187,6 +201,30 @@
   overflow: hidden;
 }
 .theme-sample[data-mode="dark"] { color-scheme: dark; }
+/* Everything in the sample stands in front of its plants. */
+.theme-sample > :not(.sample-edges) { position: relative; z-index: 1; }
+
+/* The page's edge plants, at the size they would be on a page two and a half
+   times as wide, then shrunk to fit: their own placement, unchanged. */
+.sample-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 250%;
+  height: 250%;
+  transform: scale(0.4);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.sample-heading { display: flex; align-items: flex-end; gap: 8px; }
+
+/* One set of plants at a time: the one the form has chosen. */
+.sample-art-set { display: none; }
+.theme-sample:not([data-drawings]) .sample-art-set[data-set="garden"],
+.theme-sample[data-drawings="garden"] .sample-art-set[data-set="garden"],
+.theme-sample[data-drawings="meadow"] .sample-art-set[data-set="meadow"],
+.theme-sample[data-drawings="fern"] .sample-art-set[data-set="fern"],
+.theme-sample[data-drawings="blossom"] .sample-art-set[data-set="blossom"] { display: block; }
 .theme-sample .panel { margin: 0; padding: 14px; }
 .theme-sample .panel p { margin: 0 0 4px; }
 .theme-sample .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }

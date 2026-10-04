@@ -1,5 +1,5 @@
 <!doctype html>
-{% from "_garden.html" import leaf_defs, sprig, bloom %}
+{% from "_garden.html" import leaf_defs, edges %}
 <html lang="en"{% for name, value in theme.attributes %} {{ name }}="{{ value }}"{% endfor %}>
 <head>
   <meta charset="utf-8">
@@ -37,12 +37,11 @@
 <div id="progress" class="progress"></div>
 {{ leaf_defs() }}
 
-{# Plants at the edges of the page, behind everything. Only where there is
-   room beside the column: on a narrow screen they would sit under the text. #}
-<div class="garden-art pointer-events-none fixed inset-0 -z-10 overflow-hidden tablet:hidden" aria-hidden="true">
-  {{ sprig('absolute -bottom-4 -left-2 h-64 w-40 opacity-70') }}
-  {{ bloom('absolute -bottom-6 left-20 h-48 w-28 opacity-80') }}
-  {{ sprig('absolute -right-6 top-24 h-56 w-36 rotate-[200deg] opacity-40', leaf='fill-sage') }}
+{# Plants at the edges of the page, behind everything: the theme's set,
+   placed and sized by backdrop.css. Only where there is room beside the
+   column: on a narrow screen they would sit under the text. #}
+<div class="garden-art garden-edges pointer-events-none fixed inset-0 -z-10 overflow-hidden tablet:hidden" aria-hidden="true">
+  {{ edges(theme.drawings) }}
 </div>
 
 <header class="topbar">

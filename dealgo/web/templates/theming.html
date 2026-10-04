@@ -1,7 +1,32 @@
 {% extends "base.html" %}
-{% from "_garden.html" import page_head %}
+{% from "_garden.html" import page_head, edges, heading_art with context %}
 {% block title %}De-Algo — Theming{% endblock %}
 {% set mode_names = {'light': 'By day', 'dark': 'By night'} %}
+{% set drawing_sets = ['garden', 'meadow', 'fern', 'blossom'] %}
+
+{# One colour, in one mode: its picker, its name, and — for a colour that is
+   another until told otherwise — whether it still is. #}
+{% macro colour_row(colour, mode, current, colour_by_name) -%}
+{% set own = colour.name in current.colours[mode] %}
+<div class="colour-row">
+  <input type="color" id="{{ mode }}-{{ colour.name }}" name="{{ mode }}.{{ colour.name }}"
+         value="{{ current.colour(mode, colour.name) }}" data-token="{{ colour.name }}"
+         data-mode="{{ mode }}" data-default="{{ colour.default(mode) }}">
+  <label for="{{ mode }}-{{ colour.name }}" class="colour-name">
+    {{ colour.label }}
+    {% if colour.about %}<span class="hint">{{ colour.about }}</span>{% endif %}
+  </label>
+  {% if colour.follows %}
+  <label class="check colour-follow">
+    <input type="checkbox" name="follow.{{ mode }}.{{ colour.name }}" value="1"
+           data-follow="{{ colour.name }}" data-mode="{{ mode }}" {% if not own %}checked{% endif %}>
+    Same as {{ colour_by_name[colour.follows].label | lower }}
+  </label>
+  {% endif %}
+  <button class="btn btn-quiet colour-reset" type="button" data-reset="{{ colour.name }}"
+          data-mode="{{ mode }}" hidden>Reset</button>
+</div>
+{%- endmacro %}
 {% block content %}
 <p class="crumbs"><a href="/settings">Settings</a> › Theming</p>
 {{ page_head('Theming', 'How De-Algo looks to you. Nobody else sees what you change here.') }}
@@ -38,7 +63,7 @@
    boosted swap: the theme lives in the page's <head>, which a swap leaves. #}
 <form id="theme-form" method="post" action="/settings/theming" hx-boost="false">
 
-  {% for group, choices, dials in setting_groups %}
+  {% for group, choices, dials, colours in setting_groups %}
   <section class="panel theming-section" id="{{ group.key }}">
     <div class="panel-head">
       <h2>{{ group.label }}</h2>
@@ -81,6 +106,19 @@
       </label>
       {% endfor %}
     </div>
+
+    {% if colours %}
+    {# Both modes side by side: there are few of them, and a light and its
+       night counterpart are easier judged together. #}
+    <div class="section-colours">
+      {% for mode in modes %}
+      <div>
+        <h3>Colours {{ mode_names[mode] | lower }}</h3>
+        {% for colour in colours %}{{ colour_row(colour, mode, current, colour_by_name) }}{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </section>
   {% endfor %}
 
@@ -108,27 +146,7 @@
       {% for group, colours in colour_groups %}
       <details class="colour-group" {% if loop.index <= 2 %}open{% endif %}>
         <summary><strong>{{ group.label }}</strong> <span class="hint">{{ group.about }}</span></summary>
-        {% for colour in colours %}
-        {% set own = colour.name in current.colours[mode] %}
-        <div class="colour-row">
-          <input type="color" id="{{ mode }}-{{ colour.name }}" name="{{ mode }}.{{ colour.name }}"
-                 value="{{ current.colour(mode, colour.name) }}" data-token="{{ colour.name }}"
-                 data-mode="{{ mode }}" data-default="{{ colour.default(mode) }}">
-          <label for="{{ mode }}-{{ colour.name }}" class="colour-name">
-            {{ colour.label }}
-            {% if colour.about %}<span class="hint">{{ colour.about }}</span>{% endif %}
-          </label>
-          {% if colour.follows %}
-          <label class="check colour-follow">
-            <input type="checkbox" name="follow.{{ mode }}.{{ colour.name }}" value="1"
-                   data-follow="{{ colour.name }}" data-mode="{{ mode }}" {% if not own %}checked{% endif %}>
-            Same as {{ colour_by_name[colour.follows].label | lower }}
-          </label>
-          {% endif %}
-          <button class="btn btn-quiet colour-reset" type="button" data-reset="{{ colour.name }}"
-                  data-mode="{{ mode }}" hidden>Reset</button>
-        </div>
-        {% endfor %}
+        {% for colour in colours %}{{ colour_row(colour, mode, current, colour_by_name) }}{% endfor %}
       </details>
       {% endfor %}
     </fieldset>
@@ -186,7 +204,13 @@
 
   {# A small page made of the app's own parts. theming.js sets every variable
      on it as you change things, so it shows the theme before it is saved. #}
-  <div class="theme-scope theme-sample" id="theme-preview">
+  <div class="theme-scope theme-sample" id="theme-preview"
+       {% for name, value in theme.attributes if name != 'data-mode' %} {{ name }}="{{ value }}"{% endfor %}>
+    {# Every set of plants, drawn small; the preview shows the one the form
+       has chosen (theming.css), so changing it needs no trip to the server. #}
+    <div class="sample-edges garden-art garden-edges" aria-hidden="true">
+      {% for set in drawing_sets %}<div class="sample-art-set" data-set="{{ set }}">{{ edges(set) }}</div>{% endfor %}
+    </div>
     <div class="sample-bar">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -198,7 +222,10 @@
       <span class="sample-tab sample-tab-on">Feeds</span><span class="sample-tab">Settings</span>
     </div>
 
-    <h1 class="sample-title">Up next</h1>
+    <div class="sample-heading">
+      {% for set in drawing_sets %}<span class="sample-art-set" data-set="{{ set }}">{{ heading_art(set, 'h-12 w-8') }}</span>{% endfor %}
+      <h1 class="sample-title">Up next</h1>
+    </div>
     <div class="stats">
       <span class="stat stat-channels"><span class="stat-value">24</span><span class="stat-label">channels</span></span>
       <span class="stat stat-queued"><span class="stat-value">128</span><span class="stat-label">queued</span></span>

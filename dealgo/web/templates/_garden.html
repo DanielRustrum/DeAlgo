@@ -1,6 +1,12 @@
 {# The botanical drawings: inline SVG, coloured by Tailwind's fill and stroke
-   utilities so they follow the palette in tokens.css. All of them are
-   decoration — aria-hidden, and never the only way to learn anything.
+   utilities so they follow the palette in tokens.css — the drawing colours
+   (--art-*), which an account may change under Settings → Theming. All of
+   them are decoration — aria-hidden, and never the only way to learn anything.
+
+   Four sets of plants: garden, meadow, fern and blossom. `edges(set)` is what
+   grows at the page's edges and `heading_art(set)` what stands beside a
+   page's heading; the theme says which set, and backdrop.css where they grow
+   and how big.
 
    Leaves are one shape, drawn once in base.html as #g-leaf and placed with
    <use>, which takes its fill from the class on the <use>. #}
@@ -16,7 +22,7 @@
 {%- endmacro %}
 
 {# A leafy stem, 120 × 200. #}
-{% macro sprig(classes='', leaf='fill-leaf', stem='stroke-forest') -%}
+{% macro sprig(classes='', leaf='fill-art-leaf', stem='stroke-art-stem') -%}
 <svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
   <path class="{{ stem }}" d="M60 198C55 140 68 80 60 12" fill="none" stroke-width="2.5" stroke-linecap="round"/>
   {% for y, side in [(170, 'r'), (148, 'l'), (122, 'r'), (98, 'l'), (72, 'r'), (50, 'l'), (30, 'r')] %}
@@ -30,13 +36,127 @@
 {# A stem of round terracotta and ochre leaves, 120 × 200. #}
 {% macro bloom(classes='') -%}
 <svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
-  <path class="stroke-forest" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="2.5" stroke-linecap="round"/>
-  <path class="stroke-forest" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2" stroke-linecap="round"/>
-  <ellipse class="fill-accent" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
-  <ellipse class="fill-ochre" cx="91" cy="60" rx="12" ry="16" transform="rotate(24 91 60)"/>
-  <ellipse class="fill-peach" cx="64" cy="30" rx="14" ry="18"/>
-  <ellipse class="fill-accent" cx="76" cy="138" rx="9" ry="12" transform="rotate(40 76 138)"/>
+  <path class="stroke-art-stem" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+  <path class="stroke-art-stem" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2" stroke-linecap="round"/>
+  <ellipse class="fill-art-bloom" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
+  <ellipse class="fill-art-bloom-2" cx="91" cy="60" rx="12" ry="16" transform="rotate(24 91 60)"/>
+  <ellipse class="fill-art-bloom-3" cx="64" cy="30" rx="14" ry="18"/>
+  <ellipse class="fill-art-bloom" cx="76" cy="138" rx="9" ry="12" transform="rotate(40 76 138)"/>
 </svg>
+{%- endmacro %}
+
+{# Five petals round a centre, `r` the length of a petal. #}
+{% macro flower(cx, cy, r, petal='fill-art-bloom-3', centre='fill-art-bloom-2') -%}
+<g transform="translate({{ cx }} {{ cy }})">
+  {% for turn in range(0, 360, 72) %}
+  <ellipse class="{{ petal }}" cx="0" cy="{{ -r * 0.6 }}" rx="{{ r * 0.42 }}" ry="{{ r * 0.62 }}" transform="rotate({{ turn }})"/>
+  {% endfor %}
+  <circle class="{{ centre }}" r="{{ r * 0.36 }}"/>
+</g>
+{%- endmacro %}
+
+{# A tuft of grass, 120 × 200: blades of two greens with a few stalks. #}
+{% macro grass(classes='', mirror=false) -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <g fill="none" stroke-linecap="round" {% if mirror %}transform="translate(120 0) scale(-1 1)"{% endif %}>
+    {% for d, colour, width in [
+      ('M56 200C50 170 36 150 14 140', 'stroke-art-leaf-soft', 2.5),
+      ('M68 200C74 172 88 156 108 150', 'stroke-art-leaf-soft', 2.5),
+      ('M60 200C58 160 52 120 34 84', 'stroke-art-leaf', 3),
+      ('M64 200C66 150 72 110 92 70', 'stroke-art-leaf', 3),
+      ('M62 200C62 150 60 100 63 40', 'stroke-art-leaf', 3),
+      ('M58 200C52 160 44 130 46 96', 'stroke-art-stem', 2),
+      ('M66 200C72 166 80 140 78 110', 'stroke-art-stem', 2),
+    ] %}
+    <path class="{{ colour }}" d="{{ d }}" stroke-width="{{ width }}"/>
+    {% endfor %}
+  </g>
+</svg>
+{%- endmacro %}
+
+{# Three wildflowers on thin stems, 120 × 200. #}
+{% macro wildflowers(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <path class="stroke-art-stem" d="M40 200C42 160 36 120 40 82M72 200C70 150 80 110 74 58M98 200C96 170 102 140 98 118"
+        fill="none" stroke-width="2" stroke-linecap="round"/>
+  <use href="#g-leaf" class="fill-art-leaf" transform="translate(40 160) rotate(-40) scale(.5)"/>
+  <use href="#g-leaf" class="fill-art-leaf-soft" transform="translate(73 130) rotate(220) scale(.55)"/>
+  <use href="#g-leaf" class="fill-art-leaf" transform="translate(99 172) rotate(-50) scale(.4)"/>
+  {{ flower(40, 80, 14, 'fill-art-bloom-3', 'fill-art-bloom-2') }}
+  {{ flower(74, 56, 17, 'fill-art-bloom', 'fill-art-bloom-2') }}
+  {{ flower(98, 116, 11, 'fill-art-bloom-2', 'fill-art-bloom') }}
+</svg>
+{%- endmacro %}
+
+{# An arching fern frond, 120 × 200: one stem, leaflets shrinking to the tip. #}
+{% macro fern(classes='', leaf='fill-art-leaf') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <path class="stroke-art-stem" d="M50 198C48 150 54 92 78 22" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+  {% for step in range(13) %}
+  {% set y = 184 - step * 12.5 %}
+  {% set x = 49 + (step / 12) ** 2 * 26 %}
+  {% set size = 0.62 - step * 0.038 %}
+  <use href="#g-leaf" class="{{ leaf }}" transform="translate({{ x }} {{ y }}) rotate({{ -18 - step * 2 }}) scale({{ size }})"/>
+  <use href="#g-leaf" class="{{ leaf }}" transform="translate({{ x }} {{ y }}) rotate({{ 198 - step * 2 }}) scale({{ size }})"/>
+  {% endfor %}
+  <use href="#g-leaf" class="{{ leaf }}" transform="translate(77 26) rotate(-72) scale(.3)"/>
+</svg>
+{%- endmacro %}
+
+{# A flowering branch, 160 × 200: twigs, a few leaves, blossom and a bud. #}
+{% macro branch(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 160 200" aria-hidden="true" focusable="false">
+  <g class="stroke-art-stem" fill="none" stroke-linecap="round">
+    <path d="M8 198C40 150 72 118 122 40" stroke-width="4"/>
+    <path d="M64 128C82 118 102 114 128 110" stroke-width="2.5"/>
+    <path d="M42 156C38 132 30 114 16 98" stroke-width="2"/>
+    <path d="M96 86C104 72 104 62 100 52" stroke-width="2"/>
+  </g>
+  <use href="#g-leaf" class="fill-art-leaf" transform="translate(84 106) rotate(-70) scale(.55)"/>
+  <use href="#g-leaf" class="fill-art-leaf-soft" transform="translate(56 136) rotate(160) scale(.5)"/>
+  <use href="#g-leaf" class="fill-art-leaf" transform="translate(112 62) rotate(10) scale(.45)"/>
+  {{ flower(122, 40, 20) }}
+  {{ flower(128, 110, 17) }}
+  {{ flower(16, 96, 15, 'fill-art-bloom', 'fill-art-bloom-2') }}
+  {{ flower(100, 50, 12) }}
+  <circle class="fill-art-bloom" cx="70" cy="100" r="5"/>
+</svg>
+{%- endmacro %}
+
+{# What grows at the page's edges, for one set: a piece or two standing in
+   the bottom-left corner and one at the right. Placed by base.html's fixed
+   layer; each piece is .garden-edge, so backdrop.css can size it and hide a
+   side. A piece standing in a corner grows from that corner; one hanging
+   upside down turns and grows about its middle, since turned about a corner
+   it would swing off the page. #}
+{% macro edges(set='garden') -%}
+{% set left = 'garden-edge garden-edge-left origin-bottom-left absolute ' %}
+{% set right = 'garden-edge garden-edge-right absolute ' %}
+{% if set == 'meadow' %}
+  {{ grass(left ~ '-bottom-2 -left-4 h-56 w-36 opacity-80') }}
+  {{ wildflowers(left ~ '-bottom-2 left-20 h-52 w-32 opacity-90') }}
+  {{ grass(right ~ 'origin-bottom-right -bottom-2 -right-4 h-48 w-32 opacity-60', mirror=true) }}
+{% elif set == 'fern' %}
+  {{ fern(left ~ '-bottom-4 -left-4 h-72 w-44 opacity-75') }}
+  {{ fern(left ~ '-bottom-6 left-20 h-48 w-28 opacity-50', leaf='fill-art-leaf-soft') }}
+  {{ fern(right ~ '-right-6 top-20 h-64 w-40 rotate-[200deg] opacity-45', leaf='fill-art-leaf-soft') }}
+{% elif set == 'blossom' %}
+  {{ branch(left ~ '-bottom-4 -left-6 h-64 w-52 opacity-85') }}
+  {{ branch(right ~ '-right-8 top-20 h-56 w-44 rotate-[190deg] opacity-50') }}
+{% else %}
+  {{ sprig(left ~ '-bottom-4 -left-2 h-64 w-40 opacity-70') }}
+  {{ bloom(left ~ '-bottom-6 left-20 h-48 w-28 opacity-80') }}
+  {{ sprig(right ~ '-right-6 top-24 h-56 w-36 rotate-[200deg] opacity-40', leaf='fill-art-leaf-soft') }}
+{% endif %}
+{%- endmacro %}
+
+{# What stands beside a page's heading, for one set. #}
+{% macro heading_art(set='garden', classes='') -%}
+{% set classes = 'garden-heading ' ~ classes %}
+{% if set == 'meadow' %}{{ wildflowers(classes) }}
+{% elif set == 'fern' %}{{ fern(classes) }}
+{% elif set == 'blossom' %}{{ branch(classes) }}
+{% else %}{{ sprig(classes) }}{% endif %}
 {%- endmacro %}
 
 {# The large drawing: a sage hill under a peach sun, with plants either side.
@@ -48,33 +168,34 @@
   <path class="fill-sage" d="M30 262c80-58 196-64 340-22v30c-110 26-230 26-340 6Z"/>
   <path class="fill-leaf" opacity=".55" d="M150 266c50-30 120-34 200-16v18c-70 14-140 14-200 6Z"/>
   <g transform="translate(70 92) scale(.95)">
-    <path class="stroke-forest" d="M60 198C55 140 68 80 60 12" fill="none" stroke-width="3" stroke-linecap="round"/>
+    <path class="stroke-art-stem" d="M60 198C55 140 68 80 60 12" fill="none" stroke-width="3" stroke-linecap="round"/>
     {% for y, side in [(170, 'r'), (148, 'l'), (122, 'r'), (98, 'l'), (72, 'r'), (50, 'l'), (30, 'r')] %}
-    <use href="#g-leaf" class="fill-forest"
+    <use href="#g-leaf" class="fill-art-leaf"
          transform="translate({{ 61 if side == 'r' else 59 }} {{ y }}) rotate({{ -32 if side == 'r' else 212 }}) scale({{ 1.2 - loop.index0 * 0.08 }})"/>
     {% endfor %}
   </g>
   <g transform="translate(236 104) scale(.85)">
-    <path class="stroke-forest" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="3" stroke-linecap="round"/>
-    <path class="stroke-forest" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2.5" stroke-linecap="round"/>
-    <ellipse class="fill-accent" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
-    <ellipse class="fill-ochre" cx="91" cy="60" rx="12" ry="16" transform="rotate(24 91 60)"/>
-    <ellipse class="fill-accent" cx="64" cy="30" rx="14" ry="18"/>
-    <ellipse class="fill-peach" cx="76" cy="138" rx="9" ry="12" transform="rotate(40 76 138)"/>
+    <path class="stroke-art-stem" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="3" stroke-linecap="round"/>
+    <path class="stroke-art-stem" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse class="fill-art-bloom" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
+    <ellipse class="fill-art-bloom-2" cx="91" cy="60" rx="12" ry="16" transform="rotate(24 91 60)"/>
+    <ellipse class="fill-art-bloom" cx="64" cy="30" rx="14" ry="18"/>
+    <ellipse class="fill-art-bloom-3" cx="76" cy="138" rx="9" ry="12" transform="rotate(40 76 138)"/>
   </g>
-  <use href="#g-leaf" class="fill-accent" transform="translate(196 70) rotate(-140) scale(.5)"/>
+  <use href="#g-leaf" class="fill-art-bloom" transform="translate(196 70) rotate(-140) scale(.5)"/>
   <use href="#g-leaf" class="fill-leaf" transform="translate(352 150) rotate(-60) scale(.55)"/>
   <use href="#g-leaf" class="fill-peach" transform="translate(40 150) rotate(-120) scale(.5)"/>
 </svg>
 {%- endmacro %}
 
 {# A page's own heading: a title in the display face, a line about it, and a
-   sprig beside them. `caller()`, when given, is whatever sits on the right —
+   plant beside them — the theme's set, so this is imported `with context`.
+   `caller()`, when given, is whatever sits on the right —
    a button that belongs to the whole page. #}
 {% macro page_head(title, lede='') -%}
 <header class="relative mb-6 flex items-end justify-between gap-4 phone:mb-4">
   <div class="flex items-end gap-3">
-    {{ sprig('h-16 w-10 shrink-0 -mb-1 phone:hidden') }}
+    {{ heading_art(theme.drawings if theme is defined else 'garden', 'h-16 w-10 shrink-0 -mb-1 phone:hidden') }}
     <div>
       <h1 class="m-0 text-[length:calc(34px*var(--text-scale))] leading-tight phone:text-[length:calc(26px*var(--text-scale))]">{{ title }}</h1>
       {% if lede %}<p class="m-0 mt-1 text-[length:calc(14.5px*var(--text-scale))] text-muted">{{ lede }}</p>{% endif %}

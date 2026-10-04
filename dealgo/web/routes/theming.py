@@ -26,6 +26,7 @@ from ...services.theming.tokens import (
     FONTS,
     GROUPS,
     MODES,
+    SECTION_COLOURS,
     SETTING_GROUPS,
     SHADOW,
 )
@@ -43,6 +44,8 @@ PARTS = {
     "page": "Light or dark, movement and decoration are back as De-Algo comes.",
     "type": "The type is back as De-Algo comes.",
     "shape": "Corners, spacing, shadows and the focus ring are back as De-Algo comes.",
+    "background": "The background is back as De-Algo comes.",
+    "drawings": "The drawings are back as De-Algo comes.",
 }
 
 
@@ -65,6 +68,8 @@ def _script_data(theme: Theme) -> dict[str, Any]:
             for d in DIALS
         ],
         "fonts": {key: stack for key, (_, stack) in FONTS.items()},
+        # The choices the preview mirrors as data-* on itself, as the page does.
+        "choices": [c.name for c in CHOICES if c.attribute and c.name != "mode"],
         "pairs": [
             {"ink": p.ink, "ground": p.ground, "minimum": p.minimum, "where": p.where}
             for p in contrast.PAIRS
@@ -89,7 +94,8 @@ def theming_page(request: Request) -> HTMLResponse:
     """The Theming page: presets, every setting, a live preview and a contrast check."""
     current = store.load(owner_of(request))
     groups = [
-        (group, [c for c in COLOURS if c.group == group.key]) for group in GROUPS
+        (group, [c for c in COLOURS if c.group == group.key])
+        for group in GROUPS if group.key not in SECTION_COLOURS
     ]
     settings = [
         (
@@ -99,6 +105,8 @@ def theming_page(request: Request) -> HTMLResponse:
                 (d, current.dial(d.name), _shown(current.dial(d.name), d.show))
                 for d in DIALS if d.group == group.key
             ],
+            # Background and drawings carry their own colours with them.
+            [c for c in COLOURS if c.group == group.key],
         )
         for group in SETTING_GROUPS
     ]
@@ -175,6 +183,11 @@ def reset_part(request: Request, part: str = Form("all")) -> RedirectResponse:
         }
         data["dials"] = {k: v for k, v in data.get("dials", {}).items() if k not in group}
         data["choices"] = {k: v for k, v in data.get("choices", {}).items() if k not in group}
+        # A section's own colours go back with it.
+        data["colours"] = {
+            mode: {k: v for k, v in values.items() if COLOUR_BY_NAME[k].group != part}
+            for mode, values in data.get("colours", {}).items()
+        }
     store.save(owner, parse(data))
     return redirect(PAGE, ok=PARTS[part])
 

@@ -388,3 +388,86 @@ def test_a_backup_carries_the_theme_and_a_restore_brings_it_back(site):
 
     assert "your+theme" in restored.headers["location"]
     assert store.load(accounts_id(site, MEMBER[0])).colours["light"] == {"accent": "#112233"}
+
+
+# -- background and drawings ----------------------------------------------------
+
+
+def test_every_choice_but_the_typefaces_reaches_the_page_when_changed():
+    theme = parse({"choices": {
+        "background": "gradient", "pattern": "grid", "wash-at": "sides",
+        "background-moves": "scrolls", "drawings": "fern", "illustrations": "edges",
+        "drawings-side": "left", "font-body": "mono",
+    }})
+    page = page_theme(theme)
+
+    assert dict(page.attributes) == {
+        "data-background": "gradient", "data-pattern": "grid", "data-wash-at": "sides",
+        "data-background-moves": "scrolls", "data-drawings": "fern",
+        "data-illustrations": "edges", "data-drawings-side": "left",
+    }
+    assert page.drawings == "fern"
+
+
+def test_every_attribute_a_theme_can_set_has_a_rule_in_the_stylesheet():
+    """A choice with no rule behind it would be a setting that does nothing."""
+    backdrop = (BASE_DIR / "styles" / "backdrop.css").read_text(encoding="utf-8")
+    theming_css = (BASE_DIR / "styles" / "theming.css").read_text(encoding="utf-8")
+    handled_elsewhere = {"mode", "motion", "drawings"}
+    for choice in CHOICES:
+        if not choice.attribute or choice.name in handled_elsewhere:
+            continue
+        for option in choice.options:
+            if option.key == choice.default:
+                continue
+            assert f'[data-{choice.name}="{option.key}"]' in backdrop, (choice.name, option.key)
+    for option in [c for c in CHOICES if c.name == "drawings"][0].options:
+        assert f'[data-drawings="{option.key}"]' in theming_css
+
+
+@pytest.mark.parametrize("plants", ["garden", "meadow", "fern", "blossom"])
+def test_each_set_of_plants_is_drawn_at_the_edges_and_beside_headings(site, plants):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming", data={"drawings": plants})
+    page = sam.get("/settings").text
+
+    edges = page.split('class="garden-art garden-edges', 1)[1].split("</div>", 1)[0]
+    assert "garden-edge-left" in edges and "garden-edge-right" in edges
+    heading = page.split("<header class=\"relative mb-6", 1)[1].split("</header>", 1)[0]
+    assert "garden-heading" in heading
+    # Coloured by the drawing tokens, not the palette's own.
+    assert "art-" in edges and "fill-leaf" not in edges
+
+
+def test_the_drawings_are_coloured_by_their_own_tokens_which_follow_the_garden():
+    theme = parse({"colours": {"light": {"leaf": "#123456"}}})
+    assert theme.colour("light", "art-leaf") == "#123456"
+    own = parse({"colours": {"light": {"leaf": "#123456", "art-leaf": "#abcdef"}}})
+    assert own.colour("light", "art-leaf") == "#abcdef"
+
+
+def test_resetting_a_section_takes_its_colours_with_it(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming", data={
+        "drawings": "meadow", "art-size": "1.4", "light.art-leaf": "#123456",
+        "follow.light.art-leaf": "", "light.accent": "#112233",
+    })
+    owner = accounts_id(site, MEMBER[0])
+    assert store.load(owner).colours["light"] == {"art-leaf": "#123456", "accent": "#112233"}
+
+    sam.post("/settings/theming/reset", data={"part": "drawings"})
+    theme = store.load(owner)
+    assert theme.colours["light"] == {"accent": "#112233"}
+    assert theme.dials == {} and theme.choices == {}
+
+
+def test_the_theming_page_has_the_background_and_drawings_sections(site):
+    page = signed_in(site, MEMBER).get("/settings/theming").text
+    for name in ("background", "pattern", "wash-at", "drawings", "illustrations",
+                 "drawings-side", "wash-size", "pattern-size", "art-size", "art-opacity"):
+        assert f'name="{name}"' in page, name
+    # Their colours live in their sections, day beside night.
+    assert page.count('name="light.wash-1"') == 1 and 'name="dark.art-bloom"' in page
+    # And the preview carries every set, to show whichever is chosen.
+    for plants in ("garden", "meadow", "fern", "blossom"):
+        assert f'data-set="{plants}"' in page

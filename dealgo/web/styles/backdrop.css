@@ -1,0 +1,101 @@
+/* What lies behind everything: the page's background, and the plants drawn
+   at its edges and beside headings.
+
+   Both are built from the theme. The background is four layers, top to
+   bottom: a pattern, two lights and the ground. Each is a variable, so a
+   theme's choices (data-* on the root, from services/theming) swap a layer
+   rather than restyling the body, and the colours and dials inside them are
+   ordinary tokens.
+
+   Declared on .theme-scope as well as the root, like the shapes in
+   tokens.css, so the Theming preview builds its own from its own values. */
+
+:root,
+.theme-scope {
+  /* Where the two lights sit. */
+  --wash-a-at: 105% -8%;
+  --wash-b-at: -8% 108%;
+
+  /* The strength of a pattern's ink: the pattern colour, thinned. */
+  --pattern-ink: color-mix(in oklab, var(--pattern) calc(100% * var(--pattern-strength)), transparent);
+
+  --layer-wash-a: radial-gradient(
+    calc(60rem * var(--wash-size)) calc(40rem * var(--wash-size)) at var(--wash-a-at),
+    color-mix(in oklab, var(--wash-1) calc(30% * var(--wash)), transparent), transparent 62%);
+  --layer-wash-b: radial-gradient(
+    calc(50rem * var(--wash-size)) calc(36rem * var(--wash-size)) at var(--wash-b-at),
+    color-mix(in oklab, var(--wash-2) calc(26% * var(--wash)), transparent), transparent 62%);
+  --layer-ground: linear-gradient(var(--bg), var(--bg));
+  /* No pattern: a layer that paints nothing, so the list keeps its shape. */
+  --layer-pattern: linear-gradient(transparent, transparent);
+}
+
+/* -- where the light falls ---------------------------------------------- */
+
+:is(:root, .theme-scope)[data-wash-at="top"] { --wash-a-at: 18% -14%; --wash-b-at: 82% -14%; }
+:is(:root, .theme-scope)[data-wash-at="bottom"] { --wash-a-at: 82% 114%; --wash-b-at: 18% 114%; }
+:is(:root, .theme-scope)[data-wash-at="sides"] { --wash-a-at: 108% 40%; --wash-b-at: -8% 60%; }
+
+/* -- what kind of background ---------------------------------------------- */
+
+/* One light, from above the page, in the first light's colour. */
+:is(:root, .theme-scope)[data-background="glow"] {
+  --layer-wash-a: radial-gradient(
+    calc(80rem * var(--wash-size)) calc(40rem * var(--wash-size)) at 50% -16%,
+    color-mix(in oklab, var(--wash-1) calc(38% * var(--wash)), transparent), transparent 66%);
+  --layer-wash-b: linear-gradient(transparent, transparent);
+}
+:is(:root, .theme-scope)[data-background="gradient"] {
+  --layer-wash-a: linear-gradient(transparent, transparent);
+  --layer-wash-b: linear-gradient(transparent, transparent);
+  --layer-ground: linear-gradient(180deg, var(--bg), var(--bg-end));
+}
+:is(:root, .theme-scope)[data-background="plain"] {
+  --layer-wash-a: linear-gradient(transparent, transparent);
+  --layer-wash-b: linear-gradient(transparent, transparent);
+}
+
+/* -- a pattern over it ---------------------------------------------------- */
+
+:is(:root, .theme-scope)[data-pattern="dots"] {
+  --layer-pattern: radial-gradient(circle, var(--pattern-ink) 0 1.5px, transparent 2px)
+    0 0 / var(--pattern-size) var(--pattern-size);
+}
+/* Two layers in one: the rows, then the columns. */
+:is(:root, .theme-scope)[data-pattern="grid"] {
+  --layer-pattern: linear-gradient(var(--pattern-ink) 1px, transparent 1px)
+    0 0 / var(--pattern-size) var(--pattern-size),
+    linear-gradient(90deg, var(--pattern-ink) 1px, transparent 1px)
+    0 0 / var(--pattern-size) var(--pattern-size);
+}
+:is(:root, .theme-scope)[data-pattern="lines"] {
+  --layer-pattern: repeating-linear-gradient(
+    45deg, var(--pattern-ink) 0 1px, transparent 1px var(--pattern-size));
+}
+
+:root[data-background-moves="scrolls"] body { background-attachment: scroll; }
+
+/* -- the drawings ----------------------------------------------------------
+
+   The plants at the edges (.garden-edges, in base.html) and beside headings
+   (.garden-heading, in page_head). Which plants is decided when the page is
+   drawn; where they grow, how big and how strong is decided here.
+
+   The root's rules leave the Theming preview alone (:not(.theme-scope *)):
+   it shows what the form says, not what was saved. */
+
+.garden-edges { opacity: var(--art-opacity); }
+/* Grown from the corner each one stands in, so a bigger plant still stands
+   there. Individual transforms, so a piece's own rotate- still applies. */
+.garden-edge { scale: var(--art-size); }
+
+:root[data-illustrations="off"] .garden-art:not(.theme-scope *),
+:root[data-illustrations="edges"] .garden-heading:not(.theme-scope *),
+:root[data-illustrations="headings"] .garden-edges:not(.theme-scope *),
+:root[data-drawings-side="left"] .garden-edge-right:not(.theme-scope *),
+:root[data-drawings-side="right"] .garden-edge-left:not(.theme-scope *),
+.theme-scope[data-illustrations="off"] .garden-art,
+.theme-scope[data-illustrations="edges"] .garden-heading,
+.theme-scope[data-illustrations="headings"] .garden-edges,
+.theme-scope[data-drawings-side="left"] .garden-edge-right,
+.theme-scope[data-drawings-side="right"] .garden-edge-left { display: none; }

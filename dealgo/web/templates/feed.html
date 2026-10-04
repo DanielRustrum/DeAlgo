@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import search %}
-{% from "_garden.html" import page_head %}
+{% from "_garden.html" import page_head with context %}
 {% block title %}De-Algo — Feed{% endblock %}
 {% block content %}
 {{ page_head('Your feed', 'Everything waiting to be watched, in the order it was published.') }}

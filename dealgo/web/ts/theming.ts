@@ -40,6 +40,7 @@ interface ThemingData {
   fonts: Record<string, string>;
   pairs: ThemingPair[];
   shadow: Record<string, number[]>;
+  choices: string[];
 }
 
 type ThemingMode = "light" | "dark";
@@ -63,6 +64,14 @@ function themingInput(form: HTMLFormElement, name: string): HTMLInputElement | n
 function themingSelect(form: HTMLFormElement, name: string): HTMLSelectElement | null {
   const found = form.elements.namedItem(name);
   return found instanceof HTMLSelectElement ? found : null;
+}
+
+/** What a choice is set to: a list's value, or the ticked radio's. */
+function themingChoice(form: HTMLFormElement, name: string): string | null {
+  const select = themingSelect(form, name);
+  if (select) return select.value;
+  const ticked = form.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`);
+  return ticked ? ticked.value : null;
 }
 
 /** Whether a colour that follows another is, in one mode, still following it. */
@@ -216,6 +225,13 @@ function themingApply(data: ThemingData, form: HTMLFormElement): void {
     const select = themingSelect(form, name);
     const stack = select ? data.fonts[select.value] : undefined;
     if (preview && stack) preview.style.setProperty(`--${name}`, stack);
+  }
+
+  // The choices the stylesheet acts on, set on the preview as the page sets
+  // them on its root: the background, the pattern, which plants and where.
+  for (const name of data.choices) {
+    const value = themingChoice(form, name);
+    if (preview && value !== null) preview.setAttribute(`data-${name}`, value);
   }
 
   if (preview) preview.dataset["mode"] = mode;

@@ -84,6 +84,9 @@ class Choice:
     default: str
     options: tuple[Option, ...]
     about: str = ""
+    #: Put on <html> as data-<name> when not the default, for the stylesheet
+    #: to act on. The typefaces are not: they are variables instead.
+    attribute: bool = True
 
     def keys(self) -> tuple[str, ...]:
         return tuple(option.key for option in self.options)
@@ -98,6 +101,8 @@ GROUPS: tuple[Group, ...] = (
     Group("stats", "Stat blocks", "The quiet block on the dashboard."),
     Group("canvas", "Canvas boxes", "One colour per kind of box on the Configuration canvas."),
     Group("plugins", "Plugin colours", "The seven colours a plugin may give its sources."),
+    Group("background", "Background", "The light and pattern on the page behind everything."),
+    Group("drawings", "Drawings", "The plants at the page's edges and beside headings."),
 )
 
 COLOURS: tuple[Colour, ...] = (
@@ -161,6 +166,26 @@ COLOURS: tuple[Colour, ...] = (
     Colour("plugin-slate", "Slate", "plugins", "#5b6b78", "#a5b3bf"),
     Colour("on-plugin", "On a plugin colour", "plugins", "#ffffff", "#131d1a",
            "The initial on a plugin's mark."),
+    Colour("wash-1", "First light", "background", "#9fb8a1", None,
+           "The wash in the first corner, or the glow.", follows="sage"),
+    Colour("wash-2", "Second light", "background", "#f2b196", None,
+           "The wash in the other corner.", follows="peach"),
+    Colour("bg-end", "Gradient's end", "background", "#f2e8da", "#22332e",
+           "Where a gradient background fades to.", follows="panel-2"),
+    Colour("pattern", "Pattern", "background", "#e6d8c4", "#2f443d",
+           "The dots, grid or lines.", follows="line"),
+    Colour("art-stem", "Stems", "drawings", "#23413a", "#2e544b",
+           "Stems, branches and stalks.", follows="forest"),
+    Colour("art-leaf", "Leaves", "drawings", "#5f8a6a", None,
+           "Leaves, blades and fronds.", follows="leaf"),
+    Colour("art-leaf-soft", "Soft leaves", "drawings", "#9fb8a1", None,
+           "The paler leaves, further back.", follows="sage"),
+    Colour("art-bloom", "Flowers", "drawings", "#c04f2c", "#ee7a4f",
+           "The boldest flowers.", follows="accent"),
+    Colour("art-bloom-2", "Second flowers", "drawings", "#e3a24a", None,
+           "Flower centres and the next colour along.", follows="ochre"),
+    Colour("art-bloom-3", "Third flowers", "drawings", "#f2b196", None,
+           "Petals and the softest flowers.", follows="peach"),
 )
 
 COLOUR_BY_NAME = {colour.name: colour for colour in COLOURS}
@@ -183,8 +208,18 @@ DIALS: tuple[Dial, ...] = (
          about="How far raised things lift off the page."),
     Dial("focus-width", "Focus ring", "shape", 2, 2, 5, 1, unit="px",
          about="How thick the ring around the keyboard's place is.", show="px"),
-    Dial("wash", "Background wash", "page", 1, 0, 1.5, 0.1,
-         about="The sage and peach light at the page's corners."),
+    Dial("wash", "Strength of the light", "background", 1, 0, 1.5, 0.1,
+         about="How strongly the wash or glow shows: 0 is plain paper."),
+    Dial("wash-size", "Spread of the light", "background", 1, 0.5, 1.8, 0.1,
+         about="How far the wash or glow reaches across the page."),
+    Dial("pattern-size", "Pattern size", "background", 24, 12, 48, 2, unit="px",
+         about="How far apart the dots, lines or squares are.", show="px"),
+    Dial("pattern-strength", "Pattern strength", "background", 0.6, 0.1, 1, 0.05,
+         about="How strongly the pattern shows."),
+    Dial("art-size", "Size", "drawings", 1, 0.6, 1.6, 0.1,
+         about="How big the plants at the edges are."),
+    Dial("art-opacity", "Strength", "drawings", 1, 0.2, 1, 0.05,
+         about="How strongly they show against the page."),
 )
 
 DIAL_BY_NAME = {dial.name: dial for dial in DIALS}
@@ -219,24 +254,66 @@ CHOICES: tuple[Choice, ...] = (
         Option("dark", "Always dark"),
     )),
     Choice("font-body", "Body typeface", "type", "dm-sans", _FONT_OPTIONS,
-           about="Everything but headings."),
+           about="Everything but headings.", attribute=False),
     Choice("font-display", "Heading typeface", "type", "fraunces", _FONT_OPTIONS,
-           about="Page and panel titles, big numbers, the name in the corner."),
+           about="Page and panel titles, big numbers, the name in the corner.",
+           attribute=False),
     Choice("motion", "Movement", "page", "device", (
         Option("device", "As my device prefers"),
         Option("reduce", "As little as possible"),
     ), about="Slides, fades and lifts."),
-    Choice("illustrations", "Drawings", "page", "on", (
-        Option("on", "Show the plants"),
-        Option("off", "Hide them"),
-    ), about="The plants at the edges of the page and beside headings."),
+    Choice("background", "Background", "background", "wash", (
+        Option("wash", "Light in two corners"),
+        Option("glow", "A glow from above"),
+        Option("gradient", "A gradient, top to bottom"),
+        Option("plain", "Plain"),
+    ), about="What lies behind the panels."),
+    Choice("wash-at", "Where the light falls", "background", "corners", (
+        Option("corners", "Top right and bottom left"),
+        Option("top", "Along the top"),
+        Option("bottom", "Along the bottom"),
+        Option("sides", "Either side"),
+    ), about="For light in two corners."),
+    Choice("pattern", "Pattern", "background", "none", (
+        Option("none", "None"),
+        Option("dots", "Dots"),
+        Option("grid", "Grid"),
+        Option("lines", "Diagonal lines"),
+    ), about="Laid over the light, under everything else."),
+    Choice("background-moves", "When the page scrolls", "background", "still", (
+        Option("still", "The background stays put"),
+        Option("scrolls", "It scrolls with the page"),
+    )),
+    Choice("drawings", "Plants", "drawings", "garden", (
+        Option("garden", "Garden: leafy sprigs and round blooms"),
+        Option("meadow", "Meadow: grasses and wildflowers"),
+        Option("fern", "Fern: arching fronds"),
+        Option("blossom", "Blossom: a flowering branch"),
+    ), about="Which plants are drawn."),
+    Choice("illustrations", "Where they grow", "drawings", "on", (
+        Option("on", "At the edges and beside headings"),
+        Option("edges", "At the edges only"),
+        Option("headings", "Beside headings only"),
+        Option("off", "Nowhere"),
+    ), about="The edges are left bare on narrow screens, where they would sit under the text."),
+    Choice("drawings-side", "Which edges", "drawings", "both", (
+        Option("both", "Both sides"),
+        Option("left", "Left only"),
+        Option("right", "Right only"),
+    )),
 )
 
 CHOICE_BY_NAME = {choice.name: choice for choice in CHOICES}
 
 #: The headings the dials and choices are listed under, in order.
 SETTING_GROUPS: tuple[Group, ...] = (
-    Group("page", "Page", "Light or dark, movement and decoration."),
+    Group("page", "Page", "Light or dark, and movement."),
     Group("type", "Type", "Typefaces, size and spacing of text."),
     Group("shape", "Shape and space", "Corners, padding, shadows and the focus ring."),
+    Group("background", "Background",
+          "What lies behind the panels: light, a gradient or nothing, and a pattern over it."),
+    Group("drawings", "Drawings", "The plants: which, where, how big, and their colours."),
 )
+
+#: Colour groups shown in their own setting sections rather than under Colours.
+SECTION_COLOURS = ("background", "drawings")

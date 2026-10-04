@@ -33,6 +33,14 @@ function themingSelect(form, name) {
     const found = form.elements.namedItem(name);
     return found instanceof HTMLSelectElement ? found : null;
 }
+/** What a choice is set to: a list's value, or the ticked radio's. */
+function themingChoice(form, name) {
+    const select = themingSelect(form, name);
+    if (select)
+        return select.value;
+    const ticked = form.querySelector(`input[name="${name}"]:checked`);
+    return ticked ? ticked.value : null;
+}
 /** Whether a colour that follows another is, in one mode, still following it. */
 function themingFollowing(form, mode, name) {
     const box = themingInput(form, `follow.${mode}.${name}`);
@@ -192,6 +200,13 @@ function themingApply(data, form) {
         const stack = select ? data.fonts[select.value] : undefined;
         if (preview && stack)
             preview.style.setProperty(`--${name}`, stack);
+    }
+    // The choices the stylesheet acts on, set on the preview as the page sets
+    // them on its root: the background, the pattern, which plants and where.
+    for (const name of data.choices) {
+        const value = themingChoice(form, name);
+        if (preview && value !== null)
+            preview.setAttribute(`data-${name}`, value);
     }
     if (preview)
         preview.dataset["mode"] = mode;

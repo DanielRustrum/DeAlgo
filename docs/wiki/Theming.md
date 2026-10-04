@@ -27,9 +27,6 @@ Picking one replaces your changes. Your choice of light or dark stays, unless th
   sets the browser's own bar to match.
 - **Movement:** *As little as possible* stops slides, fades and lifts, even if your device doesn't
   ask for that.
-- **Drawings:** hide the plants at the edges of the page and beside headings.
-- **Background wash:** how strongly the sage and peach light shows in the page's corners. Set it to
-  0 for plain paper.
 
 ## Type
 
@@ -47,6 +44,39 @@ Picking one replaces your changes. Your choice of light or dark stays, unless th
 - **Shadows:** how far raised panels lift off the page; 0% turns shadows off.
 - **Focus ring:** how thick the ring is around whatever the keyboard is on, from 2px to 5px.
 
+## Background
+
+What lies behind the panels:
+
+- **Background:** light in two corners (as De-Algo comes), a glow from above, a gradient from top
+  to bottom, or plain.
+- **Where the light falls:** top right and bottom left, along the top, along the bottom, or either
+  side. This applies to light in two corners.
+- **Strength** and **spread of the light:** how strongly the light shows and how far it reaches.
+  Strength 0 gives plain paper.
+- **Pattern:** none, dots, a grid or diagonal lines, drawn over the light and under everything else.
+  Its **size** and **strength** have sliders of their own.
+- **When the page scrolls:** the background stays put, or scrolls with the page.
+- **Colours:** the two lights, where a gradient ends, and the pattern, by day and by night. Each
+  starts as one of the garden colours (sage, peach, the inset and the lines) until you untick
+  **Same as …**.
+
+## Drawings
+
+The plants drawn at the page's edges and beside each page's heading:
+
+- **Plants:** *Garden* (leafy sprigs and round blooms, as De-Algo comes), *Meadow* (grasses and
+  wildflowers), *Fern* (arching fronds) or *Blossom* (a flowering branch).
+- **Where they grow:** at the edges and beside headings, at the edges only, beside headings only,
+  or nowhere. Narrow screens never show the edges, where the plants would sit under the text.
+- **Which edges:** both sides, left only or right only.
+- **Size** and **strength:** how big the edge plants are, and how strongly they show.
+- **Colours:** stems, leaves, softer leaves, and three flower colours, by day and by night. Each
+  follows a garden colour until you give it its own, so changing the leaf colour under
+  Colours changes the drawn leaves too, unless you have set theirs.
+
+**Reset** on Background or Drawings also puts back that section's colours.
+
 ## Colours
 
 Every colour De-Algo paints with, in two sets: **By day** and **By night**. Switching between the
@@ -60,6 +90,8 @@ two tabs also switches the preview. The colours are grouped:
 - **Stat blocks:** the quiet block on the dashboard.
 - **Canvas boxes:** one colour for each kind of box on the [canvas](The%20Configuration%20Canvas.md).
 - **Plugin colours:** the seven colours a plugin can choose for its sources, and the letter on a plugin's badge.
+
+The background's and drawings' colours are in their own sections, above.
 
 Some colours follow another one by default. The focus ring and feed boxes follow the accent, for
 example, and *green* follows the colour of source boxes. Untick **Same as …** to give one a colour of

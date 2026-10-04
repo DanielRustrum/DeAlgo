@@ -8,12 +8,10 @@
 
 body {
   margin: 0;
-  /* Paper, with a wash of sage in one corner and peach in the other. Fixed,
-     so the light stays put while the page scrolls under it. */
-  background:
-    radial-gradient(60rem 40rem at 105% -8%, color-mix(in oklab, var(--sage) calc(30% * var(--wash)), transparent), transparent 62%),
-    radial-gradient(50rem 36rem at -8% 108%, color-mix(in oklab, var(--peach) calc(26% * var(--wash)), transparent), transparent 62%),
-    var(--bg);
+  /* Paper, light and pattern, in layers that backdrop.css builds from the
+     theme. Fixed unless a theme says otherwise, so the light stays put while
+     the page scrolls under it. */
+  background: var(--layer-pattern), var(--layer-wash-a), var(--layer-wash-b), var(--layer-ground);
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-body);
