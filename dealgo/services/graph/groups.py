@@ -397,6 +397,8 @@ def move_group(
     )
     if group is None or group.kind != "group":
         raise GraphError("That node is not a group.")
+    if group.locked:
+        raise GraphError("That group is locked in place. Unlock it to move it.")
 
     carried = inside(session, group, owner)
     across, down = int(x) - group.x, int(y) - group.y
@@ -415,9 +417,21 @@ def resize(
     group = session.scalar(
         owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
     )
-    if group is None or group.kind != "group":
+    if group is None or group.kind != "group" or group.locked:
         return False
     group.width = max(GROUP_LEAST[0], int(width))
     group.height = max(GROUP_LEAST[1], int(height))
+    session.flush()
+    return True
+
+
+def lock(session: Session, node_pk: int, locked: bool, owner: OwnerId = None) -> bool:
+    """Hold a group where it is, or let it go. False if it is not a group."""
+    group = session.scalar(
+        owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+    )
+    if group is None or group.kind != "group":
+        return False
+    group.locked = locked
     session.flush()
     return True

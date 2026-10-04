@@ -132,7 +132,7 @@ def _restore_theme(
             continue
         try:
             raw = base64.b64decode(str(entry.get("data", "")), validate=True)
-            themes.put_picture(session, owner, slot, theme_images.accept(raw))
+            themes.put_picture(session, owner, slot, theme_images.accept_for(slot, raw))
         except (binascii.Error, theme_images.ImageError):
             summary.pictures_refused.append(theme_images.ALL_SLOTS[slot].lower())
     if "theme" not in payload:

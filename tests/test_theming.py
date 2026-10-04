@@ -751,3 +751,66 @@ def test_the_popular_themes_have_a_heading_of_their_own(site):
     assert 'value="garden"' in own and 'value="catppuccin"' not in own
     for preset in POPULAR:
         assert f'value="{preset.key}"' in popular
+
+
+# -- your own fonts -----------------------------------------------------------------
+
+#: The first bytes of each kind of font, padded: enough to be known by.
+FONTS_BY_KIND = {
+    "font/woff2": b"wOF2" + b"\0" * 60,
+    "font/woff": b"wOFF" + b"\0" * 60,
+    "font/ttf": b"\x00\x01\x00\x00" + b"\0" * 60,
+    "font/otf": b"OTTO" + b"\0" * 60,
+}
+
+
+@pytest.mark.parametrize("media_type", FONTS_BY_KIND)
+def test_a_font_is_known_by_its_first_bytes(media_type):
+    assert images.accept_font(FONTS_BY_KIND[media_type]).media_type == media_type
+
+
+@pytest.mark.parametrize("sent", [PNG, HOSTILE_SVG, b"<html/>", b""])
+def test_anything_that_is_not_a_font_is_refused_as_one(sent):
+    with pytest.raises(images.ImageError):
+        images.accept_font(sent)
+
+
+def test_an_uploaded_font_is_chosen_loaded_and_private(site):
+    sam = signed_in(site, MEMBER)
+    sent = sam.post("/settings/theming/image/font-display",
+                    files={"picture": ("face.woff2", FONTS_BY_KIND["font/woff2"], "font/woff2")},
+                    follow_redirects=False)
+    assert "ok=" in sent.headers["location"] and sent.headers["location"].endswith("#type")
+
+    page = sam.get("/feed").text
+    assert '@font-face {\n  font-family: "De-Algo own heading";' in page
+    assert '--font-display: "De-Algo own heading", "Fraunces Variable"' in page
+    address = re.search(r'src: url\("(/settings/picture/font-display\?v=[0-9a-f]+)"\)', page).group(1)
+    served = sam.get(address)
+    assert served.headers["content-type"] == "font/woff2"
+    assert signed_in(site, ADMIN).get(address).status_code == 404
+
+
+def test_a_picture_sent_as_a_font_is_refused(site):
+    sam = signed_in(site, MEMBER)
+    answer = sam.post("/settings/theming/image/font-body",
+                      files={"picture": ("x.woff2", PNG, "font/woff2")}, follow_redirects=False)
+    assert "err=" in answer.headers["location"]
+    assert store.versions(accounts_id(site, MEMBER[0])) == {}
+
+
+def test_choosing_ones_own_font_with_none_uploaded_keeps_the_stock_face():
+    page = page_theme(parse({"choices": {"font-body": "own"}}))
+    assert "--font-body" not in page.css and "@font-face" not in page.css
+
+
+def test_removing_ones_font_puts_the_stock_face_back(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming/image/font-body",
+             files={"picture": ("f.ttf", FONTS_BY_KIND["font/ttf"], "font/ttf")})
+    owner = accounts_id(site, MEMBER[0])
+    assert store.load(owner).choice("font-body") == "own"
+
+    sam.post("/settings/theming/image/font-body/remove")
+    assert store.load(owner).choice("font-body") == "dm-sans"
+    assert "@font-face" not in sam.get("/feed").text

@@ -10,30 +10,9 @@
    that can do something about the answer. #}
 {% include "_stats.html" %}
 
-{# Setup that is not drawable. Everything else on this page is a box and a
-   wire; these are the things that have to be true before any of it can
-   reach YouTube, and this is where somebody would be when they find out. #}
-{% if not state.can_connect %}
-{# No plugin publishes, or the one that does needs no sign-in: nothing to say. #}
-{% elif not state.has_client %}
-<div class="banner">
-  <strong>Almost there.</strong> De-Algo can already watch sources, but writing to a
-  {{ state.publisher }} playlist needs an OAuth client, which the admin sets on the
-  {{ state.publisher }} plugin's card under Admin → Plugins.
-</div>
-{% elif state.needs_reconnect %}
-<div class="banner">
-  <strong>{{ state.service }} needs you to sign in again.</strong> Items are still being queued, but
-  nothing can reach the playlist until the account is reconnected.
-  <a href="/settings#plugin-{{ state.plugin_id }}">Reconnect in Settings →</a>
-</div>
-{% elif not state.connected %}
-<div class="banner">
-  <strong>Connect your {{ state.service }} account</strong> so De-Algo can add items to a
-  {{ state.publisher }} playlist on your behalf.
-  <a href="/settings#plugin-{{ state.plugin_id }}">Connect in Settings →</a>
-</div>
-{% endif %}
+{# Setup that is not drawable — signing in to the service feeds are
+   published through — is the publishing plugin's to say, and it says it as
+   a toast on every page (web/notices.py) rather than a banner here. #}
 
 {# The canvas is the configuration — the whole of it. Channels, feeds, the
    filters between them and the triggers that decide when a channel is polled

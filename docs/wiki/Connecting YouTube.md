@@ -44,9 +44,12 @@ In **Testing** mode Google expires the grant after seven days. Publish the conse
 that. A personal app stays unverified, so Google shows an "unverified app" warning once —
 choose *Advanced → Go to De-Algo*.
 
-When a grant dies, De-Algo says so in the YouTube block under Settings and on the Configuration
-page. Items keep collecting
-inside De-Algo and are written to YouTube after you reconnect.
+When a grant dies, De-Algo says so in the YouTube block under Settings, and as a toast on every
+page: the plugin's own words, with a link to reconnect. The same toast asks an account that has
+never signed in to connect, and tells everyone when the admin hasn't set up an OAuth client yet.
+Only the admin's toast links to where that is done. Dismissing a toast lasts the browsing session;
+it comes back while the condition holds. Items keep collecting inside De-Algo and are written to
+YouTube after you reconnect.
 
 ## Without an account
 

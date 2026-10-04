@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,6 +85,10 @@ class GraphNode(Base):
     # need, and a width on one of those would be a second opinion about it.
     width: Mapped[Optional[int]] = mapped_column(Integer)
     height: Mapped[Optional[int]] = mapped_column(Integer)
+    # Group nodes only: held where it is, so pressing it pans the canvas rather
+    # than dragging the group and everything it surrounds out of place.
+    # A database default too: rows written by raw SQL (migrations, imports) leave it out.
+    locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
 
     channel_pk: Mapped[Optional[int]] = mapped_column(
         ForeignKey("channel.id", ondelete="CASCADE"), index=True

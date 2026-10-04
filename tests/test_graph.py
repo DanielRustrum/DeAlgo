@@ -4308,3 +4308,32 @@ def test_a_run_with_no_box_named_still_fills_everything(world, db):
 
     with db.session_scope() as session:
         assert session.scalars(select(Placement)).all() != []
+
+
+def test_a_locked_group_stays_where_it_is(canvas):
+    """Locked, a group is a background: neither it nor its size can be dragged."""
+    added = canvas.post("/graph/nodes", data={"kind": "group", "x": 0, "y": 0}).json()
+    group_id = only(added, "group")["id"]
+
+    locked = only(canvas.post(f"/graph/nodes/{group_id}/lock", data={"locked": "1"}).json(), "group")
+    assert locked["locked"] is True
+    assert locked["note"].startswith("locked in place")
+
+    moved = canvas.post(f"/graph/nodes/{group_id}/move", data={"x": 30, "y": 40, "carries": "1"})
+    assert moved.status_code == 400 and "locked" in moved.json()["error"]
+    assert canvas.post(f"/graph/nodes/{group_id}/resize",
+                       data={"width": 900, "height": 600}).json() == {"resized": False}
+    still = only(canvas.get("/api/graph").json(), "group")
+    assert (still["x"], still["y"], still["size"]) == (0, 0, {"width": 520, "height": 300})
+
+    canvas.post(f"/graph/nodes/{group_id}/lock", data={"locked": "0"})
+    canvas.post(f"/graph/nodes/{group_id}/move", data={"x": 30, "y": 40, "carries": "1"})
+    free = only(canvas.get("/api/graph").json(), "group")
+    assert free["locked"] is False and (free["x"], free["y"]) == (30, 40)
+
+
+def test_only_a_group_can_be_locked(canvas):
+    nodes = canvas.get("/api/graph").json()["nodes"]
+    box = next(node for node in nodes if node["kind"] != "group")
+    assert canvas.post(f"/graph/nodes/{box['id']}/lock").status_code == 404
+    assert box["locked"] is False

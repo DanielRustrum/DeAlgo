@@ -154,6 +154,16 @@
   </div>
   {% endif %}
 
+  {# What a plugin needs before it can do its job — signing in to its
+     service, most often — in the plugin's own words (web/notices.py). #}
+  {% for notice in plugin_notices %}
+  <div class="toast {{ 'toast-bad' if notice.bad else 'toast-warn' }}" data-toast="{{ notice.key }}">
+    <strong>{{ notice.plugin }}</strong>
+    {{ notice.text }}
+    {% if notice.link %}<a href="{{ notice.link[0] }}">{{ notice.link[1] }}</a>{% endif %}
+  </div>
+  {% endfor %}
+
   {% include "_offline_banner.html" %}
   {# Still #flash, and still swapped out of band by every form that reports
      something — so a message that arrives mid-page becomes a toast with no

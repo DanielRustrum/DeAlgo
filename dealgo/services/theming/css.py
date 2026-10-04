@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from .images import DRAWING_SLOTS
+from .images import DRAWING_SLOTS, FONT_FAMILIES
 from .theme import Theme
 from .tokens import CHOICES, COLOURS, DIALS, FONTS, SHADOW
 
@@ -95,9 +95,32 @@ def settings(theme: Theme) -> list[str]:
         if dial.name in theme.dials:
             out.append(f"--{dial.name}: {_number(theme.dials[dial.name])}{dial.unit}")
     for name in ("font-body", "font-display"):
-        if name in theme.choices:
+        # One's own font is written by page_theme, which knows whether there is one.
+        if name in theme.choices and theme.choices[name] in FONTS:
             out.append(f"--{name}: {FONTS[theme.choices[name]][1]}")
     return out
+
+
+def font_faces(images: Mapping[str, str]) -> str:
+    """An @font-face for each font the account has uploaded.
+
+    Declared whether or not it is in use, so the Theming page can show it.
+    The family is ours and the address is one this module made, so nothing
+    from the file itself is written here.
+    """
+    return "".join(
+        f'@font-face {{\n  font-family: "{family}";\n  src: url("{images[slot]}");\n'
+        f"  font-display: swap;\n}}\n"
+        for slot, family in FONT_FAMILIES.items()
+        if slot in images
+    )
+
+
+def own_font_stack(slot: str) -> str:
+    """One's own font first, then the stock face behind it while it loads."""
+    stock = FONTS["dm-sans" if slot == "font-body" else "fraunces"][1]
+    return f'"{FONT_FAMILIES[slot]}", {stock}'
+
 
 
 def page_theme(theme: Theme, pictures: Mapping[str, str] | None = None) -> PageTheme:
@@ -119,6 +142,10 @@ def page_theme(theme: Theme, pictures: Mapping[str, str] | None = None) -> PageT
         # An address this module made from a fixed slot name and a hex
         # fingerprint: nothing in it came from the person.
         shared.append(f'--user-image: url("{images["background"]}")')
+    for slot in FONT_FAMILIES:
+        # One's own font, when chosen and there is one; the stock face otherwise.
+        if theme.choice(slot) == "own" and slot in images:
+            shared.append(f"--{slot}: {own_font_stack(slot)}")
     if mode == "dark":
         # Specific enough to beat the stylesheet's own night block, which a
         # dark device would otherwise still apply on top of this.
@@ -154,7 +181,7 @@ def page_theme(theme: Theme, pictures: Mapping[str, str] | None = None) -> PageT
     elif mode == "dark":
         light_bg = dark_bg
     return PageTheme(
-        css="".join(parts),
+        css=font_faces(images) + "".join(parts),
         attributes=tuple(attributes),
         chrome_light=light_bg,
         chrome_dark=dark_bg,

@@ -23,6 +23,7 @@ from ..services import sync as sync_service
 from ..services import watched as watched_service
 from ..services.scope import OwnerId, owned
 from ..services.theming import store as themes
+from .notices import plugin_notices
 from .templates import ASSET_VERSION, TEMPLATES, Context
 
 
@@ -51,6 +52,9 @@ def render(request: Request, template: str, context: Context) -> HTMLResponse:
         # since a sign-in page belongs to nobody yet.
         "theme": themes.page(owner_of(request))
         if identity or not CONFIG.auth_enabled else themes.STOCK,
+        # Nothing to say to somebody who has not signed in yet.
+        "plugin_notices": plugin_notices(owner_of(request), bool(identity and identity.is_admin))
+        if identity or not CONFIG.auth_enabled else [],
         "version": __version__,
         "asset_version": ASSET_VERSION,
         "ok_message": request.query_params.get("ok"),

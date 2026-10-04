@@ -7,6 +7,9 @@ Drag **Group** from **Layout** in the palette, then resize it from its corner. N
 ## What a group does
 
 - **Moves as one.** Dragging the group moves every box inside it.
+- **Locks in place.** The padlock beside its name holds it where it is. A locked group can't be
+  dragged or resized: dragging across it moves the canvas instead, as dragging empty canvas does.
+  The boxes inside it still move on their own. Press the padlock again to let it go.
 - **Exports.** **Export** in its panel saves the boxes inside, their pieces and the wires between them
   as a file you can give to someone.
 - **Loads.** **Load a group** on the canvas adds one somebody sent you, beside what you have. Nothing

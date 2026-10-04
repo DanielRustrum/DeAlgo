@@ -475,7 +475,8 @@ function graphTravelsWith(state, node) {
         return graphSurrounded(state, node);
     if (!state.picked.has(node.id) || state.picked.size < 2)
         return [];
-    return state.nodes.filter((entry) => entry.id !== node.id && state.picked.has(entry.id));
+    // A locked group stays put even when it is among what is picked.
+    return state.nodes.filter((entry) => entry.id !== node.id && state.picked.has(entry.id) && !entry.locked);
 }
 /** What a group surrounds, worked out the way the server works it out. */
 function graphSurrounded(state, group) {
@@ -513,6 +514,7 @@ function beginGraphResize(state, event, node) {
 }
 /** Decide what a press on the canvas starts: a wire, a move, a resize, a marquee or a pan. */
 function onGraphPointerDown(state, event) {
+    var _a;
     if (event.button !== 0)
         return;
     const target = event.target;
@@ -526,6 +528,15 @@ function onGraphPointerDown(state, event) {
     // taking it as one starts a pan and swallows the fold.
     if (target instanceof Element && target.closest(".graph-palette"))
         return;
+    // A group's padlock: hold it in place, or let it go.
+    const lock = target instanceof Element ? target.closest("[data-lock]") : null;
+    if (lock) {
+        const id = Number(lock.dataset["lock"]);
+        const held = ((_a = state.nodes.find((entry) => entry.id === id)) === null || _a === void 0 ? void 0 : _a.locked) === true;
+        void applyGraph(state, `/graph/nodes/${id}/lock`, new URLSearchParams({ locked: held ? "0" : "1" }));
+        event.preventDefault();
+        return;
+    }
     // Buttons and links inside the canvas do their own thing.
     if (target instanceof Element && target.closest("a, button"))
         return;
@@ -575,6 +586,16 @@ function onGraphPointerDown(state, event) {
             return;
         }
         alsoPickGraphNode(state, grabbed);
+        event.preventDefault();
+        return;
+    }
+    // A locked group is part of the background: a drag across it pans, as a
+    // drag across empty canvas does. The boxes on it are still their own.
+    if (node.kind === "group" && node.locked) {
+        if (event.pointerType !== "mouse")
+            return;
+        beginGraphPan(state, event);
+        state.parts.canvas.setPointerCapture(event.pointerId);
         event.preventDefault();
         return;
     }
@@ -983,14 +1004,51 @@ function drawGraphGroup(state, node) {
         frame.classList.add("is-picked");
     if (!node.enabled)
         frame.classList.add("is-off");
+    if (node.locked)
+        frame.classList.add("is-locked");
     const name = graphElement("span", "graph-group-name", node.title);
+    // A padlock beside the name: pressed, it holds the group where it is, so a
+    // drag across it pans the canvas instead of carrying everything inside off.
+    const lock = graphElement("button", "graph-group-lock");
+    lock.type = "button";
+    lock.dataset["lock"] = String(node.id);
+    lock.setAttribute("aria-pressed", String(node.locked));
+    lock.title = node.locked ? "Locked in place — press to unlock" : "Lock in place";
+    lock.setAttribute("aria-label", node.locked ? `Unlock group ${node.title}` : `Lock group ${node.title}`);
+    lock.appendChild(graphPadlock(node.locked));
+    name.appendChild(lock);
     frame.appendChild(name);
-    // Bottom-right, where a resize handle is looked for.
-    const grip = graphElement("span", "graph-group-grip");
-    grip.dataset["grip"] = String(node.id);
-    grip.title = "Drag to resize";
-    frame.appendChild(grip);
+    // Bottom-right, where a resize handle is looked for. A locked group has
+    // none: holding it in place holds its size too.
+    if (!node.locked) {
+        const grip = graphElement("span", "graph-group-grip");
+        grip.dataset["grip"] = String(node.id);
+        grip.title = "Drag to resize";
+        frame.appendChild(grip);
+    }
     return frame;
+}
+/** A small padlock, shut or open, drawn in the text colour. */
+function graphPadlock(shut) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    const shackle = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    // Shut, the shackle comes down into the body; open, it swings up and aside.
+    shackle.setAttribute("d", shut ? "M5 7V5a3 3 0 0 1 6 0v2" : "M5 7V5a3 3 0 0 1 5.6-1.5");
+    shackle.setAttribute("fill", "none");
+    shackle.setAttribute("stroke", "currentColor");
+    shackle.setAttribute("stroke-width", "1.6");
+    shackle.setAttribute("stroke-linecap", "round");
+    const body = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    body.setAttribute("x", "3.5");
+    body.setAttribute("y", "7");
+    body.setAttribute("width", "9");
+    body.setAttribute("height", "7");
+    body.setAttribute("rx", "1.5");
+    body.setAttribute("fill", "currentColor");
+    svg.append(shackle, body);
+    return svg;
 }
 /** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
@@ -2698,6 +2756,7 @@ function asGraphNode(value) {
         trigger: asGraphTrigger(raw["trigger"]),
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
+        locked: raw["locked"] === true,
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
         store: asGraphStore(raw["store"]),

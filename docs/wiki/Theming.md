@@ -50,9 +50,14 @@ Picking one replaces your changes. Your choice of light or dark stays, unless th
 
 ## Type
 
-- **Body typeface** and **Heading typeface:** DM Sans and Fraunces, which De-Algo serves itself, or
-  one of your device's own fonts: sans-serif, serif, humanist, rounded or monospace. A device font
-  depends on what the device has installed.
+- **Body typeface** and **Heading typeface:** DM Sans and Fraunces, which De-Algo serves itself;
+  one of your device's own fonts (sans-serif, serif, humanist, rounded or monospace), which depends
+  on what the device has installed; or **My own font**.
+- **Your own fonts:** upload a WOFF2, WOFF, TrueType or OpenType file (up to 4 MB) for body text,
+  headings, or both, under the Type section. Uploading one chooses *My own font* for it straight
+  away, so save any other changes first. The stock face stands in while it loads, and comes back if
+  you remove the font. It's only ever sent to you. Check that the font's licence lets you use it on
+  a web page.
 - **Text size:** every piece of writing scales together, from 85% to 140%.
 - **Line spacing:** the space between lines of body text.
 - **Heading weight:** how heavy headings and big numbers are.

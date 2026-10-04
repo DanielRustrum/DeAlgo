@@ -85,6 +85,8 @@ interface GraphNodeView {
   plugin: GraphPlugin | null;
   /** Group nodes only: how big the rectangle is. */
   size: { width: number; height: number } | null;
+  /** Group nodes only: held in place, so pressing it pans rather than moves. */
+  locked: boolean;
   /** Channel boxes that stand for a channel: what it does. */
   channel: GraphChannel | null;
   /** Empty source boxes: which kind of somewhere this one is for, and what

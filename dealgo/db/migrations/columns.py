@@ -52,6 +52,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "duration_minutes", "INTEGER"),
     ("graph_node", "width", "INTEGER"),
     ("graph_node", "height", "INTEGER"),
+    ("graph_node", "locked", "BOOLEAN NOT NULL DEFAULT 0"),
     ("graph_node", "sort_by", "VARCHAR(16)"),
     ("graph_node", "sort_dir", "VARCHAR(4)"),
     # Counts, so a sort box can order by them. Backfilled as the details are

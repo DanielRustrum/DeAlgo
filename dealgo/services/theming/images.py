@@ -25,19 +25,42 @@ SLOTS: dict[str, str] = {
     "heading": "Beside headings",
 }
 
+#: A person's own typefaces, one for writing and one for headings.
+FONT_SLOTS: dict[str, str] = {
+    "font-body": "Body font",
+    "font-display": "Heading font",
+}
+
+#: The family each is loaded under. Ours, not the file's: nothing from the
+#: file reaches the stylesheet.
+FONT_FAMILIES = {"font-body": "De-Algo own body", "font-display": "De-Algo own heading"}
+
+#: Everything a theme can hold that is uploaded.
+THEME_SLOTS: dict[str, str] = {**SLOTS, **FONT_SLOTS}
+
 #: Pictures that belong to the account rather than its theme.
 ACCOUNT_SLOTS: dict[str, str] = {
     "avatar": "Account",
 }
 
-#: Every place a picture can be kept, and so served from.
-ALL_SLOTS: dict[str, str] = {**SLOTS, **ACCOUNT_SLOTS}
+#: Every place a file can be kept, and so served from.
+ALL_SLOTS: dict[str, str] = {**THEME_SLOTS, **ACCOUNT_SLOTS}
 
 #: The slots that make up an account's own plants.
 DRAWING_SLOTS = ("edge-left", "edge-right", "heading")
 
 MAX_RASTER = 3 * 1024 * 1024
 MAX_SVG = 512 * 1024
+MAX_FONT = 4 * 1024 * 1024
+
+#: A font file's first bytes, and what it is served as.
+_FONT_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"wOF2", "font/woff2"),
+    (b"wOFF", "font/woff"),
+    (b"\x00\x01\x00\x00", "font/ttf"),
+    (b"true", "font/ttf"),
+    (b"OTTO", "font/otf"),
+)
 
 SVG_TYPE = "image/svg+xml"
 
@@ -108,6 +131,27 @@ def accept(data: bytes) -> Picture:
     if head.startswith((b"<?xml", b"<svg", b"<!--")):
         return Picture(SVG_TYPE, clean_svg(data))
     raise ImageError("That is not a PNG, JPEG, GIF, WebP or SVG picture.")
+
+
+def accept_font(data: bytes) -> Picture:
+    """A font file someone sent, known by its first bytes; ImageError if it is not one.
+
+    The browser checks a web font again before it draws with it, as it does
+    any font a page loads; this is the check that it is a font at all.
+    """
+    if not data:
+        raise ImageError("That file is empty.")
+    if len(data) > MAX_FONT:
+        raise ImageError(f"A font can be up to {MAX_FONT // (1024 * 1024)} MB.")
+    for signature, media_type in _FONT_SIGNATURES:
+        if data.startswith(signature):
+            return Picture(media_type, data)
+    raise ImageError("That is not a WOFF2, WOFF, TrueType or OpenType font.")
+
+
+def accept_for(slot: str, data: bytes) -> Picture:
+    """What was sent for a slot, checked the way that slot needs."""
+    return accept_font(data) if slot in FONT_SLOTS else accept(data)
 
 
 def _raster(data: bytes, media_type: str) -> Picture:

@@ -158,6 +158,9 @@
   background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 14px 14px;
 }
 .picture-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+/* A font shows as letters, not a picture: on the panel, in the text colour. */
+.font-thumb { background: var(--panel); }
+.font-sample { font-size: calc(26px * var(--text-scale)); line-height: 1; color: var(--text); }
 .picture-thumb .hint { margin: 0; }
 .picture-controls { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .picture-controls input[type=file] { font-size: calc(13px * var(--text-scale)); }

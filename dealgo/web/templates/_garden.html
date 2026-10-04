@@ -129,34 +129,57 @@
    Coloured by the same drawing tokens, plus the scene colours (art-water,
    art-sky, art-sand, art-rock, art-snow) for what a garden has no word for. #}
 
-{# Waves rolling in, 240 × 120: far water, near water, foam and the deep. #}
-{% macro waves(classes='', mirror=false) -%}
-<svg class="garden-art {{ classes }}" viewBox="0 0 240 120" aria-hidden="true" focusable="false">
-  <g {% if mirror %}transform="translate(240 0) scale(-1 1)"{% endif %}>
-    <path class="fill-art-sky" d="M0 58C30 44 50 44 72 56C94 68 114 68 136 54C158 40 180 40 204 54C220 63 232 64 240 60V120H0Z"/>
-    <path class="fill-art-water" d="M0 78C24 64 46 62 66 74C86 86 108 88 130 74C152 60 176 60 198 74C214 84 228 86 240 82V120H0Z"/>
-    <path class="fill-art-stem" opacity=".3" d="M0 100C30 90 54 90 80 100C106 110 132 110 158 98C182 88 210 88 240 98V120H0Z"/>
-    <path class="stroke-art-snow" fill="none" stroke-width="3" stroke-linecap="round"
-          d="M8 76C26 66 44 65 60 72M132 72C150 62 170 61 190 70"/>
+{# The sea as lines, 160 × 60: two curling crests and the swell beneath,
+   drawn like the garden's stems rather than as a block of water. #}
+{% macro wave_lines(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 160 60" aria-hidden="true" focusable="false">
+  <g fill="none" stroke-linecap="round">
+    <path class="stroke-art-water" stroke-width="3"
+          d="M6 40C22 22 46 18 58 30C66 38 58 48 50 44C44 41 46 34 52 34M58 30C74 42 94 42 108 30C120 20 138 20 150 30"/>
+    <path class="stroke-art-sky" stroke-width="2.5" d="M14 52C34 46 54 46 74 52S114 58 134 52"/>
+    <path class="stroke-art-snow" stroke-width="2" d="M50 26C54 24 58 25 60 28M110 27C114 25 118 25 121 27"/>
   </g>
 </svg>
 {%- endmacro %}
 
-{# Coral and seaweed on the sea floor, 120 × 200, with a rising bubble or three. #}
+{# A frond of kelp, 120 × 200: a swaying stem, long blades and air bladders —
+   the garden's sprig, gone to sea. #}
+{% macro kelp(classes='', blade='fill-art-leaf') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <path class="stroke-art-stem" d="M58 198C66 168 50 140 60 112C70 84 52 56 62 14" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+  {% for y, x, side in [(176, 61, 'r'), (156, 57, 'l'), (132, 58, 'r'), (110, 61, 'l'), (88, 59, 'r'), (64, 56, 'l'), (40, 60, 'r')] %}
+  <use href="#g-leaf" class="{{ blade }}"
+       transform="translate({{ x }} {{ y }}) rotate({{ -48 if side == 'r' else 228 }}) scale({{ 1.25 - loop.index0 * 0.08 }} {{ 0.55 - loop.index0 * 0.02 }})"/>
+  {% endfor %}
+  {% for x, y in [(66, 150), (54, 98), (64, 52)] %}
+  <circle class="fill-art-bloom-2" cx="{{ x }}" cy="{{ y }}" r="3"/>
+  {% endfor %}
+  <use href="#g-leaf" class="{{ blade }}" transform="translate(62 16) rotate(-84) scale(.7 .45)"/>
+</svg>
+{%- endmacro %}
+
+{# Coral, 120 × 200: a slender branching fan with round tips. #}
 {% macro coral(classes='') -%}
 <svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
-  <g fill="none" stroke-linecap="round">
-    <path class="stroke-art-leaf" stroke-width="4" d="M30 200C20 170 40 150 28 120C18 92 36 76 30 50"/>
-    <path class="stroke-art-leaf-soft" stroke-width="3.5" d="M46 200C54 176 38 160 48 136C56 116 44 100 50 84"/>
-    <path class="stroke-art-bloom" stroke-width="7"
-          d="M80 200V150M80 168C70 160 64 146 64 128M80 160C92 150 98 136 98 118M64 140C56 134 52 124 52 112M98 132C106 126 110 116 110 104M80 150C80 138 82 126 86 116"/>
-    {% for x, y, r in [(32, 40, 3.5), (40, 26, 2.5), (34, 12, 2)] %}
-    <circle class="stroke-art-snow" cx="{{ x }}" cy="{{ y }}" r="{{ r }}" stroke-width="1.5"/>
-    {% endfor %}
-  </g>
-  {% for x, y in [(64, 128), (98, 118), (52, 112), (110, 104), (86, 116)] %}
-  <circle class="fill-art-bloom" cx="{{ x }}" cy="{{ y }}" r="4.5"/>
+  <path class="stroke-art-bloom" fill="none" stroke-width="4" stroke-linecap="round"
+        d="M60 198V150M60 168C50 160 42 146 42 128M60 160C72 150 80 136 80 118M42 142C34 136 30 126 30 114M80 132C88 126 92 116 92 104M60 150C60 138 62 126 66 116"/>
+  {% for x, y in [(42, 128), (80, 118), (30, 114), (92, 104), (66, 116)] %}
+  <circle class="fill-art-bloom" cx="{{ x }}" cy="{{ y }}" r="3.5"/>
   {% endfor %}
+  {% for x, y, r in [(36, 84, 3), (44, 66, 2.2), (38, 50, 1.6)] %}
+  <circle class="stroke-art-sky" fill="none" stroke-width="1.4" cx="{{ x }}" cy="{{ y }}" r="{{ r }}"/>
+  {% endfor %}
+</svg>
+{%- endmacro %}
+
+{# What lies on the sand, 120 × 60: a starfish, a shell and a pebble. #}
+{% macro seabed(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 60" aria-hidden="true" focusable="false">
+  <path class="fill-art-bloom" transform="translate(30 36) rotate(-12)"
+        d="M0-16L4-5L16-5L7 2L10 14L0 7L-10 14L-7 2L-16-5L-4-5Z"/>
+  <path class="fill-art-bloom-3" d="M80 52L62 32C66 18 94 18 98 32Z"/>
+  <path class="stroke-art-stem" opacity=".4" fill="none" stroke-width="1.2" d="M80 52L68 30M80 52L80 22M80 52L92 30"/>
+  <ellipse class="fill-art-sky" cx="108" cy="52" rx="8" ry="5"/>
 </svg>
 {%- endmacro %}
 
@@ -299,9 +322,11 @@
   {{ pines(left ~ '-bottom-2 -left-6 h-72 w-60 opacity-85') }}
   {{ pines(right ~ 'origin-bottom-right -bottom-2 -right-6 h-56 w-44 opacity-60', mirror=true) }}
 {% elif set == 'ocean' %}
-  {{ waves(left ~ '-bottom-2 -left-4 h-36 w-80 opacity-90') }}
-  {{ coral(left ~ 'bottom-4 left-6 h-48 w-28 opacity-90') }}
-  {{ waves(right ~ 'origin-bottom-right -bottom-2 -right-4 h-28 w-60 opacity-70', mirror=true) }}
+  {{ kelp(left ~ '-bottom-4 -left-2 h-64 w-40 opacity-80') }}
+  {{ coral(left ~ '-bottom-6 left-20 h-44 w-28 opacity-85') }}
+  {{ seabed(left ~ 'bottom-1 left-40 h-10 w-20 opacity-90') }}
+  {{ wave_lines(left ~ 'bottom-36 left-14 h-8 w-24 opacity-60') }}
+  {{ kelp(right ~ '-right-6 top-24 h-56 w-36 rotate-[200deg] opacity-40', blade='fill-art-leaf-soft') }}
 {% elif set == 'mountains' %}
   {{ mountains(left ~ '-bottom-2 -left-6 h-48 w-96 opacity-85') }}
   {{ mountains(right ~ 'origin-bottom-right -bottom-2 -right-6 h-36 w-72 opacity-60', mirror=true) }}

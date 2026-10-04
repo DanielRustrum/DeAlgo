@@ -3,21 +3,23 @@
 {% block title %}De-Algo — Theming{% endblock %}
 {% set mode_names = {'light': 'By day', 'dark': 'By night'} %}
 {% set drawing_sets = ['garden', 'meadow', 'fern', 'blossom', 'woodland', 'ocean', 'mountains', 'sky', 'desert', 'own'] %}
-{% set picture_slots = {'background': ['background'], 'drawings': ['edge-left', 'edge-right', 'heading']} %}
+{% set picture_slots = {'type': ['font-body', 'font-display'], 'background': ['background'], 'drawings': ['edge-left', 'edge-right', 'heading']} %}
 
 {# One place for a picture: what is there now, a file to send, and the way to
    take it away. Its forms sit outside the theme's form (HTML has no forms
    within forms), so these controls name them with form=. #}
-{% macro picture_slot(slot, label, url) -%}
+{% macro picture_slot(slot, label, url, family=none) -%}
 <div class="picture-slot">
-  <div class="picture-thumb">
-    {% if url %}<img src="{{ url }}" alt="Your {{ label | lower }} picture">{% else %}<span class="hint">None yet</span>{% endif %}
+  <div class="picture-thumb{{ ' font-thumb' if family }}">
+    {% if url and family %}<span class="font-sample" style="font-family: '{{ family }}'">Aa Gg</span>
+    {% elif url %}<img src="{{ url }}" alt="Your {{ label | lower }} picture">
+    {% else %}<span class="hint">None yet</span>{% endif %}
   </div>
   <div class="picture-controls">
     <strong>{{ label }}</strong>
     <input type="file" name="picture" form="picture-{{ slot }}" required
-           accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
-           aria-label="A picture for {{ label | lower }}">
+           accept="{{ '.woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf' if family else 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg' }}"
+           aria-label="A {{ 'font' if family else 'picture' }} for {{ label | lower }}">
     <div class="row-buttons">
       <button class="btn" type="submit" form="picture-{{ slot }}">{{ 'Replace' if url else 'Upload' }}</button>
       {% if url %}<button class="btn btn-danger" type="submit" form="picture-remove-{{ slot }}">Remove</button>{% endif %}
@@ -139,7 +141,17 @@
       {% endfor %}
     </div>
 
-    {% if group.key in picture_slots %}
+    {% if group.key == 'type' %}
+    <div class="picture-slots">
+      <h3>Your own fonts</h3>
+      <p class="hint">
+        A WOFF2, WOFF, TrueType or OpenType file up to 4 MB, for writing, for headings, or both.
+        Uploading one chooses “My own font” for it straight away, so save any other changes first.
+        Only you are sent it; check its licence lets you use it on a web page.
+      </p>
+      {% for slot in picture_slots[group.key] %}{{ picture_slot(slot, slots[slot], pictures.get(slot), font_families[slot]) }}{% endfor %}
+    </div>
+    {% elif group.key in picture_slots %}
     <div class="picture-slots">
       <h3>Your own {{ 'picture' if group.key == 'background' else 'pictures' }}</h3>
       <p class="hint">

@@ -22,6 +22,9 @@ connect = {
                 timezone = "America/Los_Angeles", unit = "units", exhausted = "quotaExceeded" },
   refusal = function(answer) ... end,
   about = "…",
+  -- What the host says, as a toast, while the account is not ready:
+  -- not signed in, signed in but needing to again, or no OAuth client yet.
+  notices = { connect = "…", reconnect = "…", setup = "…" },
 }
 ```
 """
@@ -42,6 +45,10 @@ HOST = re.compile(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+")
 
 #: How many hosts one plugin may name. The point is a short list.
 MOST_HOSTS = 8
+
+#: The states a plugin may say something about, as a toast, and how long each may be.
+NOTICES = ("connect", "reconnect", "setup")
+NOTICE_LENGTH = 300
 
 
 @dataclass(frozen=True)
@@ -82,6 +89,9 @@ class Connect:
     allowance: Allowance | None = None
     #: A few sentences for the plugin's block under Settings.
     about: str = ""
+    #: What to tell somebody, as a toast, while the account is not ready —
+    #: "connect", "reconnect" or "setup" — in the plugin's own words.
+    notices: tuple[tuple[str, str], ...] = ()
     #: The plugin's own function reading why the service refused a request.
     _refusal: Any = None
 
@@ -151,8 +161,28 @@ def connect_in(given: object, settings: Settings) -> Connect | None:
         api_key=api_key,
         allowance=_allowance(given.get("allowance"), named),
         about=" ".join(str(given.get("about") or "").split())[:1200],
+        notices=_notices(given.get("notices")),
         _refusal=refusal,
     )
+
+
+def _notices(given: object) -> tuple[tuple[str, str], ...]:
+    """The plugin's toasts, by state: plain sentences, the HTML escaped where shown."""
+    if given is None:
+        return ()
+    if not isinstance(given, dict):
+        raise PluginError("`connect.notices` has to be a table of states and sentences")
+    out = []
+    for state, text in given.items():
+        if state not in NOTICES:
+            raise PluginError(
+                f"`connect.notices` cannot say anything about “{state}”: "
+                f"only {', '.join(NOTICES)}"
+            )
+        sentence = " ".join(str(text or "").split())
+        if sentence:
+            out.append((str(state), sentence[:NOTICE_LENGTH]))
+    return tuple(sorted(out))
 
 
 def _https(given: dict[str, Any], field: str, *, required: bool) -> str:

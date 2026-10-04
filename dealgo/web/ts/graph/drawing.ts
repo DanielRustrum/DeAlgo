@@ -199,15 +199,53 @@ function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
   if (state.picked.has(node.id)) frame.classList.add("is-picked");
   if (!node.enabled) frame.classList.add("is-off");
 
+  if (node.locked) frame.classList.add("is-locked");
+
   const name = graphElement("span", "graph-group-name", node.title);
+  // A padlock beside the name: pressed, it holds the group where it is, so a
+  // drag across it pans the canvas instead of carrying everything inside off.
+  const lock = graphElement("button", "graph-group-lock") as HTMLButtonElement;
+  lock.type = "button";
+  lock.dataset["lock"] = String(node.id);
+  lock.setAttribute("aria-pressed", String(node.locked));
+  lock.title = node.locked ? "Locked in place — press to unlock" : "Lock in place";
+  lock.setAttribute("aria-label", node.locked ? `Unlock group ${node.title}` : `Lock group ${node.title}`);
+  lock.appendChild(graphPadlock(node.locked));
+  name.appendChild(lock);
   frame.appendChild(name);
 
-  // Bottom-right, where a resize handle is looked for.
-  const grip = graphElement("span", "graph-group-grip");
-  grip.dataset["grip"] = String(node.id);
-  grip.title = "Drag to resize";
-  frame.appendChild(grip);
+  // Bottom-right, where a resize handle is looked for. A locked group has
+  // none: holding it in place holds its size too.
+  if (!node.locked) {
+    const grip = graphElement("span", "graph-group-grip");
+    grip.dataset["grip"] = String(node.id);
+    grip.title = "Drag to resize";
+    frame.appendChild(grip);
+  }
   return frame;
+}
+
+/** A small padlock, shut or open, drawn in the text colour. */
+function graphPadlock(shut: boolean): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  const shackle = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  // Shut, the shackle comes down into the body; open, it swings up and aside.
+  shackle.setAttribute("d", shut ? "M5 7V5a3 3 0 0 1 6 0v2" : "M5 7V5a3 3 0 0 1 5.6-1.5");
+  shackle.setAttribute("fill", "none");
+  shackle.setAttribute("stroke", "currentColor");
+  shackle.setAttribute("stroke-width", "1.6");
+  shackle.setAttribute("stroke-linecap", "round");
+  const body = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  body.setAttribute("x", "3.5");
+  body.setAttribute("y", "7");
+  body.setAttribute("width", "9");
+  body.setAttribute("height", "7");
+  body.setAttribute("rx", "1.5");
+  body.setAttribute("fill", "currentColor");
+  svg.append(shackle, body);
+  return svg;
 }
 
 /** One box or piece: its title, note, ports and buttons. */

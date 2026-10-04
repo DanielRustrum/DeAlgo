@@ -113,8 +113,9 @@ function beginGraphMove(
 function graphTravelsWith(state: GraphState, node: GraphNodeView): GraphNodeView[] {
   if (node.kind === "group") return graphSurrounded(state, node);
   if (!state.picked.has(node.id) || state.picked.size < 2) return [];
+  // A locked group stays put even when it is among what is picked.
   return state.nodes.filter(
-    (entry): boolean => entry.id !== node.id && state.picked.has(entry.id),
+    (entry): boolean => entry.id !== node.id && state.picked.has(entry.id) && !entry.locked,
   );
 }
 
@@ -173,6 +174,15 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   // the space between rows, is not a press on the drawing underneath — and
   // taking it as one starts a pan and swallows the fold.
   if (target instanceof Element && target.closest(".graph-palette")) return;
+  // A group's padlock: hold it in place, or let it go.
+  const lock = target instanceof Element ? target.closest<HTMLElement>("[data-lock]") : null;
+  if (lock) {
+    const id = Number(lock.dataset["lock"]);
+    const held = state.nodes.find((entry): boolean => entry.id === id)?.locked === true;
+    void applyGraph(state, `/graph/nodes/${id}/lock`, new URLSearchParams({ locked: held ? "0" : "1" }));
+    event.preventDefault();
+    return;
+  }
   // Buttons and links inside the canvas do their own thing.
   if (target instanceof Element && target.closest("a, button")) return;
 
@@ -221,6 +231,16 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
       return;
     }
     alsoPickGraphNode(state, grabbed);
+    event.preventDefault();
+    return;
+  }
+
+  // A locked group is part of the background: a drag across it pans, as a
+  // drag across empty canvas does. The boxes on it are still their own.
+  if (node.kind === "group" && node.locked) {
+    if (event.pointerType !== "mouse") return;
+    beginGraphPan(state, event);
+    state.parts.canvas.setPointerCapture(event.pointerId);
     event.preventDefault();
     return;
   }

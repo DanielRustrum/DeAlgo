@@ -201,7 +201,10 @@ function themingApply(data, form) {
     }
     for (const name of ["font-body", "font-display"]) {
         const select = themingSelect(form, name);
-        const stack = select ? data.fonts[select.value] : undefined;
+        // "My own font" is the uploaded one, when there is one.
+        const stack = select
+            ? select.value === "own" ? data.own_fonts[name] : data.fonts[select.value]
+            : undefined;
         if (preview && stack)
             preview.style.setProperty(`--${name}`, stack);
     }

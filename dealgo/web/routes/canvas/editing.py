@@ -255,6 +255,16 @@ def graph_resize(
         return JSONResponse({"resized": graph_service.resize(session, node_pk, width, height, owner)})
 
 
+@router.post("/graph/nodes/{node_pk}/lock")
+def graph_lock(request: Request, node_pk: int, locked: str = Form("1")) -> JSONResponse:
+    """Hold a group in place, or let it go again."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        if not graph_service.lock(session, node_pk, locked == "1", owner):
+            return JSONResponse({"error": "That is not a group."}, status_code=404)
+        return JSONResponse(graph_payload(session, owner))
+
+
 @router.post("/graph/nodes/{node_pk}/delete")
 def graph_remove(request: Request, node_pk: int) -> JSONResponse:
     """Remove a box, and its channel or feed if no other box stands for it."""

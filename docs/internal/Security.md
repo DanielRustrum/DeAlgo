@@ -96,6 +96,11 @@ encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See
   - A backup's pictures go through the same checks on restore.
   - The texture tiles (`static/textures/*.svg`) are the app's own: filter-drawn noise, with no
     script and no references.
+  - **Fonts** (`font-body`, `font-display`, up to 4 MB) are accepted only on a WOFF2, WOFF,
+    TrueType or OpenType signature, and served as that type under the same headers. They're loaded
+    under a family name the server chooses (`De-Algo own body` / `De-Algo own heading`), so
+    nothing from the file reaches the stylesheet. The browser's own font sanitiser checks the
+    file again before drawing with it.
 
 ## Gaps
 

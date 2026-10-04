@@ -17,7 +17,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from ...db import session_scope
 from ...services.theming import contrast, images, store
-from ...services.theming.css import image_url
+from ...services.scope import OwnerId
+from ...services.theming.css import image_url, own_font_stack
 from ...services.theming.presets import PRESET_BY_KEY, PRESETS
 from ...services.theming.theme import Theme, ThemeError, from_form, loads, parse
 from ...services.theming.tokens import (
@@ -59,7 +60,7 @@ def _swatches(theme: Theme) -> dict[str, list[str]]:
     return {mode: [theme.colour(mode, name) for name in names] for mode in MODES}
 
 
-def _script_data(theme: Theme) -> dict[str, Any]:
+def _script_data(theme: Theme, owner: OwnerId) -> dict[str, Any]:
     """What theming.js needs to redraw the preview and recheck contrast as
     things change, without asking the server."""
     return {
@@ -72,6 +73,11 @@ def _script_data(theme: Theme) -> dict[str, Any]:
             for d in DIALS
         ],
         "fonts": {key: stack for key, (_, stack) in FONTS.items()},
+        # One's own fonts, by setting, for when "My own font" is chosen.
+        "own_fonts": {
+            slot: own_font_stack(slot)
+            for slot in images.FONT_SLOTS if slot in store.versions(owner)
+        },
         # The choices the preview mirrors as data-* on itself, as the page does.
         "choices": [c.name for c in CHOICES if c.attribute and c.name != "mode"],
         "pairs": [
@@ -127,13 +133,14 @@ def theming_page(request: Request) -> HTMLResponse:
         "setting_groups": settings,
         "presets": [(p, _swatches(p.theme())) for p in PRESETS],
         "shortfalls": contrast.shortfalls(current),
-        "script_data": _script_data(current),
+        "script_data": _script_data(current, owner_of(request)),
         # The account's own pictures, slot to address, and what each slot is.
         "pictures": {
             slot: image_url(slot, version)
             for slot, version in store.versions(owner_of(request)).items()
         },
-        "slots": images.SLOTS,
+        "slots": images.THEME_SLOTS,
+        "font_families": images.FONT_FAMILIES,
         "parts": PARTS,
     }
     return render(request, "theming.html", context)
@@ -267,40 +274,52 @@ def serve_picture(request: Request, slot: str) -> Response:
 def upload_picture(
     request: Request, slot: str, picture: UploadFile = File(...)
 ) -> RedirectResponse:
-    """Put a picture in a slot, and switch to using it."""
-    if slot not in images.SLOTS:
+    """Put a picture or a font in a slot, and switch to using it."""
+    if slot not in images.THEME_SLOTS:
         return redirect(PAGE, err="There is no such place for a picture.")
-    raw = picture.file.read(images.MAX_RASTER + 1)
+    raw = picture.file.read(max(images.MAX_RASTER, images.MAX_FONT) + 1)
     try:
-        kept = images.accept(raw)
+        kept = images.accept_for(slot, raw)
     except images.ImageError as exc:
-        return redirect(PAGE, err=str(exc))
+        return redirect(PAGE + _section(slot), err=str(exc))
     owner = owner_of(request)
     theme = store.load(owner)
     # Uploading one is choosing it: a picture that sits unused until a second
     # setting is found would look like an upload that did not work.
     if slot == "background":
         theme.choices["background"] = "image"
+    elif slot in images.FONT_SLOTS:
+        theme.choices[slot] = "own"
     else:
         theme.choices["drawings"] = "own"
     with session_scope() as session:
         store.put_picture(session, owner, slot, kept)
         store.write(session, owner, theme)
     store.drop_held()
-    where = "#background" if slot == "background" else "#drawings"
-    return redirect(PAGE + where, ok=f"{images.SLOTS[slot]} picture in place, and in use.")
+    what = images.THEME_SLOTS[slot] if slot in images.FONT_SLOTS else f"{images.SLOTS[slot]} picture"
+    return redirect(PAGE + _section(slot), ok=f"{what} in place, and in use.")
+
+
+def _section(slot: str) -> str:
+    """The part of the page a slot is in, to come back to."""
+    if slot == "background":
+        return "#background"
+    return "#type" if slot in images.FONT_SLOTS else "#drawings"
 
 
 @router.post(PAGE + "/image/{slot}/remove")
 def remove_picture(request: Request, slot: str) -> RedirectResponse:
-    """Take a picture away. Without any, the choice that used it goes back too."""
-    if slot not in images.SLOTS:
+    """Take a picture or font away. Without it, the choice that used it goes back too."""
+    if slot not in images.THEME_SLOTS:
         return redirect(PAGE, err="There is no such place for a picture.")
     owner = owner_of(request)
     left = set(store.versions(owner)) - {slot}
     theme = store.load(owner)
     if slot == "background" and theme.choice("background") == "image":
         theme.choices.pop("background", None)
+    elif slot in images.FONT_SLOTS:
+        if theme.choice(slot) == "own":
+            theme.choices.pop(slot, None)
     elif (
         slot != "background"
         and theme.choice("drawings") == "own"
@@ -311,5 +330,4 @@ def remove_picture(request: Request, slot: str) -> RedirectResponse:
         store.put_picture(session, owner, slot, None)
         store.write(session, owner, theme)
     store.drop_held()
-    where = "#background" if slot == "background" else "#drawings"
-    return redirect(PAGE + where, ok=f"{images.SLOTS[slot]} picture removed.")
+    return redirect(PAGE + _section(slot), ok=f"{images.THEME_SLOTS[slot]} removed.")

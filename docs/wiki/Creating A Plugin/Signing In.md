@@ -30,6 +30,11 @@ connect = {
                 unit = "units", exhausted = "quotaExceeded" },
   refusal = function(answer) … return reason end,           -- optional
   about = "A few sentences for the plugin's block under Settings.",
+  notices = {                                                -- optional
+    connect = "Connect your Google account so …",
+    reconnect = "Google needs you to sign in again …",
+    setup = "Writing needs an OAuth client, which the admin sets on this plugin's card.",
+  },
 },
 ```
 
@@ -46,6 +51,7 @@ connect = {
 | `allowance` | no | The service's daily budget, if it has one. `daily` and `reserve` are numbers or app setting names; `timezone` is when its day starts; `exhausted` is the refusal reason that means it is spent. |
 | `refusal` | no | `function(answer)` returning why the service refused a request, read from its error JSON. |
 | `about` | no | Shown in the plugin's block under Settings, beside the sign-in. |
+| `notices` | no | What De-Algo shows as a standing toast while the account isn't ready, in your words. Each is up to 300 characters of plain text. `connect`: not signed in. `reconnect`: signed in, but the service wants it done again. `setup`: no OAuth client yet. De-Algo decides which applies, names your plugin, and adds the link: to the account's Settings, or for `setup` to your card under Admin, for the admin only. Any other key is refused. |
 
 The OAuth client belongs to the admin, so it lives in your [settings](Settings.md) for everyone: the
 admin enters it on your card under Admin → Plugins, where the redirect address to register with the

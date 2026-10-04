@@ -34,14 +34,14 @@ SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (i
 | `playlist` | A feed | `playlist_id` (YouTube id, or `generic:…` for De-Algo feeds), `max_items`, `max_per_run`, `view_order`, `view_show` |
 | `video` | An item | `video_id`, `kind` (`video`/`post`/`link`), `hint` (from `refine`), `status` (`pending`/`added`/`skipped`/`ignored`/`failed`), `tags`, `view_seconds`, `view_locked`, `watched_at` |
 | `placement` | An item in a feed | `playlist_item_id` (NULL = owed), `added_at`, `removed_at`, `expires_at`, `attempts`, `error` |
-| `graph_node` | A box or piece on the canvas | `kind`, `x`/`y`, `enabled`, `channel_pk`/`playlist_pk`, `attached_to`, per-kind columns |
+| `graph_node` | A box or piece on the canvas | `kind`, `x`/`y`, `enabled`, `channel_pk`/`playlist_pk`, `attached_to`, per-kind columns (a group: `width`/`height`, `locked`) |
 | `graph_edge` | A wire | `source_pk` → `target_pk` |
 | `repository_item` | An item waiting in a named repository | `name` (normalised), `video_pk`, `deposited_by` |
 | `allowance_usage` | Units spent against one plugin's service on its day (install-wide) | `provider`, `day`, `units`, `exhausted_at` |
 | `plugin_app_setting` | A plugin's setting for everyone | `key` (`<plugin>:<name>`), `value` |
 | `plugin_user_setting` | A plugin's setting for one owner | `key`, `value` |
 | `user_theme` | One owner's theme, as the JSON an exported theme file holds | `slot` (always `current`), `data` |
-| `user_image` | One owner's theme picture, as cleaned (`services/theming/images.py`) | `slot` (`background`, `edge-left`, `edge-right`, `heading`, and `avatar`, the account picture), `media_type`, `data` |
+| `user_image` | One owner's theme picture, as cleaned (`services/theming/images.py`) | `slot` (`background`, `edge-left`, `edge-right`, `heading`, the fonts `font-body` and `font-display`, and `avatar`, the account picture), `media_type`, `data` |
 | `sync_run` | One run | counts, `trigger`, `forced`, `ok`, `quota_spent` |
 | `run_event` | One line of a run's log | `seq`, `level`, `stage`, `about`, `message` |
 | `plugin_state` | Admin decisions about a plugin | `plugin_id`, `enabled`, `granted` (JSON), `origin`, `origin_ref`, `fetched_at` |

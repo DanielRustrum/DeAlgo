@@ -268,7 +268,10 @@ FONTS: dict[str, tuple[str, str]] = {
              '"DejaVu Sans Mono", monospace'),
 }
 
-_FONT_OPTIONS = tuple(Option(key, label) for key, (label, _) in FONTS.items())
+_FONT_OPTIONS = tuple(Option(key, label) for key, (label, _) in FONTS.items()) + (
+    # Uploaded under the Type section; without one, the stock face is used.
+    Option("own", "My own font"),
+)
 
 CHOICES: tuple[Choice, ...] = (
     Choice("mode", "Light or dark", "page", "system", (

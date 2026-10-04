@@ -66,6 +66,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     trigger: asGraphTrigger(raw["trigger"]),
     sort: asGraphSort(raw["sort"]),
     size: asGraphSize(raw["size"]),
+    locked: raw["locked"] === true,
     channel: asGraphChannel(raw["channel"]),
     asks: asGraphAsks(raw["asks"]),
     store: asGraphStore(raw["store"]),

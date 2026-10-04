@@ -23,6 +23,9 @@
   position: absolute;
   top: -9px;
   left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 0 7px;
   background: var(--bg);
   color: var(--muted);
@@ -47,3 +50,29 @@
   }
 }
 .graph-group-box:hover .graph-group-grip { border-color: var(--accent); }
+
+/* The padlock beside a group's name, and a group held by it: solid rather
+   than dashed, and no grab hand, since pressing it pans the canvas. */
+.graph-group-lock {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+
+  @variant pointer-coarse {
+    width: 26px; height: 26px;
+  }
+}
+.graph-group-lock svg { width: 12px; height: 12px; }
+.graph-group-box:hover .graph-group-lock,
+.graph-group-lock:focus-visible { opacity: 1; }
+.graph-group-lock:hover { color: var(--accent); }
+.graph-group-lock[aria-pressed="true"] { opacity: 1; color: var(--text); }
+.graph-group-box.is-locked { cursor: default; border-style: solid; }

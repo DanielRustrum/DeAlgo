@@ -22,6 +22,8 @@ def node_note(
 ) -> str:
     """The line under the title: what this box is, in a few words."""
     if node.kind == "group":
+        if node.locked:
+            return "locked in place: press the padlock to move it again"
         return "drag it to move everything in it"
     if node.kind == graph_service.RULE:
         return _rule_note(node)
