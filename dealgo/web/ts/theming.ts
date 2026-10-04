@@ -264,12 +264,62 @@ function themingShowColours(data: ThemingData, form: HTMLFormElement, mode: Them
   themingSetPreviewMode(data, form, mode);
 }
 
+/** Where the open sections are remembered, and how to read it back. Per
+ *  browser, and only a convenience: with nothing kept, the defaults stand. */
+function themingOpenKey(): string {
+  return "dealgo-theming-open";
+}
+
+/** Open the sections that were open before the page was last left. */
+function themingRestoreFolds(): void {
+  let kept: unknown = null;
+  try {
+    kept = JSON.parse(window.localStorage.getItem(themingOpenKey()) ?? "null");
+  } catch {
+    return;
+  }
+  if (!Array.isArray(kept)) return;
+  const open = new Set(kept.filter((id): id is string => typeof id === "string"));
+  document.querySelectorAll<HTMLDetailsElement>("details.theming-fold").forEach((fold) => {
+    fold.open = open.has(fold.id);
+  });
+}
+
+/** Note which sections are open now, for the next visit. */
+function themingRememberFolds(): void {
+  const open = Array.from(document.querySelectorAll<HTMLDetailsElement>("details.theming-fold"))
+    .filter((fold) => fold.open)
+    .map((fold) => fold.id);
+  try {
+    window.localStorage.setItem(themingOpenKey(), JSON.stringify(open));
+  } catch {
+    // Storage refused (a private window, say): the page still works.
+  }
+}
+
 function initTheming(): void {
   const form = document.getElementById("theme-form");
   if (!(form instanceof HTMLFormElement) || form.dataset["themingReady"]) return;
   const data = themingData();
   if (!data) return;
   form.dataset["themingReady"] = "1";
+
+  // Saving reloads the page; bring back the sections that were open, then
+  // keep note as they change. "toggle" does not bubble, so it is caught on
+  // the way down. A section a link points at (#type after an upload) is
+  // opened by sections.js as well.
+  themingRestoreFolds();
+  const target = window.location.hash.slice(1);
+  if (target) document.getElementById(target)?.setAttribute("open", "");
+  document.addEventListener(
+    "toggle",
+    (event) => {
+      if (event.target instanceof HTMLDetailsElement && event.target.classList.contains("theming-fold")) {
+        themingRememberFolds();
+      }
+    },
+    true,
+  );
 
   const unsaved = document.getElementById("theming-unsaved");
   function changed(): void {

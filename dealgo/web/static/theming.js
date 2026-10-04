@@ -238,8 +238,42 @@ function themingShowColours(data, form, mode) {
     });
     themingSetPreviewMode(data, form, mode);
 }
-function initTheming() {
+/** Where the open sections are remembered, and how to read it back. Per
+ *  browser, and only a convenience: with nothing kept, the defaults stand. */
+function themingOpenKey() {
+    return "dealgo-theming-open";
+}
+/** Open the sections that were open before the page was last left. */
+function themingRestoreFolds() {
     var _a;
+    let kept = null;
+    try {
+        kept = JSON.parse((_a = window.localStorage.getItem(themingOpenKey())) !== null && _a !== void 0 ? _a : "null");
+    }
+    catch (_b) {
+        return;
+    }
+    if (!Array.isArray(kept))
+        return;
+    const open = new Set(kept.filter((id) => typeof id === "string"));
+    document.querySelectorAll("details.theming-fold").forEach((fold) => {
+        fold.open = open.has(fold.id);
+    });
+}
+/** Note which sections are open now, for the next visit. */
+function themingRememberFolds() {
+    const open = Array.from(document.querySelectorAll("details.theming-fold"))
+        .filter((fold) => fold.open)
+        .map((fold) => fold.id);
+    try {
+        window.localStorage.setItem(themingOpenKey(), JSON.stringify(open));
+    }
+    catch (_a) {
+        // Storage refused (a private window, say): the page still works.
+    }
+}
+function initTheming() {
+    var _a, _b;
     const form = document.getElementById("theme-form");
     if (!(form instanceof HTMLFormElement) || form.dataset["themingReady"])
         return;
@@ -247,6 +281,19 @@ function initTheming() {
     if (!data)
         return;
     form.dataset["themingReady"] = "1";
+    // Saving reloads the page; bring back the sections that were open, then
+    // keep note as they change. "toggle" does not bubble, so it is caught on
+    // the way down. A section a link points at (#type after an upload) is
+    // opened by sections.js as well.
+    themingRestoreFolds();
+    const target = window.location.hash.slice(1);
+    if (target)
+        (_a = document.getElementById(target)) === null || _a === void 0 ? void 0 : _a.setAttribute("open", "");
+    document.addEventListener("toggle", (event) => {
+        if (event.target instanceof HTMLDetailsElement && event.target.classList.contains("theming-fold")) {
+            themingRememberFolds();
+        }
+    }, true);
     const unsaved = document.getElementById("theming-unsaved");
     function changed() {
         if (unsaved)
@@ -274,7 +321,7 @@ function initTheming() {
     document.querySelectorAll(".colour-tabs, [data-preview-tabs]").forEach((tabs) => {
         tabs.hidden = false;
     });
-    (_a = document.getElementById("colours")) === null || _a === void 0 ? void 0 : _a.classList.add("theming-tabbed");
+    (_b = document.getElementById("colours")) === null || _b === void 0 ? void 0 : _b.classList.add("theming-tabbed");
     document.querySelectorAll("[data-preview-mode]").forEach((button) => {
         button.addEventListener("click", () => {
             themingSetPreviewMode(data, form, button.dataset["previewMode"] === "dark" ? "dark" : "light");

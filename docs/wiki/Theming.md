@@ -7,6 +7,11 @@ that has become hard to read.
 
 Press **Save theme** to keep your changes. The page reloads in the new look.
 
+Every section folds: click its heading to open or close it. Only *Start from* is open the first
+time; after that, the page remembers in this browser which sections you had open, and opens a
+section on its own when you upload something to it. A closed section's settings are still saved
+with the rest.
+
 ## Start from
 
 Pick one of these themes, then change anything you like:
@@ -108,8 +113,11 @@ For a gradient background:
 Laid over whatever background you chose, under everything else:
 
 - **Pattern:** none, dots, a grid or diagonal lines, with its own **size**, **strength** and colour.
-- **Texture:** paper, fine grain, linen, canvas, concrete or watercolour. It's a surface rather
-  than a shape, and it works over light, a gradient or your own picture.
+- **Texture:** paper, fine grain, linen, canvas, concrete or watercolour, or **your own**. It's a
+  surface rather than a shape, and it works over light, a gradient or your own picture.
+  - **Your own texture:** upload a PNG, JPEG, GIF, WebP or SVG under *Your own texture*, and
+    choosing it happens straight away. It's tiled across the page and blended in like the built-in
+    ones, so a small, seamless picture works best. Removing it puts the texture back to none.
   - **Texture strength** and **texture scale** set how strongly it shows and how coarse it is.
   - **How the texture lies:** *softly* lightens and darkens alike and suits either mode;
     *darkening* shows best by day; *lightening* shows best by night.

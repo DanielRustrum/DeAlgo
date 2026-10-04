@@ -3,7 +3,7 @@
 {% block title %}De-Algo — Theming{% endblock %}
 {% set mode_names = {'light': 'By day', 'dark': 'By night'} %}
 {% set drawing_sets = ['garden', 'meadow', 'fern', 'blossom', 'woodland', 'ocean', 'mountains', 'sky', 'desert', 'own'] %}
-{% set picture_slots = {'type': ['font-body', 'font-display'], 'background': ['background'], 'drawings': ['edge-left', 'edge-right', 'heading']} %}
+{% set picture_slots = {'type': ['font-body', 'font-display'], 'background': ['background'], 'texture': ['texture'], 'drawings': ['edge-left', 'edge-right', 'heading']} %}
 
 {# One place for a picture: what is there now, a file to send, and the way to
    take it away. Its forms sit outside the theme's form (HTML has no forms
@@ -58,8 +58,11 @@
 <div class="theming">
 <div class="theming-controls">
 
-<section class="panel" id="presets">
-  <h2>Start from</h2>
+{# Every section folds, like a plugin's card under Settings: the page is long,
+   and most visits change one part of it. theming.js remembers which were
+   open, since saving reloads the page; fields in a closed one still post. #}
+<details class="panel theming-fold" id="presets" open>
+  <summary class="panel-head"><h2>Start from</h2></summary>
   <p class="hint">
     A whole look at once. Picking one replaces what you have changed, but keeps whether
     De-Algo is light or dark; change anything from there.
@@ -91,18 +94,18 @@
     {% endfor %}
   </div>
   {% endfor %}
-</section>
+</details>
 
 {# One form for every setting, saved together. A full post rather than a
    boosted swap: the theme lives in the page's <head>, which a swap leaves. #}
 <form id="theme-form" method="post" action="/settings/theming" hx-boost="false">
 
   {% for group, choices, dials, colours in setting_groups %}
-  <section class="panel theming-section" id="{{ group.key }}">
-    <div class="panel-head">
+  <details class="panel theming-section theming-fold" id="{{ group.key }}">
+    <summary class="panel-head">
       <h2>{{ group.label }}</h2>
       <button class="btn btn-quiet" type="submit" form="reset-{{ group.key }}">Reset</button>
-    </div>
+    </summary>
     <p class="hint">{{ group.about }}</p>
 
     <div class="setting-grid">
@@ -153,13 +156,16 @@
     </div>
     {% elif group.key in picture_slots %}
     <div class="picture-slots">
-      <h3>Your own {{ 'picture' if group.key == 'background' else 'pictures' }}</h3>
+      <h3>Your own {{ 'pictures' if group.key == 'drawings' else 'texture' if group.key == 'texture' else 'picture' }}</h3>
       <p class="hint">
         PNG, JPEG, GIF or WebP up to 3 MB, or SVG up to 512 KB. An SVG keeps its drawing and
         loses anything that is not one: scripts, styles, links and embedded pages. Uploading
         puts it in use straight away, so save any other changes first.
         {% if group.key == 'drawings' %}Your pictures keep their own colours; the colours below
         are for the drawn plants.{% endif %}
+        {% if group.key == 'texture' %}It is tiled across the page and blended in like the textures
+        above, so a small, seamless picture works best; strength, scale and how it lies still
+        apply.{% endif %}
       </p>
       {% for slot in picture_slots[group.key] %}{{ picture_slot(slot, slots[slot], pictures.get(slot)) }}{% endfor %}
     </div>
@@ -177,14 +183,14 @@
       {% endfor %}
     </div>
     {% endif %}
-  </section>
+  </details>
   {% endfor %}
 
-  <section class="panel theming-section" id="colours">
-    <div class="panel-head">
+  <details class="panel theming-section theming-fold" id="colours">
+    <summary class="panel-head">
       <h2>Colours</h2>
       <button class="btn btn-quiet" type="submit" form="reset-colours">Reset</button>
-    </div>
+    </summary>
     <p class="hint">
       Every colour De-Algo paints with, by day and by night. A colour left as it comes keeps up
       with De-Algo when its own colours change.
@@ -209,7 +215,7 @@
       {% endfor %}
     </fieldset>
     {% endfor %}
-  </section>
+  </details>
 
   <div class="theming-save">
     <button class="btn btn-primary" type="submit">Save theme</button>
@@ -231,8 +237,8 @@
 </form>
 {% endfor %}
 
-<section class="panel" id="share">
-  <h2>Share or start again</h2>
+<details class="panel theming-fold" id="share">
+  <summary class="panel-head"><h2>Share or start again</h2></summary>
   <p class="hint">
     A theme is a small file of colours and settings, with nothing else of yours in it. Download
     yours to keep it or pass it on; load one somebody gave you.
@@ -252,7 +258,7 @@
     </label>
     <button class="btn" type="submit">Load theme</button>
   </form>
-</section>
+</details>
 
 </div>
 

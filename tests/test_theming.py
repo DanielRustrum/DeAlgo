@@ -642,7 +642,7 @@ def test_a_gradient_is_built_from_its_settings():
 
 def test_every_texture_has_its_tile():
     for option in [c for c in CHOICES if c.name == "texture"][0].options:
-        if option.key == "none":
+        if option.key in ("none", "own"):  # nothing, and one's own upload
             continue
         tile = BASE_DIR / "static" / "textures" / f"{option.key}.svg"
         assert tile.exists(), option.key
@@ -814,3 +814,29 @@ def test_removing_ones_font_puts_the_stock_face_back(site):
     sam.post("/settings/theming/image/font-body/remove")
     assert store.load(owner).choice("font-body") == "dm-sans"
     assert "@font-face" not in sam.get("/feed").text
+
+
+def test_an_own_texture_is_tiled_when_uploaded_and_falls_back_without(site):
+    sam = signed_in(site, MEMBER)
+    sent = sam.post("/settings/theming/image/texture",
+                    files={"picture": ("weave.png", PNG, "image/png")}, follow_redirects=False)
+    assert sent.headers["location"].endswith("#texture")
+
+    page = sam.get("/feed").text
+    assert 'data-texture="own"' in page
+    assert re.search(r'--user-texture: url\("/settings/picture/texture\?v=[0-9a-f]+"\)', page)
+
+    sam.post("/settings/theming/image/texture/remove")
+    owner = accounts_id(site, MEMBER[0])
+    assert store.load(owner).choice("texture") == "none"
+    assert "data-texture" not in sam.get("/feed").text.split("<head>", 1)[0]
+    assert page_theme(parse({"choices": {"texture": "own"}})).attributes == ()
+
+
+def test_every_section_of_the_theming_page_folds(site):
+    page = signed_in(site, MEMBER).get("/settings/theming").text
+    for section in ("presets", "page", "type", "shape", "background", "gradient", "texture",
+                    "drawings", "colours", "share"):
+        assert f'<details class="panel' in page.split(f'id="{section}"', 1)[0].rsplit("\n", 1)[-1], section
+    # Start from is open to begin with; the rest wait to be opened.
+    assert '<details class="panel theming-fold" id="presets" open>' in page

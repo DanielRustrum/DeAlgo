@@ -146,6 +146,8 @@
 :is(:root, .theme-scope)[data-texture="canvas"] { --texture-image: url("/static/textures/canvas.svg"); }
 :is(:root, .theme-scope)[data-texture="concrete"] { --texture-image: url("/static/textures/concrete.svg"); }
 :is(:root, .theme-scope)[data-texture="watercolour"] { --texture-image: url("/static/textures/watercolour.svg"); }
+/* A person's own tile, its address written by the server as --user-texture. */
+:is(:root, .theme-scope)[data-texture="own"] { --texture-image: var(--user-texture, none); }
 
 /* Behind the plants (-z-10) and everything else, over the page's own
    background. Drawn only when there is a texture: a blended layer the size of

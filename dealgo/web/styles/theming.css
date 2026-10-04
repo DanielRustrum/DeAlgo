@@ -10,6 +10,43 @@
   .theming { grid-template-columns: 1fr; }
 }
 
+/* -- folding sections --------------------------------------------------------
+
+   Each section's heading row is its summary: the title, its Reset where it
+   has one, and a chevron at the end that turns as it opens, as a plugin's
+   card does under Settings. */
+
+.theming-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  gap: 10px;
+  margin: 0;
+}
+.theming-fold > summary::-webkit-details-marker { display: none; }
+.theming-fold > summary h2 { margin: 0; }
+.theming-fold > summary .btn { margin-left: auto; }
+.theming-fold > summary::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 0 auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 140ms ease;
+}
+/* With a Reset in the row, the button takes the space and the chevron follows it. */
+.theming-fold > summary:has(.btn)::after { margin-left: 0; }
+.theming-fold[open] > summary::after { transform: rotate(45deg); }
+.theming-fold > summary:hover::after { border-color: var(--accent); }
+.theming-fold[open] > summary { margin-bottom: 14px; }
+/* Closed, a section is only its heading row: no gap left beneath it. */
+.theming-fold:not([open]) { padding-bottom: var(--pad-panel-y); }
+@variant motion-reduce {
+  .theming-fold > summary::after { transition: none; }
+}
+
 /* -- presets ---------------------------------------------------------------- */
 
 .preset-grid {

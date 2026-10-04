@@ -343,7 +343,8 @@ CHOICES: tuple[Choice, ...] = (
         Option("canvas", "Canvas"),
         Option("concrete", "Concrete"),
         Option("watercolour", "Watercolour"),
-    ), about="A surface over whatever background you chose: light, gradient or picture."),
+        Option("own", "My own texture"),
+    ), about="A surface over whatever background you chose. Your own is uploaded below."),
     Choice("texture-blend", "How the texture lies", "texture", "soft", (
         Option("soft", "Softly, light and dark"),
         Option("darken", "Darkening"),

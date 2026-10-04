@@ -23,6 +23,7 @@ SLOTS: dict[str, str] = {
     "edge-left": "Left edge",
     "edge-right": "Right edge",
     "heading": "Beside headings",
+    "texture": "Texture",
 }
 
 #: A person's own typefaces, one for writing and one for headings.

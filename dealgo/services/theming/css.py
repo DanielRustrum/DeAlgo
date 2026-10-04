@@ -134,6 +134,8 @@ def page_theme(theme: Theme, pictures: Mapping[str, str] | None = None) -> PageT
         fallback["background"] = "wash"
     if theme.choice("drawings") == "own" and not any(s in images for s in DRAWING_SLOTS):
         fallback["drawings"] = "garden"
+    if theme.choice("texture") == "own" and "texture" not in images:
+        fallback["texture"] = "none"
 
     mode = theme.choice("mode")
     parts = []
@@ -142,6 +144,8 @@ def page_theme(theme: Theme, pictures: Mapping[str, str] | None = None) -> PageT
         # An address this module made from a fixed slot name and a hex
         # fingerprint: nothing in it came from the person.
         shared.append(f'--user-image: url("{images["background"]}")')
+    if "texture" in images:
+        shared.append(f'--user-texture: url("{images["texture"]}")')
     for slot in FONT_FAMILIES:
         # One's own font, when chosen and there is one; the stock face otherwise.
         if theme.choice(slot) == "own" and slot in images:

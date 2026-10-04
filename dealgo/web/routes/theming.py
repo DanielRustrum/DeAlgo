@@ -288,6 +288,8 @@ def upload_picture(
     # setting is found would look like an upload that did not work.
     if slot == "background":
         theme.choices["background"] = "image"
+    elif slot == "texture":
+        theme.choices["texture"] = "own"
     elif slot in images.FONT_SLOTS:
         theme.choices[slot] = "own"
     else:
@@ -302,8 +304,8 @@ def upload_picture(
 
 def _section(slot: str) -> str:
     """The part of the page a slot is in, to come back to."""
-    if slot == "background":
-        return "#background"
+    if slot in ("background", "texture"):
+        return "#" + slot
     return "#type" if slot in images.FONT_SLOTS else "#drawings"
 
 
@@ -317,11 +319,14 @@ def remove_picture(request: Request, slot: str) -> RedirectResponse:
     theme = store.load(owner)
     if slot == "background" and theme.choice("background") == "image":
         theme.choices.pop("background", None)
+    elif slot == "texture":
+        if theme.choice("texture") == "own":
+            theme.choices.pop("texture", None)
     elif slot in images.FONT_SLOTS:
         if theme.choice(slot) == "own":
             theme.choices.pop(slot, None)
     elif (
-        slot != "background"
+        slot in images.DRAWING_SLOTS
         and theme.choice("drawings") == "own"
         and not left & set(images.DRAWING_SLOTS)
     ):
