@@ -1,0 +1,229 @@
+/* Settings → Theming: the controls on the left, a live preview on the right. */
+
+.theming {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: var(--gap-section);
+  align-items: start;
+}
+@variant tablet {
+  .theming { grid-template-columns: 1fr; }
+}
+
+/* -- presets ---------------------------------------------------------------- */
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--gap-block);
+}
+.preset-grid form { display: contents; }
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+.preset-card:hover { border-color: var(--leaf); }
+.preset-card .hint { margin: 0; }
+/* Day above night: each a strip of the colours that make the preset. */
+.preset-swatches { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+.preset-strip { display: flex; width: 100%; height: 16px; border-radius: var(--radius-xs); overflow: hidden; outline: 1px solid var(--line); }
+.preset-strip > span { flex: 1; }
+
+/* -- settings --------------------------------------------------------------- */
+
+.setting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--gap-block) calc(20px * var(--density));
+  margin-top: var(--gap-block);
+}
+.setting { display: flex; flex-direction: column; gap: 5px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.setting-wide { grid-column: 1 / -1; }
+.setting .hint { margin: 0; }
+.setting-name, .setting legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(12.5px * var(--text-scale));
+  color: var(--muted);
+  padding: 0;
+}
+.setting output { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.setting input[type=range] { width: 100%; accent-color: var(--accent); }
+
+/* A row of options that reads as one control: radios, or the tabs below. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.segmented label,
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(13px * var(--text-scale));
+  cursor: pointer;
+}
+.segmented label:has(input:checked),
+.segmented button[aria-selected="true"],
+.segmented button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px var(--shadow); }
+.segmented input { accent-color: var(--accent); }
+.segmented[hidden] { display: none; }
+
+/* -- colours ---------------------------------------------------------------- */
+
+.colour-tabs { margin: var(--gap-block) 0 4px; }
+.colour-mode { border: 0; padding: 0; margin: var(--gap-block) 0 0; min-width: 0; }
+.colour-mode legend {
+  font-size: calc(12px * var(--text-scale));
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 6px;
+}
+/* Once the tabs are working the legend is the tab, and says it twice. */
+.theming-tabbed .colour-mode legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.colour-group { border-top: 1px solid var(--line); padding: 8px 0; }
+.colour-group summary { cursor: pointer; padding: 4px 0; }
+.colour-group summary .hint { margin-left: 6px; }
+.colour-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px var(--gap-row);
+  padding: 6px 0;
+}
+.colour-row input[type=color] {
+  width: 44px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  cursor: pointer;
+}
+.colour-row input[type=color]:disabled { opacity: 0.5; cursor: default; }
+.colour-name { font-size: calc(14px * var(--text-scale)); display: flex; flex-direction: column; }
+.colour-name .hint { margin: 0; font-size: calc(12px * var(--text-scale)); }
+.colour-follow { font-size: calc(12.5px * var(--text-scale)) !important; color: var(--muted) !important; }
+@variant phone {
+  .colour-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .colour-follow { grid-column: 2 / -1; }
+}
+
+.theming-save {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-row);
+  margin-bottom: var(--gap-section);
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+.theming-save .hint { margin: 0; }
+
+/* -- the preview ------------------------------------------------------------ */
+
+.theming-preview {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 92px);
+  overflow-y: auto;
+}
+@variant tablet {
+  .theming-preview { position: static; max-height: none; order: -1; }
+}
+.theming-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+/* The sample is a page of its own: it paints its own ground and sets its
+   own type, so it shows the theme rather than inheriting the saved one. */
+.theme-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background:
+    radial-gradient(20rem 14rem at 110% -10%, color-mix(in oklab, var(--sage) calc(30% * var(--wash)), transparent), transparent 62%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: calc(15px * var(--text-scale));
+  line-height: var(--leading);
+  color-scheme: light;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.theme-sample[data-mode="dark"] { color-scheme: dark; }
+.theme-sample .panel { margin: 0; padding: 14px; }
+.theme-sample .panel p { margin: 0 0 4px; }
+.theme-sample .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.theme-sample .stat { padding: 10px; }
+.theme-sample .stat-value { font-size: calc(22px * var(--text-scale)); }
+.theme-sample .stat-label { font-size: calc(10px * var(--text-scale)); }
+.theme-sample .filterbar { margin: 8px 0; }
+.theme-sample .banner { margin: 10px 0 0; padding: 8px 12px; font-size: calc(13px * var(--text-scale)); }
+.theme-sample .toast { padding-right: 14px; }
+.sample-bar { display: flex; align-items: center; gap: 8px; }
+.sample-bar .brand-mark { width: 28px; height: 28px; }
+.sample-bar .brand-mark svg { width: 16px; height: 16px; }
+.sample-bar .brand-name { font-size: calc(17px * var(--text-scale)); margin-right: auto; }
+.sample-tab {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sample-tab-on { background: var(--sage-soft); color: var(--text); }
+.sample-title { margin: 0; font-size: calc(26px * var(--text-scale)); }
+.sample-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sample-focus { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
+.sample-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sample-boxes .graph-node { position: static; width: auto; cursor: default; }
+.sample-marks { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.contrast-report { font-size: calc(13px * var(--text-scale)); }
+.contrast-report ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.contrast-title { margin: 0; }
+.contrast-title strong { color: var(--warn); }
+.contrast-ok { color: var(--muted); }
+
+/* -- on Settings: the way in ------------------------------------------------ */
+
+.theming-link { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-block); flex-wrap: wrap; }
+.theming-link p { margin: 0; }

@@ -2,7 +2,16 @@
 
    The look is a botanical one: warm paper, forest-green ink, terracotta for
    whatever acts, and sage, peach and ochre around it. Light is the default;
-   a dark system preference gets the same garden at night. */
+   a dark system preference gets the same garden at night.
+
+   Each account can change most of this under Settings → Theming. It never
+   writes CSS: it picks values that services/theming checks and turns into
+   overrides of these same variables. So the names here are a contract —
+   services/theming/tokens.py lists every one a person may change, with these
+   defaults, and a test holds the two to each other.
+
+   Every text colour reads at 4.5:1 or better on the grounds it is used on,
+   in both themes; each `on-*` is the ink for the fill it is named after. */
 
 :root {
   --bg: #f6eee2;
@@ -10,29 +19,34 @@
   --panel-2: #f2e8da;
   --line: #e6d8c4;
   --text: #22332e;
-  --muted: #6b766d;
-  --accent: #cf5530;
-  --accent-dim: #b0431f;
+  --muted: #606a62;
+  --accent: #c04f2c;
+  --accent-dim: #a73f1d;
   /* What is written on the accent: a button's label, a count's number. */
   --on-accent: #fffaf3;
-  --ok: #3f7d4e;
-  --warn: #a8641a;
-  --bad: #be3a27;
-  --radius: 18px;
+  --ok: #397247;
+  --warn: #975917;
+  --bad: #bc3926;
+  --on-bad: #ffffff;
+  /* The keyboard's ring. The accent unless a theme says otherwise. */
+  --focus: var(--accent);
   /* Behind the menu drawer and a modal: the ink, thinned, not black. */
   --scrim: rgba(34, 51, 46, 0.38);
   /* Every drop shadow. Brown rather than grey, so it reads as paper lifting. */
   --shadow: rgba(92, 64, 34, 0.18);
 
-  /* The garden. Fixed in both themes: these are the colour blocks — stat
-     cards, the illustrations — and each is paired with its own text colour. */
+  /* The garden: the colour blocks — stat cards, the illustrations — each
+     paired with its own ink. */
   --forest: #23413a;
+  --on-forest: #fffaf3;
   --leaf: #5f8a6a;
   --sage: #9fb8a1;
+  --on-sage: #23413a;
   --sage-soft: #dfe8dc;
   --peach: #f2b196;
   --blush: #f8dccb;
   --ochre: #e3a24a;
+  --on-ochre: #2a1b06;
   --cream: #fffaf3;
 
   /* The kinds of box on the Configuration canvas, one colour per category
@@ -56,24 +70,69 @@
 
   /* The colours a plugin may give its source boxes (SOURCE_COLOURS in
      plugins/registry/plugin.py). None is a colour the canvas uses for
-     another kind of box; green is a source's own. */
+     another kind of box; green is a source's own. Its mark carries its
+     initial in `on-plugin`, which reads on all seven. */
   --plugin-green: var(--kind-source);
-  --plugin-moss: #6b7f22;
-  --plugin-jade: #1d8a68;
-  --plugin-sky: #2b8fc6;
+  --plugin-moss: #697d21;
+  --plugin-jade: #1b8463;
+  --plugin-sky: #257cac;
   --plugin-pink: #b8487c;
   --plugin-red: #b5333a;
   --plugin-slate: #5b6b78;
+  --on-plugin: #ffffff;
 
   /* The tab that joins two pieces on the canvas. */
   --graph-tab: 18px;
 
   --font-body: "DM Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Fraunces Variable", ui-serif, Georgia, "Times New Roman", serif;
+
+  /* The dials a theme turns. Each is a plain number the shapes below are
+     multiplied by, so one setting moves a whole family together. */
+  --text-scale: 1;
+  --leading: 1.55;
+  --display-weight: 600;
+  --roundness: 1;
+  --density: 1;
+  --focus-width: 2px;
+  /* How strongly the page's sage and peach washes show: 0 is plain paper. */
+  --wash: 1;
 }
 
+/* The shapes the dials make. Declared on .theme-scope as well as the root so
+   the preview on the Theming page, which sets its own dials, recomputes them:
+   a custom property is worked out where it is declared, not where it is used. */
+:root,
+.theme-scope {
+  --radius: calc(18px * var(--roundness));
+  --radius-lg: calc(14px * var(--roundness));
+  --radius-control: calc(10px * var(--roundness));
+  --radius-md: calc(8px * var(--roundness));
+  --radius-sm: calc(6px * var(--roundness));
+  --radius-xs: calc(4px * var(--roundness));
+  /* Fully round at any height, and square only when roundness is nothing. */
+  --radius-pill: calc(999px * var(--roundness));
+
+  --gap: calc(8px * var(--density));
+  --gap-row: calc(10px * var(--density));
+  --gap-block: calc(14px * var(--density));
+  --gap-section: calc(20px * var(--density));
+  --pad-panel: calc(24px * var(--density));
+  --pad-panel-y: calc(22px * var(--density));
+  --pad-page: calc(24px * var(--density));
+  --pad-row: calc(10px * var(--density));
+  --pad-control-y: calc(8px * var(--density));
+  --pad-control-x: calc(16px * var(--density));
+  --pad-field-y: calc(9px * var(--density));
+  --pad-field-x: calc(12px * var(--density));
+}
+
+/* Night. Not when an account has chosen to stay light: Theming sets
+   data-mode on the root, and forcing dark is done there too, with these
+   same values (services/theming/css.py). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-mode="light"]) {
+    color-scheme: dark;
     --bg: #131d1a;
     --panel: #1a2824;
     --panel-2: #22332e;
@@ -87,6 +146,7 @@
     --ok: #7fbf7c;
     --warn: #e3a24a;
     --bad: #f07a63;
+    --on-bad: #1b1410;
     --scrim: rgba(5, 10, 8, 0.6);
     --shadow: rgba(0, 0, 0, 0.45);
     /* A step lighter than by day, or the forest blocks sink into the page. */
@@ -111,8 +171,24 @@
     --plugin-pink: #ec8fbb;
     --plugin-red: #f07a7e;
     --plugin-slate: #a5b3bf;
+    /* The night colours are light, so their initial is dark. */
+    --on-plugin: #131d1a;
   }
 }
+
+/* Motion, when an account asks for less of it than its device does. The
+   device's own preference is handled where each thing moves (motion-reduce). */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* The plants at the page's edges, for an account that would rather not. */
+:root[data-illustrations="off"] .garden-art { display: none; }
 
 /* -- Tailwind --------------------------------------------------------------
 

@@ -158,6 +158,7 @@ def test_every_script_ends_with_one_named_entry_point():
         "menu": "initMenu();",
         "pwa": "initPwa();",
         "toast": "initToasts();",
+        "theming": "initTheming();",
         "graph": "initGraph();",
         # A worker has no page to start on: registering its handlers is the
         # equivalent, and it is a named function like every other entry.

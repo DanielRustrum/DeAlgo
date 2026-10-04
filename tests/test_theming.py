@@ -1,0 +1,390 @@
+"""Settings → Theming: each account changes the design system's own values.
+
+Nobody writes CSS. A theme is colours, numbers between limits and choices
+from fixed lists; everything else is refused by name. The stylesheet and the
+registry agree on every default, the stock look and every preset can be
+read, and one account's look is nobody else's.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+import pytest
+from fastapi.testclient import TestClient
+
+from fakes import use_config
+from dealgo.services import accounts
+from dealgo.services.theming import contrast, store
+from dealgo.services.theming.css import page_theme
+from dealgo.services.theming.presets import PRESETS
+from dealgo.services.theming.theme import Theme, ThemeError, from_form, loads, parse
+from dealgo.services.theming.tokens import CHOICES, COLOURS, DIALS, FONTS
+from dealgo.web.templates import BASE_DIR
+
+ADMIN = ("admin", "admin")
+MEMBER = ("sam", "member-password")
+
+TOKENS_CSS = (BASE_DIR / "styles" / "tokens.css").read_text(encoding="utf-8")
+
+
+def _declared(block: str) -> dict[str, str]:
+    return dict(re.findall(r"--([\w-]+):\s*([^;]+);", block))
+
+
+def _stylesheet_defaults() -> tuple[dict[str, str], dict[str, str]]:
+    """tokens.css's own light and dark values, as written."""
+    light = _declared(TOKENS_CSS.split(":root {", 1)[1].split("\n}", 1)[0])
+    dark = _declared(TOKENS_CSS.split(':root:not([data-mode="light"]) {', 1)[1].split("\n  }", 1)[0])
+    return light, dark
+
+
+# -- the registry is the stylesheet ---------------------------------------------
+
+
+def test_every_colour_a_theme_may_change_has_the_stylesheets_default():
+    light, dark = _stylesheet_defaults()
+    for colour in COLOURS:
+        assert colour.name in light, f"--{colour.name} is not in tokens.css"
+        if colour.follows:
+            assert light[colour.name] == f"var(--{colour.follows})"
+            continue
+        assert light[colour.name] == colour.light, colour.name
+        assert dark.get(colour.name, colour.light) == colour.default("dark"), colour.name
+
+
+def test_every_colour_the_stylesheet_changes_by_night_is_one_a_theme_can_change():
+    _, dark = _stylesheet_defaults()
+    names = {colour.name for colour in COLOURS}
+    # The two that are not colours a person picks: the overlay and the shadow,
+    # which the depth dial works on instead.
+    assert set(dark) - names <= {"scrim", "shadow"}
+
+
+def test_every_dial_is_a_stylesheet_variable_with_its_default():
+    light, _ = _stylesheet_defaults()
+    for dial in DIALS:
+        if dial.name == "depth":
+            continue
+        assert light[dial.name] == f"{dial.default:g}{dial.unit}", dial.name
+
+
+def test_the_stock_typefaces_are_the_stylesheets():
+    light, _ = _stylesheet_defaults()
+    assert light["font-body"] == FONTS["dm-sans"][1]
+    assert light["font-display"] == FONTS["fraunces"][1]
+
+
+# -- legible ----------------------------------------------------------------------
+
+
+def test_the_stock_look_reads_at_the_recommended_contrast_by_day_and_night():
+    assert [s.describe() for s in contrast.shortfalls(Theme())] == []
+
+
+@pytest.mark.parametrize("preset", PRESETS, ids=lambda p: p.key)
+def test_every_preset_reads_at_the_recommended_contrast(preset):
+    assert [s.describe() for s in contrast.shortfalls(preset.theme())] == []
+
+
+def test_a_hard_to_read_theme_is_kept_but_named():
+    theme = parse({"colours": {"light": {"muted": "#d0d0d0"}}})
+    found = contrast.shortfalls(theme)
+
+    assert found and all(s.pair.ink == "muted" and s.mode == "light" for s in found)
+    assert "Quiet text on a panel (light)" in " ".join(s.describe() for s in found)
+
+
+def test_a_mode_that_is_never_shown_is_not_checked():
+    theme = parse({"colours": {"dark": {"text": "#1a2824"}}, "choices": {"mode": "light"}})
+    assert contrast.shortfalls(theme) == []
+
+
+def test_contrast_is_the_wcag_ratio():
+    assert round(contrast.ratio("#000000", "#ffffff"), 1) == 21.0
+    assert round(contrast.ratio("#777777", "#ffffff"), 2) == 4.48
+
+
+# -- only values of the right shape -------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", [
+    {"colours": {"light": {"bg": "red"}}},
+    {"colours": {"light": {"bg": "#fff;} body { display: none"}}},
+    {"colours": {"light": {"bg": "url(https://example.com/x)"}}},
+    {"colours": {"light": {"nonsense": "#ffffff"}}},
+    {"colours": {"sepia": {"bg": "#ffffff"}}},
+    {"dials": {"text-scale": 9}},
+    {"dials": {"text-scale": "1; color: red"}},
+    {"dials": {"roundness": True}},
+    {"choices": {"font-body": "Comic Sans MS"}},
+    {"choices": {"mode": "</style><script>"}},
+    {"css": "body { display: none }"},
+    {"dealgo-theme": 99},
+    ["not", "a", "theme"],
+])
+def test_anything_but_a_known_setting_of_the_right_shape_is_refused(bad):
+    with pytest.raises(ThemeError):
+        parse(bad)
+
+
+def test_every_problem_is_named_at_once():
+    with pytest.raises(ThemeError) as caught:
+        parse({"colours": {"light": {"bg": "nope", "text": "nope"}}, "dials": {"wash": 7}})
+    assert len(caught.value.problems) == 3
+
+
+def test_colours_are_written_one_way_and_defaults_are_not_kept():
+    theme = parse({
+        "colours": {"light": {"accent": "#ABC", "bg": "#f6eee2"}},
+        "dials": {"text-scale": 1, "density": "0.9"},
+        "choices": {"mode": "system", "illustrations": "off"},
+    })
+
+    assert theme.colours["light"] == {"accent": "#aabbcc"}
+    assert theme.dials == {"density": 0.9}
+    assert theme.choices == {"illustrations": "off"}
+
+
+def test_a_colour_that_follows_another_keeps_following_it():
+    theme = parse({"colours": {"light": {"accent": "#112233"}}})
+
+    assert theme.colour("light", "focus") == "#112233"
+    assert theme.colour("light", "kind-feed") == "#112233"
+    # Set to what it would be anyway, it is not a change of its own.
+    same = parse({"colours": {"light": {"accent": "#112233", "focus": "#112233"}}})
+    assert "focus" not in same.colours["light"]
+
+
+def test_a_theme_goes_out_and_comes_back_the_same():
+    theme = parse({
+        "colours": {"light": {"accent": "#112233"}, "dark": {"bg": "#000000"}},
+        "dials": {"roundness": 0.4},
+        "choices": {"font-display": "mono", "mode": "dark"},
+    })
+    again = loads(json.dumps(theme.to_json()))
+
+    assert again == theme
+    assert theme.to_json()["dealgo-theme"] == 1
+
+
+def test_the_form_follows_unless_told_otherwise():
+    form = {
+        "light.accent": "#112233", "light.focus": "#445566", "follow.light.focus": "1",
+        "dark.focus": "#778899",
+        "text-scale": "1.2", "mode": "dark", "font-body": "humanist",
+    }
+    theme = from_form(form)
+
+    assert theme.colours["light"] == {"accent": "#112233"}
+    assert theme.colours["dark"] == {"focus": "#778899"}
+    assert theme.dials == {"text-scale": 1.2}
+    assert theme.choices == {"mode": "dark", "font-body": "humanist"}
+
+
+# -- the CSS it makes ---------------------------------------------------------------
+
+
+def test_the_stock_look_adds_nothing_to_a_page():
+    stock = page_theme(Theme())
+    assert stock.css == "" and stock.attributes == ()
+    assert (stock.chrome_light, stock.chrome_dark) == ("#f6eee2", "#131d1a")
+
+
+def test_only_what_changed_is_written_and_only_as_variables():
+    theme = parse({
+        "colours": {"light": {"accent": "#112233"}, "dark": {"accent": "#ddeeff"}},
+        "dials": {"text-scale": 1.1, "focus-width": 3, "depth": 0.5},
+        "choices": {"font-body": "mono", "motion": "reduce", "illustrations": "off"},
+    })
+    page = page_theme(theme)
+
+    assert "--accent: #112233" in page.css and "--accent: #ddeeff" in page.css
+    assert "--text-scale: 1.1;" in page.css and "--focus-width: 3px;" in page.css
+    assert "--shadow: rgba(92, 64, 34, 0.09)" in page.css
+    assert FONTS["mono"][1] in page.css
+    assert dict(page.attributes) == {"data-motion": "reduce", "data-illustrations": "off"}
+    # Every declaration is a custom property: a theme sets variables, never rules.
+    for line in page.css.splitlines():
+        line = line.strip()
+        if line.endswith(";"):
+            assert line.startswith("--"), line
+
+
+def test_a_colour_changed_by_day_does_not_carry_into_the_night():
+    page = page_theme(parse({"colours": {"light": {"leaf": "#000000", "focus": "#123456"}}}))
+    night = page.css.split("@media (prefers-color-scheme: dark)", 1)[1]
+
+    assert "--leaf: #5f8a6a" in night
+    assert "--focus: var(--accent)" in night
+
+
+def test_always_dark_states_every_colour_and_beats_the_device():
+    page = page_theme(parse({"choices": {"mode": "dark"}}))
+
+    assert page.css.startswith(':root[data-mode="dark"]')
+    assert "color-scheme: dark" in page.css and "--bg: #131d1a" in page.css
+    assert ("data-mode", "dark") in page.attributes
+    assert page.chrome_light == page.chrome_dark == "#131d1a"
+
+
+def test_always_light_keeps_the_stylesheets_night_away():
+    page = page_theme(parse({"choices": {"mode": "light"}}))
+    assert ("data-mode", "light") in page.attributes
+    assert ':root:not([data-mode="light"])' in TOKENS_CSS
+
+
+def test_every_choice_and_dial_has_a_label_and_sensible_limits():
+    for dial in DIALS:
+        assert dial.label and dial.minimum <= dial.default <= dial.maximum
+    for choice in CHOICES:
+        assert choice.default in choice.keys()
+
+
+# -- the page ----------------------------------------------------------------------
+
+
+@pytest.fixture
+def site(db, monkeypatch):
+    from dealgo import config, scheduler
+    from dealgo.web import app as web_app
+
+    secured = config.Config(
+        **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
+    )
+    use_config(monkeypatch, secured)
+    monkeypatch.setattr(scheduler, "start", lambda: None)
+    monkeypatch.setattr(scheduler, "shutdown", lambda: None)
+    monkeypatch.setattr(scheduler, "next_run_time", lambda: None)
+    monkeypatch.setattr(web_app, "init_db", lambda: None)
+    with db.session_scope() as session:
+        accounts.ensure_admin(session)
+        accounts.create_user(session, *MEMBER)
+    return web_app.app
+
+
+def signed_in(app, who):
+    client = TestClient(app)
+    client.post("/login", data=dict(zip(("username", "password"), who)))
+    return client
+
+
+def test_settings_leads_to_theming(site):
+    page = signed_in(site, MEMBER).get("/settings").text
+    assert 'href="/settings/theming"' in page
+
+
+def test_the_theming_page_has_every_setting_a_preview_and_the_presets(site):
+    page = signed_in(site, MEMBER).get("/settings/theming").text
+
+    for colour in COLOURS:
+        assert f'name="light.{colour.name}"' in page and f'name="dark.{colour.name}"' in page
+    for dial in DIALS:
+        assert f'name="{dial.name}"' in page
+    for preset in PRESETS:
+        assert f'value="{preset.key}"' in page
+    assert 'id="theme-preview"' in page and "theme-scope" in page
+    assert "/static/theming.js" in page
+    assert "Everything reads at the recommended contrast." in page
+
+
+def test_a_saved_theme_is_on_every_page_for_that_account_only(site):
+    sam = signed_in(site, MEMBER)
+    admin = signed_in(site, ADMIN)
+
+    saved = sam.post("/settings/theming", data={
+        "light.accent": "#112233", "text-scale": "1.2", "mode": "dark",
+        "illustrations": "off",
+    }, follow_redirects=False)
+    assert saved.status_code == 303 and "ok=" in saved.headers["location"]
+
+    feed = sam.get("/feed").text
+    assert '<style id="user-theme">' in feed and "--text-scale: 1.2;" in feed
+    assert 'data-mode="dark"' in feed and 'data-illustrations="off"' in feed
+    assert 'content="#131d1a"' in feed
+
+    assert 'id="user-theme"' not in admin.get("/feed").text
+    # Nor on the sign-in page, which belongs to nobody yet.
+    assert 'id="user-theme"' not in TestClient(site).get("/login").text
+
+
+def test_a_bad_value_from_the_form_is_refused_with_its_name(site):
+    sam = signed_in(site, MEMBER)
+    answer = sam.post("/settings/theming", data={"light.bg": "javascript:alert(1)"},
+                      follow_redirects=False)
+
+    assert "err=" in answer.headers["location"]
+    assert store.load(accounts_id(site, MEMBER[0])).is_empty()
+
+
+def accounts_id(site, username):
+    from dealgo.db import session_scope
+    from dealgo.models import User
+    from sqlalchemy import select
+
+    with session_scope() as session:
+        return session.scalar(select(User.id).where(User.username == username))
+
+
+def test_a_preset_replaces_the_theme_but_keeps_light_or_dark(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming", data={"light.accent": "#112233", "mode": "light"})
+    sam.post("/settings/theming/preset", data={"preset": "compact"})
+
+    theme = store.load(accounts_id(site, MEMBER[0]))
+    assert theme.colours["light"] == {}
+    assert theme.dials["density"] == 0.8
+    assert theme.choices["mode"] == "light"
+
+
+def test_one_part_can_be_put_back_and_then_all_of_it(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming", data={"light.accent": "#112233", "roundness": "0.5"})
+    owner = accounts_id(site, MEMBER[0])
+
+    sam.post("/settings/theming/reset", data={"part": "shape"})
+    assert store.load(owner).dials == {}
+    assert store.load(owner).colours["light"] == {"accent": "#112233"}
+
+    sam.post("/settings/theming/reset", data={"part": "all"})
+    assert store.load(owner).is_empty()
+
+
+def test_a_theme_goes_to_a_file_and_back(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming", data={"dark.accent": "#ffaa00", "font-display": "mono"})
+    exported = sam.get("/settings/theming/export")
+    assert exported.headers["content-disposition"].startswith("attachment")
+
+    sam.post("/settings/theming/reset", data={"part": "all"})
+    loaded = sam.post("/settings/theming/import",
+                      files={"theme_file": ("t.json", exported.content, "application/json")},
+                      follow_redirects=False)
+
+    assert "ok=" in loaded.headers["location"]
+    theme = store.load(accounts_id(site, MEMBER[0]))
+    assert theme.colours["dark"] == {"accent": "#ffaa00"}
+    assert theme.choices == {"font-display": "mono"}
+
+
+def test_a_pasted_theme_with_anything_unknown_is_refused(site):
+    sam = signed_in(site, MEMBER)
+    answer = sam.post("/settings/theming/import",
+                      data={"theme_text": '{"css": "body{}"}'}, follow_redirects=False)
+    assert "err=" in answer.headers["location"]
+
+
+def test_a_backup_carries_the_theme_and_a_restore_brings_it_back(site):
+    sam = signed_in(site, MEMBER)
+    sam.post("/settings/theming", data={"light.accent": "#112233"})
+    backup = sam.get("/settings/backup").json()
+    assert backup["theme"]["colours"]["light"] == {"accent": "#112233"}
+
+    sam.post("/settings/theming/reset", data={"part": "all"})
+    restored = sam.post("/settings/restore", files={
+        "backup_file": ("b.json", json.dumps(backup).encode(), "application/json"),
+    }, follow_redirects=False)
+
+    assert "your+theme" in restored.headers["location"]
+    assert store.load(accounts_id(site, MEMBER[0])).colours["light"] == {"accent": "#112233"}

@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from ...db import get_settings
 from ...models import Channel, Placement, Playlist, Video
 from ..scope import OwnerId, owned
+from ..theming import store as themes
+from ..theming.theme import ThemeError, parse as parse_theme
 from .export import FORMAT_VERSION
 
 
@@ -32,6 +34,8 @@ class RestoreSummary:
     videos: int = 0
     placements: int = 0
     skipped: list[str] = field(default_factory=list)
+    #: Whether the file carried a theme and it was used; None when it had none.
+    theme: bool | None = None
 
     def describe(self) -> str:
         """The summary as one sentence for the person who restored it."""
@@ -41,7 +45,12 @@ class RestoreSummary:
         ]
         if self.videos:  # only an older file carries these
             parts.append(f"{self.videos} video{'s' if self.videos != 1 else ''}")
-        return "Restored " + ", ".join(parts) + "."
+        sentence = "Restored " + ", ".join(parts)
+        if self.theme:
+            sentence += ", and your theme"
+        elif self.theme is False:
+            sentence += ". The theme in the file could not be used"
+        return sentence + "."
 
 
 def _parse_stamp(value: str | None) -> dt.datetime | None:
@@ -71,6 +80,7 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
     playlists = _restore_feeds(session, payload, owner, summary)
     channels = _restore_channels(session, payload, owner, playlists, summary)
     _restore_videos(session, payload, owner, channels, playlists, summary)
+    _restore_theme(session, payload, owner, summary)
     return summary
 
 
@@ -94,6 +104,25 @@ def _restore_settings(session: Session, payload: dict[str, Any]) -> None:
     for key, value in (payload.get("settings") or {}).items():
         if hasattr(settings, key) and key not in ("id", "updated_at"):
             setattr(settings, key, value)
+
+
+def _restore_theme(
+    session: Session, payload: dict[str, Any], owner: OwnerId, summary: RestoreSummary
+) -> None:
+    """The file's theme, when it has one, checked like any imported theme.
+
+    One that does not read is left out rather than failing the restore: the
+    feeds and channels are what a backup is for.
+    """
+    if "theme" not in payload:
+        return
+    try:
+        theme = parse_theme(payload["theme"])
+    except ThemeError:
+        summary.theme = False
+        return
+    themes.write(session, owner, theme)
+    summary.theme = True
 
 
 def _restore_feeds(

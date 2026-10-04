@@ -11,12 +11,14 @@ body {
   /* Paper, with a wash of sage in one corner and peach in the other. Fixed,
      so the light stays put while the page scrolls under it. */
   background:
-    radial-gradient(60rem 40rem at 105% -8%, color-mix(in oklab, var(--sage) 30%, transparent), transparent 62%),
-    radial-gradient(50rem 36rem at -8% 108%, color-mix(in oklab, var(--peach) 26%, transparent), transparent 62%),
+    radial-gradient(60rem 40rem at 105% -8%, color-mix(in oklab, var(--sage) calc(30% * var(--wash)), transparent), transparent 62%),
+    radial-gradient(50rem 36rem at -8% 108%, color-mix(in oklab, var(--peach) calc(26% * var(--wash)), transparent), transparent 62%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
-  font: 15px/1.55 var(--font-body);
+  font-family: var(--font-body);
+  font-size: calc(15px * var(--text-scale));
+  line-height: var(--leading);
   /* Nothing in this app is meant to be scrolled sideways; a table that needs
      to says so with its own container. */
   overflow-x: hidden;
@@ -34,15 +36,15 @@ a:hover { color: var(--accent); }
 /* Headings are set in the display face; everything else in the body face. */
 h1, h2, .display {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: var(--display-weight);
   font-optical-sizing: auto;
   letter-spacing: -0.01em;
 }
-h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
+h1 { font-size: calc(30px * var(--text-scale)); line-height: 1.15; margin: 0 0 12px; }
 
 ::selection { background: color-mix(in oklab, var(--peach) 55%, transparent); }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 
 .topbar {
   display: flex;
@@ -76,8 +78,8 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
 .brand-mark svg { width: 20px; height: 20px; }
 .brand-name {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 650;
+  font-size: calc(20px * var(--text-scale));
+  font-weight: calc(var(--display-weight) + 50);
   letter-spacing: -0.01em;
 }
 
@@ -87,10 +89,10 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
 /* Small, spaced capitals: signposts, not headlines. */
 .topbar nav a {
   padding: 7px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   text-decoration: none;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -175,7 +177,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
     width: 38px;
     height: 38px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     background: var(--panel);
     color: var(--text);
     cursor: pointer;
@@ -232,7 +234,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
   .menu-check:checked ~ .menu-button .menu-bars::after { transform: translateY(-6px) rotate(-45deg); }
 
   .menu-check:focus-visible ~ .menu-button {
-    outline: 2px solid var(--accent);
+    outline: var(--focus-width) solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -283,7 +285,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
     margin: 0 14px 8px;
     padding: 0 46px 10px 0;
     border-bottom: 1px solid var(--line);
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     font-weight: 600;
     letter-spacing: 0.7px;
     text-transform: uppercase;
@@ -295,8 +297,8 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
   .topbar nav { justify-content: flex-start; }
   .topbar nav a {
     padding: 12px 14px; /* a whole row is the target, not the word */
-    border-radius: 12px;
-    font-size: 15px;
+    border-radius: var(--radius-control);
+    font-size: calc(15px * var(--text-scale));
     font-weight: 500;
     letter-spacing: 0;
     text-transform: none;
@@ -340,7 +342,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
     width: 100%;
     justify-content: center;
     padding: 10px 14px;
-    font-size: 14px;
+    font-size: calc(14px * var(--text-scale));
   }
 
   /* In the drawer, the account line is a row like the buttons above it. */
@@ -354,7 +356,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
     margin-top: auto;
     padding: 14px 14px 0;
     border-top: 1px solid var(--line);
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
     color: var(--muted);
   }
 
@@ -396,7 +398,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
 }
 
 @variant phone {
-  .brand-name { font-size: 18px; }
+  .brand-name { font-size: calc(18px * var(--text-scale)); }
 }
 
 /* Set while something is open over the page — the tab drawer, a modal — so
@@ -419,13 +421,13 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
 main {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 24px;
-  padding-left: max(24px, env(safe-area-inset-left));
-  padding-right: max(24px, env(safe-area-inset-right));
+  padding: var(--pad-page);
+  padding-left: max(var(--pad-page), env(safe-area-inset-left));
+  padding-right: max(var(--pad-page), env(safe-area-inset-right));
 }
 
 @variant phone {
-  main { padding: 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  main { padding: calc(14px * var(--density)); padding-bottom: max(calc(14px * var(--density)), env(safe-area-inset-bottom)); }
 }
 
 footer {
@@ -435,19 +437,19 @@ footer {
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 
-.meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.meta { font-size: calc(12px * var(--text-scale)); color: var(--muted); margin-top: 3px; }
 .meta a { text-decoration: none; }
 .muted { color: var(--muted); }
-.hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.hint { font-size: calc(12.5px * var(--text-scale)); color: var(--muted); margin: 8px 0 0; }
 .empty { color: var(--muted); }
-.crumbs { margin: 0 0 14px; font-size: 13px; }
-.error-note { color: var(--bad); font-size: 12.5px; margin-top: 4px; }
+.crumbs { margin: 0 0 14px; font-size: calc(13px * var(--text-scale)); }
+.error-note { color: var(--bad); font-size: calc(12.5px * var(--text-scale)); margin-top: 4px; }
 .connected { margin-top: 0; }
 
-code { background: var(--panel-2); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; }
+code { background: var(--panel-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: calc(12.5px * var(--text-scale)); }
 
 /* For a label that a screen reader needs and the layout does not. Clipped
    rather than hidden: display:none would take it out of the accessibility

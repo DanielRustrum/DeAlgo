@@ -1015,7 +1015,7 @@ def test_the_hamburger_matches_the_buttons_beside_it(client):
     # The same recipe as .btn: it belongs to that row of controls.
     assert "border:1px solid var(--line)" in button
     assert "background:var(--panel)" in button
-    assert "border-radius:10px" in button
+    assert "border-radius:var(--radius-control)" in button
 
 
 def test_the_hamburger_answers_to_a_pointer(client):

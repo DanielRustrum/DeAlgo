@@ -17,7 +17,7 @@
 
 {# A leafy stem, 120 × 200. #}
 {% macro sprig(classes='', leaf='fill-leaf', stem='stroke-forest') -%}
-<svg class="{{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
   <path class="{{ stem }}" d="M60 198C55 140 68 80 60 12" fill="none" stroke-width="2.5" stroke-linecap="round"/>
   {% for y, side in [(170, 'r'), (148, 'l'), (122, 'r'), (98, 'l'), (72, 'r'), (50, 'l'), (30, 'r')] %}
   <use href="#g-leaf" class="{{ leaf }}"
@@ -29,7 +29,7 @@
 
 {# A stem of round terracotta and ochre leaves, 120 × 200. #}
 {% macro bloom(classes='') -%}
-<svg class="{{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
   <path class="stroke-forest" d="M58 198C62 150 50 100 64 40" fill="none" stroke-width="2.5" stroke-linecap="round"/>
   <path class="stroke-forest" d="M57 150C40 138 30 122 28 104M60 110C78 98 88 84 90 66" fill="none" stroke-width="2" stroke-linecap="round"/>
   <ellipse class="fill-accent" cx="28" cy="98" rx="13" ry="17" transform="rotate(-20 28 98)"/>
@@ -42,7 +42,7 @@
 {# The large drawing: a sage hill under a peach sun, with plants either side.
    400 × 300. Used where a page has room to breathe — signing in, mostly. #}
 {% macro scene(classes='') -%}
-<svg class="{{ classes }}" viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+<svg class="garden-art {{ classes }}" viewBox="0 0 400 300" aria-hidden="true" focusable="false">
   <path class="fill-sage-soft" d="M58 252C18 182 40 92 122 60c70-28 158-20 210 30 50 48 40 140-22 172-60 30-200 40-252-10Z"/>
   <circle class="fill-peach" cx="322" cy="76" r="28"/>
   <path class="fill-sage" d="M30 262c80-58 196-64 340-22v30c-110 26-230 26-340 6Z"/>
@@ -76,8 +76,8 @@
   <div class="flex items-end gap-3">
     {{ sprig('h-16 w-10 shrink-0 -mb-1 phone:hidden') }}
     <div>
-      <h1 class="m-0 text-[34px] leading-tight phone:text-[26px]">{{ title }}</h1>
-      {% if lede %}<p class="m-0 mt-1 text-[14.5px] text-muted">{{ lede }}</p>{% endif %}
+      <h1 class="m-0 text-[length:calc(34px*var(--text-scale))] leading-tight phone:text-[length:calc(26px*var(--text-scale))]">{{ title }}</h1>
+      {% if lede %}<p class="m-0 mt-1 text-[length:calc(14.5px*var(--text-scale))] text-muted">{{ lede }}</p>{% endif %}
     </div>
   </div>
   {% if caller %}<div class="flex shrink-0 items-center gap-2">{{ caller() }}</div>{% endif %}

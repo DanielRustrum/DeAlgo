@@ -70,6 +70,7 @@ OWNED_TABLES: tuple[tuple[str, str | None], ...] = (
     ("graph_node", None),
     ("graph_edge", None),
     ("plugin_user_setting", "key"),
+    ("user_theme", "slot"),
 )
 
 
@@ -101,9 +102,10 @@ def adopt_unowned(session: Session, admin: User) -> int:
         adopted += getattr(result, "rowcount", 0)
 
     # What is left is a duplicate of something the admin already has. For the
-    # bookkeeping tables that is meaningless and goes; anything else stays put
-    # rather than being deleted on a guess, and says so.
-    for table in ("settings", "oauth_token"):
+    # bookkeeping tables, and a theme when the admin has one of its own, that
+    # is meaningless and goes; anything else stays put rather than being
+    # deleted on a guess, and says so.
+    for table in ("settings", "oauth_token", "user_theme"):
         session.execute(text(f"DELETE FROM {table} WHERE owner_pk IS NULL"))
     for table, _ in OWNED_TABLES:
         left = session.execute(

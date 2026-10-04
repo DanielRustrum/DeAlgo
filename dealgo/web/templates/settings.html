@@ -32,6 +32,17 @@
 </section>
 {% endif %}
 
+<section class="panel theming-link" id="theming">
+  <div>
+    <h2>Theming</h2>
+    <p class="hint">
+      How De-Algo looks to you: its colours by day and by night, typefaces, text size, corners
+      and spacing. Only you see it.
+    </p>
+  </div>
+  <a class="btn" href="/settings/theming">Change the look</a>
+</section>
+
 {# What each plugin lets you set for yourself. Anything a plugin needs set
    once for everybody is the admin's, on its card under Admin → Plugins. #}
 {% if plugin_panels %}
@@ -78,7 +89,8 @@
     yours alone.
   </p>
   <p class="hint">
-    The whole setup as one JSON file: feeds, channels, filters, limits and fill order. Keep it
+    The whole setup as one JSON file: feeds, channels, filters, limits, fill order and your
+    theme. Keep it
     somewhere safe, or carry it to another machine.
   </p>
   {# hx-boost must not touch this: a boosted request fetches the file as AJAX

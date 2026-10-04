@@ -42,13 +42,17 @@ def fresh_plugins():
     """
     from dealgo.plugins import registry
     from dealgo.services import plugin_settings
+    from dealgo.services.theming import store as themes
 
-    # And the plugins' setting values, which are held the same way.
+    # And the plugins' setting values and each account's theme, which are
+    # held the same way.
     registry.forget()
     plugin_settings.drop_held()
+    themes.drop_held()
     yield
     registry.forget()
     plugin_settings.drop_held()
+    themes.drop_held()
 
 
 @pytest.fixture(autouse=True)

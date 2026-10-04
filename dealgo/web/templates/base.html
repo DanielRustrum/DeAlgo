@@ -1,6 +1,6 @@
 <!doctype html>
 {% from "_garden.html" import leaf_defs, sprig, bloom %}
-<html lang="en">
+<html lang="en"{% for name, value in theme.attributes %} {{ name }}="{{ value }}"{% endfor %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,8 +8,8 @@
 
   {# Installable, and themed to match the app rather than the browser. #}
   <meta name="dealgo-build" content="{{ asset_version }}">
-  <meta name="theme-color" content="#f6eee2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#131d1a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="{{ theme.chrome_light }}" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="{{ theme.chrome_dark }}" media="(prefers-color-scheme: dark)">
   <meta name="description" content="Your feed, in the order it was published.">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
@@ -21,6 +21,9 @@
   {# The body face is needed for the first paint; the display face can follow. #}
   <link rel="preload" href="/static/fonts/dm-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
+  {# This account's theme: overrides of the stylesheet's own variables, made
+     by services/theming from checked values only (Settings → Theming). #}
+  {% if theme.css %}<style id="user-theme">{{ theme.css | safe }}</style>{% endif %}
   <script src="/static/htmx.min.js?v={{ asset_version }}" defer></script>
   <script src="/static/sections.js?v={{ asset_version }}" defer></script>
   <script src="/static/menu.js?v={{ asset_version }}" defer></script>
@@ -36,7 +39,7 @@
 
 {# Plants at the edges of the page, behind everything. Only where there is
    room beside the column: on a narrow screen they would sit under the text. #}
-<div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden tablet:hidden" aria-hidden="true">
+<div class="garden-art pointer-events-none fixed inset-0 -z-10 overflow-hidden tablet:hidden" aria-hidden="true">
   {{ sprig('absolute -bottom-4 -left-2 h-64 w-40 opacity-70') }}
   {{ bloom('absolute -bottom-6 left-20 h-48 w-28 opacity-80') }}
   {{ sprig('absolute -right-6 top-24 h-56 w-36 rotate-[200deg] opacity-40', leaf='fill-sage') }}

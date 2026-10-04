@@ -28,15 +28,15 @@
   text-align: left;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 11px;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   cursor: pointer;
 }
 .finder-go:hover { border-color: var(--accent); color: var(--accent); }
-.finder-empty { font-size: 12px; color: var(--muted); }
+.finder-empty { font-size: calc(12px * var(--text-scale)); color: var(--muted); }
 
 .graph-palette {
   position: absolute;
@@ -61,7 +61,7 @@
   to { transform: translateX(0); }
 }
 .palette-head { display: flex; align-items: center; justify-content: space-between; }
-.palette-head h3 { margin: 0; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text); }
+.palette-head h3 { margin: 0; font-size: calc(13px * var(--text-scale)); text-transform: none; letter-spacing: 0; color: var(--text); }
 .palette-close {
   background: none; border: none; color: var(--muted); cursor: pointer; font: inherit; padding: 2px 4px;
 }
@@ -76,13 +76,13 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--text-scale));
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--muted);
 }
 .palette-group > summary::-webkit-details-marker { display: none; }
-.palette-group > summary::before { content: "▸"; font-size: 9px; }
+.palette-group > summary::before { content: "▸"; font-size: calc(9px * var(--text-scale)); }
 .palette-group[open] > summary::before { content: "▾"; }
 .palette-group > summary:hover { color: var(--text); }
 
@@ -94,31 +94,31 @@
   padding: 10px 12px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: grab;
   touch-action: none;
   user-select: none;
 }
 .palette-item:hover { border-color: var(--accent); }
-.palette-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.palette-item:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 .palette-swatch { width: 4px; align-self: stretch; border-radius: 2px; background: var(--kind-colour, var(--muted)); }
 
 /* A plugin with more than one box gets a fold of its own inside the Plugins
    one. Indented, so two levels of fold read as two levels. */
 .palette-nested { margin-left: 10px; }
-.palette-nested > summary { font-size: 11.5px; }
+.palette-nested > summary { font-size: calc(11.5px * var(--text-scale)); }
 .palette-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.palette-text strong { font-size: 13px; }
-.palette-blurb { font-size: 11.5px; color: var(--muted); }
+.palette-text strong { font-size: calc(13px * var(--text-scale)); }
+.palette-blurb { font-size: calc(11.5px * var(--text-scale)); color: var(--muted); }
 /* Where an augmentation goes, under its description: the boxes it may be
    slotted under, named. Each wears its own box's colour, so the pill and the
    box on the canvas are recognisably the same thing. */
 .palette-under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .palette-pill {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   line-height: 1;
   padding: 3px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid currentColor;
   color: var(--kind-colour, var(--muted));
   white-space: nowrap;
@@ -149,7 +149,7 @@
   border-radius: var(--radius);
   padding: 10px 14px;
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 
 @variant tablet {

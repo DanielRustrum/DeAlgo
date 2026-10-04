@@ -1,7 +1,7 @@
 /* Small status labels. */
 
 .pill {
-  display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 20px;
+  display: inline-block; font-size: calc(11px * var(--text-scale)); padding: 2px 7px; border-radius: var(--radius-pill);
   background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
   text-transform: lowercase; letter-spacing: 0.3px;
 }

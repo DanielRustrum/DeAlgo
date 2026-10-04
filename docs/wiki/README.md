@@ -48,6 +48,7 @@ Every box and piece on the canvas. See [Nodes](Nodes/README.md).
 ## Managing
 
 - [Settings](Settings.md) — what each account can change.
+- [Theming](Theming.md) — your own colours, type, corners and spacing.
 - [Quota](Quota.md) — YouTube's daily API allowance.
 - [Backup and Restore](Backup%20and%20Restore.md) — save and reload your own setup.
 - [Moving an Instance](Moving%20an%20Instance.md) — every account, encrypted, to another machine.

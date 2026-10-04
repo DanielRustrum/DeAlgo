@@ -45,7 +45,7 @@
   padding: 5px 10px;
   color: var(--muted);
   font: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   cursor: pointer;
 }
 .graph-pop-tab:hover { color: var(--text); }
@@ -61,11 +61,11 @@
 }
 .graph-pop .graph-sheet-list { max-height: none; }
 .graph-pop-kind {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
+  font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
 }
 .graph-pop-close {
   background: none; border: none; color: var(--muted); cursor: pointer;
-  font: inherit; font-size: 13px; line-height: 1; padding: 2px 4px;
+  font: inherit; font-size: calc(13px * var(--text-scale)); line-height: 1; padding: 2px 4px;
 }
 .graph-pop-close:hover { color: var(--accent); }
 
@@ -80,12 +80,12 @@
   padding: 9px 11px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .graph-group-name {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted);
+  font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted);
 }
-.graph-group-note { font-size: 11.5px; color: var(--muted); }
+.graph-group-note { font-size: calc(11.5px * var(--text-scale)); color: var(--muted); }
 .graph-group-note.is-open { color: var(--ok); }
 .graph-group-note.is-shut { color: var(--warn); }
 
@@ -97,16 +97,16 @@
   margin-bottom: 2px;
   border-bottom: 1px solid var(--line);
 }
-.graph-switch { display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: 12.5px; }
+.graph-switch { display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: calc(12.5px * var(--text-scale)); }
 .graph-switch input { width: auto; margin: 0; accent-color: var(--ok); }
 .graph-switch-name { user-select: none; }
 
-.graph-counts { display: flex; gap: 14px; font-size: 12.5px; }
+.graph-counts { display: flex; gap: 14px; font-size: calc(12.5px * var(--text-scale)); }
 .graph-counts a { text-decoration: none; color: var(--muted); }
 .graph-counts a:hover { color: var(--accent); }
 .graph-counts strong { color: var(--text); }
 .graph-field { display: flex; flex-direction: column; gap: 4px; }
-.graph-field-name { font-size: 11.5px; color: var(--muted); }
+.graph-field-name { font-size: calc(11.5px * var(--text-scale)); color: var(--muted); }
 
 /* A search box over the list it narrows, reading as one control. */
 .graph-picker { display: flex; flex-direction: column; gap: 4px; }
@@ -171,7 +171,7 @@
 
 .graph-sheet-name {
   margin: 0 0 6px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   text-transform: uppercase;
   letter-spacing: 0.6px;
   padding-bottom: 5px;
@@ -198,7 +198,7 @@
   min-width: 20px;
   text-align: right;
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--text-scale));
   font-variant-numeric: tabular-nums;
 }
 
@@ -209,21 +209,21 @@
   max-height: 40vh; overflow-y: auto;
 }
 .graph-sheet-row {
-  display: flex; flex-direction: column; gap: 1px; font-size: 13px;
+  display: flex; flex-direction: column; gap: 1px; font-size: calc(13px * var(--text-scale));
   padding-bottom: 7px; border-bottom: 1px solid var(--line);
 }
 .graph-sheet-row:last-child { border-bottom: none; padding-bottom: 0; }
 .graph-sheet-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.graph-sheet-reason { font-size: 11.5px; color: var(--bad); }
+.graph-sheet-reason { font-size: calc(11.5px * var(--text-scale)); color: var(--bad); }
 
 /* What the boxes on this path would leave on it. The same pills a card
    wears once it gets there, so it is recognisable when it does. */
 .graph-sheet-marks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
 .graph-sheet-mark {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--text-scale));
   color: var(--muted);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 0 6px;
   white-space: nowrap;
 }

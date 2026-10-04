@@ -2,6 +2,12 @@
 
 Each account has its own Settings.
 
+## Theming
+
+**Change the look** opens [Theming](Theming.md). It covers your colours by day and by night,
+typefaces, text size, corners, spacing, shadows and the focus ring, with a live preview and a
+contrast check. Only you see your theme.
+
 ## Plugins
 
 A folded block for each plugin that has something for you: a service to sign in to, or settings each

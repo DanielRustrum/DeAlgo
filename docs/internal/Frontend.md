@@ -14,6 +14,7 @@ No framework, no bundler, no Node at runtime.
 | `web/ts/sections.ts` | `static/sections.js` | Collapsible sections |
 | `web/ts/menu.ts` | `static/menu.js` | Menus |
 | `web/ts/toast.ts` | `static/toast.js` | Flash messages as toasts |
+| `web/ts/theming.ts` | `static/theming.js` | Settings → Theming: live preview and contrast check |
 | `web/ts/pwa.ts` | `static/pwa.js` | Service-worker registration, install prompt, offline banner |
 | `web/ts/sw.ts` | `static/sw.js` | Service worker (separate `tsconfig.sw.json`, WebWorker lib) |
 | — | `static/htmx.min.js` | htmx, vendored |
@@ -39,9 +40,30 @@ plain CSS with native nesting, plus a few Tailwind directives:
   a utility in a template always beats a component rule. Tailwind's preflight reset is not used:
   `base.css` is the app's own reset.
 - **The theme** is `tokens.css`: the colours as custom properties (`--bg`, `--panel`, `--accent`…,
-  the garden colours `--forest`, `--sage`, `--peach`…), a dark palette under
-  `prefers-color-scheme: dark`, and `@theme inline`, which exposes the same tokens to Tailwind as
-  `bg-panel`, `text-ink`, `fill-forest`, `font-display`. Colours are never written anywhere else.
+  the garden colours `--forest`, `--sage`, `--peach`…, each fill with its own ink `--on-accent`,
+  `--on-forest`, `--on-sage`, `--on-ochre`, `--on-bad`, `--on-plugin`), a dark palette under
+  `prefers-color-scheme: dark` (skipped when the root has `data-mode="light"`), and `@theme inline`,
+  which exposes the same tokens to Tailwind as `bg-panel`, `text-ink`, `fill-forest`,
+  `font-display`. Colours are never written anywhere else. Every text colour reads at 4.5:1 on the
+  grounds it is used on, in both modes (`tests/test_theming.py`).
+- **Dials, not literals.** Sizes are written against the theme's dials so one setting moves a whole
+  family: `font-size: calc(13px * var(--text-scale))`, `line-height: var(--leading)`,
+  `font-weight: var(--display-weight)`, radii from `--radius`, `--radius-lg`, `--radius-control`,
+  `--radius-md`, `--radius-sm`, `--radius-xs`, `--radius-pill` (all × `--roundness`), layout spacing
+  from `--gap*` and `--pad-*` (× `--density`), focus outlines as
+  `var(--focus-width) solid var(--focus)`. Write new rules the same way. Only a hairline bar
+  (2–3px) keeps a literal radius. The derived tokens are declared on `:root, .theme-scope`, so the
+  Theming preview, which sets its own dials, recomputes them.
+- **Theming** (`services/theming/`, Settings → Theming). `tokens.py` lists every variable an account
+  may change, with its label and default: colours per mode, dials with limits, and choices from
+  fixed lists. A test holds it to `tokens.css`, so a token added to one must be added to the other.
+  `theme.py` refuses anything else by name. `css.py` writes only the changed values, as
+  custom-property overrides, into `<style id="user-theme">` after the stylesheet (`base.html`), plus
+  `data-mode`, `data-motion` and `data-illustrations` on `<html>`. Forced dark states every colour
+  under `:root[data-mode="dark"]`, because it has no stylesheet block to fall back on.
+  `contrast.py` lists the pairings the app paints and their minimums. `ts/theming.ts` runs the same
+  check live and copies the form onto the preview. Theme saves are full posts, not boosted swaps:
+  the theme lives in `<head>`, which an htmx swap leaves alone.
 - **Widths and input.** `@variant phone { … }` (≤ 640px) and `@variant tablet { … }` (≤ 860px) are
   custom variants; `pointer-coarse` and `motion-reduce` are Tailwind's. Write them at the top
   level of a file or at the end of a rule, never between a rule's declarations: the compiler

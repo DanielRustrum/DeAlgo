@@ -629,8 +629,8 @@ def test_the_icon_is_rounded_the_way_the_rest_of_the_app_is(secured):
     letter = re.search(r"\.account-icon \.avatar-letter\{([^}]*)\}", css).group(1)
     channel = re.search(r"\.titled \.channel-avatar img,\.titled \.channel-avatar \.avatar-letter\{([^}]*)\}", css)
 
-    assert "border-radius:8px" in letter
-    assert channel is not None and "border-radius:8px" in channel.group(1)
+    assert "border-radius:var(--radius-md)" in letter
+    assert channel is not None and "border-radius:var(--radius-md)" in channel.group(1)
 
 
 def test_the_open_instance_switch_is_not_offered_when_sign_in_is_on(secured):

@@ -8,13 +8,13 @@
   li {
     display: flex;
     gap: 12px;
-    padding: 8px 0;
+    padding: calc(8px * var(--density)) 0;
     border-bottom: 1px solid var(--line);
 
     &:last-child { border-bottom: none; }
   }
 
-  img { width: 84px; border-radius: 6px; align-self: flex-start; }
+  img { width: 84px; border-radius: var(--radius-sm); align-self: flex-start; }
   a { text-decoration: none; font-weight: 500; }
 }
 
@@ -28,7 +28,7 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    padding: 7px 0;
+    padding: calc(7px * var(--density)) 0;
     border-bottom: 1px solid var(--line);
 
     &:last-child { border-bottom: none; }

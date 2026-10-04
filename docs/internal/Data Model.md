@@ -8,7 +8,7 @@ User ─< LoginSession
 
   owner_pk on every table below (NULL = the implicit owner)
 
-Settings (one per owner)        OAuthToken (per owner per plugin)   PluginUserSetting (per owner)
+Settings (one per owner)        OAuthToken (per owner per plugin)   PluginUserSetting (per owner)   UserTheme (one per owner)
 
 Channel ─< Video ─< Placement >─ Playlist
    │ ╲                              │
@@ -40,6 +40,7 @@ SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (i
 | `allowance_usage` | Units spent against one plugin's service on its day (install-wide) | `provider`, `day`, `units`, `exhausted_at` |
 | `plugin_app_setting` | A plugin's setting for everyone | `key` (`<plugin>:<name>`), `value` |
 | `plugin_user_setting` | A plugin's setting for one owner | `key`, `value` |
+| `user_theme` | One owner's theme, as the JSON an exported theme file holds | `slot` (always `current`), `data` |
 | `sync_run` | One run | counts, `trigger`, `forced`, `ok`, `quota_spent` |
 | `run_event` | One line of a run's log | `seq`, `level`, `stage`, `about`, `message` |
 | `plugin_state` | Admin decisions about a plugin | `plugin_id`, `enabled`, `granted` (JSON), `origin`, `origin_ref`, `fetched_at` |

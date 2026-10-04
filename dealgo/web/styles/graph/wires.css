@@ -49,7 +49,7 @@
   border: 1px solid var(--accent);
   color: var(--accent);
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1;
   cursor: pointer;
 }

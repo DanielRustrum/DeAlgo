@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from ... import scheduler
 from ...db import get_settings, session_scope
 from ...services import backup as backup_service
+from ...services.theming import store as themes
 from ..responses import owner_of, redirect, render
 
 if TYPE_CHECKING:
@@ -85,4 +86,6 @@ def restore_backup(request: Request, backup_file: UploadFile = File(...)) -> Red
             message += f" {len(summary.skipped)} video(s) skipped: their channel was not in the file."
 
     scheduler.reschedule()
+    # The restore may have brought a theme; pages read it from what is held.
+    themes.drop_held()
     return redirect("/settings", ok=message)

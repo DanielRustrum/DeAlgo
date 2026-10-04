@@ -22,6 +22,7 @@ from ..services import connections
 from ..services import sync as sync_service
 from ..services import watched as watched_service
 from ..services.scope import OwnerId, owned
+from ..services.theming import store as themes
 from .templates import ASSET_VERSION, TEMPLATES, Context
 
 
@@ -44,14 +45,19 @@ def owner_of(request: Request) -> OwnerId:
 
 def render(request: Request, template: str, context: Context) -> HTMLResponse:
     """A full page, with what every page shows: version, flash messages, run state."""
+    identity = getattr(request.state, "identity", None)
     context = {
+        # Somebody's own look once they are signed in; the stock one before,
+        # since a sign-in page belongs to nobody yet.
+        "theme": themes.page(owner_of(request))
+        if identity or not CONFIG.auth_enabled else themes.STOCK,
         "version": __version__,
         "asset_version": ASSET_VERSION,
         "ok_message": request.query_params.get("ok"),
         "error_message": request.query_params.get("err"),
         "sync_running": sync_service.is_running(),
         "last_run_id": newest_run_id(),
-        "identity": getattr(request.state, "identity", None),
+        "identity": identity,
         "auth_enabled": CONFIG.auth_enabled,
         "weak_admin_password": CONFIG.admin_password_weak,
         **context,

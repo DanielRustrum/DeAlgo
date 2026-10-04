@@ -2,7 +2,7 @@
 
 .btn {
   display: inline-block; border: 1px solid var(--line); background: var(--panel);
-  color: var(--text); border-radius: 10px; padding: 8px 16px; font-size: 13.5px;
+  color: var(--text); border-radius: var(--radius-control); padding: var(--pad-control-y) var(--pad-control-x); font-size: calc(13.5px * var(--text-scale));
   font-weight: 600; cursor: pointer; text-decoration: none; font-family: inherit;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
@@ -13,13 +13,13 @@
   box-shadow: 0 8px 18px -10px color-mix(in oklab, var(--accent) 80%, transparent);
 }
 .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); color: var(--on-accent); }
-.btn-quiet { background: transparent; font-size: 12.5px; padding: 5px 10px; }
-.btn-danger { background: transparent; color: var(--bad); border-color: transparent; font-size: 12.5px; padding: 5px 10px; }
+.btn-quiet { background: transparent; font-size: calc(12.5px * var(--text-scale)); padding: 5px 10px; }
+.btn-danger { background: transparent; color: var(--bad); border-color: transparent; font-size: calc(12.5px * var(--text-scale)); padding: 5px 10px; }
 .btn-danger:hover { border-color: var(--bad); color: var(--bad); }
 /* Caution rather than destruction — the step between quiet and danger. */
 .btn-warn {
   background: transparent; color: var(--warn); border-color: var(--warn);
-  font-size: 12.5px; padding: 5px 10px;
+  font-size: calc(12.5px * var(--text-scale)); padding: 5px 10px;
 }
 .btn-warn:hover { background: var(--warn); border-color: var(--warn); color: var(--bg); }
 
@@ -31,15 +31,15 @@
 .actions form { display: inline-block; vertical-align: middle; }
 .actions form + form, .actions form + .btn, .actions .btn + .btn { margin-left: 6px; }
 
-.filterbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.filterbar { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 .chip {
-  text-decoration: none; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 20px;
+  text-decoration: none; font-size: calc(13px * var(--text-scale)); font-weight: 500; padding: 5px 12px; border-radius: var(--radius-pill);
   border: 1px solid var(--line); color: var(--muted); background: var(--panel); font-family: inherit;
   cursor: pointer;
 }
 .chip:hover { color: var(--text); border-color: var(--sage); }
 .chip-on { background: var(--sage-soft); border-color: var(--leaf); color: var(--text); }
-.chip-count { color: var(--muted); font-size: 11px; }
+.chip-count { color: var(--muted); font-size: calc(11px * var(--text-scale)); }
 .chip-form { margin-left: auto; min-width: 200px; }
 
 .pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 16px; }
@@ -48,7 +48,7 @@
    tappable. 44px is the size a fingertip actually covers. */
 @variant pointer-coarse {
   .btn { padding: 9px 16px; }
-  .btn-quiet, .btn-danger, .btn-warn { padding: 9px 14px; font-size: 13px; }
+  .btn-quiet, .btn-danger, .btn-warn { padding: 9px 14px; font-size: calc(13px * var(--text-scale)); }
   .chip { padding: 8px 14px; }
   .actions form + form,
   .actions form + .btn,

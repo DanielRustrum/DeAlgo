@@ -21,7 +21,7 @@
   margin-bottom: 20px;
 }
 .focus-now { flex: 1; min-width: 200px; }
-.focus-now h2 { margin: 0 0 3px; font-size: 16px; line-height: 1.3; }
+.focus-now h2 { margin: 0 0 3px; font-size: calc(16px * var(--text-scale)); line-height: 1.3; }
 .focus-actions { display: flex; gap: 8px; }
 .focus-status { color: var(--warn); }
 .focus-done .focus-stage { opacity: 0.4; }
@@ -36,18 +36,18 @@
 .queue-list li::before {
   counter-increment: queue; content: counter(queue);
   position: absolute; left: 0; top: 10px;
-  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+  font-size: calc(11px * var(--text-scale)); color: var(--muted); font-variant-numeric: tabular-nums;
 }
 .queue-list li.empty { padding-left: 0; color: var(--muted); }
 .queue-list li.empty::before { content: none; }
-.queue-title { font-size: 14px; font-weight: 500; }
+.queue-title { font-size: calc(14px * var(--text-scale)); font-weight: 500; }
 
 .section-actions { display: flex; align-items: center; gap: 8px; }
 .focus-link { margin-left: auto; }
 
 .row-field {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--muted); white-space: nowrap;
+  font-size: calc(12px * var(--text-scale)); color: var(--muted); white-space: nowrap;
 }
 .row-field input[type=number] { width: 74px; }
 
@@ -74,7 +74,7 @@
 .focus-tile {
   display: block;
   aspect-ratio: 1 / 1;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -88,11 +88,11 @@
 .focus-words {
   white-space: pre-line;
   line-height: 1.6;
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--text-scale));
   max-width: 74ch;
 }
 .focus-words:empty { display: none; }
-.focus-post-link { margin: 14px 0 0; font-size: 12.5px; }
+.focus-post-link { margin: 14px 0 0; font-size: calc(12.5px * var(--text-scale)); }
 
 /* -- the reading timer --------------------------------------------------- */
 
@@ -108,7 +108,7 @@
 .focus-timer-button {
   display: flex; align-items: baseline; gap: 7px;
   background: none; border: 0; padding: 0; cursor: pointer;
-  color: var(--muted); font: inherit; font-size: 12.5px;
+  color: var(--muted); font: inherit; font-size: calc(12.5px * var(--text-scale));
 }
 .focus-timer-button:hover .focus-timer-word { color: var(--text); }
 .focus-timer-count {

@@ -20,7 +20,7 @@ Outside Docker, copy `./data/dealgo.sqlite3`. To restore, put the file back and 
 
 ## The setup file: Settings → Back up your setup
 
-Downloads your account's feeds and sources as JSON. **Load backup** on the same page reads one back.
+Downloads your account's feeds and sources as JSON, along with your [theme](Theming.md). **Load backup** on the same page reads one back.
 
 Restoring **merges**: what the file names is created or updated, matched by each source's and
 feed's own identifier, and nothing is deleted. Restoring twice changes nothing the second time.

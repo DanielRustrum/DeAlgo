@@ -9,4 +9,4 @@
 .panel-head .watched-actions { margin-left: auto; }
 
 .copy-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.copy-row code { font-size: 13px; padding: 6px 10px; }
+.copy-row code { font-size: calc(13px * var(--text-scale)); padding: 6px 10px; }

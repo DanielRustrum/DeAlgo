@@ -7,7 +7,7 @@
 .pill-dormant { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
 
 /* The connection banner, raised by pwa.js when the browser loses the network. */
-.banner-connection { border-left-color: var(--bad); font-size: 13px; }
+.banner-connection { border-left-color: var(--bad); font-size: calc(13px * var(--text-scale)); }
 .banner-connection strong { color: var(--bad); }
 
 /* What cannot work without a server should not look available. */
@@ -17,9 +17,9 @@
 .offline-page h2 { margin-bottom: 8px; }
 
 /* A page the worker served from its cache: readable, possibly out of date. */
-.banner-stored { border-left-color: var(--muted); font-size: 13px; }
+.banner-stored { border-left-color: var(--muted); font-size: calc(13px * var(--text-scale)); }
 .banner-stored strong { color: var(--text); }
-.offline-path { font-size: 13px; }
+.offline-path { font-size: calc(13px * var(--text-scale)); }
 
 /* A panel that could not refresh. What it holds is still shown — it is simply
    not current — so this dims it slightly and says so above it, rather than
@@ -34,12 +34,12 @@
   top: -9px;
   right: 10px;
   z-index: 2;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--text-scale));
   letter-spacing: 0.3px;
   color: var(--warn);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 1px 8px;
 }
 
@@ -57,14 +57,14 @@
 /* Who is signed in, and the way out. */
 .signed-in { display: flex; align-items: center; gap: 8px; }
 .signed-in-name {
-  font-size: 12.5px; color: var(--muted);
+  font-size: calc(12.5px * var(--text-scale)); color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .inline-label {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12.5px; color: var(--muted);
+  font-size: calc(12.5px * var(--text-scale)); color: var(--muted);
 }
-.inline-label input { font-size: 14px; }
+.inline-label input { font-size: calc(14px * var(--text-scale)); }
 
 /* The account icon in the bar: one tap to your own settings, and the letter
    says which account without spending the width a name would. */
@@ -91,16 +91,16 @@
   height: 100%;
   /* The same rounding the channel avatars use in a heading, so a person and a
      channel look like they belong to the same app. */
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .account-icon:hover .avatar-letter { border-color: var(--accent); }
-.account-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.account-icon:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 
 /* The same icon, at the size a page heading wants. */
 .account-icon-large { width: 34px; height: 34px; }
-.account-icon-large .avatar-letter { font-size: 15px; border-radius: 9px; }
+.account-icon-large .avatar-letter { font-size: calc(15px * var(--text-scale)); border-radius: var(--radius-md); }
 .account-panel .panel-head { align-items: center; }
 
 
@@ -139,13 +139,13 @@
   border-left: 3px solid var(--line);
   border-radius: var(--radius);
   padding: 12px 38px 12px 14px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   line-height: 1.45;
   box-shadow: 0 8px 24px var(--shadow);
 }
-.toast strong { display: block; margin-bottom: 2px; font-size: 13.5px; }
+.toast strong { display: block; margin-bottom: 2px; font-size: calc(13.5px * var(--text-scale)); }
 .toast a { margin-left: 4px; white-space: nowrap; }
-.toast code { font-size: 12px; }
+.toast code { font-size: calc(12px * var(--text-scale)); }
 
 .toast-ok { border-left-color: var(--ok); }
 .toast-warn { border-left-color: var(--warn); }
@@ -160,10 +160,10 @@
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   line-height: 1;
   cursor: pointer;
 }
@@ -187,10 +187,10 @@
   border-top: 1px solid var(--line);
 }
 .plugin-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.plugin-version { color: var(--muted); font-size: 12px; }
+.plugin-version { color: var(--muted); font-size: calc(12px * var(--text-scale)); }
 .plugin-gives { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 4px; }
 .plugin-where {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--text-scale));
   opacity: 0.7;
   overflow-wrap: anywhere;
   margin-top: 4px;
@@ -217,7 +217,7 @@
 
 .consent { width: min(680px, calc(100% - 32px)); }
 .consent .modal-body { gap: 18px; }
-.consent-offers ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.consent-offers ul { margin: 6px 0 0; padding-left: 18px; font-size: calc(13px * var(--text-scale)); }
 .consent-offers li { margin-bottom: 3px; }
 
 .consent-want {
@@ -229,7 +229,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-2);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   cursor: pointer;
 }
 .consent-want > span { display: flex; flex-direction: column; gap: 3px; }

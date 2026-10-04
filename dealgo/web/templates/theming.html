@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% from "_garden.html" import page_head %}
+{% block title %}De-Algo — Theming{% endblock %}
+{% set mode_names = {'light': 'By day', 'dark': 'By night'} %}
+{% block content %}
+<p class="crumbs"><a href="/settings">Settings</a> › Theming</p>
+{{ page_head('Theming', 'How De-Algo looks to you. Nobody else sees what you change here.') }}
+
+<div class="theming">
+<div class="theming-controls">
+
+<section class="panel" id="presets">
+  <h2>Start from</h2>
+  <p class="hint">
+    A whole look at once. Picking one replaces what you have changed, but keeps whether
+    De-Algo is light or dark; change anything from there.
+  </p>
+  <div class="preset-grid">
+    {% for preset, swatches in presets %}
+    <form method="post" action="/settings/theming/preset" hx-boost="false">
+      <button class="preset-card" type="submit" name="preset" value="{{ preset.key }}">
+        <span class="preset-swatches" aria-hidden="true">
+          {% for mode in modes %}
+          <span class="preset-strip">
+            {% for colour in swatches[mode] %}<span style="background: {{ colour }}"></span>{% endfor %}
+          </span>
+          {% endfor %}
+        </span>
+        <strong>{{ preset.label }}</strong>
+        <span class="hint">{{ preset.about }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+
+{# One form for every setting, saved together. A full post rather than a
+   boosted swap: the theme lives in the page's <head>, which a swap leaves. #}
+<form id="theme-form" method="post" action="/settings/theming" hx-boost="false">
+
+  {% for group, choices, dials in setting_groups %}
+  <section class="panel theming-section" id="{{ group.key }}">
+    <div class="panel-head">
+      <h2>{{ group.label }}</h2>
+      <button class="btn btn-quiet" type="submit" form="reset-{{ group.key }}">Reset</button>
+    </div>
+    <p class="hint">{{ group.about }}</p>
+
+    <div class="setting-grid">
+      {% for choice in choices %}
+      {% set value = current.choice(choice.name) %}
+      {% if choice.name == 'mode' %}
+      <fieldset class="setting setting-wide">
+        <legend>{{ choice.label }}</legend>
+        <div class="segmented">
+          {% for option in choice.options %}
+          <label><input type="radio" name="mode" value="{{ option.key }}"
+                        {% if option.key == value %}checked{% endif %}> {{ option.label }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% else %}
+      <label class="setting">
+        <span class="setting-name">{{ choice.label }}</span>
+        <select name="{{ choice.name }}">
+          {% for option in choice.options %}
+          <option value="{{ option.key }}" {% if option.key == value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+        {% if choice.about %}<span class="hint">{{ choice.about }}</span>{% endif %}
+      </label>
+      {% endif %}
+      {% endfor %}
+
+      {% for dial, value, shown in dials %}
+      <label class="setting">
+        <span class="setting-name">{{ dial.label }} <output for="dial-{{ dial.name }}" data-show="{{ dial.show }}">{{ shown }}</output></span>
+        <input type="range" id="dial-{{ dial.name }}" name="{{ dial.name }}" value="{{ value }}"
+               min="{{ dial.minimum }}" max="{{ dial.maximum }}" step="{{ dial.step }}">
+        <span class="hint">{{ dial.about }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  <section class="panel theming-section" id="colours">
+    <div class="panel-head">
+      <h2>Colours</h2>
+      <button class="btn btn-quiet" type="submit" form="reset-colours">Reset</button>
+    </div>
+    <p class="hint">
+      Every colour De-Algo paints with, by day and by night. A colour left as it comes keeps up
+      with De-Algo when its own colours change.
+    </p>
+    {# Both sets are drawn; theming.js shows one at a time and points the
+       preview at it. Without the script both stay open, one after the other. #}
+    <div class="segmented colour-tabs" role="tablist" hidden>
+      {% for mode in modes %}
+      <button type="button" role="tab" data-colour-tab="{{ mode }}"
+              aria-selected="{{ 'true' if loop.first else 'false' }}">{{ mode_names[mode] }}</button>
+      {% endfor %}
+    </div>
+
+    {% for mode in modes %}
+    <fieldset class="colour-mode" data-colour-mode="{{ mode }}">
+      <legend>{{ mode_names[mode] }}</legend>
+      {% for group, colours in colour_groups %}
+      <details class="colour-group" {% if loop.index <= 2 %}open{% endif %}>
+        <summary><strong>{{ group.label }}</strong> <span class="hint">{{ group.about }}</span></summary>
+        {% for colour in colours %}
+        {% set own = colour.name in current.colours[mode] %}
+        <div class="colour-row">
+          <input type="color" id="{{ mode }}-{{ colour.name }}" name="{{ mode }}.{{ colour.name }}"
+                 value="{{ current.colour(mode, colour.name) }}" data-token="{{ colour.name }}"
+                 data-mode="{{ mode }}" data-default="{{ colour.default(mode) }}">
+          <label for="{{ mode }}-{{ colour.name }}" class="colour-name">
+            {{ colour.label }}
+            {% if colour.about %}<span class="hint">{{ colour.about }}</span>{% endif %}
+          </label>
+          {% if colour.follows %}
+          <label class="check colour-follow">
+            <input type="checkbox" name="follow.{{ mode }}.{{ colour.name }}" value="1"
+                   data-follow="{{ colour.name }}" data-mode="{{ mode }}" {% if not own %}checked{% endif %}>
+            Same as {{ colour_by_name[colour.follows].label | lower }}
+          </label>
+          {% endif %}
+          <button class="btn btn-quiet colour-reset" type="button" data-reset="{{ colour.name }}"
+                  data-mode="{{ mode }}" hidden>Reset</button>
+        </div>
+        {% endfor %}
+      </details>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+  </section>
+
+  <div class="theming-save">
+    <button class="btn btn-primary" type="submit">Save theme</button>
+    <span class="hint" id="theming-unsaved" hidden>Changes not saved yet.</span>
+  </div>
+</form>
+
+{% for part in parts %}
+<form id="reset-{{ part }}" method="post" action="/settings/theming/reset" hx-boost="false"
+      onsubmit="return confirm('Put this back as De-Algo comes?');">
+  <input type="hidden" name="part" value="{{ part }}">
+</form>
+{% endfor %}
+
+<section class="panel" id="share">
+  <h2>Share or start again</h2>
+  <p class="hint">
+    A theme is a small file of colours and settings, with nothing else of yours in it. Download
+    yours to keep it or pass it on; load one somebody gave you.
+  </p>
+  <div class="row-buttons">
+    <form method="get" action="/settings/theming/export" hx-boost="false">
+      <button class="btn" type="submit">Download theme</button>
+    </form>
+    <button class="btn btn-danger" type="submit" form="reset-all">Reset everything</button>
+  </div>
+  <h3>Load a theme</h3>
+  <form class="stack-form" method="post" action="/settings/theming/import"
+        enctype="multipart/form-data" hx-boost="false">
+    <input type="file" name="theme_file" accept="application/json,.json">
+    <label class="field-row"><span class="sr-only">Or paste a theme</span>
+      <textarea name="theme_text" rows="3" placeholder="…or paste one here"></textarea>
+    </label>
+    <button class="btn" type="submit">Load theme</button>
+  </form>
+</section>
+
+</div>
+
+<aside class="theming-preview" aria-label="Preview">
+  <div class="theming-preview-head">
+    <strong>Preview</strong>
+    <div class="segmented" hidden data-preview-tabs>
+      {% for mode in modes %}
+      <button type="button" data-preview-mode="{{ mode }}"
+              aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ mode_names[mode] }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# A small page made of the app's own parts. theming.js sets every variable
+     on it as you change things, so it shows the theme before it is saved. #}
+  <div class="theme-scope theme-sample" id="theme-preview">
+    <div class="sample-bar">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 21V9"/><path d="M12 13c-4 0-6.5-2.6-6.5-6.5C9.5 6.5 12 9 12 13Z" fill="currentColor"/>
+          <path d="M12 11c0-4 2.3-6.8 6.5-6.8 0 4-2.5 6.8-6.5 6.8Z"/>
+        </svg>
+      </span>
+      <span class="brand-name">De-Algo</span>
+      <span class="sample-tab sample-tab-on">Feeds</span><span class="sample-tab">Settings</span>
+    </div>
+
+    <h1 class="sample-title">Up next</h1>
+    <div class="stats">
+      <span class="stat stat-channels"><span class="stat-value">24</span><span class="stat-label">channels</span></span>
+      <span class="stat stat-queued"><span class="stat-value">128</span><span class="stat-label">queued</span></span>
+      <span class="stat stat-watched"><span class="stat-value">310</span><span class="stat-label">watched</span></span>
+      <span class="stat stat-pending"><span class="stat-value">7</span><span class="stat-label">pending</span></span>
+      <span class="stat stat-quiet"><span class="stat-value">56</span><span class="stat-label">filtered</span></span>
+      <span class="stat stat-bad"><span class="stat-value">2</span><span class="stat-label">failed</span></span>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Channels <span class="count">3</span></h2>
+        <span class="btn btn-primary">Add channel</span></div>
+      <p>Practical Engineering <span class="pill pill-added">added</span></p>
+      <p class="meta">3 days ago · 12 minutes</p>
+      <div class="filterbar">
+        <span class="chip chip-on">Unwatched</span><span class="chip">Watched</span>
+        <span class="pill pill-pending">pending</span><span class="pill pill-failed">failed</span>
+      </div>
+      <input type="text" value="@handle" aria-label="Sample field" tabindex="-1" readonly>
+      <div class="sample-buttons">
+        <span class="btn">Fetch it</span><span class="btn btn-quiet">Sign out</span>
+        <span class="btn btn-danger">Remove</span>
+        <span class="btn sample-focus">Focused</span>
+      </div>
+      <div class="banner">A standing notice, on its own colour.</div>
+    </div>
+
+    <div class="sample-boxes">
+      <div class="graph-node kind-trigger"><span class="graph-node-kind">Trigger</span><span class="graph-node-title">Every 30 minutes</span></div>
+      <div class="graph-node kind-source" data-colour="red"><span class="graph-node-kind">YouTube</span><span class="graph-node-title">A channel</span></div>
+      <div class="graph-node kind-filter"><span class="graph-node-kind">Filter</span><span class="graph-node-title">Longer than 4 minutes</span></div>
+      <div class="graph-node kind-sort"><span class="graph-node-kind">Sort</span><span class="graph-node-title">Oldest first</span></div>
+      <div class="graph-node kind-tag"><span class="graph-node-kind">Tag</span><span class="graph-node-title">Long reads</span></div>
+      <div class="graph-node kind-feed"><span class="graph-node-kind">Feed</span><span class="graph-node-title">Up next</span></div>
+    </div>
+
+    <div class="sample-marks">
+      {% for colour, letter in [('green', 'R'), ('moss', 'S'), ('jade', 'F'), ('sky', 'B'), ('pink', 'P'), ('red', 'Y'), ('slate', 'M')] %}
+      <span class="plugin-mark" data-colour="{{ colour }}">{{ letter }}</span>
+      {% endfor %}
+    </div>
+
+    {# Marked ready so toast.js leaves it be: a sample, not a message to dismiss. #}
+    <div class="toast toast-ok" data-toast-ready="1"><strong>Feed made</strong>“Up next” fills from three channels.</div>
+  </div>
+
+  <div class="contrast-report" id="contrast-report" aria-live="polite">
+    {% if shortfalls %}
+    <p class="contrast-title"><strong>Hard to read</strong></p>
+    <ul>
+      {% for short in shortfalls %}<li>{{ short.describe() }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="contrast-title contrast-ok">Everything reads at the recommended contrast.</p>
+    {% endif %}
+  </div>
+</aside>
+</div>
+
+<script type="application/json" id="theming-data">{{ script_data | tojson }}</script>
+<script src="/static/theming.js?v={{ asset_version }}" defer></script>
+{% endblock %}

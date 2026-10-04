@@ -40,7 +40,7 @@ Tables **without** an owner: `user`, `login_session`, `placement` (reached throu
 
 Two accounts can follow the same channel. `scope_uniqueness_to_owners` creates unique indexes on
 `(COALESCE(owner_pk, 0), column)` for `channel.channel_id`, `playlist.playlist_id` and
-`plugin_user_setting.key` — `COALESCE` because SQL treats NULLs as distinct, so a plain
+`plugin_user_setting.key` (`user_theme.slot` has the same index, from its model) — `COALESCE` because SQL treats NULLs as distinct, so a plain
 `UNIQUE(owner_pk, …)` would let the implicit owner hold duplicates. `video` had a global
 `UNIQUE(video_id)` inside its `CREATE TABLE`, which SQLite cannot drop, so
 `rebuild_video_uniqueness` rebuilds that table. See [Database and Migrations](Database%20and%20Migrations.md).

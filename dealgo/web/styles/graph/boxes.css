@@ -26,7 +26,7 @@
 .graph-node:hover { border-color: var(--accent); }
 .graph-node.is-held { cursor: grabbing; box-shadow: 0 8px 22px var(--shadow); }
 .graph-node.is-picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.graph-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.graph-node:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 
 /* Which kind it is, read at a glance from the bar down its left. The colour
    comes from kinds.css, and holds while the box is hovered or picked — those
@@ -48,7 +48,7 @@
   border-top-right-radius: 0;
   border-top-color: transparent;
 }
-.graph-node.is-piece .graph-node-title { font-size: 12px; font-weight: 500; }
+.graph-node.is-piece .graph-node-title { font-size: calc(12px * var(--text-scale)); font-weight: 500; }
 .graph-node.is-piece .graph-node-kind { color: var(--kind-colour); }
 
 /* The tab and the notch are what a free edge looks like. A joined one shows
@@ -124,11 +124,11 @@
 .graph-slot[hidden] { display: none; }
 
 .graph-node-kind {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
+  font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
 }
 .graph-node-title {
-  font-size: 13.5px; font-weight: 600; line-height: 1.3;
+  font-size: calc(13.5px * var(--text-scale)); font-weight: 600; line-height: 1.3;
   /* Two lines, then an ellipsis: a box that grows with its title breaks the row. */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.graph-node-note { font-size: 11.5px; color: var(--muted); }
+.graph-node-note { font-size: calc(11.5px * var(--text-scale)); color: var(--muted); }

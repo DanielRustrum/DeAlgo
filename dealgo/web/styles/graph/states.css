@@ -3,7 +3,7 @@
 /* A trigger is pressed, so it carries its own buttons rather than making
    somebody find them in a panel: run it, or ask what running it would do. */
 .graph-fire { display: flex; gap: 5px; margin-top: 7px; }
-.graph-fire .btn { font-size: 12px; padding: 3px 10px; }
+.graph-fire .btn { font-size: calc(12px * var(--text-scale)); padding: 3px 10px; }
 
 /* Switched off. Still drawn, still wired, still dragged around — it simply
    does nothing, and a box that does nothing should not look like one that does. */
@@ -36,9 +36,9 @@
   right: -9px;
   background: var(--ok);
   color: var(--on-accent);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 1px 7px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   font-weight: 650;
   white-space: nowrap;
 }

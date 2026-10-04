@@ -25,6 +25,7 @@ from . import (
     shell,
     signing_in,
     sources,
+    theming,
     videos,
 )
 
@@ -46,5 +47,6 @@ ROUTERS: tuple[APIRouter, ...] = (
     shell.router,
     signing_in.router,
     sources.router,
+    theming.router,
     videos.router,
 )

@@ -12,6 +12,7 @@ from ... import __version__
 from ...db import get_settings
 from ...models import Channel, Playlist
 from ..scope import OwnerId, owned
+from ..theming import store as themes
 
 # Bumped if the shape changes in a way a reader would need to know about.
 FORMAT_VERSION = 1
@@ -93,6 +94,11 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
         }
         for channel in channels
     ]
+
+    # How it looks to this account: colours and settings, nothing private.
+    theme = themes.load(owner)
+    if not theme.is_empty():
+        exported["theme"] = theme.to_json()
 
     exported["counts"] = {
         "feeds": len(exported["feeds"]),
