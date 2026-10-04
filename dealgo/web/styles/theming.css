@@ -267,6 +267,11 @@
 .theme-sample[data-drawings="meadow"] .sample-art-set[data-set="meadow"],
 .theme-sample[data-drawings="fern"] .sample-art-set[data-set="fern"],
 .theme-sample[data-drawings="blossom"] .sample-art-set[data-set="blossom"],
+.theme-sample[data-drawings="woodland"] .sample-art-set[data-set="woodland"],
+.theme-sample[data-drawings="ocean"] .sample-art-set[data-set="ocean"],
+.theme-sample[data-drawings="mountains"] .sample-art-set[data-set="mountains"],
+.theme-sample[data-drawings="sky"] .sample-art-set[data-set="sky"],
+.theme-sample[data-drawings="desert"] .sample-art-set[data-set="desert"],
 .theme-sample[data-drawings="own"] .sample-art-set[data-set="own"] { display: block; }
 .theme-sample .panel { margin: 0; padding: 14px; }
 .theme-sample .panel p { margin: 0 0 4px; }

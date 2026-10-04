@@ -3,7 +3,8 @@
    (--art-*), which an account may change under Settings → Theming. All of
    them are decoration — aria-hidden, and never the only way to learn anything.
 
-   Four sets of plants: garden, meadow, fern and blossom. `edges(set)` is what
+   Nine scenes: garden, meadow, fern, blossom and woodland, and ocean,
+   mountains, sky and desert, plus a person's own pictures. `edges(set)` is what
    grows at the page's edges and `heading_art(set)` what stands beside a
    page's heading; the theme says which set, and backdrop.css where they grow
    and how big.
@@ -123,6 +124,164 @@
 </svg>
 {%- endmacro %}
 
+{# -- scenes that are not plants -----------------------------------------------
+
+   Coloured by the same drawing tokens, plus the scene colours (art-water,
+   art-sky, art-sand, art-rock, art-snow) for what a garden has no word for. #}
+
+{# Waves rolling in, 240 × 120: far water, near water, foam and the deep. #}
+{% macro waves(classes='', mirror=false) -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 240 120" aria-hidden="true" focusable="false">
+  <g {% if mirror %}transform="translate(240 0) scale(-1 1)"{% endif %}>
+    <path class="fill-art-sky" d="M0 58C30 44 50 44 72 56C94 68 114 68 136 54C158 40 180 40 204 54C220 63 232 64 240 60V120H0Z"/>
+    <path class="fill-art-water" d="M0 78C24 64 46 62 66 74C86 86 108 88 130 74C152 60 176 60 198 74C214 84 228 86 240 82V120H0Z"/>
+    <path class="fill-art-stem" opacity=".3" d="M0 100C30 90 54 90 80 100C106 110 132 110 158 98C182 88 210 88 240 98V120H0Z"/>
+    <path class="stroke-art-snow" fill="none" stroke-width="3" stroke-linecap="round"
+          d="M8 76C26 66 44 65 60 72M132 72C150 62 170 61 190 70"/>
+  </g>
+</svg>
+{%- endmacro %}
+
+{# Coral and seaweed on the sea floor, 120 × 200, with a rising bubble or three. #}
+{% macro coral(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <g fill="none" stroke-linecap="round">
+    <path class="stroke-art-leaf" stroke-width="4" d="M30 200C20 170 40 150 28 120C18 92 36 76 30 50"/>
+    <path class="stroke-art-leaf-soft" stroke-width="3.5" d="M46 200C54 176 38 160 48 136C56 116 44 100 50 84"/>
+    <path class="stroke-art-bloom" stroke-width="7"
+          d="M80 200V150M80 168C70 160 64 146 64 128M80 160C92 150 98 136 98 118M64 140C56 134 52 124 52 112M98 132C106 126 110 116 110 104M80 150C80 138 82 126 86 116"/>
+    {% for x, y, r in [(32, 40, 3.5), (40, 26, 2.5), (34, 12, 2)] %}
+    <circle class="stroke-art-snow" cx="{{ x }}" cy="{{ y }}" r="{{ r }}" stroke-width="1.5"/>
+    {% endfor %}
+  </g>
+  {% for x, y in [(64, 128), (98, 118), (52, 112), (110, 104), (86, 116)] %}
+  <circle class="fill-art-bloom" cx="{{ x }}" cy="{{ y }}" r="4.5"/>
+  {% endfor %}
+</svg>
+{%- endmacro %}
+
+{# A scallop shell, 120 × 120. #}
+{% macro shell(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+  <path class="fill-art-bloom-3" d="M60 102L14 54C24 20 96 20 106 54Z"/>
+  <path class="fill-art-bloom-3" d="M50 102h20l-4 10h-12z"/>
+  <path class="stroke-art-stem" opacity=".45" fill="none" stroke-width="1.6" stroke-linecap="round"
+        d="M60 102L24 42M60 102L40 30M60 102V26M60 102L80 30M60 102L96 42"/>
+</svg>
+{%- endmacro %}
+
+{# Mountains, 240 × 140: a hazy range behind, rock in front, snow and pines. #}
+{% macro mountains(classes='', mirror=false) -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 240 140" aria-hidden="true" focusable="false">
+  <g {% if mirror %}transform="translate(240 0) scale(-1 1)"{% endif %}>
+    <path class="fill-art-sky" d="M0 140V92L34 60L58 80L92 40L128 78L150 62L186 96L214 74L240 92V140Z"/>
+    <path class="fill-art-rock" d="M0 140V110L46 52L78 90L112 58L150 104L176 84L212 120L240 108V140Z"/>
+    <path class="fill-art-snow" d="M46 52L35 66L41 63L46 67L52 63L58 66ZM112 58L97 72L103 69L108 73L114 69L124 72Z"/>
+    {% for x, h in [(10, 20), (22, 26), (34, 18), (150, 22), (162, 28), (176, 20), (204, 24), (218, 18)] %}
+    <path class="fill-art-leaf" d="M{{ x }} 140l-{{ h * 0.3 }} 0l{{ h * 0.3 }} -{{ h }}l{{ h * 0.3 }} {{ h }}z"/>
+    {% endfor %}
+  </g>
+</svg>
+{%- endmacro %}
+
+{# One snowy peak, 120 × 120, for beside a heading. #}
+{% macro peak(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+  <path class="fill-art-sky" d="M0 120L30 70L52 92L80 50L120 120Z"/>
+  <path class="fill-art-rock" d="M10 120L58 36L104 120Z"/>
+  <path class="fill-art-snow" d="M58 36L46 57L53 53L58 58L64 53L70 57Z"/>
+</svg>
+{%- endmacro %}
+
+{# A cloud, 160 × 90, with its shade beneath. #}
+{% macro cloud(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 160 90" aria-hidden="true" focusable="false">
+  <path class="fill-art-sky" d="M24 80C8 80 4 60 20 56C18 38 40 32 50 44C56 24 86 20 96 40C106 30 128 34 128 52C146 52 152 76 134 80Z"/>
+  <path class="fill-art-snow" d="M22 72C6 72 4 54 20 50C18 32 40 26 50 38C56 18 86 14 96 34C106 24 128 28 128 46C146 46 150 68 132 72Z"/>
+</svg>
+{%- endmacro %}
+
+{# The sun, 120 × 120: a disc and twelve rays. #}
+{% macro sun(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+  <circle class="fill-art-bloom-2" cx="60" cy="60" r="24"/>
+  <g class="stroke-art-bloom-2" stroke-width="4" stroke-linecap="round">
+    {% for turn in range(0, 360, 30) %}
+    <line x1="60" y1="16" x2="60" y2="27" transform="rotate({{ turn }} 60 60)"/>
+    {% endfor %}
+  </g>
+</svg>
+{%- endmacro %}
+
+{# A few birds far off, 120 × 60. #}
+{% macro birds(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 60" aria-hidden="true" focusable="false">
+  <g class="stroke-art-stem" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    {% for x, y, size in [(10, 34, 1), (46, 18, 0.8), (78, 30, 0.65), (96, 12, 0.5)] %}
+    <path transform="translate({{ x }} {{ y }}) scale({{ size }})" d="M0 0q8-8 14 0q6-8 14 0"/>
+    {% endfor %}
+  </g>
+</svg>
+{%- endmacro %}
+
+{# Dunes, 240 × 100: far sand, near sand, and the ripples the wind leaves. #}
+{% macro dunes(classes='', mirror=false) -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 240 100" aria-hidden="true" focusable="false">
+  <g {% if mirror %}transform="translate(240 0) scale(-1 1)"{% endif %}>
+    <path class="fill-art-bloom-3" d="M0 100V60C40 40 80 44 120 58C160 72 200 52 240 46V100Z"/>
+    <path class="fill-art-sand" d="M0 100V78C50 60 100 66 140 80C180 94 210 80 240 74V100Z"/>
+    <path class="stroke-art-stem" opacity=".25" fill="none" stroke-width="1.5" stroke-linecap="round"
+          d="M30 90C50 84 70 84 90 90M150 94C170 88 190 88 206 92"/>
+  </g>
+</svg>
+{%- endmacro %}
+
+{# A saguaro in flower, 120 × 200. #}
+{% macro cactus(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  <g class="fill-art-leaf">
+    <rect x="48" y="40" width="24" height="160" rx="12"/>
+    <rect x="18" y="86" width="18" height="56" rx="9"/>
+    <rect x="18" y="128" width="40" height="14" rx="7"/>
+    <rect x="84" y="66" width="18" height="62" rx="9"/>
+    <rect x="62" y="116" width="40" height="14" rx="7"/>
+  </g>
+  <path class="stroke-art-stem" opacity=".3" fill="none" stroke-width="1.5" d="M56 52V196M64 52V196"/>
+  <circle class="fill-art-bloom" cx="60" cy="38" r="8"/>
+  <circle class="fill-art-bloom-3" cx="93" cy="64" r="5"/>
+</svg>
+{%- endmacro %}
+
+{# One pine, as three tiers on a trunk, its foot at (x, base) and `height` tall. #}
+{% macro pine(x, base, height, colour='fill-art-leaf') -%}
+<rect class="fill-art-stem" x="{{ x - height * 0.04 }}" y="{{ base - height * 0.16 }}" width="{{ height * 0.08 }}" height="{{ height * 0.16 }}"/>
+{% for tier in range(3) %}
+{% set top = base - height + tier * height * 0.24 %}
+{% set half = height * (0.16 + tier * 0.07) %}
+<path class="{{ colour }}" d="M{{ x }} {{ top }}L{{ x + half }} {{ top + height * 0.4 }}H{{ x - half }}Z"/>
+{% endfor %}
+{%- endmacro %}
+
+{# A stand of pines, 160 × 200: paler ones behind, darker in front. #}
+{% macro pines(classes='', mirror=false) -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 160 200" aria-hidden="true" focusable="false">
+  <g {% if mirror %}transform="translate(160 0) scale(-1 1)"{% endif %}>
+    {{ pine(42, 186, 112, 'fill-art-leaf-soft') }}
+    {{ pine(122, 190, 124, 'fill-art-leaf-soft') }}
+    {{ pine(22, 200, 92) }}
+    {{ pine(78, 200, 166) }}
+    {{ pine(142, 200, 84) }}
+  </g>
+</svg>
+{%- endmacro %}
+
+{# One pine, 120 × 200, for beside a heading. #}
+{% macro lone_pine(classes='') -%}
+<svg class="garden-art {{ classes }}" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+  {{ pine(60, 200, 190) }}
+</svg>
+{%- endmacro %}
+
 {# What grows at the page's edges, for one set: a piece or two standing in
    the bottom-left corner and one at the right. Placed by base.html's fixed
    layer; each piece is .garden-edge, so backdrop.css can size it and hide a
@@ -136,6 +295,27 @@
   {# A person's own pictures, as they drew them: no palette colours apply. #}
   {% if images.get('edge-left') %}<img class="{{ left }}bottom-0 left-0 max-h-72 max-w-64 object-contain" src="{{ images['edge-left'] }}" alt="">{% endif %}
   {% if images.get('edge-right') %}<img class="{{ right }}origin-bottom-right bottom-0 right-0 max-h-72 max-w-64 object-contain" src="{{ images['edge-right'] }}" alt="">{% endif %}
+{% elif set == 'woodland' %}
+  {{ pines(left ~ '-bottom-2 -left-6 h-72 w-60 opacity-85') }}
+  {{ pines(right ~ 'origin-bottom-right -bottom-2 -right-6 h-56 w-44 opacity-60', mirror=true) }}
+{% elif set == 'ocean' %}
+  {{ waves(left ~ '-bottom-2 -left-4 h-36 w-80 opacity-90') }}
+  {{ coral(left ~ 'bottom-4 left-6 h-48 w-28 opacity-90') }}
+  {{ waves(right ~ 'origin-bottom-right -bottom-2 -right-4 h-28 w-60 opacity-70', mirror=true) }}
+{% elif set == 'mountains' %}
+  {{ mountains(left ~ '-bottom-2 -left-6 h-48 w-96 opacity-85') }}
+  {{ mountains(right ~ 'origin-bottom-right -bottom-2 -right-6 h-36 w-72 opacity-60', mirror=true) }}
+{% elif set == 'sky' %}
+  {{ cloud(left ~ 'bottom-6 -left-8 h-28 w-52 opacity-90') }}
+  {{ cloud(left ~ 'bottom-28 left-24 h-16 w-32 opacity-60') }}
+  {{ sun(right ~ 'origin-top-right top-20 right-10 h-24 w-24 opacity-90') }}
+  {{ birds(right ~ 'origin-top-right top-24 right-40 h-10 w-20 opacity-70') }}
+  {{ cloud(right ~ 'origin-top-right top-36 -right-6 h-20 w-36 opacity-70') }}
+{% elif set == 'desert' %}
+  {{ dunes(left ~ '-bottom-1 -left-6 h-32 w-96 opacity-90') }}
+  {{ cactus(left ~ 'bottom-6 left-10 h-48 w-28 opacity-90') }}
+  {{ sun(right ~ 'origin-top-right top-20 right-10 h-24 w-24 opacity-85') }}
+  {{ dunes(right ~ 'origin-bottom-right -bottom-1 -right-6 h-24 w-64 opacity-60', mirror=true) }}
 {% elif set == 'meadow' %}
   {{ grass(left ~ '-bottom-2 -left-4 h-56 w-36 opacity-80') }}
   {{ wildflowers(left ~ '-bottom-2 left-20 h-52 w-32 opacity-90') }}
@@ -158,6 +338,11 @@
 {% macro heading_art(set='garden', classes='', images={}) -%}
 {% set classes = 'garden-heading ' ~ classes %}
 {% if set == 'own' %}{% if images.get('heading') %}<img class="garden-art {{ classes }} w-auto! max-w-28 object-contain" src="{{ images['heading'] }}" alt="">{% endif %}
+{% elif set == 'woodland' %}{{ lone_pine(classes) }}
+{% elif set == 'ocean' %}{{ shell(classes) }}
+{% elif set == 'mountains' %}{{ peak(classes) }}
+{% elif set == 'sky' %}{{ sun(classes) }}
+{% elif set == 'desert' %}{{ cactus(classes) }}
 {% elif set == 'meadow' %}{{ wildflowers(classes) }}
 {% elif set == 'fern' %}{{ fern(classes) }}
 {% elif set == 'blossom' %}{{ branch(classes) }}

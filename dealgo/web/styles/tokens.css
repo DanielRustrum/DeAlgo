@@ -97,6 +97,13 @@
   --art-bloom: var(--accent);
   --art-bloom-2: var(--ochre);
   --art-bloom-3: var(--peach);
+  /* The scenes that are not plants: sea, sky, sand, rock and snow. Colours of
+     their own, since the garden has none of them. */
+  --art-water: #4f88a8;
+  --art-sky: #a9cfe2;
+  --art-sand: #e3c48f;
+  --art-rock: #8a8f96;
+  --art-snow: #f7f9fb;
 
   /* The tab that joins two pieces on the canvas. */
   --graph-tab: 18px;
@@ -203,8 +210,16 @@
     --plugin-pink: #ec8fbb;
     --plugin-red: #f07a7e;
     --plugin-slate: #a5b3bf;
+
     /* The night colours are light, so their initial is dark. */
     --on-plugin: #131d1a;
+
+    /* The scenes at night: deeper water and sky, darker sand and rock. */
+    --art-water: #3f7391;
+    --art-sky: #2f4d5f;
+    --art-sand: #8c744c;
+    --art-rock: #5d636b;
+    --art-snow: #dfe6ec;
   }
 }
 
@@ -251,6 +266,11 @@
   --color-art-bloom: var(--art-bloom);
   --color-art-bloom-2: var(--art-bloom-2);
   --color-art-bloom-3: var(--art-bloom-3);
+  --color-art-water: var(--art-water);
+  --color-art-sky: var(--art-sky);
+  --color-art-sand: var(--art-sand);
+  --color-art-rock: var(--art-rock);
+  --color-art-snow: var(--art-snow);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);

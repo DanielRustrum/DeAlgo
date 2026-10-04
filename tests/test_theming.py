@@ -425,7 +425,9 @@ def test_every_attribute_a_theme_can_set_has_a_rule_in_the_stylesheet():
         assert f'[data-drawings="{option.key}"]' in theming_css
 
 
-@pytest.mark.parametrize("plants", ["garden", "meadow", "fern", "blossom"])
+@pytest.mark.parametrize("plants", [
+    "garden", "meadow", "fern", "blossom", "woodland", "ocean", "mountains", "sky", "desert",
+])
 def test_each_set_of_plants_is_drawn_at_the_edges_and_beside_headings(site, plants):
     sam = signed_in(site, MEMBER)
     sam.post("/settings/theming", data={"drawings": plants})
@@ -469,7 +471,8 @@ def test_the_theming_page_has_the_background_and_drawings_sections(site):
     # Their colours live in their sections, day beside night.
     assert page.count('name="light.wash-1"') == 1 and 'name="dark.art-bloom"' in page
     # And the preview carries every set, to show whichever is chosen.
-    for plants in ("garden", "meadow", "fern", "blossom"):
+    for plants in ("garden", "meadow", "fern", "blossom", "woodland", "ocean", "mountains",
+                   "sky", "desert", "own"):
         assert f'data-set="{plants}"' in page
 
 

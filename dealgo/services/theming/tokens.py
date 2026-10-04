@@ -104,7 +104,7 @@ GROUPS: tuple[Group, ...] = (
     Group("background", "Background", "The light on the page behind everything."),
     Group("gradient", "Gradient", "A gradient background's colours."),
     Group("texture", "Pattern and texture", "The pattern's ink."),
-    Group("drawings", "Drawings", "The plants at the page's edges and beside headings."),
+    Group("drawings", "Drawings", "The scene at the page's edges and beside headings."),
 )
 
 COLOURS: tuple[Colour, ...] = (
@@ -180,18 +180,25 @@ COLOURS: tuple[Colour, ...] = (
            "Where a gradient ends.", follows="panel-2"),
     Colour("pattern", "Pattern", "texture", "#e6d8c4", "#2f443d",
            "The dots, grid or lines.", follows="line"),
-    Colour("art-stem", "Stems", "drawings", "#23413a", "#2e544b",
-           "Stems, branches and stalks.", follows="forest"),
-    Colour("art-leaf", "Leaves", "drawings", "#5f8a6a", None,
-           "Leaves, blades and fronds.", follows="leaf"),
-    Colour("art-leaf-soft", "Soft leaves", "drawings", "#9fb8a1", None,
-           "The paler leaves, further back.", follows="sage"),
-    Colour("art-bloom", "Flowers", "drawings", "#c04f2c", "#ee7a4f",
-           "The boldest flowers.", follows="accent"),
-    Colour("art-bloom-2", "Second flowers", "drawings", "#e3a24a", None,
-           "Flower centres and the next colour along.", follows="ochre"),
-    Colour("art-bloom-3", "Third flowers", "drawings", "#f2b196", None,
-           "Petals and the softest flowers.", follows="peach"),
+    Colour("art-stem", "Deepest", "drawings", "#23413a", "#2e544b",
+           "Stems, branches, trunks and outlines.", follows="forest"),
+    Colour("art-leaf", "Greenery", "drawings", "#5f8a6a", None,
+           "Leaves, fronds, cacti, pines and seaweed.", follows="leaf"),
+    Colour("art-leaf-soft", "Distant greenery", "drawings", "#9fb8a1", None,
+           "Paler leaves and trees, further back.", follows="sage"),
+    Colour("art-bloom", "Bright", "drawings", "#c04f2c", "#ee7a4f",
+           "The boldest flowers, and coral.", follows="accent"),
+    Colour("art-bloom-2", "Second bright", "drawings", "#e3a24a", None,
+           "Flower centres and the sun.", follows="ochre"),
+    Colour("art-bloom-3", "Soft bright", "drawings", "#f2b196", None,
+           "Petals, shells and far dunes.", follows="peach"),
+    Colour("art-water", "Water", "drawings", "#4f88a8", "#3f7391", "The sea's waves."),
+    Colour("art-sky", "Sky and haze", "drawings", "#a9cfe2", "#2f4d5f",
+           "Far waves, distant ranges and the shade under clouds."),
+    Colour("art-sand", "Sand", "drawings", "#e3c48f", "#8c744c", "Near dunes."),
+    Colour("art-rock", "Rock", "drawings", "#8a8f96", "#5d636b", "Mountainsides."),
+    Colour("art-snow", "Snow and cloud", "drawings", "#f7f9fb", "#dfe6ec",
+           "Snowcaps, clouds, foam and bubbles."),
 )
 
 COLOUR_BY_NAME = {colour.name: colour for colour in COLOURS}
@@ -233,7 +240,7 @@ DIALS: tuple[Dial, ...] = (
     Dial("image-veil", "Veil over the picture", "background", 0.25, 0, 0.9, 0.05,
          about="The page colour laid over your picture, so writing on it stays readable."),
     Dial("art-size", "Size", "drawings", 1, 0.6, 1.6, 0.1,
-         about="How big the plants at the edges are."),
+         about="How big the scene at the edges is."),
     Dial("art-opacity", "Strength", "drawings", 1, 0.2, 1, 0.05,
          about="How strongly they show against the page."),
 )
@@ -343,19 +350,24 @@ CHOICES: tuple[Choice, ...] = (
         Option("still", "The background stays put"),
         Option("scrolls", "It scrolls with the page"),
     )),
-    Choice("drawings", "Plants", "drawings", "garden", (
+    Choice("drawings", "Scene", "drawings", "garden", (
         Option("garden", "Garden: leafy sprigs and round blooms"),
         Option("meadow", "Meadow: grasses and wildflowers"),
         Option("fern", "Fern: arching fronds"),
         Option("blossom", "Blossom: a flowering branch"),
+        Option("woodland", "Woodland: stands of pines"),
+        Option("ocean", "Ocean: waves, coral and seaweed"),
+        Option("mountains", "Mountains: snowy peaks and pines"),
+        Option("sky", "Sky: clouds, the sun and birds"),
+        Option("desert", "Desert: dunes, cacti and the sun"),
         Option("own", "My own pictures"),
-    ), about="Which plants are drawn. Your own pictures are uploaded below."),
-    Choice("illustrations", "Where they grow", "drawings", "on", (
+    ), about="What is drawn. Your own pictures are uploaded below."),
+    Choice("illustrations", "Where it is drawn", "drawings", "on", (
         Option("on", "At the edges and beside headings"),
         Option("edges", "At the edges only"),
         Option("headings", "Beside headings only"),
         Option("off", "Nowhere"),
-    ), about="The edges are left bare on narrow screens, where they would sit under the text."),
+    ), about="The edges are left bare on narrow screens, where a scene would sit under the text."),
     Choice("drawings-side", "Which edges", "drawings", "both", (
         Option("both", "Both sides"),
         Option("left", "Left only"),
@@ -374,7 +386,8 @@ SETTING_GROUPS: tuple[Group, ...] = (
           "What lies behind the panels: light, a gradient, a picture of your own, or nothing."),
     Group("gradient", "Gradient", "How a gradient background runs, and its colours."),
     Group("texture", "Pattern and texture", "A pattern and a surface laid over the background."),
-    Group("drawings", "Drawings", "The plants: which, where, how big, and their colours."),
+    Group("drawings", "Drawings",
+          "The scene at the page's edges: plants, sea, mountains, sky or desert; where, how big, and its colours."),
 )
 
 #: Colour groups shown in their own setting sections rather than under Colours.

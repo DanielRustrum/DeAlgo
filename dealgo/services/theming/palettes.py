@@ -243,6 +243,12 @@ def roles(palette: Palette, mode: str) -> dict[str, str]:
         "kind-store": palette.orange,
         "kind-piece": palette.grey,
         **plugins,
+        # The scenes: sea from its blue, sky from its cyan, sand from its yellow.
+        "art-water": palette.blue,
+        "art-sky": mix(palette.panel, palette.cyan, 0.45),
+        "art-sand": mix(palette.panel, palette.yellow, 0.5),
+        "art-rock": palette.grey,
+        "art-snow": palette.text if night else palette.panel,
         "on-plugin": _ink_for(palette, palette.green, *plugins.values()),
     }
 

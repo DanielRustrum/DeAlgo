@@ -111,20 +111,26 @@ Laid over whatever background you chose, under everything else:
 
 ## Drawings
 
-The plants drawn at the page's edges and beside each page's heading:
+The scene drawn at the page's edges and beside each page's heading:
 
-- **Plants:** *Garden* (leafy sprigs and round blooms, as De-Algo comes), *Meadow* (grasses and
-  wildflowers), *Fern* (arching fronds), *Blossom* (a flowering branch), or *My own pictures*.
-  Your own pictures fill three places: the left edge, the right edge, and beside headings.
-  A place you leave empty stays bare. They keep their own colours; the drawing colours below
-  only apply to the drawn plants.
-- **Where they grow:** at the edges and beside headings, at the edges only, beside headings only,
-  or nowhere. Narrow screens never show the edges, where the plants would sit under the text.
+- **Scene:**
+  - plants: *Garden* (leafy sprigs and round blooms, as De-Algo comes), *Meadow* (grasses and
+    wildflowers), *Fern* (arching fronds), *Blossom* (a flowering branch) or *Woodland* (stands of
+    pines);
+  - elsewhere in nature: *Ocean* (waves, coral and seaweed), *Mountains* (snowy peaks with pines
+    at their feet), *Sky* (clouds, the sun and birds) or *Desert* (dunes, a cactus and the sun);
+  - or *My own pictures*: one each for the left edge, the right edge and beside headings, with any
+    place you leave empty staying bare. They keep their own colours.
+- **Where it is drawn:** at the edges and beside headings, at the edges only, beside headings only,
+  or nowhere. Narrow screens never show the edges, where a scene would sit under the text.
 - **Which edges:** both sides, left only or right only.
-- **Size** and **strength:** how big the edge plants are, and how strongly they show.
-- **Colours:** stems, leaves, softer leaves, and three flower colours, by day and by night. Each
-  follows a garden colour until you give it its own, so changing the leaf colour under
-  Colours changes the drawn leaves too, unless you have set theirs.
+- **Size** and **strength:** how big the scene at the edges is, and how strongly it shows.
+- **Colours,** by day and by night:
+  - the drawing colours: deepest (stems, trunks, outlines), greenery, distant greenery, and three
+    brights (flowers, coral, the sun, shells). Each follows a garden colour until you give it its
+    own, so changing the leaf colour under Colours changes the drawn greenery too.
+  - the scene colours: water, sky and haze, sand, rock, and snow and cloud. These have their own
+    defaults, since the garden has none of them.
 
 **Reset** on Background or Drawings also puts back that section's colours.
 
