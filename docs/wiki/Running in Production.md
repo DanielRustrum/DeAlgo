@@ -48,6 +48,16 @@ gunzip -c dealgo-v0.2.0-amd64.tar.gz | docker load      # gives dealgo:0.2.0
 
 Then set `DEALGO_IMAGE=dealgo:0.2.0` and start it. Each release's notes have the exact links.
 
+### Building one yourself
+
+`make release` builds the checkout into `releases/<version>/`, using the version in
+`pyproject.toml`. It writes the same image file and `SHA256SUMS.txt` that a release carries, plus
+a README with the load command. No tag, forge or buildx setup is needed.
+
+- It builds for your machine's own platform; `make release PLATFORMS=linux/amd64,linux/arm64`
+  builds both, which needs emulation for the other one.
+- It won't overwrite a version it has already built; bump the version, or pass `FORCE=1`.
+
 ## Pushing the image to a registry
 
 ```bash

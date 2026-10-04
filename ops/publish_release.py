@@ -4,6 +4,7 @@ usage:
     publish_release.py check TAG          the tag matches the version in the code
     publish_release.py build TAG OUT      build one image per platform into OUT
     publish_release.py publish TAG OUT    attach everything in OUT to the TAG release
+    publish_release.py local ROOT         build this checkout into ROOT/<version>, locally
 
 A release carries the image as a file rather than in a registry: one
 `dealgo-<tag>-<arch>.tar.gz` per platform, loadable with `docker load`, and a
@@ -123,6 +124,109 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+# -- building locally ---------------------------------------------------------------
+
+
+def _host_platform() -> str:
+    """The platform the local Docker daemon runs on: linux/amd64, linux/arm64."""
+    arch = subprocess.run(
+        ["docker", "version", "--format", "{{.Server.Arch}}"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    return f"linux/{arch or 'amd64'}"
+
+
+def local(root: Path) -> list[Path]:
+    """Build this checkout into ROOT/<version>, with no tag, forge or special builder.
+
+    The same files a release carries — one `dealgo-v<version>-<arch>.tar.gz`
+    per platform and their `SHA256SUMS.txt` — plus a README saying how to load
+    them. Built with the daemon's own builder (`buildx build --load`, then
+    `docker save`), so nothing has to be set up first. Only this machine's
+    platform unless `RELEASE_PLATFORMS` names others, which needs emulation.
+    An existing version's folder is left alone unless `FORCE=1`: a build that
+    went out somewhere should not be quietly replaced.
+    """
+    versions = set(code_versions().values())
+    if len(versions) != 1 or "" in versions:
+        said = ", ".join(f"{where} says {value}" for where, value in code_versions().items())
+        raise SystemExit(f"The version is not the same everywhere: {said}")
+    version = versions.pop()
+    tag = f"v{version}"
+    out = root / version
+    if out.exists() and any(out.iterdir()) and os.environ.get("FORCE") != "1":
+        raise SystemExit(
+            f"{out} already holds a build of {version}. Bump the version, "
+            "or run again with FORCE=1 to replace it."
+        )
+    out.mkdir(parents=True, exist_ok=True)
+
+    platforms = (
+        PLATFORMS if "RELEASE_PLATFORMS" in os.environ else (_host_platform(),)
+    )
+    made: list[Path] = []
+    for platform in platforms:
+        arch = platform.split("/")[-1]
+        image = f"dealgo:{version}" if len(platforms) == 1 else f"dealgo:{version}-{arch}"
+        print(f"building {image} for {platform} …", flush=True)
+        subprocess.run(
+            [
+                "docker", "buildx", "build",
+                "--platform", platform,
+                "--tag", image,
+                "--label", f"org.opencontainers.image.version={version}",
+                "--load",
+                str(ROOT),
+            ],
+            check=True,
+        )
+        packed = out / image_file(tag, platform)
+        print(f"saving {packed} …", flush=True)
+        saving = subprocess.Popen(["docker", "save", image], stdout=subprocess.PIPE)
+        assert saving.stdout is not None
+        with gzip.open(packed, "wb", compresslevel=6) as squeezed:
+            shutil.copyfileobj(saving.stdout, squeezed)
+        if saving.wait() != 0:
+            packed.unlink(missing_ok=True)
+            raise SystemExit(f"docker save {image} failed")
+        made.append(packed)
+
+    sums = "".join(f"{_sha256(path)}  {path.name}\n" for path in made)
+    (out / CHECKSUMS).write_text(sums)
+    first = made[0].name
+    (out / "README.md").write_text(
+        f"# De-Algo {version}\n\n"
+        f"Built locally from {_commit()}, for {', '.join(p.split('/')[-1] for p in platforms)}.\n\n"
+        "```bash\n"
+        f"sha256sum --check {CHECKSUMS}\n"
+        f"gunzip -c {first} | docker load\n"
+        "```\n\n"
+        f"The image is then `dealgo:{version}`"
+        + ("" if len(platforms) == 1 else " with the architecture appended, e.g. "
+           f"`dealgo:{version}-{platforms[0].split('/')[-1]}`")
+        + "; point `DEALGO_IMAGE` at it in `docker-compose.yml`.\n"
+    )
+    print(sums, end="")
+    print(f"done: {out}")
+    return made + [out / CHECKSUMS, out / "README.md"]
+
+
+def _commit() -> str:
+    """The commit this was built from, and whether the checkout had changes."""
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=ROOT,
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "an unknown commit"
+    return f"commit {sha}" + (" with uncommitted changes" if dirty else "")
+
+
 # -- publishing -----------------------------------------------------------------
 
 
@@ -239,6 +343,9 @@ def main(argv: list[str]) -> int:
         return 0
     if len(argv) == 3 and argv[0] == "build":
         build(argv[1], Path(argv[2]))
+        return 0
+    if len(argv) == 2 and argv[0] == "local":
+        local(Path(argv[1]))
         return 0
     if len(argv) == 3 and argv[0] == "publish":
         publish(argv[1], Path(argv[2]))

@@ -21,3 +21,6 @@ docs/internal/autodoc/service-worker/
 
 # Where scripts written as parts are compiled before they are joined.
 build/
+
+# Local image builds (`make release`): large, and kept out of the repository.
+releases/
