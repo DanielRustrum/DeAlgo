@@ -296,3 +296,15 @@ def test_try_it_is_only_for_rest_boxes(canvas, monkeypatch, db):
         session.flush()
         node = graph.add_source(session, channel=channel).id
     assert canvas.post(f"/graph/nodes/{node}/rest/try").status_code == 404
+
+
+def test_the_palette_offers_a_rest_api_box(canvas):
+    page = canvas.get("/channels").text
+    assert 'data-source-kind="rest"' in page and "<strong>REST API</strong>" in page
+
+
+def test_an_empty_rest_box_asks_for_an_api_address(canvas):
+    made = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "rest"}).json()
+    asks = next(n for n in made["nodes"] if n["kind"] == "source")["asks"]
+    assert asks["kind"] == "rest" and asks["known"] is True
+    assert asks["label"] == "REST API" and "JSON API" in asks["example"]
