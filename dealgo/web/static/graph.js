@@ -944,6 +944,8 @@ function graphKindLabel(kind) {
         return "Alive";
     if (kind === "lock")
         return "Lock";
+    if (kind === "after-watch")
+        return "After watching";
     if (kind === "decay")
         return "Decay";
     if (kind === "expire")
@@ -1703,6 +1705,7 @@ function graphConditionKinds() {
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
     return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
+        kind === "after-watch" ||
         kind === "rule" || graphConditionKinds().indexOf(kind) >= 0);
 }
 /** Which boxes have somewhere for a piece to go. */
@@ -2656,6 +2659,12 @@ function graphPieceFields(form, node) {
     const piece = node.piece;
     if (piece === null)
         return;
+    if (node.kind === "after-watch") {
+        form.appendChild(graphElement("p", "hint", piece.under === null
+            ? "Loose on the canvas. Drop it on an Expire box to count its Timer from when you watch an item, not from when it arrives."
+            : "The Timer above this starts when you watch an item, so it stays until you have, then leaves that long after. Unwatching it stops the clock."));
+        return;
+    }
     if (node.kind === "lock") {
         form.appendChild(graphElement("p", "hint", piece.under === null
             ? "Loose on the canvas. Drop it on a Decay box to make its time one you cannot pause."
@@ -2772,6 +2781,7 @@ function asGraphNodeKind(value) {
         value === "reset" ||
         value === "alive" ||
         value === "lock" ||
+        value === "after-watch" ||
         value === "decay" ||
         value === "expire" ||
         value === "tag" ||

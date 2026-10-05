@@ -24,6 +24,7 @@
   &.kind-reset,
   &.kind-alive,
   &.kind-lock,
+  &.kind-after-watch,
   &.kind-has-words,
   &.kind-lacks-words,
   &.kind-longer-than,

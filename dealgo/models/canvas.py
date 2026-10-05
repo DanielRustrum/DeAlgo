@@ -213,6 +213,8 @@ class GraphNode(Base):
             return "Alive"
         if self.kind == "lock":
             return "Lock"
+        if self.kind == "after-watch":
+            return "After watching"
         if self.kind in ("deposit", "withdraw"):
             # Named after the repository it is about: two Deposit boxes only
             # mean the same thing when they carry the same name, so the name

@@ -58,6 +58,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "locked", "BOOLEAN NOT NULL DEFAULT 0"),
     # Group files: which part of one a box is, and where a group came from.
     ("graph_node", "group_key", "VARCHAR(40)"),
+    # How long after it is watched a placement leaves its feed.
+    ("placement", "expires_after_watch_minutes", "INTEGER"),
     ("graph_node", "imported_from", "VARCHAR(255)"),
     ("graph_node", "imported_at", "DATETIME"),
     ("graph_node", "sort_by", "VARCHAR(16)"),

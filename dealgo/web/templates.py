@@ -166,6 +166,8 @@ Context = dict[str, Any]
 
 
 TEMPLATES.env.filters["duration"] = format_duration
+# A number of minutes as the canvas says it: "1 day", "3 hours".
+TEMPLATES.env.filters["minutes_words"] = graph_service.every_words
 
 
 # Bound late: the function is defined further down, and the template calls it

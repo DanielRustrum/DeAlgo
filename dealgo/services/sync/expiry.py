@@ -49,13 +49,19 @@ def stamp_expiry(
     for path in paths:
         if path.playlist is None:
             continue
-        minutes = graph.stamped_life(path.stamps, known)
         placement = placed.get(path.playlist.id)
-        if minutes is None or placement is None or placement.expires_at is not None:
+        if placement is None:
             continue
-        placement.expires_at = to_naive_utc(
-            dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
-        )
+        minutes = graph.stamped_life(path.stamps, known)
+        if minutes is not None and placement.expires_at is None:
+            placement.expires_at = to_naive_utc(
+                dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
+            )
+        # Counted from the watching, which has not happened yet: only how
+        # long is said now, and the sweep works out when.
+        after = graph.stamped_life(path.stamps, known, after_watch=True)
+        if after is not None and placement.expires_after_watch_minutes is None:
+            placement.expires_after_watch_minutes = after
 
 
 def stamp_what_is_already_here(
@@ -77,6 +83,25 @@ def stamp_what_is_already_here(
     for path in graph.routes(session, owner):
         if path.playlist is None:
             continue
+        after = graph.stamped_life(path.stamps, known, after_watch=True)
+        if after is not None:
+            # An After watching box arriving says how long, for everything
+            # already here; anything already watched long enough ago goes on
+            # this same run, as with the plain box.
+            for placement in session.scalars(
+                select(Placement)
+                .join(Video, Video.id == Placement.video_pk)
+                .where(
+                    belongs_to(Video, owner),
+                    Video.channel_pk == path.channel.id,
+                    Placement.playlist_pk == path.playlist.id,
+                    Placement.expires_after_watch_minutes.is_(None),
+                    Placement.removed_at.is_(None),
+                    Placement.playlist_item_id.is_not(None),
+                )
+            ):
+                placement.expires_after_watch_minutes = after
+                put += 1
         minutes = graph.stamped_life(path.stamps, known)
         if minutes is None:
             continue
@@ -114,23 +139,33 @@ def sweep_expired(
     Removed from the feed, not deleted: the item is still in the history and
     still in any other feed whose path said nothing about expiry.
     """
-    due = list(
-        session.scalars(
-            # A placement has no owner of its own; it belongs to whoever
-            # the video does, which is how every other query reaches one.
-            select(Placement)
-            .join(Video, Video.id == Placement.video_pk)
-            .where(belongs_to(Video, owner))
-            .join(Playlist, Playlist.id == Placement.playlist_pk)
-            .options(selectinload(Placement.playlist), selectinload(Placement.video))
-            .where(
-                Placement.expires_at.is_not(None),
-                Placement.expires_at <= utcnow(),
-                Placement.removed_at.is_(None),
-                Placement.playlist_item_id.is_not(None),
-            )
-        )
+    now = utcnow()
+    held = (
+        # A placement has no owner of its own; it belongs to whoever
+        # the video does, which is how every other query reaches one.
+        select(Placement)
+        .join(Video, Video.id == Placement.video_pk)
+        .where(belongs_to(Video, owner))
+        .join(Playlist, Playlist.id == Placement.playlist_pk)
+        .options(selectinload(Placement.playlist), selectinload(Placement.video))
+        .where(Placement.removed_at.is_(None), Placement.playlist_item_id.is_not(None))
     )
+    due = list(
+        session.scalars(held.where(Placement.expires_at.is_not(None), Placement.expires_at <= now))
+    )
+    # Those counted from the watching: watched, and long enough ago. Worked
+    # out here rather than in SQL, which has no portable way to add minutes.
+    seen = {placement.id for placement in due}
+    for placement in session.scalars(
+        held.where(
+            Placement.expires_after_watch_minutes.is_not(None), Video.watched_at.is_not(None)
+        )
+    ):
+        if placement.id in seen:
+            continue
+        ends = watched_end(placement)
+        if ends is not None and ends <= now:
+            due.append(placement)
     if not due:
         return
 
@@ -161,3 +196,13 @@ def sweep_expired(
     result.pruned += gone
     if gone and say is not None:
         say.write(f"cleared {gone} whose time in a feed had run out")
+
+
+def watched_end(placement: Placement) -> dt.datetime | None:
+    """When a placement counted from the watching leaves, or None if it is
+    not one, or its item has not been watched."""
+    minutes = placement.expires_after_watch_minutes
+    watched = placement.video.watched_at if placement.video is not None else None
+    if minutes is None or watched is None:
+        return None
+    return watched + dt.timedelta(minutes=minutes)

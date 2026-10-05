@@ -27,6 +27,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "reset" ||
     value === "alive" ||
     value === "lock" ||
+    value === "after-watch" ||
     value === "decay" ||
     value === "expire" ||
     value === "tag" ||

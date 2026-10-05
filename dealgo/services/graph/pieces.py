@@ -33,6 +33,8 @@ PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     "alive": ("feed",),
     # And a Lock is about a Decay's Timer being one you cannot pause.
     "lock": ("decay",),
+    # After watching starts an Expire's Timer when the item is watched.
+    "after-watch": ("expire",),
     **{one.kind: (one.under,) for one in CONDITIONS},
 }
 

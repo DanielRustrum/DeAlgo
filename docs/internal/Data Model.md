@@ -33,7 +33,7 @@ SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (i
 | `channel` | A source | `channel_id` (the key a plugin resolved), `source_kind`, `source_url`, `mirror_url`, `left_out` (JSON: the plugin's `takes` it leaves out), legacy filter columns, `last_checked_at`, `enabled` |
 | `playlist` | A feed | `playlist_id` (YouTube id, or `generic:…` for De-Algo feeds), `max_items`, `max_per_run`, `view_order`, `view_show`, `favorite` and `shelf_position` (where it sits on the Feed shelf; `priority` is the separate fill order) |
 | `video` | An item | `video_id`, `kind` (`video`/`post`/`link`), `hint` (from `refine`), `status` (`pending`/`added`/`skipped`/`ignored`/`failed`), `tags`, `view_seconds`, `view_locked`, `watched_at` |
-| `placement` | An item in a feed | `playlist_item_id` (NULL = owed), `added_at`, `removed_at`, `expires_at`, `attempts`, `error` |
+| `placement` | An item in a feed | `playlist_item_id` (NULL = owed), `added_at`, `removed_at`, `expires_at`, `expires_after_watch_minutes` (leaves this long after the item is watched; worked out by the sweep), `attempts`, `error` |
 | `graph_node` | A box or piece on the canvas | `kind`, `x`/`y`, `enabled`, `channel_pk`/`playlist_pk`, `attached_to`, per-kind columns (a group: `width`/`height`, `locked`, and if loaded from a file `imported_from`/`imported_at`); `group_key`, which part of a group file a box is (on a group, the file's id), so a newer copy can update it |
 | `graph_edge` | A wire | `source_pk` → `target_pk` |
 | `repository_item` | An item waiting in a named repository | `name` (normalised), `video_pk`, `deposited_by` |

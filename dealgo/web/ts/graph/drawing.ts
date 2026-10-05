@@ -19,6 +19,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "reset") return "Reset";
   if (kind === "alive") return "Alive";
   if (kind === "lock") return "Lock";
+  if (kind === "after-watch") return "After watching";
   if (kind === "decay") return "Decay";
   if (kind === "expire") return "Expire";
   if (kind === "tag") return "Tag";

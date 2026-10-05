@@ -12,6 +12,7 @@ boxes each one fits.
 | **Reset** | Feed | When reading time comes back. See [Reading Windows](Reading%20Windows.md). |
 | **Alive** | Feed | The hours a feed may be read. See [Reading Windows](Reading%20Windows.md). |
 | **Lock** | Decay | Makes a Decay countdown impossible to pause. See [Decay](Decay.md). |
+| **After watching** | Expire | Starts the Expire box's Timer when you watch an item, not when it arrives. See [Expire](Expire.md#expiring-after-you-watch). |
 | **Title has**, **Title lacks**, **Longer than**, **Shorter than**, **Carrying**, **At most** | Filter | A condition. See [Filter](Filter.md). |
 | **Order** | Sort | What to order by. See [Sort](Sort.md). |
 | Plugin conditions | Filter | See [Filter](Filter.md). |

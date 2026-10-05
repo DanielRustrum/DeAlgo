@@ -4344,3 +4344,16 @@ def test_only_a_group_can_be_locked(canvas):
     box = next(node for node in nodes if node["kind"] != "group")
     assert canvas.post(f"/graph/nodes/{box['id']}/lock").status_code == 404
     assert box["locked"] is False
+
+
+def test_an_after_watching_piece_can_be_dropped_from_the_palette(canvas):
+    """Made loose, then slotted under an Expire box, as a drag from the palette does."""
+    loose = canvas.post("/graph/nodes", data={"kind": "after-watch", "x": 0, "y": 0}).json()
+    piece = only(loose, "after-watch")
+    assert piece["title"] == "After watching"
+    assert piece["piece"]["under"] is None
+
+    box = only(canvas.post("/graph/nodes", data={"kind": "expire", "x": 0, "y": 0}).json(), "expire")
+    slotted = canvas.post(f"/graph/nodes/{piece['id']}/attach", data={"under": box["id"]})
+    assert slotted.status_code == 200, slotted.text
+    assert only(slotted.json(), "after-watch")["piece"]["under"] == box["id"]

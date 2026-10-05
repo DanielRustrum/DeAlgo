@@ -829,3 +829,24 @@ def test_the_reading_timer_only_appears_for_what_a_decay_box_touched(client, db)
     timed = client.get("/focus").text
     assert "hidden" not in timer_tag(timed)
     assert "45s" in timed
+
+
+def test_a_card_counted_from_the_watching_says_so_then_says_when(client, db):
+    import datetime as dt
+
+    with db.session_scope() as session:
+        video = session.scalar(select(Video).where(Video.title == "New science video"))
+        session.scalar(select(Placement).where(Placement.video_pk == video.id)
+                       ).expires_after_watch_minutes = 1440
+        video_id = video.id
+
+    page = every_feed(client)
+    assert "leaves after watching" in page
+    assert "Leaves this feed 1 day after you watch it" in page
+
+    with db.session_scope() as session:
+        session.get(Video, video_id).watched_at = utcnow() - dt.timedelta(hours=1)
+        session.scalar(select(Playlist).where(Playlist.title == "Science")).view_show = "all"
+    page = every_feed(client)
+    assert "leaves after watching" not in page
+    assert "leaves in 23 hours" in page

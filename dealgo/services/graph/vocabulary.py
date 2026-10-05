@@ -7,7 +7,8 @@ from .conditions import CONDITION_KINDS, RULE
 #: The box kinds that read what is slotted under them. A feed reads a Timer
 #: as a sitting and a Reset as when it comes back; a Decay reads a Timer as
 #: time with one item and a Lock as "and you cannot pause it"; an Expire
-#: reads a Timer as a lifetime. A Filter reads conditions — the app's own and
+#: reads a Timer as a lifetime, counted from arrival or, with an After
+#: watching piece, from when the item is watched. A Filter reads conditions — the app's own and
 #: whatever ones the plugins declared — and a Sort reads an Order.
 #: Every other kind ignores a piece entirely, which is why only these are
 #: drawn with somewhere for one to go.
@@ -29,7 +30,7 @@ STAMPS = ("decay", "expire", "tag")
 #: is slotted into. "Augmentation" is what the kind of thing is called;
 #: "piece" is what one looks like.
 AUGMENTATIONS: tuple[str, ...] = (
-    ("timer", "reset", "alive", "lock") + CONDITION_KINDS + (RULE,)
+    ("timer", "reset", "alive", "lock", "after-watch") + CONDITION_KINDS + (RULE,)
 )
 
 
@@ -85,6 +86,7 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "reset": (),
     "alive": (),
     "lock": (),
+    "after-watch": (),
     "has-words": (),
     "lacks-words": (),
     "longer-than": (),

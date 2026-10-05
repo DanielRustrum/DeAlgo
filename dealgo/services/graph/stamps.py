@@ -44,14 +44,26 @@ def stamped_locked(stamps: list[GraphNode], pieces_for: Any) -> bool:
     return False
 
 
-def stamped_life(stamps: list[GraphNode], pieces_for: Any) -> int | None:
+def _after_watch(node: GraphNode, pieces_for: Any) -> bool:
+    """Whether an Expire box counts from the watching rather than the arrival."""
+    return any(one.kind == "after-watch" and one.enabled for one in pieces_for(node))
+
+
+def stamped_life(
+    stamps: list[GraphNode], pieces_for: Any, *, after_watch: bool = False
+) -> int | None:
     """How long an Expire box on this path lets an item stay, in minutes.
 
-    The shortest again, and for the same reason.
+    The shortest again, and for the same reason. Two clocks, asked for
+    apart: from when it arrives (the plain box), and from when it is watched
+    (one with an After watching piece). A path may have both, and an item
+    goes at whichever comes round first.
     """
     shortest: int | None = None
     for node in stamps:
         if node.kind != "expire" or not node.enabled:
+            continue
+        if _after_watch(node, pieces_for) != after_watch:
             continue
         minutes = timer_minutes(pieces_for(node))
         if minutes is None:
@@ -77,6 +89,9 @@ def stamp_marks(stamps: list[GraphNode], pieces_for: Any) -> list[str]:
     minutes = stamped_life(stamps, pieces_for)
     if minutes is not None:
         said.append(f"gone {every_words(minutes)} after it arrives")
+    watched = stamped_life(stamps, pieces_for, after_watch=True)
+    if watched is not None:
+        said.append(f"gone {every_words(watched)} after you watch it")
     return said
 
 

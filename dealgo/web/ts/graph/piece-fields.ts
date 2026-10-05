@@ -85,6 +85,19 @@ function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
   const piece = node.piece;
   if (piece === null) return;
 
+  if (node.kind === "after-watch") {
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        piece.under === null
+          ? "Loose on the canvas. Drop it on an Expire box to count its Timer from when you watch an item, not from when it arrives."
+          : "The Timer above this starts when you watch an item, so it stays until you have, then leaves that long after. Unwatching it stops the clock.",
+      ),
+    );
+    return;
+  }
+
   if (node.kind === "lock") {
     form.appendChild(
       graphElement(

@@ -15,6 +15,7 @@ type GraphNodeKind =
   | "reset"
   | "alive"
   | "lock"
+  | "after-watch"
   // Boxes that mark what passes through them rather than narrowing it.
   | "decay"
   | "expire"
@@ -46,6 +47,7 @@ function graphConditionKinds(): GraphNodeKind[] {
 function graphIsPiece(kind: GraphNodeKind): boolean {
   return (
     kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
+    kind === "after-watch" ||
     kind === "rule" || graphConditionKinds().indexOf(kind) >= 0
   );
 }

@@ -87,6 +87,8 @@ def stamp_words(node: GraphNode, pieces: list[GraphNode]) -> str:
     if node.kind == "decay":
         locked = any(one.kind == "lock" and one.enabled for one in pieces)
         return every_words(minutes) + " with each one" + (", no pausing" if locked else "")
+    if any(one.kind == "after-watch" and one.enabled for one in pieces):
+        return "gone " + every_words(minutes) + " after you watch it"
     return "gone " + every_words(minutes) + " after it arrives"
 
 
@@ -101,6 +103,8 @@ def piece_words(piece: GraphNode, window: int | None = None) -> str:
         return condition_words(piece)
     if piece.kind == "lock":
         return "cannot be paused"
+    if piece.kind == "after-watch":
+        return "counted from when you watch it"
     if piece.kind == "alive":
         begins = clock_time(piece.alive_from)
         ends = clock_time(piece.alive_to)

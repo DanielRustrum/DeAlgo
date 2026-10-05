@@ -241,6 +241,7 @@ def _section(
                 "shut": feed_window_words(opens),
                 "opens_at": state.opens_at,
                 "expiring": {},
+                "after_watch": {},
             }
         if sitting:
             graph_service.begin_sitting(session, state, now)
@@ -251,6 +252,7 @@ def _section(
         "shut": [],
         "opens_at": None,
         "expiring": _expiring(session, target),
+        "after_watch": _after_watch(session, target),
     }
 
 
@@ -287,15 +289,41 @@ def _expiring(session: Session, target: Playlist) -> dict[int, dt.datetime]:
     """When an Expire box takes each item out of *this* feed.
 
     Per feed rather than per item: the same video in two feeds may have two
-    different answers, and the one that matters here is this one's.
+    different answers, and the one that matters here is this one's. One
+    counted from the watching has an end once it is watched; where two boxes
+    disagree, the sooner is the one that happens.
     """
+    found: dict[int, dt.datetime] = {}
+    for video_pk, when, after, watched in session.execute(
+        select(
+            Placement.video_pk, Placement.expires_at,
+            Placement.expires_after_watch_minutes, Video.watched_at,
+        )
+        .join(Video, Video.id == Placement.video_pk)
+        .where(Placement.playlist_pk == target.id, Placement.removed_at.is_(None))
+    ):
+        ends = [one for one in (
+            when,
+            watched + dt.timedelta(minutes=after) if after is not None and watched else None,
+        ) if one is not None]
+        if ends:
+            found[video_pk] = min(ends)
+    return found
+
+
+def _after_watch(session: Session, target: Playlist) -> dict[int, int]:
+    """Items that will leave a while after they are watched, and are not yet:
+    how many minutes after. A card says so, so watching one is not a surprise."""
     return {
-        video_pk: when
-        for video_pk, when in session.execute(
-            select(Placement.video_pk, Placement.expires_at).where(
+        video_pk: minutes
+        for video_pk, minutes in session.execute(
+            select(Placement.video_pk, Placement.expires_after_watch_minutes)
+            .join(Video, Video.id == Placement.video_pk)
+            .where(
                 Placement.playlist_pk == target.id,
-                Placement.expires_at.is_not(None),
                 Placement.removed_at.is_(None),
+                Placement.expires_after_watch_minutes.is_not(None),
+                Video.watched_at.is_(None),
             )
         )
     }

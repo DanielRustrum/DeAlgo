@@ -49,6 +49,10 @@ class Placement(Base):
     # Per placement rather than per item: a path with an Expire box on it
     # and one without are two different answers about the same video.
     expires_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
+    # When an Expire box with an After watching piece says it goes: this
+    # long after the item is watched. Counted then rather than stored as a
+    # time, so unwatching it puts the clock back to not started.
+    expires_after_watch_minutes: Mapped[Optional[int]] = mapped_column(Integer)
 
     video: Mapped[Video] = relationship(back_populates="placements")
     playlist: Mapped[Playlist] = relationship(back_populates="placements")
