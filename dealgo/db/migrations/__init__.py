@@ -11,11 +11,17 @@ from __future__ import annotations
 from .columns import add_missing_columns, drop_removed_columns
 from .connections import youtube_becomes_a_plugin, youtube_takes_become_declared
 from .feeds import migrate_single_playlist, rename_local_feed_prefix
-from .pieces import feed_windows_become_pieces, plugin_boxes_become_pieces, rules_become_pieces
+from .pieces import (
+    after_watching_is_its_own_condition,
+    feed_windows_become_pieces,
+    plugin_boxes_become_pieces,
+    rules_become_pieces,
+)
 from .uniqueness import rebuild_video_uniqueness, scope_uniqueness_to_owners
 from .wires import retire_tag_nodes, wires_belong_to_boxes
 
 __all__ = [
+    "after_watching_is_its_own_condition",
     "add_missing_columns",
     "drop_removed_columns",
     "feed_windows_become_pieces",

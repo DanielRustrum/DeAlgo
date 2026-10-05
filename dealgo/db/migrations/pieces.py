@@ -323,3 +323,26 @@ def _fold_into_the_filter_before_it(connection: Any, node_pk: int) -> None:
     )
     connection.execute(text("DELETE FROM graph_edge WHERE id = :pk"), {"pk": onward[0]})
     connection.execute(text("DELETE FROM graph_node WHERE id = :pk"), {"pk": node_pk})
+
+
+def after_watching_is_its_own_condition() -> None:
+    """After watching used to start an Expire box's Timer at the watching; now
+    it is its own condition — gone once watched — beside the Timer, which
+    counts from arrival again. A placement stamped the old way carried the
+    Timer's minutes as a delay after watching; it now means "once watched".
+
+    The arrival lifetime those placements are owed is filled in by the next
+    run, as it is for anything already in a feed when a Timer appears.
+    """
+    engine = get_engine()
+    if "expires_after_watch_minutes" not in {
+        column["name"] for column in inspect(engine).get_columns("placement")
+    }:
+        return
+    with engine.begin() as connection:
+        changed = connection.execute(text(
+            "UPDATE placement SET expires_after_watch_minutes = 0 "
+            "WHERE expires_after_watch_minutes > 0"
+        )).rowcount
+    if changed:
+        log.info("%d placement(s) now leave once watched rather than after a delay", changed)

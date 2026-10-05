@@ -67,7 +67,7 @@ from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, p
 from .reading import channels_of, edges, nodes
 from .report import Judged, filter_report
 from .routes import Route, paths_from, routes
-from .stamps import stamped_life, stamped_locked, stamped_seconds, stamped_tags
+from .stamps import stamped_after_watch, stamped_life, stamped_locked, stamped_seconds, stamped_tags
 from .trial import Trial, try_it
 from .triggers import (
     When,
@@ -169,6 +169,7 @@ __all__ = [
     "split_every",
     "split_length",
     "stamp_words",
+    "stamped_after_watch",
     "stamped_life",
     "stamped_locked",
     "stamped_seconds",

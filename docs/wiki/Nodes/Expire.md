@@ -14,20 +14,18 @@ Slot a **Timer** under it for the lifetime — minutes, hours, days or weeks. Wi
 - If several Expire boxes apply, the **shortest** lifetime wins.
 - The card shows when it leaves: `leaves in 2 days`.
 
-## Expiring after you watch
+## Expiring once you watch
 
-Slot an **After watching** piece under the Expire box too, and its Timer starts when you *watch* an
-item instead of when it arrives. An item stays until you've watched it, then leaves that long
-after.
+Slot an **After watching** piece under the Expire box, and an item leaves once you've *watched*
+it, at the next run. It needs no Timer.
 
-- Use it for a feed you want to keep until you've seen everything, but not keep forever after.
-  With a Timer of 1 day, a video leaves a day after you watch it.
-- **Unwatching** an item stops its clock again.
-- An unwatched item's card says `leaves after watching`; once it's watched, it says when, like
-  `leaves in 23 hours`.
-- Adding the piece applies to items already in the feed too. One you watched long enough ago goes
-  at the next run.
-- A path can have both kinds: a plain Expire box and one counting from the watching. An item leaves
-  at whichever comes first.
+- Use it for a feed you want to keep until you've seen everything, and no longer.
+- With a **Timer** slotted in as well, both apply: an item leaves when you watch it, or when the
+  Timer runs out from its arrival — whichever comes first. With a Timer of 1 week, a video goes as
+  soon as you watch it, and an unwatched one still goes after a week.
+- **Unwatching** an item before the next run keeps it.
+- An unwatched item's card says `leaves once watched`, beside `leaves in …` when a Timer applies.
+- Adding the piece applies to items already in the feed too: anything already watched goes at the
+  next run.
 
 **Related:** [Decay](Decay.md) · [Feeds](Feeds.md) · [Augmentations](Augmentations.md)

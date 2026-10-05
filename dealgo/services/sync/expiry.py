@@ -57,11 +57,12 @@ def stamp_expiry(
             placement.expires_at = to_naive_utc(
                 dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
             )
-        # Counted from the watching, which has not happened yet: only how
-        # long is said now, and the sweep works out when.
-        after = graph.stamped_life(path.stamps, known, after_watch=True)
-        if after is not None and placement.expires_after_watch_minutes is None:
-            placement.expires_after_watch_minutes = after
+        # Gone once it is watched, which has not happened yet: said now, and
+        # the sweep sees the watching when it comes. Beside any lifetime from
+        # arriving, not instead of it — whichever comes first.
+        if (graph.stamped_after_watch(path.stamps, known)
+                and placement.expires_after_watch_minutes is None):
+            placement.expires_after_watch_minutes = 0
 
 
 def stamp_what_is_already_here(
@@ -83,11 +84,10 @@ def stamp_what_is_already_here(
     for path in graph.routes(session, owner):
         if path.playlist is None:
             continue
-        after = graph.stamped_life(path.stamps, known, after_watch=True)
-        if after is not None:
-            # An After watching box arriving says how long, for everything
-            # already here; anything already watched long enough ago goes on
-            # this same run, as with the plain box.
+        if graph.stamped_after_watch(path.stamps, known):
+            # An After watching piece arriving reaches everything already
+            # here; anything already watched goes on this same run, as an
+            # overstayed item does with a Timer.
             for placement in session.scalars(
                 select(Placement)
                 .join(Video, Video.id == Placement.video_pk)
@@ -100,7 +100,7 @@ def stamp_what_is_already_here(
                     Placement.playlist_item_id.is_not(None),
                 )
             ):
-                placement.expires_after_watch_minutes = after
+                placement.expires_after_watch_minutes = 0
                 put += 1
         minutes = graph.stamped_life(path.stamps, known)
         if minutes is None:

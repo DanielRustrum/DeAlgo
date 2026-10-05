@@ -2661,8 +2661,8 @@ function graphPieceFields(form, node) {
         return;
     if (node.kind === "after-watch") {
         form.appendChild(graphElement("p", "hint", piece.under === null
-            ? "Loose on the canvas. Drop it on an Expire box to count its Timer from when you watch an item, not from when it arrives."
-            : "The Timer above this starts when you watch an item, so it stays until you have, then leaves that long after. Unwatching it stops the clock."));
+            ? "Loose on the canvas. Drop it on an Expire box to take items out once you watch them."
+            : "Items leave once you watch them, at the next run. With a Timer slotted in too, they leave when watched or when that time from arriving runs out — whichever comes first."));
         return;
     }
     if (node.kind === "lock") {

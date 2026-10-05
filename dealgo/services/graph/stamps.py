@@ -44,26 +44,30 @@ def stamped_locked(stamps: list[GraphNode], pieces_for: Any) -> bool:
     return False
 
 
-def _after_watch(node: GraphNode, pieces_for: Any) -> bool:
-    """Whether an Expire box counts from the watching rather than the arrival."""
-    return any(one.kind == "after-watch" and one.enabled for one in pieces_for(node))
+def stamped_after_watch(stamps: list[GraphNode], pieces_for: Any) -> bool:
+    """Whether an Expire box on this path takes an item out once it is watched.
+
+    An After watching piece under it. Its own condition, beside the Timer
+    rather than instead of it: with both, an item goes when it is watched or
+    when its time from arriving runs out, whichever comes first.
+    """
+    return any(
+        node.kind == "expire"
+        and node.enabled
+        and any(one.kind == "after-watch" and one.enabled for one in pieces_for(node))
+        for node in stamps
+    )
 
 
-def stamped_life(
-    stamps: list[GraphNode], pieces_for: Any, *, after_watch: bool = False
-) -> int | None:
-    """How long an Expire box on this path lets an item stay, in minutes.
-
-    The shortest again, and for the same reason. Two clocks, asked for
-    apart: from when it arrives (the plain box), and from when it is watched
-    (one with an After watching piece). A path may have both, and an item
-    goes at whichever comes round first.
+def stamped_life(stamps: list[GraphNode], pieces_for: Any) -> int | None:
+    """How long an Expire box on this path lets an item stay after it
+    arrives, in minutes. The shortest again, and for the same reason. None
+    when no Expire box has a Timer — one with only After watching has no
+    lifetime from arrival at all.
     """
     shortest: int | None = None
     for node in stamps:
         if node.kind != "expire" or not node.enabled:
-            continue
-        if _after_watch(node, pieces_for) != after_watch:
             continue
         minutes = timer_minutes(pieces_for(node))
         if minutes is None:
@@ -87,11 +91,13 @@ def stamp_marks(stamps: list[GraphNode], pieces_for: Any) -> list[str]:
         said.append(spoken + (" · no pause" if stamped_locked(stamps, pieces_for) else ""))
 
     minutes = stamped_life(stamps, pieces_for)
-    if minutes is not None:
+    watched = stamped_after_watch(stamps, pieces_for)
+    if minutes is not None and watched:
+        said.append(f"gone once you watch it, or {every_words(minutes)} after it arrives")
+    elif minutes is not None:
         said.append(f"gone {every_words(minutes)} after it arrives")
-    watched = stamped_life(stamps, pieces_for, after_watch=True)
-    if watched is not None:
-        said.append(f"gone {every_words(watched)} after you watch it")
+    elif watched:
+        said.append("gone once you watch it")
     return said
 
 

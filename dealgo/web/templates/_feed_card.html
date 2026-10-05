@@ -50,9 +50,9 @@
        item in two feeds may have two; the item's own soonest where the card
        is drawn on its own, as it is after being marked watched. #}
     {% set leaves = section.expiring.get(video.id) if section is defined else video.expires_at %}
-    {# Not watched yet, under an Expire box that counts from the watching. #}
+    {# Not watched yet, under an Expire box with After watching: it goes once watched. #}
     {% set after = section.after_watch.get(video.id) if section is defined and section.after_watch else none %}
-    {% if video.tag_list or video.view_seconds or leaves or after %}
+    {% if video.tag_list or video.view_seconds or leaves or after is not none %}
     <span class="card-marks">
       {% for tag in video.tag_list %}
       <span class="card-mark card-mark-tag">{{ tag }}</span>
@@ -62,9 +62,9 @@
         {{ video.view_seconds | spell }}{{ ' · no pause' if video.view_locked }}
       </span>
       {% endif %}
-      {% if after and not leaves %}
-      <span class="card-mark" title="Leaves this feed {{ after | minutes_words }} after you watch it">
-        leaves after watching
+      {% if after is not none %}
+      <span class="card-mark" title="Leaves this feed once you watch it">
+        leaves once watched
       </span>
       {% endif %}
       {% if leaves %}

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from dealgo.models import Channel, Placement, Playlist, Video, utcnow
 from dealgo.plugins.publisher import VideoDetails
 from dealgo.services import graph
+from dealgo.services import playlists as playlist_service
 from dealgo.services import sync as sync_service
 from fakes import entry, unwire
 
@@ -570,15 +571,17 @@ def test_the_marks_arrive_box_by_box_and_not_all_at_once(world, db):
     assert carried["feed"] == ["“news”", "3 min", "gone 1 week after it arrives"]
 
 
-# -- Expire, counted from the watching -------------------------------------
+# -- Expire, once watched -------------------------------------------------
 
 
-def expires_after_watch(minutes=1440):
-    """An Expire box whose Timer starts when the item is watched."""
+def expires_after_watch(minutes=None):
+    """An Expire box with After watching under it, and a Timer too if given:
+    it goes once watched, or when the Timer from arriving runs out."""
     def make(session):
         box = graph.add_stamp(session, kind="expire")
-        timer = graph.add_piece(session, kind="timer", host=box, duration_minutes=minutes)
-        graph.add_piece(session, kind="after-watch", host=timer)
+        if minutes is not None:
+            graph.add_piece(session, kind="timer", host=box, duration_minutes=minutes)
+        graph.add_piece(session, kind="after-watch", host=box)
         return box
 
     return make
@@ -590,15 +593,15 @@ def watch(db, when):
             video.watched_at = when
 
 
-def test_after_watching_puts_no_end_on_what_is_unwatched(world, db):
-    wire(db, expires_after_watch(minutes=60))
+def test_after_watching_alone_keeps_what_is_unwatched(world, db):
+    wire(db, expires_after_watch())
     uploads(world, 1)
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
         placement = session.scalar(select(Placement))
-        assert placement.expires_at is None  # no clock from the arrival
-        assert placement.expires_after_watch_minutes == 60
+        assert placement.expires_at is None  # no Timer, no clock from the arrival
+        assert placement.expires_after_watch_minutes == 0
 
     # A week on, still unwatched, still there.
     with db.session_scope() as session:
@@ -608,28 +611,22 @@ def test_after_watching_puts_no_end_on_what_is_unwatched(world, db):
         assert session.scalar(select(Placement)).removed_at is None
 
 
-def test_it_goes_that_long_after_it_is_watched(world, db):
-    wire(db, expires_after_watch(minutes=60))
+def test_it_goes_at_the_next_run_once_watched(world, db):
+    wire(db, expires_after_watch())
     uploads(world, 2)
     sync_service.run_sync("manual", force=True)
 
-    # Watched ten minutes ago: not yet.
-    watch(db, utcnow() - dt.timedelta(minutes=10))
-    sync_service.run_sync("manual", force=True)
-    with db.session_scope() as session:
-        assert all(p.removed_at is None for p in session.scalars(select(Placement)))
-
-    # Watched two hours ago: gone, from the feed but not the history.
-    watch(db, utcnow() - dt.timedelta(hours=2))
+    watch(db, utcnow() - dt.timedelta(minutes=1))
     sync_service.run_sync("manual", force=True)
     with db.session_scope() as session:
         gone = session.scalars(select(Placement).where(Placement.removed_at.is_not(None))).all()
-        assert len(gone) == 2 and "ran out" in (gone[0].removal_reason or "")
+        assert len(gone) == 2
+    # From the feed, not the history.
     assert len(items(db)) == 2
 
 
-def test_unwatching_stops_the_clock(world, db):
-    wire(db, expires_after_watch(minutes=60))
+def test_unwatching_keeps_it(world, db):
+    wire(db, expires_after_watch())
     uploads(world, 1)
     sync_service.run_sync("manual", force=True)
     watch(db, utcnow() - dt.timedelta(minutes=10))
@@ -639,16 +636,30 @@ def test_unwatching_stops_the_clock(world, db):
         assert session.scalar(select(Placement)).removed_at is None
 
 
-def test_both_clocks_on_one_path_go_at_whichever_comes_first(world, db):
-    wire(db, expires(minutes=7 * 1440), expires_after_watch(minutes=60))
+def test_with_a_timer_watching_it_comes_first(world, db):
+    wire(db, expires_after_watch(minutes=7 * 1440))
     uploads(world, 1)
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
         placement = session.scalar(select(Placement))
-        assert placement.expires_at is not None and placement.expires_after_watch_minutes == 60
+        assert placement.expires_at is not None  # the Timer counts from arriving
+        assert placement.expires_after_watch_minutes == 0
 
-    watch(db, utcnow() - dt.timedelta(hours=2))
+    watch(db, utcnow() - dt.timedelta(minutes=1))
+    sync_service.run_sync("manual", force=True)
+    with db.session_scope() as session:
+        assert session.scalar(select(Placement)).removed_at is not None
+
+
+def test_with_a_timer_the_timer_comes_first(world, db):
+    wire(db, expires_after_watch(minutes=60))
+    uploads(world, 1)
+    sync_service.run_sync("manual", force=True)
+
+    # Never watched, but the Timer from arriving has run out.
+    with db.session_scope() as session:
+        session.scalar(select(Placement)).expires_at = utcnow() - dt.timedelta(minutes=1)
     sync_service.run_sync("manual", force=True)
     with db.session_scope() as session:
         assert session.scalar(select(Placement)).removed_at is not None
@@ -660,7 +671,7 @@ def test_adding_after_watching_reaches_what_is_already_watched(world, db):
     sync_service.run_sync("manual", force=True)
     watch(db, utcnow() - dt.timedelta(days=2))
 
-    wire(db, expires_after_watch(minutes=1440))
+    wire(db, expires_after_watch())
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
@@ -682,16 +693,44 @@ def test_after_watching_only_slots_under_an_expire_box(db):
         assert piece.title == "After watching"
 
 
-def test_the_boxes_say_which_clock_they_count_by(db):
+def test_the_boxes_say_when_they_take_things_out(db):
     from dealgo.services.graph.stamps import stamp_marks
     from dealgo.services.graph.words import piece_words, stamp_words
 
     with db.session_scope() as session:
-        box = expires_after_watch(minutes=1440)(session)
-        pieces = graph.pieces_of(session)(box)
-        assert stamp_words(box, pieces) == "gone 1 day after you watch it"
-        after = next(p for p in pieces if p.kind == "after-watch")
-        assert piece_words(after) == "counted from when you watch it"
-        assert stamp_marks([box], graph.pieces_of(session)) == [
-            "gone 1 day after you watch it"
+        alone = expires_after_watch()(session)
+        both = expires_after_watch(minutes=1440)(session)
+        pieces_for = graph.pieces_of(session)
+        assert stamp_words(alone, pieces_for(alone)) == "gone once you watch it"
+        assert stamp_words(both, pieces_for(both)) == (
+            "gone once you watch it, or 1 day after it arrives"
+        )
+        after = next(p for p in pieces_for(alone) if p.kind == "after-watch")
+        assert piece_words(after) == "once you watch it"
+        assert stamp_marks([alone], pieces_for) == ["gone once you watch it"]
+        assert stamp_marks([both], pieces_for) == [
+            "gone once you watch it, or 1 day after it arrives"
         ]
+
+
+def test_a_delay_after_watching_from_before_becomes_once_watched(db):
+    """Placements stamped when After watching started the Timer at the
+    watching carried a delay; now they go once watched, and do so twice over
+    without change."""
+    from dealgo.db.migrations import after_watching_is_its_own_condition
+
+    with db.session_scope() as session:
+        channel = Channel(channel_id="UCold", title="Old")
+        session.add(channel)
+        session.flush()
+        video = Video(video_id="old1", channel_pk=channel.id, title="Old", status="added")
+        session.add(video)
+        session.flush()
+        feed = playlist_service.create_generic(session, "Old feed")
+        session.add(Placement(video_pk=video.id, playlist_pk=feed.id,
+                              playlist_item_id="generic-1", expires_after_watch_minutes=1440))
+
+    after_watching_is_its_own_condition()
+    after_watching_is_its_own_condition()
+    with db.session_scope() as session:
+        assert session.scalar(select(Placement)).expires_after_watch_minutes == 0
