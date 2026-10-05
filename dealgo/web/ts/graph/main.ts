@@ -15,6 +15,19 @@
 // Top-level `function` declarations only, and no statement but the one entry
 // call at the end of main.ts: see tests/test_scripts.py.
 
+/** Bring the whole canvas into the window, if any of it is out. A canvas
+ *  taller than the window is lined up with its top. */
+function scrollToGraph(canvas: HTMLElement): void {
+  const box = canvas.getBoundingClientRect();
+  const margin = 8;
+  if (box.top >= 0 && box.bottom <= window.innerHeight) return;
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({
+    top: window.scrollY + box.top - margin,
+    behavior: still ? "auto" : "smooth",
+  });
+}
+
 /** Wire up one canvas: pointer, clicks, keys, forms, and its drawers and dialogs. */
 function listenToGraph(state: GraphState): void {
   const { canvas } = state.parts;
@@ -24,6 +37,11 @@ function listenToGraph(state: GraphState): void {
   canvas.addEventListener("pointerup", (event: PointerEvent): void => onGraphPointerUp(state, event));
   canvas.addEventListener("pointercancel", (event: PointerEvent): void => onGraphPointerUp(state, event));
   canvas.addEventListener("click", (event: MouseEvent): void => onGraphClick(state, event));
+  // Clicking into the canvas means working on it, so the page scrolls to
+  // show all of it rather than leaving it half under the fold. On the click,
+  // not the press: scrolling under a drag that is starting moves the box
+  // away from the pointer holding it.
+  canvas.addEventListener("click", (): void => scrollToGraph(canvas));
   canvas.addEventListener("keydown", (event: KeyboardEvent): void => onGraphKeyDown(state, event));
   canvas.addEventListener("submit", (event: SubmitEvent): void => {
     void onGraphSubmit(state, event);
