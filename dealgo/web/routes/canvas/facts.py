@@ -207,6 +207,16 @@ def channel_facts(session: Session, owner: OwnerId) -> dict[int, Context]:
             # channel's own gap only applies while none is wired — so the box
             # says when it last happened and leaves the rest to `polled`.
             "enabled": channel.enabled,
+            # A REST API source's mapping, for its box to show and change.
+            # Its header's value never leaves the server: only whether one is set.
+            "rest": (
+                {
+                    **sources.rest.Mapping.loads(channel.source_options).public(),
+                    "has_key": bool(sources.rest.Mapping.loads(channel.source_options).header_value),
+                    "error": channel.last_error or "",
+                }
+                if channel.source_kind == "rest" else None
+            ),
             "checked": _instant(channel.last_checked_at),
             "placed": placed.get(channel.id, 0),
             "pending": pending.get(channel.id, 0),

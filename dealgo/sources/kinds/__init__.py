@@ -26,7 +26,16 @@ from __future__ import annotations
 
 from .addresses import feed_url, home_url, item_url, suggest_mirror
 from .resolving import resolve
-from .vocabulary import NEWSLETTER, RSS, Resolved, SourceKind, UnknownSource, all_kinds, describe
+from .vocabulary import (
+    NEWSLETTER,
+    REST,
+    RSS,
+    Resolved,
+    SourceKind,
+    UnknownSource,
+    all_kinds,
+    describe,
+)
 
 __all__ = [
     "all_kinds",
@@ -36,6 +45,7 @@ __all__ = [
     "item_url",
     "NEWSLETTER",
     "resolve",
+    "REST",
     "Resolved",
     "RSS",
     "SourceKind",

@@ -19,7 +19,7 @@ from ...models import (
     utcnow,
 )
 from ...plugins import registry
-from ...sources import items, patience, syndication
+from ...sources import items, patience, rest, syndication
 from .. import graph, runlog
 from ..scope import OwnerId, owned
 from .posts import discover_posts
@@ -98,6 +98,10 @@ def _read_feed(channel: Channel, http: httpx.Client) -> syndication.Feed:
     A mirror that also refuses is not worth a second complaint — the original
     refusal is the one worth reporting, so that is the one that is raised.
     """
+    if channel.source_kind == "rest":
+        # A JSON API, read by the mapping set on its box. No mirror: nobody
+        # keeps a copy of somebody's API.
+        return rest.fetch(channel.feed_url, rest.Mapping.loads(channel.source_options), http)
     try:
         return syndication.fetch(channel.feed_url, http)
     except (patience.RateLimited, httpx.HTTPStatusError) as refused:

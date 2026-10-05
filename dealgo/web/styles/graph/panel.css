@@ -230,3 +230,10 @@
 
 /* A group's file buttons: Export, and Update from file for one that was loaded. */
 .graph-group-files { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* A REST source's preview, under Try it: the first few items as they will arrive. */
+.graph-rest-said:empty { display: none; }
+.graph-rest-items { margin: 4px 0 0; padding-left: 18px; font-size: calc(12.5px * var(--text-scale)); }
+.graph-rest-items li { margin-bottom: 4px; overflow-wrap: anywhere; }
+.graph-rest-items strong { display: block; font-weight: 600; }
+.graph-rest-meta { color: var(--muted); font-size: calc(11.5px * var(--text-scale)); }

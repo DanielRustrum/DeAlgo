@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
@@ -11,6 +13,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .... import outgoing, sources
+from ....sources import rest
 from ....db import session_scope
 from ....models import (
     Channel,
@@ -68,6 +71,18 @@ async def graph_save_node(
     alive_from: str = Form(""),
     alive_to: str = Form(""),
     marks: str = Form(""),
+    # A REST API source's address, mapping and key header.
+    rest_url: str = Form(""),
+    rest_items: str = Form(""),
+    rest_id: str = Form(""),
+    rest_title: str = Form(""),
+    rest_link: str = Form(""),
+    rest_published: str = Form(""),
+    rest_image: str = Form(""),
+    rest_summary: str = Form(""),
+    rest_header_name: str = Form(""),
+    rest_header_value: str = Form(""),
+    rest_header_clear: str = Form(""),
 ) -> JSONResponse:
     """Save what a box says about itself.
 
@@ -102,6 +117,14 @@ async def graph_save_node(
             )
             if answer is not None:
                 return answer
+            if node.channel.source_kind == "rest":
+                answer = _save_rest(node.channel, rest_form(
+                    rest_url, rest_items, rest_id, rest_title, rest_link, rest_published,
+                    rest_image, rest_summary, rest_header_name, rest_header_value,
+                    rest_header_clear,
+                ))
+                if answer is not None:
+                    return answer
         elif node.kind == "tag":
             node.marks = graph_service.tag_name(marks) or None
         elif node.kind in graph_service.CONDITION_KINDS:
@@ -448,3 +471,121 @@ def _save_condition(
     else:
         setattr(node, spec.column, int(said))
     return None
+
+
+def rest_form(
+    url: str, items: str, ident: str, title: str, link: str, published: str, image: str,
+    summary: str, header_name: str, header_value: str, header_clear: str,
+) -> dict[str, str]:
+    """A REST box's fields as one bundle, for saving and for trying."""
+    return {
+        "url": url, "items": items, "id": ident, "title": title, "link": link,
+        "published": published, "image": image, "summary": summary,
+        "header_name": header_name, "header_value": header_value, "header_clear": header_clear,
+    }
+
+
+def rest_mapping(channel: Channel, form: dict[str, str]) -> rest.Mapping:
+    """The mapping a REST box's fields say, keeping the stored key when the
+    field was left blank — it is never sent back to the page to be re-sent."""
+    earlier = rest.Mapping.loads(channel.source_options)
+    wanted = rest.Mapping(
+        **{name: form[name].strip() for name in
+           ("items", "id", "title", "link", "published", "image", "summary", "header_name")},
+        header_value=form["header_value"],
+    )
+    if form["header_clear"] == "1":
+        return replace(wanted, header_name="", header_value="")
+    return wanted.with_header_kept(earlier)
+
+
+def _check_rest(url: str, mapping: rest.Mapping) -> str | None:
+    """What is wrong with a REST box's fields, in words, or None."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return "An API's address is a web address — it should start with https://."
+    name = mapping.header_name
+    if name and any(c in name for c in ": \r\n"):
+        return f"“{name}” is not a header name: no spaces or colons."
+    if name and not mapping.header_value:
+        return f"Give the {name} header a value, or leave its name empty."
+    if "\n" in mapping.header_value or "\r" in mapping.header_value:
+        return "A header's value cannot run over more than one line."
+    return None
+
+
+def _save_rest(channel: Channel, form: dict[str, str]) -> JSONResponse | None:
+    """Keep a REST box's address and mapping."""
+    url = form["url"].strip() or (channel.source_url or "")
+    mapping = rest_mapping(channel, form)
+    said = _check_rest(url, mapping)
+    if said:
+        return JSONResponse({"error": said}, status_code=400)
+    channel.source_url = url
+    channel.source_options = mapping.dumps() or None
+    return None
+
+
+@router.post("/graph/nodes/{node_pk}/rest/try")
+def graph_try_rest(
+    request: Request,
+    node_pk: int,
+    rest_url: str = Form(""),
+    rest_items: str = Form(""),
+    rest_id: str = Form(""),
+    rest_title: str = Form(""),
+    rest_link: str = Form(""),
+    rest_published: str = Form(""),
+    rest_image: str = Form(""),
+    rest_summary: str = Form(""),
+    rest_header_name: str = Form(""),
+    rest_header_value: str = Form(""),
+    rest_header_clear: str = Form(""),
+) -> JSONResponse:
+    """Read a REST box's API with what its fields say now, saved or not.
+
+    The first few items as they would be read, and the path each field was
+    found at — guessed ones included, so a guess can be seen and kept or
+    corrected. Nothing is saved.
+    """
+    owner = owner_of(request)
+    form = rest_form(
+        rest_url, rest_items, rest_id, rest_title, rest_link, rest_published, rest_image,
+        rest_summary, rest_header_name, rest_header_value, rest_header_clear,
+    )
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        channel = node.channel if node is not None else None
+        if channel is None or channel.source_kind != "rest":
+            return JSONResponse({"error": "That is not a REST API box."}, status_code=404)
+        url = form["url"].strip() or (channel.source_url or "")
+        mapping = rest_mapping(channel, form)
+    said = _check_rest(url, mapping)
+    if said:
+        return JSONResponse({"error": said}, status_code=400)
+    try:
+        with outgoing.client() as http:
+            found = rest.read(url, mapping, http)
+    except rest.RestError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except sources.patience.RateLimited as exc:
+        return JSONResponse({"error": f"{exc.host} asked us to wait {round(exc.seconds)}s."},
+                            status_code=400)
+    except Exception as exc:  # unreachable, refused, timed out
+        return JSONResponse({"error": f"Could not reach it: {exc}"}, status_code=400)
+    return JSONResponse({
+        "title": found.feed.title,
+        "count": len(found.feed.items),
+        "paths": found.paths,
+        "items": [
+            {
+                "title": item.title,
+                "link": item.link or "",
+                "published": item.published_at.isoformat() if item.published_at else None,
+                "image": item.thumbnail_url or "",
+            }
+            for item in found.feed.items[:5]
+        ],
+    })

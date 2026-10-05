@@ -30,7 +30,7 @@ SyncRun ─< RunEvent           PluginState, PluginAppSetting, AllowanceUsage (i
 | `login_session` | A signed-in browser | `token_hash` (SHA-256 of the cookie), `expires_at` |
 | `settings` | One owner's settings | `initial_backfill`, `post_seconds`, notice flags |
 | `oauth_token` | One owner's sign-in to one plugin's service | `provider` (plugin id), `access_token`, `refresh_token`, `expires_at`, `refresh_error`, `account_title` |
-| `channel` | A source | `channel_id` (the key a plugin resolved), `source_kind`, `source_url`, `mirror_url`, `left_out` (JSON: the plugin's `takes` it leaves out), legacy filter columns, `last_checked_at`, `enabled` |
+| `channel` | A source | `channel_id` (the key a plugin resolved), `source_kind`, `source_url`, `source_options` (a REST API source's mapping and key header, as JSON; see `sources/rest.py`), `mirror_url`, `left_out` (JSON: the plugin's `takes` it leaves out), legacy filter columns, `last_checked_at`, `enabled` |
 | `playlist` | A feed | `playlist_id` (YouTube id, or `generic:…` for De-Algo feeds), `max_items`, `max_per_run`, `view_order`, `view_show`, `favorite` and `shelf_position` (where it sits on the Feed shelf; `priority` is the separate fill order) |
 | `video` | An item | `video_id`, `kind` (`video`/`post`/`link`), `hint` (from `refine`), `status` (`pending`/`added`/`skipped`/`ignored`/`failed`), `tags`, `view_seconds`, `view_locked`, `watched_at` |
 | `placement` | An item in a feed | `playlist_item_id` (NULL = owed), `added_at`, `removed_at`, `expires_at`, `expires_after_watch_minutes` (leaves this long after the item is watched; worked out by the sweep), `attempts`, `error` |

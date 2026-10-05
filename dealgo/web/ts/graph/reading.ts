@@ -200,6 +200,24 @@ function asGraphChannel(value: unknown): GraphChannel | null {
     checked: typeof checked === "string" ? checked : null,
     placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
     pending: typeof raw["pending"] === "number" ? raw["pending"] : 0,
+    rest: asGraphRest(raw["rest"]),
+  };
+}
+
+/** A REST source's mapping, as its box shows it. */
+function asGraphRest(value: unknown): GraphRest | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const paths: Record<string, string> = {};
+  for (const name of graphRestFieldNames()) {
+    const said = raw[name];
+    paths[name] = typeof said === "string" ? said : "";
+  }
+  return {
+    paths,
+    headerName: typeof raw["header_name"] === "string" ? raw["header_name"] : "",
+    hasKey: raw["has_key"] === true,
+    error: typeof raw["error"] === "string" ? raw["error"] : "",
   };
 }
 

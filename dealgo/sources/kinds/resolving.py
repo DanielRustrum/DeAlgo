@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from .vocabulary import NEWSLETTER, RSS, Resolved, UnknownSource, describe
+from .vocabulary import NEWSLETTER, REST, RSS, Resolved, UnknownSource, describe
 
 
 def resolve(reference: str, *, within: str = "") -> Resolved:
@@ -28,7 +28,7 @@ def resolve(reference: str, *, within: str = "") -> Resolved:
 
     #: The two kinds the host owns itself. Everything else is a plugin's, and
     #: is asked of the plugin that offered it.
-    if within and within not in (RSS.name, NEWSLETTER.name):
+    if within and within not in (RSS.name, NEWSLETTER.name, REST.name):
         said = registry.current().accept(within, typed)
         if said is not None:
             return Resolved(
@@ -59,6 +59,15 @@ def resolve(reference: str, *, within: str = "") -> Resolved:
             feed_url="",
             title=(urlparse(site).hostname or site),
         )
+
+    if within == REST.name:
+        # An endpoint is taken at its word too; whether it lists anything is
+        # settled by reading it, which its box offers to do before it is saved.
+        url = typed if "://" in typed else f"https://{typed.lstrip('/')}"
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise UnknownSource(f"“{typed}” is not a web address.")
+        return Resolved(kind=REST.name, key=url, feed_url=url, title=parsed.hostname)
 
     if within == RSS.name:
         # The box that takes an address takes an address, and whether it is

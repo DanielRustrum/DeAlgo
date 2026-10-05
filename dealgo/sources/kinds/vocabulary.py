@@ -84,6 +84,18 @@ NEWSLETTER = SourceKind(
 )
 
 
+#: Any JSON API that answers with a list of things. The host reads it
+#: (sources/rest.py), and its box says which field of each item is which.
+REST = SourceKind(
+    "rest", "REST API", "the address of a JSON API that lists things",
+    plugin="",
+    noun="REST API",
+    blurb="Any JSON API that returns a list. Say which fields are the title, link and date, or let it guess.",
+    colour="slate",
+    mirrors=False,
+)
+
+
 def all_kinds() -> tuple[SourceKind, ...]:
     """Every kind of somewhere that can be watched, plugins first.
 
@@ -111,7 +123,7 @@ def all_kinds() -> tuple[SourceKind, ...]:
         )
         for kind in registry.current().source_kinds()
     )
-    return offered + (NEWSLETTER, RSS)
+    return offered + (REST, NEWSLETTER, RSS)
 
 
 def describe(kind: str) -> SourceKind:

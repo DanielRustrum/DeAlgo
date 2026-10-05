@@ -146,8 +146,21 @@ interface GraphChannel {
   takes: GraphTake[];
   /** When it was last polled. When it next will be is the trigger's business. */
   checked: string | null;
+  /** A REST API source's mapping; null for every other kind. */
+  rest: GraphRest | null;
   placed: number;
   pending: number;
+}
+
+/** Where a REST API source's items are, which field is which, and its key. */
+interface GraphRest {
+  /** The path to each, as set; "" means guessed. */
+  paths: Record<string, string>;
+  /** The header sent with the request, if any. Its value never reaches the page. */
+  headerName: string;
+  hasKey: boolean;
+  /** Why the last read failed, if it did. */
+  error: string;
 }
 
 /** One setting a plugin piece asks for. */

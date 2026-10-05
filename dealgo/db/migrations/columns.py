@@ -60,6 +60,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "group_key", "VARCHAR(40)"),
     # How long after it is watched a placement leaves its feed.
     ("placement", "expires_after_watch_minutes", "INTEGER"),
+    # A REST API source's mapping and header.
+    ("channel", "source_options", "TEXT"),
     ("graph_node", "imported_from", "VARCHAR(255)"),
     ("graph_node", "imported_at", "DATETIME"),
     ("graph_node", "sort_by", "VARCHAR(16)"),

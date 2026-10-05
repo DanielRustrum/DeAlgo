@@ -2952,6 +2952,24 @@ function asGraphChannel(value) {
         checked: typeof checked === "string" ? checked : null,
         placed: typeof raw["placed"] === "number" ? raw["placed"] : 0,
         pending: typeof raw["pending"] === "number" ? raw["pending"] : 0,
+        rest: asGraphRest(raw["rest"]),
+    };
+}
+/** A REST source's mapping, as its box shows it. */
+function asGraphRest(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const paths = {};
+    for (const name of graphRestFieldNames()) {
+        const said = raw[name];
+        paths[name] = typeof said === "string" ? said : "";
+    }
+    return {
+        paths,
+        headerName: typeof raw["header_name"] === "string" ? raw["header_name"] : "",
+        hasKey: raw["has_key"] === true,
+        error: typeof raw["error"] === "string" ? raw["error"] : "",
     };
 }
 /** A group's size, defaulting to the server's default. */
@@ -3403,6 +3421,8 @@ function graphChannelFields(state, form, node) {
         return;
     form.appendChild(graphTakes(channel));
     form.appendChild(graphChecks(node, channel));
+    if (channel.rest !== null)
+        form.appendChild(graphRestFields(node, channel, channel.rest));
     if (channel.mirrors)
         form.appendChild(graphMirror(channel));
     form.appendChild(graphChannelCounts(node, channel));
@@ -3562,6 +3582,140 @@ function graphChannelCounts(node, channel) {
 function graphChannelId(node) {
     var _a, _b;
     return (_b = ((_a = node.detail) !== null && _a !== void 0 ? _a : "").split("/").pop()) !== null && _b !== void 0 ? _b : "";
+}
+/** The fields a REST source maps, in the order they are shown, and what each is. */
+function graphRestFieldNames() {
+    return ["items", "id", "title", "link", "published", "image", "summary"];
+}
+function graphRestFieldLabel(name) {
+    if (name === "items")
+        return "List of items";
+    if (name === "id")
+        return "Id";
+    if (name === "published")
+        return "Date";
+    if (name === "image")
+        return "Picture";
+    return name.charAt(0).toUpperCase() + name.slice(1);
+}
+/** A REST API source's address, where its items are, which field of each is
+ *  what, and the header that carries its key — with Try it, which reads the
+ *  API with whatever the fields say now, before anything is saved. */
+function graphRestFields(node, channel, rest) {
+    var _a;
+    const group = graphElement("div", "graph-group graph-rest");
+    group.appendChild(graphElement("span", "graph-group-name", "What to read"));
+    const url = document.createElement("input");
+    url.type = "url";
+    url.name = "rest_url";
+    url.value = channel.feedUrl;
+    group.appendChild(graphLabelled("API address", url));
+    group.appendChild(graphElement("span", "graph-group-note", "Paths into the JSON, with dots between the steps and numbers for a place in a list: data.children, images.0.url. Leave one empty to have it guessed; Try it shows what was guessed."));
+    const inputs = new Map();
+    for (const name of graphRestFieldNames()) {
+        const field = document.createElement("input");
+        field.type = "text";
+        field.name = `rest_${name}`;
+        field.value = (_a = rest.paths[name]) !== null && _a !== void 0 ? _a : "";
+        field.placeholder = "guessed";
+        field.spellcheck = false;
+        inputs.set(name, field);
+        group.appendChild(graphLabelled(graphRestFieldLabel(name), field));
+    }
+    // The key travels as one header. Its value is never sent back to the page,
+    // so the field shows that one is set and stays empty: left empty, it is kept.
+    const headerName = document.createElement("input");
+    headerName.type = "text";
+    headerName.name = "rest_header_name";
+    headerName.value = rest.headerName;
+    headerName.placeholder = "Authorization, X-API-Key…";
+    headerName.spellcheck = false;
+    const headerValue = document.createElement("input");
+    headerValue.type = "password";
+    headerValue.name = "rest_header_value";
+    headerValue.autocomplete = "off";
+    headerValue.placeholder = rest.hasKey ? "set — leave empty to keep it" : "Bearer …, or the key";
+    const pair = graphElement("div", "graph-pair");
+    pair.append(headerName, headerValue);
+    group.appendChild(graphLabelled("Header with its key", pair));
+    if (rest.hasKey) {
+        const clear = document.createElement("label");
+        clear.className = "check";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.name = "rest_header_clear";
+        box.value = "1";
+        clear.append(box, " Stop sending it");
+        group.appendChild(clear);
+    }
+    if (rest.error !== "") {
+        group.appendChild(graphElement("p", "error-note", `Last read: ${rest.error}`));
+    }
+    const tryIt = graphElement("button", "btn btn-quiet", "Try it");
+    tryIt.type = "button";
+    tryIt.title = "Read the API with these fields, without saving them";
+    const said = graphElement("div", "graph-rest-said");
+    said.setAttribute("aria-live", "polite");
+    tryIt.addEventListener("click", () => {
+        void tryGraphRest(node.id, group, inputs, said);
+    });
+    group.append(tryIt, said);
+    return group;
+}
+/** Read the API with the fields as they stand, and show what came back. */
+async function tryGraphRest(nodeId, group, inputs, said) {
+    const body = new URLSearchParams();
+    group.querySelectorAll("input[name^='rest_']").forEach((field) => {
+        if (field.type === "checkbox") {
+            if (field.checked)
+                body.append(field.name, field.value);
+        }
+        else {
+            body.append(field.name, field.value);
+        }
+    });
+    said.replaceChildren(graphElement("p", "hint", "Reading…"));
+    let answer;
+    try {
+        answer = await askGraph(`/graph/nodes/${nodeId}/rest/try`, body);
+    }
+    catch (_a) {
+        said.replaceChildren(graphElement("p", "error-note", "No connection, so it could not be tried."));
+        return;
+    }
+    const raw = asGraphRecord(answer);
+    if (raw === null || typeof raw["error"] === "string") {
+        const why = raw !== null && typeof raw["error"] === "string" ? raw["error"] : "That did not work.";
+        said.replaceChildren(graphElement("p", "error-note", why));
+        return;
+    }
+    // What was guessed goes into the empty fields as a placeholder, so it can
+    // be seen, and typed in to keep it whatever the API does later.
+    const paths = asGraphRecord(raw["paths"]);
+    if (paths !== null) {
+        for (const [name, field] of inputs) {
+            const path = paths[name];
+            if (field.value === "" && typeof path === "string")
+                field.placeholder = path || "(the whole answer)";
+        }
+    }
+    const count = typeof raw["count"] === "number" ? raw["count"] : 0;
+    const list = graphElement("ol", "graph-rest-items");
+    const items = raw["items"];
+    if (Array.isArray(items)) {
+        for (const one of items) {
+            const item = asGraphRecord(one);
+            if (item === null)
+                continue;
+            const row = graphElement("li", "");
+            row.appendChild(graphElement("strong", "", typeof item["title"] === "string" ? item["title"] : ""));
+            const when = typeof item["published"] === "string" ? new Date(item["published"]).toLocaleString() : "no date";
+            const link = typeof item["link"] === "string" && item["link"] !== "" ? item["link"] : "no link";
+            row.appendChild(graphElement("span", "graph-rest-meta", `${when} · ${link}`));
+            list.appendChild(row);
+        }
+    }
+    said.replaceChildren(graphElement("p", "hint", `Read ${count} item${count === 1 ? "" : "s"}. The first few, as they will arrive:`), list);
 }
 
 "use strict";

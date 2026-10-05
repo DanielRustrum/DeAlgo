@@ -17,6 +17,7 @@ only fill a feed that lives inside De-Algo.
 
 from .kinds import (
     NEWSLETTER,
+    REST,
     RSS,
     Resolved,
     SourceKind,
@@ -29,7 +30,7 @@ from .kinds import (
     suggest_mirror,
 )
 from .syndication import Item, Feed, parse, fetch
-from . import embedded, items, kinds, newsletter, patience, syndication
+from . import embedded, items, kinds, newsletter, patience, rest, syndication
 
 __all__ = [
     # The modules themselves, so the reference documents each of them: an
@@ -38,9 +39,11 @@ __all__ = [
     "items",
     "kinds",
     "newsletter",
+    "rest",
     "patience",
     "syndication",
     "NEWSLETTER",
+    "REST",
     "RSS",
     "Resolved",
     "SourceKind",

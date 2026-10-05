@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ... import sources
 from ...models import Channel
 from ...plugins.publisher import ChannelInfo, PublishError, names, publishing_plugin
-from ...sources import newsletter, syndication
+from ...sources import newsletter, patience, rest, syndication
 from .. import ordering
 from ..connections import build_client
 from ..scope import OwnerId, owned
@@ -93,6 +93,19 @@ def add_source(
     )
     if existing is not None:
         raise ChannelError(f"{existing.title or found.key} is already being watched")
+
+    if found.kind == sources.REST.name:
+        # Kept even when the first read fails. An API often needs its key, or
+        # its list pointed out, before it answers usefully — and those are set
+        # on the box afterwards, where Try it shows what it reads.
+        try:
+            title = rest.fetch(found.feed_url, rest.Mapping(), http).title
+        except (httpx.HTTPError, rest.RestError, patience.RateLimited):
+            title = found.title
+        return _keep(
+            session, found, feed_url=found.feed_url, title=title,
+            backfill_days=backfill_days, owner=owner,
+        )
 
     if found.needs_finding:
         # A place rather than a feed: a newsletter is known by where it

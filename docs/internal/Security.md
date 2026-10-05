@@ -76,6 +76,12 @@ encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See
 - State-changing routes are POST. CSRF protection relies on `SameSite=Lax` cookies; there are no
   CSRF tokens.
 - OAuth `state` is a random token checked on callback.
+- **REST API sources** (`sources/rest.py`) fetch an address the account gives, like a feed
+  address. A key header is sent with that one request only. With a key set, redirects are refused,
+  so the key cannot be carried to another host. The key is stored in `channel.source_options` in
+  the database, never sent back to the page (only whether one is set), and not included in setup
+  backups or group files. Answers are capped at 5 MB, and only `http`/`https` links are kept from
+  them.
 - **Theming** (`services/theming/`) never takes CSS. A theme is hex colours, numbers within limits
   and keys from fixed lists. `theme.parse` refuses anything else by name, and `css.py` writes the
   overrides from those checked values alone.

@@ -96,6 +96,10 @@ class Channel(Base):
     # Where its feed is. YouTube builds its own from the channel id, so this
     # is only set for the kinds that cannot be worked out from an id.
     source_url: Mapped[Optional[str]] = mapped_column(Text)
+    # A REST API source only: where its items are in the answer and which
+    # field of each is what, and the header it sends for a key, as JSON
+    # (sources/rest.py's Mapping). Nothing for every other kind.
+    source_options: Mapped[Optional[str]] = mapped_column(Text)
     max_per_run: Mapped[int] = mapped_column(Integer, default=5)
 
     videos: Mapped[list["Video"]] = relationship(back_populates="channel", cascade="all, delete-orphan")
