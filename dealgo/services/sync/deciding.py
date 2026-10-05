@@ -107,11 +107,15 @@ def decide(
     # the run that brought the item in the tag would not be there yet.
     # Order within a path is already flattened for the filters themselves,
     # so flattening it here is the same bargain.
-    wanted = graph.tag_name(str(rules.get("tagged") or ""))
-    if wanted:
+    wanted = graph.tag_names(str(rules.get("tagged") or ""))
+    unwanted = graph.tag_names(str(rules.get("untagged") or ""))
+    if wanted or unwanted:
         carried = set(video.tag_list) | set(graph.stamped_tags(path.stamps))
-        if wanted not in carried:
-            return filters.Decision(False, f"not tagged “{wanted}”")
+        if wanted and carried.isdisjoint(wanted):
+            return filters.Decision(False, "not tagged " + " or ".join(f"“{w}”" for w in wanted))
+        held = [name for name in unwanted if name in carried]
+        if held:
+            return filters.Decision(False, f"tagged “{held[0]}”")
 
     # A published playlist holds only what its service does, so an item it
     # cannot hold can only go into a feed that lives inside De-Algo — said

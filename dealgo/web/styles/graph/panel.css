@@ -116,6 +116,15 @@
 .graph-pair { display: flex; gap: 6px; }
 .graph-pair input { flex: 1; min-width: 0; }
 .graph-pair select { flex: 1.2; min-width: 0; }
+/* Every tag there is, under a tag condition: one press puts it in the list. */
+.graph-tag-choices { display: flex; flex-wrap: wrap; gap: 4px; }
+.graph-tag-choice {
+  padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--muted); font-size: calc(11.5px * var(--text-scale));
+  cursor: pointer;
+}
+.graph-tag-choice:hover { color: var(--text); border-color: var(--accent); }
+.graph-tag-choice[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .graph-form-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .graph-form .hint { margin: 0; }
 

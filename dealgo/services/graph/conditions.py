@@ -39,7 +39,8 @@ class Condition:
     #: The column it writes, which is the same column that rule lived in when
     #: it was a field on the box.
     column: str
-    #: How the panel asks for it, and what to call the field.
+    #: How the panel asks for it — text, tags, number, duration or order —
+    #: and what to call the field.
     field: str
     asks: str
 
@@ -62,8 +63,13 @@ CONDITIONS: tuple[Condition, ...] = (
         "max_duration_sec", "duration", "How long",
     ),
     Condition(
-        "carrying", CONDITION_LABELS["carrying"], "Only what a Tag box earlier put a mark on.",
-        "filter", "tagged", "text", "This tag",
+        "carrying", CONDITION_LABELS["carrying"],
+        "Only what carries one of these tags, from a Tag box earlier or put on by hand.",
+        "filter", "tagged", "tags", "Any of these tags",
+    ),
+    Condition(
+        "lacks-tag", CONDITION_LABELS["lacks-tag"], "Holds anything carrying one of these tags.",
+        "filter", "untagged", "tags", "None of these tags",
     ),
     Condition(
         "at-most", CONDITION_LABELS["at-most"], "How many may get through in one run.", "filter",

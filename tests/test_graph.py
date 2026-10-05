@@ -737,6 +737,30 @@ def test_a_condition_keeps_what_it_is_given_and_a_blank_leaves_it_alone(canvas, 
         assert session.get(GraphNode, piece_id).min_duration_sec is None
 
 
+def test_a_tag_condition_files_its_tags_and_offers_every_tag_there_is(canvas, db):
+    canvas.post("/graph/nodes", data={"kind": "tag", "title": "Mark"})
+    with db.session_scope() as session:
+        session.scalar(select(GraphNode).where(GraphNode.kind == "tag")).marks = "science"
+    graph_now = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
+    box_id = only(graph_now, "filter")["id"]
+
+    for kind, column, says in (
+        ("carrying", "tagged", "tagged “news” or “long reads”"),
+        ("lacks-tag", "untagged", "not tagged “news” or “long reads”"),
+    ):
+        made = canvas.post("/graph/nodes", data={"kind": kind, "attach_to": str(box_id)}).json()
+        piece_id = only(made, kind)["id"]
+        assert only(made, kind)["condition"]["choices"] == ["science"]
+
+        answer = canvas.post(f"/graph/nodes/{piece_id}",
+                             data={"value": " News, long   Reads,news ,"}).json()
+        saved = only(answer, kind)
+        assert saved["note"] == says
+        assert saved["condition"]["field"] == "tags"
+        with db.session_scope() as session:
+            assert getattr(session.get(GraphNode, piece_id), column) == "news, long reads"
+
+
 def test_a_condition_only_goes_under_the_box_it_belongs_to(canvas):
     """Refused at the drop rather than discovered later by a piece that
     quietly does nothing."""

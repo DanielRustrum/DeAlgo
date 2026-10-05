@@ -120,6 +120,60 @@ def test_a_filter_asking_for_a_tag_nothing_carries_turns_it_away(world, db):
         assert held and "not tagged" in (held[0].reason or "")
 
 
+def test_has_tag_lets_through_what_carries_any_of_its_tags(world, db):
+    from dealgo.models import GraphNode
+
+    ids = wire(
+        db,
+        lambda s: graph.add_stamp(s, kind="tag", marks="science"),
+        lambda s: graph.add_filter(s, label="Either"),
+    )
+    with db.session_scope() as session:
+        graph.add_piece(
+            session, kind="carrying", host=session.get(GraphNode, ids[1])
+        ).tagged = "news, science"
+    uploads(world, 2)
+
+    assert sync_service.run_sync("manual", force=True).added == 2
+
+
+def test_lacks_tag_holds_what_carries_any_of_its_tags(world, db):
+    from dealgo.models import GraphNode
+
+    ids = wire(
+        db,
+        lambda s: graph.add_stamp(s, kind="tag", marks="spoilers"),
+        lambda s: graph.add_filter(s, label="No spoilers"),
+    )
+    with db.session_scope() as session:
+        graph.add_piece(
+            session, kind="lacks-tag", host=session.get(GraphNode, ids[1])
+        ).untagged = "drama, spoilers"
+    uploads(world, 2)
+
+    assert sync_service.run_sync("manual", force=True).added == 0
+    with db.session_scope() as session:
+        held = session.scalars(select(Video).where(Video.status == "skipped")).all()
+        assert held and "tagged “spoilers”" in (held[0].reason or "")
+
+
+def test_lacks_tag_lets_through_what_carries_none_of_them(world, db):
+    from dealgo.models import GraphNode
+
+    ids = wire(
+        db,
+        lambda s: graph.add_stamp(s, kind="tag", marks="calm"),
+        lambda s: graph.add_filter(s, label="No spoilers"),
+    )
+    with db.session_scope() as session:
+        graph.add_piece(
+            session, kind="lacks-tag", host=session.get(GraphNode, ids[1])
+        ).untagged = "spoilers"
+    uploads(world, 2)
+
+    assert sync_service.run_sync("manual", force=True).added == 2
+
+
 def test_a_tag_box_with_no_tag_marks_nothing(world, db):
     """It has been put on the canvas and not yet told anything."""
     wire(db, lambda s: graph.add_stamp(s, kind="tag"))

@@ -6,7 +6,7 @@ from ...models import (
     GraphNode,
 )
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, condition, sort_words
-from .names import tag_name
+from .names import tag_name, tag_names
 from .stamps import timer_minutes
 from .units import (
     DEFAULT_CRON,
@@ -67,7 +67,9 @@ def condition_words(piece: GraphNode) -> str:
     if piece.kind == "shorter-than":
         return f"shorter than {length_words(int(value))}"
     if piece.kind == "carrying":
-        return f"tagged “{tag_name(str(value))}”"
+        return f"tagged {tag_list_words(str(value))}"
+    if piece.kind == "lacks-tag":
+        return f"not tagged {tag_list_words(str(value))}"
     return f"{int(value)} per run"
 
 
@@ -132,3 +134,8 @@ def window_words(node: GraphNode) -> str:
         return f"open {window} min from “{node.cron or DEFAULT_CRON}”"
     gap = max(1, node.every_minutes or DEFAULT_EVERY_MINUTES)
     return f"open {window} min in every {every_words(gap)}"
+
+
+def tag_list_words(raw: str) -> str:
+    """Tags as a condition says them: “news”, or “news” or “long reads”."""
+    return " or ".join(f"“{name}”" for name in tag_names(raw))

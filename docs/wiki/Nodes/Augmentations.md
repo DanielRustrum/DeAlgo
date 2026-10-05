@@ -13,7 +13,7 @@ boxes each one fits.
 | **Alive** | Feed | The hours a feed may be read. See [Reading Windows](Reading%20Windows.md). |
 | **Lock** | Decay | Makes a Decay countdown impossible to pause. See [Decay](Decay.md). |
 | **After watching** | Expire | Takes an item out once you've watched it — or by the box's Timer, if it has one, whichever comes first. See [Expire](Expire.md#expiring-once-you-watch). |
-| **Title has**, **Title lacks**, **Longer than**, **Shorter than**, **Carrying**, **At most** | Filter | A condition. See [Filter](Filter.md). |
+| **Title has**, **Title lacks**, **Longer than**, **Shorter than**, **Has tag**, **Lacks tag**, **At most** | Filter | A condition. See [Filter](Filter.md). |
 | **Order** | Sort | What to order by. See [Sort](Sort.md). |
 | Plugin conditions | Filter | See [Filter](Filter.md). |
 | Plugin orderings | Sort | See [Sort](Sort.md). |

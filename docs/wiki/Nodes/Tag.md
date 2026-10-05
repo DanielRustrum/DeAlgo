@@ -7,8 +7,9 @@ tidied, so `Long  Reads` and `long reads` are the same tag.
 
 ## What tags are for
 
-- A [Filter](Filter.md) with a **Carrying** condition lets through only items with that tag. The tag
-  counts from a Tag box anywhere on the same path, before or after the Filter.
+- A [Filter](Filter.md) with a **Has tag** condition lets through only items with that tag, and
+  one with **Lacks tag** holds them back. The tag counts from a Tag box anywhere on the same path,
+  before or after the Filter.
 - Tags appear as pills on the item's card on [The Feed Page](../The%20Feed%20Page.md).
 
 A tag belongs to the item, not to one feed: an item tagged on one path shows the tag everywhere.

@@ -49,6 +49,11 @@ function graphConditionFields(
     return;
   }
 
+  if (said.field === "tags") {
+    graphTagFields(form, said);
+    return;
+  }
+
   const field = document.createElement("input");
   field.type = said.field === "text" ? "text" : "number";
   field.name = "value";
@@ -74,6 +79,58 @@ function graphConditionFields(
     form.appendChild(graphLabelled(said.asks, pair));
   } else {
     form.appendChild(graphLabelled(said.asks, field));
+  }
+
+  if (said.blurb !== "") form.appendChild(graphElement("p", "hint", said.blurb));
+}
+
+/** A list of tags: typed, commas between, or picked from every tag there is.
+ *  A picked tag is added to the line, and picked again it comes off. */
+function graphTagFields(form: HTMLElement, said: GraphCondition): void {
+  const field = document.createElement("input");
+  field.type = "text";
+  field.name = "value";
+  field.value = said.value;
+  field.placeholder = "news, long reads";
+  form.appendChild(graphLabelled(said.asks, field));
+
+  const listed = (): string[] =>
+    field.value
+      .split(",")
+      .map((one): string => one.trim().toLowerCase().split(/\s+/).join(" "))
+      .filter((one): boolean => one !== "");
+
+  if (said.choices.length > 0) {
+    const chips = graphElement("div", "graph-tag-choices");
+    const marked = (): void => {
+      const now = listed();
+      chips.querySelectorAll<HTMLButtonElement>("button").forEach((chip): void => {
+        chip.setAttribute("aria-pressed", String(now.includes(chip.dataset["tag"] ?? "")));
+      });
+    };
+    for (const tag of said.choices) {
+      const chip = graphElement("button", "graph-tag-choice", tag);
+      chip.setAttribute("type", "button");
+      chip.dataset["tag"] = tag;
+      chip.addEventListener("click", (): void => {
+        const now = listed();
+        field.value = (now.includes(tag)
+          ? now.filter((one): boolean => one !== tag)
+          : [...now, tag]
+        ).join(", ");
+        marked();
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      chips.appendChild(chip);
+    }
+    field.addEventListener("input", marked);
+    marked();
+    form.appendChild(chips);
+  } else {
+    form.appendChild(
+      graphElement("p", "hint", "No tags yet. A Tag box puts them on, or tag items in a feed."),
+    );
   }
 
   if (said.blurb !== "") form.appendChild(graphElement("p", "hint", said.blurb));

@@ -456,11 +456,14 @@ def _save_condition(
         return None
 
     said = value.strip()
-    if spec.field == "text":
-        # A tag is filed the way every other tag is filed, so one typed two
-        # ways still matches the Tag box that put it on.
-        kept = graph_service.tag_name(said) if node.kind == "carrying" else said
+    if spec.field == "tags":
+        # Each tag is filed the way every other tag is filed, so one typed
+        # two ways still matches the Tag box that put it on.
+        kept = ", ".join(graph_service.tag_names(said))[:400]
         setattr(node, spec.column, kept or None)
+        return None
+    if spec.field == "text":
+        setattr(node, spec.column, said or None)
         return None
 
     if not (said.isdigit() and int(said) > 0):

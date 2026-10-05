@@ -22,3 +22,14 @@ def tag_name(raw: str | None) -> str:
     boxes that look joined up and are not.
     """
     return " ".join((raw or "").split()).lower()[:40]
+
+
+def tag_names(raw: str | None) -> list[str]:
+    """A comma-separated list of tags, each filed as `tag_name` files one,
+    once each and in the order given."""
+    said: list[str] = []
+    for part in (raw or "").split(","):
+        name = tag_name(part)
+        if name and name not in said:
+            said.append(name)
+    return said

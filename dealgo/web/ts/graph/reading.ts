@@ -36,6 +36,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "longer-than" ||
     value === "shorter-than" ||
     value === "carrying" ||
+    value === "lacks-tag" ||
     value === "at-most" ||
     value === "order" ||
     value === "rule"
@@ -120,7 +121,7 @@ function asGraphCondition(value: unknown): GraphCondition | null {
     label: typeof raw["label"] === "string" ? raw["label"] : "",
     blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
     field:
-      field === "duration" || field === "number" || field === "order"
+      field === "duration" || field === "number" || field === "order" || field === "tags"
         ? field
         : "text",
     asks: typeof raw["asks"] === "string" ? raw["asks"] : "",
@@ -131,6 +132,9 @@ function asGraphCondition(value: unknown): GraphCondition | null {
       ? units.filter((one): one is string => typeof one === "string")
       : [],
     says: typeof raw["says"] === "string" ? raw["says"] : "",
+    choices: Array.isArray(raw["choices"])
+      ? raw["choices"].filter((one): one is string => typeof one === "string")
+      : [],
   };
 }
 

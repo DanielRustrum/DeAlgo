@@ -62,7 +62,7 @@ from .groups import (
     resize,
     update_group,
 )
-from .names import store_name, tag_name
+from .names import store_name, tag_name, tag_names
 from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, pieces_under
 from .reading import channels_of, edges, nodes
 from .report import Judged, filter_report
@@ -178,6 +178,7 @@ __all__ = [
     "stands_alone",
     "store_name",
     "tag_name",
+    "tag_names",
     "Trial",
     "TRIGGER_COLUMN",
     "TRIGGER_GAP",

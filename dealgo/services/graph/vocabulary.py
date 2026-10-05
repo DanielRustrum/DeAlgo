@@ -92,6 +92,7 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "longer-than": (),
     "shorter-than": (),
     "carrying": (),
+    "lacks-tag": (),
     "at-most": (),
     "order": (),
     "rule": (),

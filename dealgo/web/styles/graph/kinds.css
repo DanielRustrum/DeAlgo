@@ -30,6 +30,7 @@
   &.kind-longer-than,
   &.kind-shorter-than,
   &.kind-carrying,
+  &.kind-lacks-tag,
   &.kind-at-most,
   &.kind-order,
   &.kind-rule { --kind-colour: var(--kind-piece); }

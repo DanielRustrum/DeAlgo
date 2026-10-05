@@ -25,7 +25,8 @@ Filter box. Open it to set its value. See [Augmentations](Augmentations.md) for 
 | **Title lacks** | Items whose text does not match | Words, or a regular expression |
 | **Longer than** | Videos at least this long | Amount and unit |
 | **Shorter than** | Videos at most this long | Amount and unit |
-| **Carrying** | Items with this tag | A tag put on by a [Tag](Tag.md) box |
+| **Has tag** | Items with any of these tags | One or more tags, commas between |
+| **Lacks tag** | Items with none of these tags | One or more tags, commas between |
 | **At most** | Up to this many per run; the rest wait | A number |
 
 **Matching text:** a case-insensitive regular-expression search. Plain words match anywhere in the
@@ -36,7 +37,10 @@ Videos are matched on their title; posts on their whole text; articles on title 
 [connected account](../Connecting%20YouTube.md) or an API key. An item with no known length passes
 length conditions.
 
-**Carrying** sees tags from a Tag box anywhere on the same path, as well as tags the item already has.
+**Tags:** **Has tag** and **Lacks tag** see tags from a [Tag](Tag.md) box anywhere on the same path,
+as well as tags the item already has — from a box or put on by hand. Type them with commas between,
+or pick them from the tags listed under the field: every tag a Tag box marks with or an item
+carries. Capitals and extra spaces don't matter.
 
 ## Plugin conditions
 

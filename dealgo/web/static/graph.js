@@ -969,7 +969,9 @@ function graphKindLabel(kind) {
     if (kind === "shorter-than")
         return "Shorter than";
     if (kind === "carrying")
-        return "Carrying";
+        return "Has tag";
+    if (kind === "lacks-tag")
+        return "Lacks tag";
     if (kind === "at-most")
         return "At most";
     if (kind === "order")
@@ -1699,7 +1701,7 @@ function listenForGraphFinder(state, panel) {
 function graphConditionKinds() {
     return [
         "has-words", "lacks-words", "longer-than", "shorter-than",
-        "carrying", "at-most", "order",
+        "carrying", "lacks-tag", "at-most", "order",
     ];
 }
 /** Which kinds are pieces rather than boxes. */
@@ -2623,6 +2625,10 @@ function graphConditionFields(form, node, said) {
             graphSortFields(form, node.sort);
         return;
     }
+    if (said.field === "tags") {
+        graphTagFields(form, said);
+        return;
+    }
     const field = document.createElement("input");
     field.type = said.field === "text" ? "text" : "number";
     field.name = "value";
@@ -2649,6 +2655,53 @@ function graphConditionFields(form, node, said) {
     }
     else {
         form.appendChild(graphLabelled(said.asks, field));
+    }
+    if (said.blurb !== "")
+        form.appendChild(graphElement("p", "hint", said.blurb));
+}
+/** A list of tags: typed, commas between, or picked from every tag there is.
+ *  A picked tag is added to the line, and picked again it comes off. */
+function graphTagFields(form, said) {
+    const field = document.createElement("input");
+    field.type = "text";
+    field.name = "value";
+    field.value = said.value;
+    field.placeholder = "news, long reads";
+    form.appendChild(graphLabelled(said.asks, field));
+    const listed = () => field.value
+        .split(",")
+        .map((one) => one.trim().toLowerCase().split(/\s+/).join(" "))
+        .filter((one) => one !== "");
+    if (said.choices.length > 0) {
+        const chips = graphElement("div", "graph-tag-choices");
+        const marked = () => {
+            const now = listed();
+            chips.querySelectorAll("button").forEach((chip) => {
+                var _a;
+                chip.setAttribute("aria-pressed", String(now.includes((_a = chip.dataset["tag"]) !== null && _a !== void 0 ? _a : "")));
+            });
+        };
+        for (const tag of said.choices) {
+            const chip = graphElement("button", "graph-tag-choice", tag);
+            chip.setAttribute("type", "button");
+            chip.dataset["tag"] = tag;
+            chip.addEventListener("click", () => {
+                const now = listed();
+                field.value = (now.includes(tag)
+                    ? now.filter((one) => one !== tag)
+                    : [...now, tag]).join(", ");
+                marked();
+                field.dispatchEvent(new Event("input", { bubbles: true }));
+                field.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+            chips.appendChild(chip);
+        }
+        field.addEventListener("input", marked);
+        marked();
+        form.appendChild(chips);
+    }
+    else {
+        form.appendChild(graphElement("p", "hint", "No tags yet. A Tag box puts them on, or tag items in a feed."));
     }
     if (said.blurb !== "")
         form.appendChild(graphElement("p", "hint", said.blurb));
@@ -2790,6 +2843,7 @@ function asGraphNodeKind(value) {
         value === "longer-than" ||
         value === "shorter-than" ||
         value === "carrying" ||
+        value === "lacks-tag" ||
         value === "at-most" ||
         value === "order" ||
         value === "rule") {
@@ -2873,7 +2927,7 @@ function asGraphCondition(value) {
     return {
         label: typeof raw["label"] === "string" ? raw["label"] : "",
         blurb: typeof raw["blurb"] === "string" ? raw["blurb"] : "",
-        field: field === "duration" || field === "number" || field === "order"
+        field: field === "duration" || field === "number" || field === "order" || field === "tags"
             ? field
             : "text",
         asks: typeof raw["asks"] === "string" ? raw["asks"] : "",
@@ -2884,6 +2938,9 @@ function asGraphCondition(value) {
             ? units.filter((one) => typeof one === "string")
             : [],
         says: typeof raw["says"] === "string" ? raw["says"] : "",
+        choices: Array.isArray(raw["choices"])
+            ? raw["choices"].filter((one) => typeof one === "string")
+            : [],
     };
 }
 /** What a Tag box marks items with. */

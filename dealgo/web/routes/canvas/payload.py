@@ -17,6 +17,7 @@ from .facts import (
     box_title,
     channel_facts,
     condition_facts,
+    known_tags,
     every_parts,
     every_words_for,
     feed_facts,
@@ -74,6 +75,8 @@ class _Canvas:
     #: And what each piece is slotted into, since a Timer says an amount and
     #: the box it is in is what the amount means.
     hosts: dict[int, GraphNode | None]
+    #: Every tag there is, for a tag condition to offer.
+    tags: list[str]
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
@@ -102,6 +105,7 @@ class _Canvas:
                 for node in nodes
                 if node.kind in graph_service.AUGMENTATIONS
             },
+            tags=known_tags(session, nodes, owner),
         )
 
 
@@ -156,7 +160,7 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         # A condition piece: what it narrows by, and how to ask for it. Sent
         # per piece rather than looked up in the browser, so the canvas has
         # one way of drawing every condition.
-        "condition": condition_facts(node),
+        "condition": condition_facts(node, canvas.tags),
         "feed": (
             feed_facts(node, canvas.windows.get(node.playlist_pk or 0, []))
             if node.kind == "feed"

@@ -115,6 +115,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("placement", "expires_at", "DATETIME"),
     # A Filter box can narrow on a tag a Tag box put on.
     ("graph_node", "tagged", "VARCHAR(40)"),
+    ("graph_node", "untagged", "VARCHAR(400)"),
     # What a Tag box marks whatever comes through it with.
     ("graph_node", "marks", "VARCHAR(40)"),
     # What a person granted each plugin. plugin_state may already exist from

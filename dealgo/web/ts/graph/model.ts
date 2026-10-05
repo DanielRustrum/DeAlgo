@@ -28,6 +28,7 @@ type GraphNodeKind =
   | "longer-than"
   | "shorter-than"
   | "carrying"
+  | "lacks-tag"
   | "at-most"
   | "order"
   // A condition a plugin declared, slotted under a Filter like any other.
@@ -39,7 +40,7 @@ type GraphNodeKind =
 function graphConditionKinds(): GraphNodeKind[] {
   return [
     "has-words", "lacks-words", "longer-than", "shorter-than",
-    "carrying", "at-most", "order",
+    "carrying", "lacks-tag", "at-most", "order",
   ];
 }
 

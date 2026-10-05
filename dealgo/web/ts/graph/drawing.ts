@@ -31,7 +31,8 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "lacks-words") return "Title lacks";
   if (kind === "longer-than") return "Longer than";
   if (kind === "shorter-than") return "Shorter than";
-  if (kind === "carrying") return "Carrying";
+  if (kind === "carrying") return "Has tag";
+  if (kind === "lacks-tag") return "Lacks tag";
   if (kind === "at-most") return "At most";
   if (kind === "order") return "Order";
   return kind === "trigger" ? "Trigger" : "Filter";
@@ -77,9 +78,9 @@ interface GraphPiece {
 interface GraphCondition {
   label: string;
   blurb: string;
-  /** How the panel asks: a line of text, a number, a length, or the two
-   *  selects that say what to order a batch by. */
-  field: "text" | "number" | "duration" | "order";
+  /** How the panel asks: a line of text, a list of tags, a number, a
+   *  length, or the two selects that say what to order a batch by. */
+  field: "text" | "tags" | "number" | "duration" | "order";
   asks: string;
   /** Which box it belongs under, for saying so when it is loose. */
   under: "filter" | "sort";
@@ -89,6 +90,8 @@ interface GraphCondition {
   units: string[];
   /** What it says on the canvas, for the panel to repeat back. */
   says: string;
+  /** A tag condition: every tag there is, to pick from. */
+  choices: string[];
 }
 
 /** What a marking box carries. */

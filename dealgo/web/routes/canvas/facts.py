@@ -262,7 +262,20 @@ def _join_clauses(parts: list[str]) -> str:
     return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
-def condition_facts(node: GraphNode) -> Context | None:
+def known_tags(session: Session, nodes: list[GraphNode], owner: OwnerId) -> list[str]:
+    """Every tag there is to ask for: what the Tag boxes put on, and what
+    anything already carries, marked by a box or by hand. Offered under a
+    tag condition so one can be picked rather than remembered."""
+    found = {graph_service.tag_name(node.marks) for node in nodes if node.kind == "tag"}
+    for said in session.scalars(
+        owned(select(Video.tags).distinct(), Video, owner).where(Video.tags.is_not(None))
+    ):
+        found.update(graph_service.tag_names(said))
+    found.discard("")
+    return sorted(found)
+
+
+def condition_facts(node: GraphNode, tags: list[str] | None = None) -> Context | None:
     """What one condition piece is, and what it is set to.
 
     None for anything that is not one. The shape is the same for every
@@ -289,6 +302,8 @@ def condition_facts(node: GraphNode) -> Context | None:
         "unit": unit,
         "units": [name for name, _ in graph_service.LENGTH_UNITS],
         "says": graph_service.condition_words(node),
+        # A tag condition offers what there is to pick from.
+        "choices": (tags or []) if spec.field == "tags" else [],
     }
 
 

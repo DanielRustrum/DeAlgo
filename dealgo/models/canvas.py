@@ -31,7 +31,8 @@ CONDITION_LABELS: dict[str, str] = {
     "lacks-words": "Title lacks",
     "longer-than": "Longer than",
     "shorter-than": "Shorter than",
-    "carrying": "Carrying",
+    "carrying": "Has tag",
+    "lacks-tag": "Lacks tag",
     "at-most": "At most",
     "order": "Order",
 }
@@ -115,9 +116,11 @@ class GraphNode(Base):
     # saying "Filter" and no way to tell them apart without opening each.
     title_include: Mapped[Optional[str]] = mapped_column(Text)
     title_exclude: Mapped[Optional[str]] = mapped_column(Text)
-    # Only items carrying this tag get past. A Tag box earlier on the path
-    # is what puts one on.
-    tagged: Mapped[Optional[str]] = mapped_column(String(40))
+    # Only items carrying one of these tags get past, and none carrying one
+    # of `untagged`: each a comma-separated list. A Tag box earlier on the
+    # path, or a hand in the feed, is what puts one on.
+    tagged: Mapped[Optional[str]] = mapped_column(String(400))
+    untagged: Mapped[Optional[str]] = mapped_column(String(400))
     # Tag boxes: what this one marks whatever comes through it with.
     marks: Mapped[Optional[str]] = mapped_column(String(40))
     min_duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
@@ -263,7 +266,7 @@ class GraphNode(Base):
         carries exactly one of these, which is what makes it one condition.
         """
         named = (
-            "title_include", "title_exclude", "tagged",
+            "title_include", "title_exclude", "tagged", "untagged",
             "min_duration_sec", "max_duration_sec", "max_per_run",
         )
         return {name: getattr(self, name) for name in named if getattr(self, name) is not None}
