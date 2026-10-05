@@ -227,3 +227,6 @@
   padding: 0 6px;
   white-space: nowrap;
 }
+
+/* A group's file buttons: Export, and Update from file for one that was loaded. */
+.graph-group-files { display: flex; flex-wrap: wrap; gap: 6px; }

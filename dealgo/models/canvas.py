@@ -90,6 +90,15 @@ class GraphNode(Base):
     # A database default too: rows written by raw SQL (migrations, imports) leave it out.
     locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
 
+    # Which part of a group file this box is, so loading a newer copy of the
+    # same file can find it again and update it rather than add a second.
+    # On a group, the file's own id. Nothing for a box nobody exported.
+    group_key: Mapped[Optional[str]] = mapped_column(String(40))
+    # Group nodes only: the file it was loaded from, and when, for the panel
+    # to say and for "Update from file" to offer.
+    imported_from: Mapped[Optional[str]] = mapped_column(String(255))
+    imported_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
+
     channel_pk: Mapped[Optional[int]] = mapped_column(
         ForeignKey("channel.id", ondelete="CASCADE"), index=True
     )

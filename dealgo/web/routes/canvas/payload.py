@@ -129,6 +129,15 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         "enabled": is_on(node),
         "size": _size(node),
         "locked": bool(node.locked) if node.kind == "group" else False,
+        # A group loaded from a file: which, and when, so it can be updated from it.
+        "imported": (
+            {
+                "from": node.imported_from or "",
+                "at": node.imported_at.isoformat() + "Z" if node.imported_at else None,
+            }
+            if node.kind == "group" and node.group_key and node.imported_at
+            else None
+        ),
         "polled": how_polled(node, canvas.plan) if node.kind == "source" else None,
         "plugin": plugin_facts(node) if node.kind == graph_service.RULE else None,
         "channel": canvas.facts.get(node.channel_pk or 0) if node.kind == "source" else None,

@@ -52,7 +52,37 @@ async def graph_import_group(
 
     with session_scope() as session:
         try:
-            graph_service.import_group(session, payload, owner, x=x, y=y)
+            graph_service.import_group(
+                session, payload, owner, x=x, y=y, file_name=file.filename or ""
+            )
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(graph_payload(session, owner))
+
+
+@router.post("/graph/nodes/{node_pk}/update")
+async def graph_update_group(
+    request: Request, node_pk: int, file: UploadFile = File(...)
+) -> JSONResponse:
+    """Bring a loaded group up to date with a newer copy of its file.
+
+    Refused, and nothing changed, if the file is a different group from the
+    one this was loaded from.
+    """
+    owner = owner_of(request)
+    raw = await file.read()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JSONResponse({"error": "That file is not readable JSON."}, status_code=400)
+
+    with session_scope() as session:
+        try:
+            result = graph_service.update_group(
+                session, node_pk, payload, owner, file_name=file.filename or ""
+            )
+        except graph_service.GraphError as exc:
+            session.rollback()
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        name = str(payload.get("name") or "Group")
+        return JSONResponse({**graph_payload(session, owner), "said": result.describe(name)})

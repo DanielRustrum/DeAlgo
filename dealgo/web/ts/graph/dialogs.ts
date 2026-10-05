@@ -199,6 +199,31 @@ async function loadGraphGroup(
   }
 }
 
+/** Bring a loaded group up to date with a newer copy of its file. */
+async function updateGraphGroup(state: GraphState, groupId: number, file: File): Promise<void> {
+  const body = new FormData();
+  body.append("file", file);
+  try {
+    const response = await fetch(`/graph/nodes/${groupId}/update`, { method: "POST", body });
+    const answer = (await response.json()) as unknown;
+    const view = asGraph(answer);
+    if (view === null) {
+      showGraphError(state, asGraphError(answer) ?? "That group could not be updated.");
+      return;
+    }
+    state.nodes = view.nodes;
+    state.wires = view.wires;
+    forgetMissingGraph(state);
+    showGraphError(state, null);
+    renderGraph(state);
+    const record = asGraphRecord(answer);
+    const said = record !== null && typeof record["said"] === "string" ? record["said"] : null;
+    showGraphVerdict(state, said);
+  } catch {
+    showGraphError(state, "No connection, so nothing was updated.");
+  }
+}
+
 /** Where the middle of the view is, for a box added without being dragged. */
 function graphViewCentre(state: GraphState): { x: number; y: number } {
   const frame = state.parts.canvas.getBoundingClientRect();

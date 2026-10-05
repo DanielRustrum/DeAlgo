@@ -105,14 +105,43 @@ function graphNextFiring(node) {
         return "it does not come round at all";
     return `next ${new Date(next).toLocaleString()}`;
 }
-/** A group's own panel: what it is called, and a way to hand it on. */
-function graphGroupFields(form, node) {
+/** A group's own panel: what it is called, a way to hand it on, and — for one
+ *  loaded from a file — a way to bring it up to date with a newer copy. */
+function graphGroupFields(state, form, node) {
+    const row = graphElement("div", "graph-group-files");
     const give = document.createElement("a");
     give.className = "btn btn-quiet";
     give.href = `/graph/nodes/${node.id}/export`;
     give.textContent = "Export";
     give.title = "Save this group as a file to give to somebody else";
-    form.appendChild(give);
+    row.appendChild(give);
+    if (node.imported !== null) {
+        // A file input behind a button: the browser cannot reopen the file it was
+        // loaded from, so the newer copy is chosen again — and checked to be a
+        // copy of the same group before anything changes.
+        const pick = document.createElement("input");
+        pick.type = "file";
+        pick.accept = "application/json,.json";
+        pick.hidden = true;
+        const update = graphElement("button", "btn btn-quiet", "Update from file…");
+        update.type = "button";
+        update.title = "Load a newer copy of the file this group came from";
+        update.addEventListener("click", () => pick.click());
+        pick.addEventListener("change", () => {
+            var _a;
+            const file = (_a = pick.files) === null || _a === void 0 ? void 0 : _a[0];
+            if (file !== undefined)
+                void updateGraphGroup(state, node.id, file);
+            pick.value = "";
+        });
+        row.append(update, pick);
+    }
+    form.appendChild(row);
+    if (node.imported !== null) {
+        const when = node.imported.at !== null ? new Date(node.imported.at).toLocaleString() : "";
+        const from = node.imported.from !== "" ? `“${node.imported.from}”` : "a file";
+        form.appendChild(graphElement("p", "hint", `Loaded from ${from}${when ? `, last on ${when}` : ""}. Updating keeps the boxes you moved where you put them, keeps any you added yourself, and never deletes a feed or what is in it.`));
+    }
     form.appendChild(graphElement("p", "hint", "Everything inside the rectangle travels with it, and goes into the file. Sources travel as their own ids; feeds travel as names, and are made afresh by whoever loads them."));
 }
 /** What to put the batch in order of, and which way round. */
@@ -368,6 +397,32 @@ async function loadGraphGroup(state, file, dialog) {
     }
     catch (_b) {
         graphLoadTrouble(dialog, "No connection, so nothing was loaded.");
+    }
+}
+/** Bring a loaded group up to date with a newer copy of its file. */
+async function updateGraphGroup(state, groupId, file) {
+    var _a;
+    const body = new FormData();
+    body.append("file", file);
+    try {
+        const response = await fetch(`/graph/nodes/${groupId}/update`, { method: "POST", body });
+        const answer = (await response.json());
+        const view = asGraph(answer);
+        if (view === null) {
+            showGraphError(state, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That group could not be updated.");
+            return;
+        }
+        state.nodes = view.nodes;
+        state.wires = view.wires;
+        forgetMissingGraph(state);
+        showGraphError(state, null);
+        renderGraph(state);
+        const record = asGraphRecord(answer);
+        const said = record !== null && typeof record["said"] === "string" ? record["said"] : null;
+        showGraphVerdict(state, said);
+    }
+    catch (_b) {
+        showGraphError(state, "No connection, so nothing was updated.");
     }
 }
 /** Where the middle of the view is, for a box added without being dragged. */
@@ -2108,7 +2163,7 @@ function graphNodeForm(state, node) {
     name.value = node.title;
     form.appendChild(graphLabelled("Name", name));
     if (node.kind === "group")
-        graphGroupFields(form, node);
+        graphGroupFields(state, form, node);
     // Conditions first: an Order piece carries a sort as well, and a plugin's
     // condition is a piece as well, so the narrowest answer has to be asked
     // before the broad ones.
@@ -2757,6 +2812,7 @@ function asGraphNode(value) {
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
         locked: raw["locked"] === true,
+        imported: asGraphImported(raw["imported"]),
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
         store: asGraphStore(raw["store"]),
@@ -2896,6 +2952,16 @@ function asGraphSize(value) {
     return {
         width: typeof raw["width"] === "number" ? raw["width"] : 520,
         height: typeof raw["height"] === "number" ? raw["height"] : 300,
+    };
+}
+/** Where a group was loaded from, when it was. */
+function asGraphImported(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    return {
+        from: typeof raw["from"] === "string" ? raw["from"] : "",
+        at: typeof raw["at"] === "string" ? raw["at"] : null,
     };
 }
 /** A plugin piece: which plugin, where it slots, and its settings fields. */

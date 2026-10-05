@@ -67,6 +67,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     sort: asGraphSort(raw["sort"]),
     size: asGraphSize(raw["size"]),
     locked: raw["locked"] === true,
+    imported: asGraphImported(raw["imported"]),
     channel: asGraphChannel(raw["channel"]),
     asks: asGraphAsks(raw["asks"]),
     store: asGraphStore(raw["store"]),
@@ -208,6 +209,16 @@ function asGraphSize(value: unknown): { width: number; height: number } | null {
   return {
     width: typeof raw["width"] === "number" ? raw["width"] : 520,
     height: typeof raw["height"] === "number" ? raw["height"] : 300,
+  };
+}
+
+/** Where a group was loaded from, when it was. */
+function asGraphImported(value: unknown): { from: string; at: string | null } | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    from: typeof raw["from"] === "string" ? raw["from"] : "",
+    at: typeof raw["at"] === "string" ? raw["at"] : null,
   };
 }
 

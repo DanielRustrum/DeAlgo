@@ -116,14 +116,49 @@ function graphNextFiring(node: GraphNodeView): string {
   return `next ${new Date(next).toLocaleString()}`;
 }
 
-/** A group's own panel: what it is called, and a way to hand it on. */
-function graphGroupFields(form: HTMLElement, node: GraphNodeView): void {
+/** A group's own panel: what it is called, a way to hand it on, and — for one
+ *  loaded from a file — a way to bring it up to date with a newer copy. */
+function graphGroupFields(state: GraphState, form: HTMLElement, node: GraphNodeView): void {
+  const row = graphElement("div", "graph-group-files");
   const give = document.createElement("a");
   give.className = "btn btn-quiet";
   give.href = `/graph/nodes/${node.id}/export`;
   give.textContent = "Export";
   give.title = "Save this group as a file to give to somebody else";
-  form.appendChild(give);
+  row.appendChild(give);
+
+  if (node.imported !== null) {
+    // A file input behind a button: the browser cannot reopen the file it was
+    // loaded from, so the newer copy is chosen again — and checked to be a
+    // copy of the same group before anything changes.
+    const pick = document.createElement("input");
+    pick.type = "file";
+    pick.accept = "application/json,.json";
+    pick.hidden = true;
+    const update = graphElement("button", "btn btn-quiet", "Update from file…") as HTMLButtonElement;
+    update.type = "button";
+    update.title = "Load a newer copy of the file this group came from";
+    update.addEventListener("click", (): void => pick.click());
+    pick.addEventListener("change", (): void => {
+      const file = pick.files?.[0];
+      if (file !== undefined) void updateGraphGroup(state, node.id, file);
+      pick.value = "";
+    });
+    row.append(update, pick);
+  }
+  form.appendChild(row);
+
+  if (node.imported !== null) {
+    const when = node.imported.at !== null ? new Date(node.imported.at).toLocaleString() : "";
+    const from = node.imported.from !== "" ? `“${node.imported.from}”` : "a file";
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        `Loaded from ${from}${when ? `, last on ${when}` : ""}. Updating keeps the boxes you moved where you put them, keeps any you added yourself, and never deletes a feed or what is in it.`,
+      ),
+    );
+  }
 
   form.appendChild(
     graphElement(

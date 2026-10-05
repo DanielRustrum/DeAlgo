@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select
@@ -9,7 +11,9 @@ from sqlalchemy.orm import Session
 
 from ...models import (
     Channel,
+    GraphEdge,
     GraphNode,
+    utcnow,
 )
 from .. import ordering
 from ..scope import OwnerId, owned
@@ -28,13 +32,31 @@ from .errors import GraphError
 from .pieces import attach
 from .reading import nodes
 from .vocabulary import AUGMENTATIONS, GROUP_LEAST, GROUP_SIZE, STAMPS
-from .wiring import connect, wires
+from .wiring import connect, refresh_membership, wires
 
 # Bumped if the shape changes in a way a reader would need to know about.
 # 2 carries augmentations, each with an `under` naming what it is slotted
 # into. A format-1 file has none, and its filter rules are unpacked into
 # conditions on the way in, so one exported before this still loads.
-GROUP_FORMAT = 2
+# 3 gives the file an `id` and each node a `key`, which last from one export
+# of a group to the next, so a newer copy can update what an older one made.
+GROUP_FORMAT = 3
+
+
+def _new_key() -> str:
+    return uuid.uuid4().hex[:16]
+
+
+def _key_of(entry: dict[str, Any]) -> str:
+    """A node's key in a file. One from before keys is known by its place."""
+    key = entry.get("key")
+    return str(key) if key else f"ref-{entry.get('ref', '')}"
+
+
+def _file_id(payload: dict[str, Any]) -> str:
+    """A file's id. One from before ids is known by its name."""
+    said = payload.get("id")
+    return str(said) if said else f"name:{payload.get('name') or 'Group'}"
 
 
 def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[str, Any]:
@@ -55,10 +77,21 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
     carried = inside(session, group, owner)
     refs = {node.id: index for index, node in enumerate(carried)}
 
+    # Keys last: a box keeps the key it was given, whether by an earlier
+    # export or by the file it was loaded from, so the chain of copies of
+    # one group all agree on which box is which.
+    if not group.group_key:
+        group.group_key = _new_key()
+    for node in carried:
+        if not node.group_key:
+            node.group_key = _new_key()
+    session.flush()
+
     packed: list[dict[str, Any]] = []
     for node in carried:
         entry: dict[str, Any] = {
             "ref": refs[node.id],
+            "key": node.group_key,
             "kind": node.kind,
             "x": node.x - group.x,
             "y": node.y - group.y,
@@ -104,6 +137,7 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
 
     return {
         "de_algo_group": GROUP_FORMAT,
+        "id": group.group_key,
         "name": group.label or "Group",
         "width": group.width or GROUP_SIZE[0],
         "height": group.height or GROUP_SIZE[1],
@@ -130,20 +164,8 @@ def _wires_within(
     return drawn
 
 
-def import_group(
-    session: Session,
-    payload: Any,
-    owner: OwnerId = None,
-    *,
-    x: int = 40,
-    y: int = 40,
-) -> GraphNode:
-    """Load a group somebody else exported, beside whatever is already here.
-
-    Channels are matched by their YouTube id and made if they are missing;
-    feeds are always made, as feeds of this account's own. Nothing existing is
-    changed: loading somebody's setup adds theirs, it does not replace yours.
-    """
+def _check_file(payload: Any) -> dict[str, Any]:
+    """A group file this version can read, or GraphError saying why not."""
     if not isinstance(payload, dict) or "de_algo_group" not in payload:
         raise GraphError("That is not a De-Algo group file.")
     version = payload.get("de_algo_group")
@@ -151,6 +173,28 @@ def import_group(
         raise GraphError(
             f"That group is format {version}, and this version of De-Algo reads {GROUP_FORMAT}."
         )
+    return payload
+
+
+def import_group(
+    session: Session,
+    payload: Any,
+    owner: OwnerId = None,
+    *,
+    x: int = 40,
+    y: int = 40,
+    file_name: str = "",
+) -> GraphNode:
+    """Load a group somebody else exported, beside whatever is already here.
+
+    Channels are matched by their YouTube id and made if they are missing;
+    feeds are always made, as feeds of this account's own. Nothing existing is
+    changed: loading somebody's setup adds theirs, it does not replace yours.
+
+    The group remembers the file — its id, each box's key, the file's name —
+    so a newer copy of it can update this group later (`update_group`).
+    """
+    payload = _check_file(payload)
 
     group = add_group(
         session,
@@ -161,6 +205,9 @@ def import_group(
         width=int(payload.get("width") or GROUP_SIZE[0]),
         height=int(payload.get("height") or GROUP_SIZE[1]),
     )
+    group.group_key = _file_id(payload)
+    group.imported_from = (file_name or "")[:255] or None
+    group.imported_at = utcnow()
 
     made: dict[int, GraphNode] = {}
     for entry in payload.get("nodes") or []:
@@ -169,6 +216,8 @@ def import_group(
         node = _unpack(session, entry, owner, at=(x + int(entry.get("x") or 0),
                                                   y + int(entry.get("y") or 0)))
         if node is not None:
+            node.group_key = _key_of(entry)
+            _apply(session, node, entry, owner)
             made[int(entry.get("ref", -1))] = node
     session.flush()
 
@@ -188,6 +237,38 @@ def import_group(
             continue
     session.flush()
 
+    _slot_and_wire(session, payload, made, owner, slot=False)
+    return group
+
+
+def _slot_and_wire(
+    session: Session,
+    payload: dict[str, Any],
+    made: dict[int, GraphNode],
+    owner: OwnerId,
+    *,
+    slot: bool = True,
+) -> None:
+    """Slot each piece under what the file says, then draw the file's wires.
+
+    Pieces are slotted once every box exists, because a piece may be exported
+    before what it goes under. A piece that refuses to go where the file says
+    is left lying on the canvas rather than dropped; a wire that makes no
+    sense here is left out, not fatal.
+    """
+    if slot:
+        for entry in payload.get("nodes") or []:
+            if not isinstance(entry, dict) or "under" not in entry:
+                continue
+            piece = made.get(int(entry.get("ref", -1)))
+            host = made.get(int(entry.get("under", -1)))
+            if piece is None or host is None or piece.attached_to == host.id:
+                continue
+            try:
+                attach(session, piece, host, owner)
+            except GraphError:
+                continue
+        session.flush()
     for pair in payload.get("wires") or []:
         if not isinstance(pair, list) or len(pair) != 2:
             continue
@@ -197,8 +278,217 @@ def import_group(
         try:
             connect(session, start, end, owner)
         except GraphError:
-            continue  # a wire that makes no sense here is dropped, not fatal
-    return group
+            continue
+
+
+def _apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: OwnerId) -> None:
+    """Write what a file says about one box onto it: its name, whether it is
+    on, and the settings of its kind. The same for a box just made from the
+    file and one the file is updating, so the two cannot come out different.
+    """
+    if entry.get("label") not in (None, "") and node.kind not in ("source", "feed"):
+        node.label = str(entry["label"])
+    if "enabled" in entry and node.kind not in ("source", "feed"):
+        # A source or feed is switched through its channel or playlist.
+        node.enabled = bool(entry["enabled"])
+    kind = node.kind
+    if kind == "source":
+        channel_id = entry.get("channel_id")
+        if channel_id and (node.channel is None or node.channel.channel_id != channel_id):
+            was = node.channel
+            found = _channel_for(session, entry, owner)
+            if found is not None:
+                node.channel = found
+                session.flush()
+                refresh_membership(session, found, owner)
+                if was is not None:
+                    refresh_membership(session, was, owner)
+    elif kind == "feed":
+        title = str(entry.get("title") or "")
+        if title and node.playlist is not None and node.playlist.title != title:
+            node.playlist.title = title
+    elif kind in CONDITION_KINDS:
+        spec = condition(kind)
+        if spec is not None and entry.get("value") not in (None, ""):
+            setattr(node, spec.column, entry.get("value"))
+        if "sort_dir" in entry:
+            node.sort_dir = str(entry.get("sort_dir") or "desc")
+    elif kind == RULE:
+        node.plugin_ref = str(entry.get("plugin_ref") or "") or node.plugin_ref
+        node.plugin_settings = str(entry.get("plugin_settings") or "") or None
+    elif kind == "timer":
+        node.duration_minutes = entry.get("duration_minutes")
+    elif kind == "reset":
+        node.cron = str(entry.get("cron") or "") or None
+    elif kind == "alive":
+        node.alive_from = str(entry.get("alive_from") or "") or None
+        node.alive_to = str(entry.get("alive_to") or "") or None
+    elif kind in STAMPS:
+        node.marks = str(entry.get("marks") or "")
+    elif kind in ("deposit", "withdraw"):
+        node.repository = str(entry.get("repository") or "")
+        node.takes = entry.get("takes")
+    elif kind == "trigger":
+        node.trigger_kind = str(entry.get("trigger_kind") or "pulse")
+        node.every_minutes = entry.get("every_minutes")
+        node.cron = entry.get("cron")
+
+
+@dataclass
+class GroupUpdate:
+    """What updating a group from its file did, to say back."""
+
+    updated: int = 0
+    added: int = 0
+    removed: int = 0
+    #: Feeds whose boxes the file no longer has, kept with their items.
+    kept_feeds: list[str] = field(default_factory=list)
+
+    def describe(self, name: str) -> str:
+        parts = []
+        if self.updated:
+            parts.append(f"{self.updated} updated")
+        if self.added:
+            parts.append(f"{self.added} added")
+        if self.removed:
+            parts.append(f"{self.removed} removed")
+        said = f"“{name}” is up to date with its file" + (f": {', '.join(parts)}." if parts else ".")
+        if self.kept_feeds:
+            said += (
+                " The file no longer has " + ", ".join(f"“{t}”" for t in self.kept_feeds)
+                + "; " + ("that feed is" if len(self.kept_feeds) == 1 else "those feeds are")
+                + " kept, with everything in them, on the Feed tab."
+            )
+        return said
+
+
+def update_group(
+    session: Session,
+    group_pk: int,
+    payload: Any,
+    owner: OwnerId = None,
+    *,
+    file_name: str = "",
+) -> GroupUpdate:
+    """Bring a loaded group up to date with a newer copy of the file it came from.
+
+    Each box the group was loaded with is found by its key. One the file
+    still has is updated in place, so its history, channel and feed are
+    kept; one it adds is made; one it no longer has is taken away. Boxes the
+    account added to the group itself have no key, and are left alone.
+
+    Taking away is careful: a source box goes but its channel stays if
+    anything else draws it, and a feed box goes but its feed and every item
+    in it stay — an update must not delete what somebody has been reading.
+    Where each box sits is left as the account arranged it; only new boxes
+    are placed where the file puts them.
+
+    Wires between the group's own boxes are drawn again from the file. Wires
+    to boxes outside the group are kept, as long as both ends still are.
+    """
+    payload = _check_file(payload)
+    group = session.scalar(
+        owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == group_pk)
+    )
+    if group is None or group.kind != "group":
+        raise GraphError("That node is not a group.")
+    if not group.group_key:
+        raise GraphError(
+            "This group was not loaded from a file, so there is nothing to update it from."
+        )
+    if _file_id(payload) != group.group_key:
+        raise GraphError(
+            f"That file is a different group (“{payload.get('name') or 'Group'}”), not the one "
+            "this was loaded from. Use Load a group to add it as a new one."
+        )
+
+    result = GroupUpdate()
+    carried = inside(session, group, owner)
+    keyed = {node.group_key: node for node in carried if node.group_key}
+
+    # Wires among the group's own keyed boxes are the file's, and are
+    # redrawn from it; anything touching a box of the account's own stays.
+    keyed_ids = {node.id for node in keyed.values()}
+    for edge in session.scalars(
+        owned(select(GraphEdge), GraphEdge, owner).where(
+            GraphEdge.source_pk.in_(keyed_ids), GraphEdge.target_pk.in_(keyed_ids)
+        )
+    ):
+        session.delete(edge)
+    session.flush()
+
+    made: dict[int, GraphNode] = {}
+    seen: set[str] = set()
+    for entry in payload.get("nodes") or []:
+        if not isinstance(entry, dict):
+            continue
+        key = _key_of(entry)
+        seen.add(key)
+        node = keyed.get(key)
+        if node is not None and node.kind != entry.get("kind"):
+            # The same place in the file now holds something else: the old
+            # box goes, and the new one is made below.
+            _take_away(session, node, owner, result)
+            node = None
+            keyed.pop(key, None)
+        if node is None:
+            node = _unpack(session, entry, owner, at=(
+                group.x + int(entry.get("x") or 0), group.y + int(entry.get("y") or 0)))
+            if node is None:
+                continue
+            node.group_key = key
+            result.added += 1
+        else:
+            result.updated += 1
+        _apply(session, node, entry, owner)
+        made[int(entry.get("ref", -1))] = node
+    session.flush()
+
+    for key, node in keyed.items():
+        if key not in seen:
+            _take_away(session, node, owner, result)
+    session.flush()
+
+    # Pieces go back under what the file says, from the top of each chain.
+    for node in made.values():
+        if node.kind in AUGMENTATIONS and node.attached_to is not None:
+            node.attached_to = None
+    session.flush()
+    _slot_and_wire(session, payload, made, owner)
+
+    group.label = str(payload.get("name") or group.label or "Group")
+    group.width = max(group.width or GROUP_SIZE[0], int(payload.get("width") or 0))
+    group.height = max(group.height or GROUP_SIZE[1], int(payload.get("height") or 0))
+    if file_name:
+        group.imported_from = file_name[:255]
+    group.imported_at = utcnow()
+    session.flush()
+    return result
+
+
+def _take_away(session: Session, node: GraphNode, owner: OwnerId, result: GroupUpdate) -> None:
+    """A box the file no longer has. Its feed or channel stays; see update_group."""
+    from .editing import remove
+    from .pieces import close_up, pieces_under
+
+    if node.kind in ("source", "feed"):
+        if node.kind == "feed" and node.playlist is not None:
+            result.kept_feeds.append(node.playlist.title)
+        channel = node.channel
+        for piece in pieces_under(nodes(session, owner), node.id):
+            if not piece.group_key:
+                # A piece the account slotted on itself goes back on the canvas.
+                close_up(session, piece)
+                piece.attached_to = None
+            else:
+                session.delete(piece)
+        session.delete(node)
+        session.flush()
+        if channel is not None:
+            refresh_membership(session, channel, owner)
+    else:
+        remove(session, node.id, owner)
+    result.removed += 1
 
 
 def _unpack(
@@ -271,10 +561,8 @@ def _unpack(
     return None
 
 
-def _unpack_source(
-    session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
-) -> GraphNode | None:
-    """A source box from a group file, watching its channel by id."""
+def _channel_for(session: Session, entry: dict[str, Any], owner: OwnerId) -> Channel | None:
+    """The channel a file's source box watches, by id: this account's, or made."""
     channel_id = entry.get("channel_id")
     if not channel_id:
         return None
@@ -294,6 +582,16 @@ def _unpack_source(
         session.add(channel)
         session.flush()
         ordering.append(session, channel)
+    return channel
+
+
+def _unpack_source(
+    session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
+) -> GraphNode | None:
+    """A source box from a group file, watching its channel by id."""
+    channel = _channel_for(session, entry, owner)
+    if channel is None:
+        return None
     x, y = at
     return add_source(session, owner, channel=channel, x=x, y=y)
 

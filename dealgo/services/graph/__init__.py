@@ -51,7 +51,17 @@ from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, SORT_KEYS, check
 from .cron import check_cron, cron_trigger
 from .editing import move, remove, rename, stands_alone
 from .errors import GraphError
-from .groups import add_group, export_group, import_group, inside, lock, move_group, resize
+from .groups import (
+    GroupUpdate,
+    add_group,
+    export_group,
+    import_group,
+    inside,
+    lock,
+    move_group,
+    resize,
+    update_group,
+)
 from .names import store_name, tag_name
 from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, pieces_under
 from .reading import channels_of, edges, nodes
@@ -135,7 +145,9 @@ __all__ = [
     "LENGTH_UNITS",
     "load",
     "move",
+    "GroupUpdate",
     "lock",
+    "update_group",
     "move_group",
     "nodes",
     "paths_from",

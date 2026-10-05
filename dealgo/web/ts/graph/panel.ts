@@ -196,7 +196,7 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   name.value = node.title;
   form.appendChild(graphLabelled("Name", name));
 
-  if (node.kind === "group") graphGroupFields(form, node);
+  if (node.kind === "group") graphGroupFields(state, form, node);
   // Conditions first: an Order piece carries a sort as well, and a plugin's
   // condition is a piece as well, so the narrowest answer has to be asked
   // before the broad ones.

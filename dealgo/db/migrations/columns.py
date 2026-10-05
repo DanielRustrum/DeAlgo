@@ -56,6 +56,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "width", "INTEGER"),
     ("graph_node", "height", "INTEGER"),
     ("graph_node", "locked", "BOOLEAN NOT NULL DEFAULT 0"),
+    # Group files: which part of one a box is, and where a group came from.
+    ("graph_node", "group_key", "VARCHAR(40)"),
+    ("graph_node", "imported_from", "VARCHAR(255)"),
+    ("graph_node", "imported_at", "DATETIME"),
     ("graph_node", "sort_by", "VARCHAR(16)"),
     ("graph_node", "sort_dir", "VARCHAR(4)"),
     # Counts, so a sort box can order by them. Backfilled as the details are
