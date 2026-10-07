@@ -29,8 +29,8 @@ def ordering_value(video: Video, piece: GraphNode, path: "graph.Route | None" = 
     place — rather than at an invented position that would look deliberate.
     """
     if piece.kind == "aggregation":
-        # What the algorithm predicts, most first; under the threshold, after
-        # everything at or over it. Nothing to say: everything level, so the
+        # What the algorithm predicts, most first; outside the range, after
+        # everything inside it. Nothing to say: everything level, so the
         # batch keeps the order it came in.
         session = object_session(video)
         predicted = algorithm.score(
@@ -40,8 +40,7 @@ def ordering_value(video: Video, piece: GraphNode, path: "graph.Route | None" = 
         ) if session is not None else None
         if predicted is None:
             return 0.0
-        edge = int(algorithm.settings(piece)["threshold"]) / 100.0
-        return predicted if predicted >= edge else predicted - 1.0
+        return predicted if algorithm.within(predicted, algorithm.settings(piece)) else predicted - 1.0
     if piece.kind != graph.RULE:
         return _sort_value(video, piece.sort_by or graph.DEFAULT_SORT_BY)
     owner = video.channel.owner_pk if video.channel is not None else None

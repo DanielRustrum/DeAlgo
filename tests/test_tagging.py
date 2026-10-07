@@ -180,3 +180,17 @@ def test_the_canvas_sets_a_tag_box_to_choose(client, db):
     assert drawn["note"] == "chooses from reviews, news, tutorial"
     assert drawn["stamp"]["choosing"]["tags"].startswith("reviews — a verdict")
     assert "on this machine" in drawn["stamp"]["choosing"]["how"]
+
+
+
+def test_at_least_gives_every_item_that_many_the_likeliest_first(db):
+    with db.session_scope() as session:
+        channel = a_source(session)
+        box = choosing_box(session, tagging_engine="local", tagging_least="1", tagging_most="2")
+        assert tagging.words(box) == "chooses 1–2 from reviews, news, tutorial"
+        # Nothing in it fits well, but it must carry one.
+        assert len(tagging.chosen(session, item(session, channel, 1, "Unboxing live stream"), box)) == 1
+        # A clear fit is still the first.
+        assert tagging.chosen(session, item(session, channel, 2, "Tutorial: a first app"), box)[0] == "tutorial"
+        with pytest.raises(ValueError, match="more than at most"):
+            tagging.save(box, {"tagging_least": "3"})

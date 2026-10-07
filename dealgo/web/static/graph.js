@@ -3606,10 +3606,13 @@ function graphTagChoosingFields(form, node, said) {
     tags.value = said.tags;
     tags.placeholder = "reviews — a verdict on one thing\nnews — what happened this week\ntutorial — how to do something";
     choose.appendChild(graphLabelled("Tags, one per line, with what each means", tags));
-    choose.appendChild(graphLabelled("At most, per item", graphLeafletNumber("tagging_most", String(said.most), 1, 10)));
+    const counts = graphElement("div", "graph-pair");
+    counts.appendChild(graphLabelled("At least, per item", graphLeafletNumber("tagging_least", String(said.least), 0, 10)));
+    counts.appendChild(graphLabelled("At most, per item", graphLeafletNumber("tagging_most", String(said.most), 1, 10)));
+    choose.appendChild(counts);
     choose.appendChild(graphLabelled("Chooses with", graphLeafletSelect("tagging_engine", said.engines, said.engine)));
     choose.appendChild(graphElement("p", "hint", said.how));
-    choose.appendChild(graphElement("p", "hint", "It puts on only the tags that fit — possibly none — so a source that sends more than one kind of thing has each kind told apart."));
+    choose.appendChild(graphElement("p", "hint", "It puts on only the tags that fit, up to at most — so a source that sends more than one kind of thing has each kind told apart. With an at least, every item gets that many, the likeliest first, even where none fits well."));
     const show = () => {
         fixed.hidden = mode.value === "choose";
         choose.hidden = mode.value !== "choose";
@@ -3785,6 +3788,7 @@ function asGraphStamp(value) {
             mode: typeof choosing["mode"] === "string" ? choosing["mode"] : "fixed",
             modes: asGraphChoices(choosing["modes"]),
             tags: typeof choosing["tags"] === "string" ? choosing["tags"] : "",
+            least: typeof choosing["least"] === "number" ? choosing["least"] : 0,
             most: typeof choosing["most"] === "number" ? choosing["most"] : 2,
             engine: typeof choosing["engine"] === "string" ? choosing["engine"] : "auto",
             engines: asGraphChoices(choosing["engines"]),
@@ -4724,10 +4728,14 @@ function graphAggregationFields(form, node) {
     signal.addEventListener("change", show);
     of.addEventListener("change", show);
     show();
-    form.appendChild(graphLabelled("Threshold, %", graphLeafletNumber("aggregation_threshold", value("threshold"), 0, 100)));
+    const range = graphElement("div", "graph-pair");
+    range.appendChild(graphLabelled("Minimum, %", graphLeafletNumber("aggregation_least", value("least"), 0, 100)));
+    range.appendChild(graphLabelled("Maximum, %", graphLeafletNumber("aggregation_most", value("most"), 0, 100)));
+    form.appendChild(range);
+    form.appendChild(graphElement("p", "hint", "Within the range counts. A maximum below 100% keeps out what it is too sure of — so your feed is not only ever more of the same."));
     const under = ((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null ? "" : node.note;
     form.appendChild(graphElement("p", "hint", ((_b = node.piece) === null || _b === void 0 ? void 0 : _b.under) == null
-        ? "Loose on the canvas. Drop it on a Filter, a Sort or an Expire box. Under a Filter it holds back what it predicts below the threshold; under a Sort it puts the most predicted first; under an Expire box, what it predicts below the threshold leaves sooner."
+        ? "Loose on the canvas. Drop it on a Filter, a Sort or an Expire box. Under a Filter it holds back what it predicts outside the range; under a Sort it puts the most predicted first, what is in the range ahead of the rest; under an Expire box, what it predicts outside the range leaves sooner."
         : `Under this box: ${under}.`));
     if (said.state !== "")
         form.appendChild(graphElement("p", "hint", said.state));

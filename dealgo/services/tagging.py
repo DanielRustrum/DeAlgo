@@ -43,7 +43,7 @@ ENGINES: tuple[tuple[str, str], ...] = (
     ("auto", "Your AI model, if you have chosen one; otherwise on this machine"),
     ("local", "On this machine only"),
 )
-DEFAULTS: dict[str, Any] = {"mode": "fixed", "tags": [], "most": 2, "engine": "auto"}
+DEFAULTS: dict[str, Any] = {"mode": "fixed", "tags": [], "least": 0, "most": 2, "engine": "auto"}
 
 #: How sure it has to be, 0 to 1, to put a tag on.
 SURE = 0.6
@@ -121,6 +121,13 @@ def save(node: GraphNode, form: Mapping[str, str]) -> None:
         if not str(most).strip().isdigit():
             raise ValueError("How many tags is a whole number.")
         said["most"] = max(1, min(10, int(str(most).strip())))
+    least = form.get("tagging_least")
+    if least is not None and str(least).strip():
+        if not str(least).strip().isdigit():
+            raise ValueError("How many tags is a whole number.")
+        said["least"] = max(0, min(10, int(str(least).strip())))
+    if int(said["least"]) > int(said["most"]):
+        raise ValueError("At least is more than at most: no item could have that many.")
     engine = form.get("tagging_engine")
     if engine is not None:
         if engine not in dict(ENGINES):
@@ -133,7 +140,12 @@ def save(node: GraphNode, form: Mapping[str, str]) -> None:
 
 def words(node: GraphNode) -> str:
     named = ", ".join(choice.name for choice in choices(node))
-    return f"chooses from {named}" if named else "give it tags to choose from"
+    if not named:
+        return "give it tags to choose from"
+    said = settings(node)
+    least, most = int(said["least"]), int(said["most"])
+    how_many = f"{least}–{most} " if least > 0 and least != most else (f"{most} " if least == most else "")
+    return f"chooses {how_many}from {named}"
 
 
 def engine_for(session: Session, node: GraphNode, account: Settings) -> writing.Model | None:
@@ -222,7 +234,7 @@ def choose_before_filling(
 def _asked(model: writing.Model, node: GraphNode, videos: list[Video]) -> dict[int, list[str]]:
     """Ask the account's model which tags fit each of a batch of items."""
     allowed = choices(node)
-    most = int(settings(node)["most"])
+    least, most = int(settings(node)["least"]), int(settings(node)["most"])
     listing = "\n".join(f"- {one.name}: {one.about or '(no description)'}" for one in allowed)
     items = [
         {"id": video.id, "title": video.title, "source": video.channel.title if video.channel else "",
@@ -231,7 +243,9 @@ def _asked(model: writing.Model, node: GraphNode, videos: list[Video]) -> dict[i
     ]
     answer = writing.write(
         model,
-        f"Tags, with what each means:\n{listing}\n\nAt most {most} tags per item.",
+        f"Tags, with what each means:\n{listing}\n\n"
+        + (f"At least {least} and at most {most} tags per item: the best fitting." if least
+           else f"At most {most} tags per item."),
         json.dumps(items, ensure_ascii=False),
         counted=(len(items), len(items)),
         system=SYSTEM,
@@ -250,14 +264,32 @@ def _asked(model: writing.Model, node: GraphNode, videos: list[Video]) -> dict[i
             continue
         kept = [tag_name(str(tag)) for tag in tags if tag_name(str(tag)) in names]
         picked[int(key)] = list(dict.fromkeys(kept))[:most]
+    if least:
+        # Short of the least it was told: made up from the best guesses here.
+        short = [video for video in videos if len(picked.get(video.id, [])) < least]
+        if short:
+            guessed = _local(session_of(short[0]), short[0].owner_pk, node, short)
+            for video in short:
+                have = picked.get(video.id, [])
+                extra = [tag for tag in guessed.get(video.id, []) if tag not in have]
+                picked[video.id] = (have + extra)[:max(least, len(have))]
     return picked
+
+
+def session_of(video: Video) -> Session:
+    from sqlalchemy.orm import object_session
+
+    session = object_session(video)
+    if session is None:
+        raise writing.WritingError("That item is not in a session.")
+    return session
 
 
 def _local(session: Session, owner: OwnerId, node: GraphNode, videos: list[Video]) -> dict[int, list[str]]:
     """Which tags fit, judged here: by the tags' own words, and — where there
     are enough items carrying a tag already — by what it learned from them."""
     allowed = choices(node)
-    most = int(settings(node)["most"])
+    least, most = int(settings(node)["least"]), int(settings(node)["most"])
     learned = {one.name: _learn(session, owner, one, allowed) for one in allowed}
     picked: dict[int, list[str]] = {}
     for video in videos:
@@ -268,10 +300,13 @@ def _local(session: Session, owner: OwnerId, node: GraphNode, videos: list[Video
             matched = 0.9 if cue & text else 0.0
             model = learned.get(one.name)
             predicted = model.predict(video) if model is not None else 0.0
-            sure = max(matched, predicted)
-            if sure >= SURE:
-                scores.append((sure, one.name))
-        picked[video.id] = [name for _, name in sorted(scores, reverse=True)[:most]]
+            scores.append((max(matched, predicted), one.name))
+        ranked = sorted(scores, key=lambda pair: (-pair[0], [o.name for o in allowed].index(pair[1])))
+        # The sure ones, up to the most; then, if that is fewer than the
+        # least, the likeliest of the rest until there are enough.
+        sure = [name for value, name in ranked if value >= SURE][:most]
+        rest = [name for _, name in ranked if name not in sure]
+        picked[video.id] = sure + rest[: max(0, least - len(sure))]
     return picked
 
 

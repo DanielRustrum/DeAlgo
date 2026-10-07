@@ -220,8 +220,8 @@ def life_share(
     playlist_pk: int | None = None,
 ) -> float:
     """How much of its Timer an item gets, as the algorithm under an Expire
-    box on its path says: all of it, unless it predicts the item under the
-    threshold — then less, the further under. The least of them, if several."""
+    box on its path says: all of it, unless it predicts the item outside the
+    range — then less, the further outside it. The least of them, if several."""
     share = 1.0
     for box in stamps:
         if box.kind != "expire" or not box.enabled:
@@ -233,8 +233,7 @@ def life_share(
             share = min(
                 share,
                 algorithm.expiry_share(
-                    algorithm.score(session, video, piece, playlist_pk, video.tag_list),
-                    int(said["threshold"]),
+                    algorithm.score(session, video, piece, playlist_pk, video.tag_list), said,
                 ),
             )
     return share

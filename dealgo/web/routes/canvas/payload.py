@@ -412,6 +412,7 @@ def _choosing(node: GraphNode, canvas: _Canvas) -> Context:
         "mode": said["mode"],
         "modes": [{"name": n, "label": l} for n, l in tagging.MODES],
         "tags": lines,
+        "least": said["least"],
         "most": said["most"],
         "engine": said["engine"],
         "engines": [{"name": n, "label": l} for n, l in tagging.ENGINES],

@@ -313,10 +313,13 @@ function graphTagChoosingFields(form: HTMLElement, node: GraphNodeView, said: Gr
   tags.value = said.tags;
   tags.placeholder = "reviews — a verdict on one thing\nnews — what happened this week\ntutorial — how to do something";
   choose.appendChild(graphLabelled("Tags, one per line, with what each means", tags));
-  choose.appendChild(graphLabelled("At most, per item", graphLeafletNumber("tagging_most", String(said.most), 1, 10)));
+  const counts = graphElement("div", "graph-pair");
+  counts.appendChild(graphLabelled("At least, per item", graphLeafletNumber("tagging_least", String(said.least), 0, 10)));
+  counts.appendChild(graphLabelled("At most, per item", graphLeafletNumber("tagging_most", String(said.most), 1, 10)));
+  choose.appendChild(counts);
   choose.appendChild(graphLabelled("Chooses with", graphLeafletSelect("tagging_engine", said.engines, said.engine)));
   choose.appendChild(graphElement("p", "hint", said.how));
-  choose.appendChild(graphElement("p", "hint", "It puts on only the tags that fit — possibly none — so a source that sends more than one kind of thing has each kind told apart."));
+  choose.appendChild(graphElement("p", "hint", "It puts on only the tags that fit, up to at most — so a source that sends more than one kind of thing has each kind told apart. With an at least, every item gets that many, the likeliest first, even where none fits well."));
 
   const show = (): void => {
     fixed.hidden = mode.value === "choose";

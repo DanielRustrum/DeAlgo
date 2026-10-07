@@ -166,6 +166,7 @@ function asGraphStamp(value: unknown): GraphStamp | null {
       mode: typeof choosing["mode"] === "string" ? choosing["mode"] : "fixed",
       modes: asGraphChoices(choosing["modes"]),
       tags: typeof choosing["tags"] === "string" ? choosing["tags"] : "",
+      least: typeof choosing["least"] === "number" ? choosing["least"] : 0,
       most: typeof choosing["most"] === "number" ? choosing["most"] : 2,
       engine: typeof choosing["engine"] === "string" ? choosing["engine"] : "auto",
       engines: asGraphChoices(choosing["engines"]),

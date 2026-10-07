@@ -28,7 +28,9 @@ news — what happened this week
 tutorial — how to do something
 ```
 
-Each item gets only the tags that fit it — possibly none — up to **At most, per item**. **Chooses
+Each item gets only the tags that fit it — possibly none — up to **At most, per item**. With
+**At least, per item** above nothing, every item gets that many: the ones that fit, then the
+likeliest of the rest until there are enough — even where none fits well. **Chooses
 with**:
 
 - **Your AI model** (Settings → [AI model](../Settings.md#ai-model)), if you have chosen one: it is

@@ -14,9 +14,9 @@ trained by gradient descent in plain Python. It is small on purpose: what
 it leans towards can be read back and shown, and nothing needs installing.
 
 An **Aggregation** piece puts it to work. Under a Filter it holds back what
-it predicts below a threshold; under a Sort it puts the batch in order of
-it; under an Expire box it lets what it predicts below the threshold leave
-sooner. Until it has enough examples, or with algorithms switched off by the
+it predicts outside a range you set — a minimum and a maximum; under a Sort
+it puts the batch in order of it, what is in the range first; under an
+Expire box it lets what it predicts outside the range leave sooner. Until it has enough examples, or with algorithms switched off by the
 admin or the account, a piece does nothing — and says why.
 """
 
@@ -505,10 +505,12 @@ def tag_name_of(raw: str) -> str:
 
 # -- the piece -----------------------------------------------------------------------
 
-DEFAULTS: dict[str, Any] = {"signal": "interest", "threshold": 50, "of": "source", "tag": ""}
+DEFAULTS: dict[str, Any] = {"signal": "interest", "least": 50, "most": 100, "of": "source", "tag": ""}
 
 
 def settings(piece: GraphNode) -> dict[str, Any]:
+    """An Aggregation piece's settings: which signal, and the range of it — a
+    minimum and a maximum, 0 to 100 — that counts as within."""
     said = dict(DEFAULTS)
     try:
         stored = json.loads(piece.aggregation or "{}")
@@ -516,7 +518,16 @@ def settings(piece: GraphNode) -> dict[str, Any]:
         stored = {}
     if isinstance(stored, dict):
         said.update({key: value for key, value in stored.items() if key in said})
+        # A piece set before ranges had one threshold: that is its minimum.
+        if "least" not in stored and isinstance(stored.get("threshold"), int):
+            said["least"] = stored["threshold"]
     return said
+
+
+def _percent(said: str, named: str) -> int:
+    if not said.strip().isdigit():
+        raise ValueError(f"The {named} is a whole number, 0 to 100.")
+    return max(0, min(100, int(said.strip())))
 
 
 def save(piece: GraphNode, form: Mapping[str, str]) -> None:
@@ -537,52 +548,85 @@ def save(piece: GraphNode, form: Mapping[str, str]) -> None:
         said["tag"] = tag_name_of(tag)
     if said["signal"] == "saturation" and said["of"] == "tag" and not said["tag"]:
         raise ValueError("Say which tag's saturation to watch.")
-    threshold = form.get("aggregation_threshold")
-    if threshold is not None and str(threshold).strip():
-        if not str(threshold).strip().isdigit():
-            raise ValueError("The threshold is a whole number, 0 to 100.")
-        said["threshold"] = max(0, min(100, int(str(threshold).strip())))
+    # The range; `aggregation_threshold` is what a minimum was called before.
+    least = form.get("aggregation_least", form.get("aggregation_threshold"))
+    if least is not None and str(least).strip():
+        said["least"] = _percent(str(least), "minimum")
+    most = form.get("aggregation_most")
+    if most is not None and str(most).strip():
+        said["most"] = _percent(str(most), "maximum")
+    if int(said["least"]) > int(said["most"]):
+        raise ValueError("The minimum is more than the maximum: nothing could be within it.")
     piece.aggregation = json.dumps(said, sort_keys=True)
 
 
-def signal_name(signal: str) -> str:
-    return signal
+def within(predicted: float, said: Mapping[str, Any]) -> bool:
+    """Whether a prediction, 0 to 1, is inside a piece's range."""
+    return int(said["least"]) <= predicted * 100 <= int(said["most"])
+
+
+def range_words(said: Mapping[str, Any]) -> str:
+    """A piece's range, as said on the canvas: "50% or more", "under 90%", "40–90%"."""
+    least, most = int(said["least"]), int(said["most"])
+    if most >= 100:
+        return f"{least}% or more"
+    if least <= 0:
+        return f"{most}% or less"
+    return f"{least}–{most}%"
+
+
+def outside_words(said: Mapping[str, Any]) -> str:
+    """Outside a range, as said on the canvas: "under 50%", "over 90%", "outside 40–90%"."""
+    least, most = int(said["least"]), int(said["most"])
+    if most >= 100:
+        return f"under {least}%"
+    if least <= 0:
+        return f"over {most}%"
+    return f"outside {least}–{most}%"
 
 
 def words(piece: GraphNode, host: GraphNode | None) -> str:
     """What an Aggregation piece does, in the terms of the box it is in."""
     said = settings(piece)
-    signal, threshold = str(said["signal"]), int(said["threshold"])
+    signal, span, outside = str(said["signal"]), range_words(said), outside_words(said)
     if signal == "saturation":
         what = f"“{said['tag']}”" if said["of"] == "tag" else "a source"
         if host is None:
-            return f"saturation of {what}, {threshold}%"
+            return f"room for {what}, {span}"
         if host.kind == "filter":
-            return f"holds back {what} once it fills this feed past what you take in"
+            return f"lets {what} in while this feed has {span} room for it"
         if host.kind == "sort":
-            return f"puts {what} later the more it fills this feed"
+            return f"puts {what} later the more it fills this feed ({span} room first)"
         if host.kind == "expire":
-            return f"{what} leaves sooner once it fills this feed past what you take in"
+            return f"{what} leaves sooner with {outside} room in this feed"
     if host is None:
-        return f"{signal}, {threshold}%"
+        return f"{signal}, {span}"
     if host.kind == "filter":
-        return f"only what it predicts at {threshold}% {signal} or more"
+        least, most = int(said["least"]), int(said["most"])
+        if most >= 100:
+            return f"only what it predicts at {least}% {signal} or more"
+        if least <= 0:
+            return f"only what it predicts at {most}% {signal} or less"
+        return f"only what it predicts at {least}–{most}% {signal}"
     if host.kind == "sort":
-        return f"most predicted {signal} first"
+        return f"most predicted {signal} first, {span} ahead of the rest"
     if host.kind == "expire":
-        return f"under {threshold}% predicted {signal} leaves sooner"
-    return f"{signal}, {threshold}%"
+        return f"{outside} predicted {signal} leaves sooner"
+    return f"{signal}, {span}"
 
 
-def expiry_share(predicted: float | None, threshold: int) -> float:
-    """How much of an Expire box's Timer an item gets: all of it at or over
-    the threshold, less the further under it the prediction falls."""
-    if predicted is None or threshold <= 0:
+def expiry_share(predicted: float | None, said: Mapping[str, Any]) -> float:
+    """How much of an Expire box's Timer an item gets: all of it inside the
+    range, less the further outside it — under the minimum or over the
+    maximum — the prediction falls."""
+    if predicted is None:
         return 1.0
-    edge = threshold / 100.0
-    if predicted >= edge:
-        return 1.0
-    return max(SHORTEST_LIFE, predicted / edge)
+    least, most = int(said["least"]) / 100.0, int(said["most"]) / 100.0
+    if predicted < least:
+        return max(SHORTEST_LIFE, predicted / least) if least > 0 else 1.0
+    if predicted > most:
+        return max(SHORTEST_LIFE, (1.0 - predicted) / (1.0 - most)) if most < 1 else 1.0
+    return 1.0
 
 
 # -- what it learned, for a person to read -----------------------------------------

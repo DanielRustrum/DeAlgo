@@ -29,13 +29,18 @@ shows what it leans towards and away from.
 
 | Under | Does |
 | --- | --- |
-| **Filter** | Holds back what it predicts below the threshold — for saturation, more of a source or tag a feed already has too much of. The run log says by how much. |
-| **Sort** | Puts the batch in order of the prediction, highest first; what is under the threshold goes after everything at or over it. |
-| **Expire** | Lets what it predicts below the threshold leave sooner: an item gets less of the box's Timer the further under it falls — never less than a tenth. At or over the threshold, it gets the whole Timer. Needs a Timer in the box. |
+| **Filter** | Holds back what it predicts outside the range — under the minimum, or over the maximum. For saturation, under the minimum is more of a source or tag a feed already has too much of. The run log says which, and by how much. |
+| **Sort** | Puts the batch in order of the prediction, highest first; what is outside the range goes after everything inside it. |
+| **Expire** | Lets what it predicts outside the range leave sooner: an item gets less of the box's Timer the further outside it falls, either way — never less than a tenth. Inside the range, it gets the whole Timer. Needs a Timer in the box. |
 
-Set **Predicts** (the signal) and **Threshold, %** in its panel, which also says where your
-algorithm is: learned from how many items and how well it did on ones it was not shown, still
-learning, or switched off.
+Set **Predicts** (the signal) and its range — **Minimum, %** and **Maximum, %** — in its panel,
+which also says where your algorithm is: learned from how many items and how well it did on ones it
+was not shown, still learning, or switched off.
+
+A minimum alone (the maximum left at 100%) is "at least this much". A **maximum** below 100% keeps
+out what it is *too* sure of: the items it predicts you would surely open, a feed of only those, is
+the narrowing a video site's algorithm does — a maximum leaves room for something else. Both make a
+band: interest between 30% and 80%, say.
 
 ## When it does nothing
 

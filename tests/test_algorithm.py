@@ -190,7 +190,7 @@ def test_under_an_expire_box_what_it_predicts_below_leaves_sooner(db):
         known = graph.pieces_of(session)
         assert life_share(session, item(session, liked, 70), [expire], known) == 1.0
         assert life_share(session, item(session, passed, 70), [expire], known) < 0.5
-        assert algorithm.expiry_share(0.001, 50) == algorithm.SHORTEST_LIFE
+        assert algorithm.expiry_share(0.001, {"least": 50, "most": 100}) == algorithm.SHORTEST_LIFE
 
         piece = next(p for p in known(expire) if p.kind == "aggregation")
         assert algorithm.words(piece, expire) == "under 50% predicted interest leaves sooner"
@@ -347,7 +347,7 @@ def test_saturation_is_room_left_in_a_feed_against_what_you_open(db):
         assert decide(item(session, liked, 301), routes[liked.id], None, account).accept
         assert algorithm.score(session, item(session, passed, 302), piece, None) is None
         assert algorithm.words(piece, middle) == \
-            "holds back a source once it fills this feed past what you take in"
+            "lets a source in while this feed has 70% or more room for it"
 
 
 def test_saturation_of_a_tag_leaves_untagged_items_alone(db):
@@ -369,3 +369,55 @@ def test_saturation_of_a_tag_leaves_untagged_items_alone(db):
         assert algorithm.score(session, item(session, liked, 51), piece, feed.id, ["news"]) < 1.0
         with pytest.raises(ValueError, match="which tag"):
             algorithm.save(piece, {"aggregation_tag": ""})
+
+
+
+# -- ranges: a minimum and a maximum ---------------------------------------------------
+
+
+def test_a_maximum_keeps_out_what_it_is_too_sure_of(db):
+    from dealgo.services.sync.deciding import decide
+
+    with db.session_scope() as session:
+        liked, passed = two_sources(session)
+        history(session, liked, passed)
+        learned(session)
+        middle = graph.add_filter(session)
+        piece = graph.add_piece(session, kind="aggregation", host=middle)
+        algorithm.save(piece, {"aggregation_least": "0", "aggregation_most": "80"})
+        feed = graph.add_feed(session, playlist_service.create_generic(session, "Feed"))
+        for channel in (liked, passed):
+            graph.connect(session, graph.add_source(session, channel=channel), middle)
+        graph.connect(session, middle, feed)
+        routes = {route.channel.id: route for route in graph.routes(session)}
+        account = get_settings(session)
+
+        too_sure = decide(item(session, liked, 80), routes[liked.id], None, account)
+        assert not too_sure.accept and "over 80%" in too_sure.reason
+        assert decide(item(session, passed, 80), routes[passed.id], None, account).accept
+        assert algorithm.words(piece, middle) == "only what it predicts at 80% interest or less"
+
+        algorithm.save(piece, {"aggregation_least": "20", "aggregation_most": "80"})
+        assert algorithm.words(piece, middle) == "only what it predicts at 20–80% interest"
+        with pytest.raises(ValueError, match="more than the maximum"):
+            algorithm.save(piece, {"aggregation_least": "90"})
+
+
+def test_outside_the_range_either_way_leaves_sooner(db):
+    said = {"least": 30, "most": 70}
+    assert algorithm.expiry_share(0.5, said) == 1.0
+    assert algorithm.expiry_share(0.15, said) == pytest.approx(0.5)
+    assert algorithm.expiry_share(0.85, said) == pytest.approx(0.5)
+    with db.session_scope() as session:
+        expire = graph.add_stamp(session, kind="expire")
+        piece = graph.add_piece(session, kind="aggregation", host=expire)
+        algorithm.save(piece, {"aggregation_least": "30", "aggregation_most": "70"})
+        assert algorithm.words(piece, expire) == "outside 30–70% predicted interest leaves sooner"
+
+
+def test_a_piece_from_before_ranges_keeps_its_threshold_as_its_minimum(db):
+    with db.session_scope() as session:
+        piece = graph.add_piece(session, kind="aggregation")
+        piece.aggregation = '{"signal": "retention", "threshold": 65}'
+        said = algorithm.settings(piece)
+        assert (said["least"], said["most"], said["signal"]) == (65, 100, "retention")

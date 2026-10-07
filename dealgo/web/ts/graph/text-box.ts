@@ -86,7 +86,7 @@ async function writeGraphText(state: GraphState, button: HTMLElement, nodeId: st
   // The panel is drawn afresh from the answer, with what it wrote or why not.
 }
 
-/** An Aggregation piece: which signal, the threshold, and where the
+/** An Aggregation piece: which signal, its range, and where the
  *  algorithm is — learned, still learning, or switched off. */
 interface GraphAggregation {
   settings: Record<string, string | number>;
@@ -137,14 +137,18 @@ function graphAggregationFields(form: HTMLElement, node: GraphNodeView): void {
   signal.addEventListener("change", show);
   of.addEventListener("change", show);
   show();
-  form.appendChild(graphLabelled("Threshold, %", graphLeafletNumber("aggregation_threshold", value("threshold"), 0, 100)));
+  const range = graphElement("div", "graph-pair");
+  range.appendChild(graphLabelled("Minimum, %", graphLeafletNumber("aggregation_least", value("least"), 0, 100)));
+  range.appendChild(graphLabelled("Maximum, %", graphLeafletNumber("aggregation_most", value("most"), 0, 100)));
+  form.appendChild(range);
+  form.appendChild(graphElement("p", "hint", "Within the range counts. A maximum below 100% keeps out what it is too sure of — so your feed is not only ever more of the same."));
   const under = node.piece?.under == null ? "" : node.note;
   form.appendChild(
     graphElement(
       "p",
       "hint",
       node.piece?.under == null
-        ? "Loose on the canvas. Drop it on a Filter, a Sort or an Expire box. Under a Filter it holds back what it predicts below the threshold; under a Sort it puts the most predicted first; under an Expire box, what it predicts below the threshold leaves sooner."
+        ? "Loose on the canvas. Drop it on a Filter, a Sort or an Expire box. Under a Filter it holds back what it predicts outside the range; under a Sort it puts the most predicted first, what is in the range ahead of the rest; under an Expire box, what it predicts outside the range leaves sooner."
         : `Under this box: ${under}.`,
     ),
   );

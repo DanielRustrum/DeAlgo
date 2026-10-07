@@ -120,6 +120,7 @@ interface GraphTagChoosing {
   modes: GraphChoice[];
   /** One per line: `name — what it means`. */
   tags: string;
+  least: number;
   most: number;
   engine: string;
   engines: GraphChoice[];

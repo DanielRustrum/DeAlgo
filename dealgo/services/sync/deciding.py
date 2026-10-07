@@ -122,8 +122,8 @@ def decide(
         if held:
             return filters.Decision(False, f"tagged “{held[0]}”")
 
-    # The algorithm of one's own, under a Filter: what it predicts below the
-    # threshold stays out. Saying nothing — switched off, or not learned
+    # The algorithm of one's own, under a Filter: what it predicts outside
+    # the range set — under its minimum, or over its maximum — stays out. Saying nothing — switched off, or not learned
     # yet — it holds nothing back.
     for box in path.filters:
         for piece in path.slots.get(box.id, []):
@@ -136,13 +136,16 @@ def decide(
                 tagging.tags_for(session, video, path.stamps),
             ) if session is not None else None
             said = algorithm.settings(piece)
-            if predicted is not None and predicted * 100 < int(said["threshold"]):
+            if predicted is not None and not algorithm.within(predicted, said):
+                outside = (
+                    f"under {said['least']}%" if predicted * 100 < int(said["least"])
+                    else f"over {said['most']}%"
+                )
                 return filters.Decision(
                     False,
-                    f"the algorithm gives it {predicted:.0%} room in this feed, "
-                    f"under {said['threshold']}%" if said["signal"] == "saturation" else
-                    f"the algorithm predicts {predicted:.0%} {said['signal']}, "
-                    f"under {said['threshold']}%",
+                    f"the algorithm gives it {predicted:.0%} room in this feed, {outside}"
+                    if said["signal"] == "saturation" else
+                    f"the algorithm predicts {predicted:.0%} {said['signal']}, {outside}",
                 )
 
     # A published playlist holds only what its service does, so an item it
