@@ -801,7 +801,7 @@ function onGraphPointerUp(state, event) {
         if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
             const slot = graphSlotFor(state, event, true, (_d = (_c = loose.piece) === null || _c === void 0 ? void 0 : _c.hosts) !== null && _d !== void 0 ? _d : "");
             if (slot !== null && slot.under !== loose.id) {
-                void applyGraph(state, `/graph/nodes/${loose.id}/attach`, new URLSearchParams({ under: String(slot.under) }));
+                void applyGraph(state, `/graph/nodes/${loose.id}/attach`, new URLSearchParams({ under: String(slot.under), side: slot.side }));
                 return;
             }
         }
@@ -968,6 +968,16 @@ function graphKindLabel(kind) {
         return "Longer than";
     if (kind === "shorter-than")
         return "Shorter than";
+    if (kind === "pamphlet")
+        return "Pamphlet";
+    if (kind === "leaflet-feed")
+        return "Feed leaflet";
+    if (kind === "leaflet-chart")
+        return "Chart leaflet";
+    if (kind === "leaflet-text")
+        return "Text leaflet";
+    if (kind === "leaflet-link")
+        return "Link leaflet";
     if (kind === "carrying")
         return "Has tag";
     if (kind === "lacks-tag")
@@ -1140,7 +1150,9 @@ function drawGraphNode(state, node) {
         box.appendChild(graphElement("strong", "graph-node-title", node.note));
         return box;
     }
-    if (node.kind !== "trigger") {
+    // A pamphlet is on no path: nothing runs into or out of one.
+    const wired = node.kind !== "pamphlet";
+    if (node.kind !== "trigger" && wired) {
         // A channel and a withdraw are set off by a signal; everything else is
         // fed content.
         const takes = node.kind === "source" || node.kind === "withdraw" ? "signal" : "content";
@@ -1152,7 +1164,7 @@ function drawGraphNode(state, node) {
     if (node.trigger !== null)
         box.appendChild(graphFireButton(node));
     // A feed and a deposit are both ends of a path: nothing leaves either.
-    if (node.kind !== "feed" && node.kind !== "deposit") {
+    if (node.kind !== "feed" && node.kind !== "deposit" && wired) {
         const gives = node.kind === "trigger" ? "signal" : "content";
         box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
     }
@@ -1246,12 +1258,16 @@ function placeGraphPieces(state) {
         const host = (_a = node.piece) === null || _a === void 0 ? void 0 : _a.under;
         if (host === undefined || host === null)
             continue;
+        // Leaflets hang beside as well as below: they are laid out as a page.
+        if (graphIsLeaflet(node.kind))
+            continue;
         const kept = under.get(host);
         if (kept === undefined)
             under.set(host, [node]);
         else
             kept.push(node);
     }
+    placeGraphLeaflets(state);
     if (under.size === 0)
         return;
     // From the model's own coordinates, which is what every other box is drawn
@@ -1694,6 +1710,254 @@ function listenForGraphFinder(state, panel) {
 }
 
 "use strict";
+// Pamphlets and their leaflets: laying a page out on the canvas.
+//
+// A leaflet is a piece, slotted under a Pamphlet box, but it hangs from
+// either of two edges: below another, which is the next thing down that
+// column, or beside another, which is the next column to its right. So the
+// leaflets under a pamphlet are a tree rather than a chain, drawn the way the
+// page will be laid out.
+//
+// Part of the Configuration canvas; see main.ts.
+/** Whether this kind is a leaflet. */
+function graphIsLeaflet(kind) {
+    return (kind === "leaflet-feed" || kind === "leaflet-chart" ||
+        kind === "leaflet-text" || kind === "leaflet-link");
+}
+function asGraphChoices(value) {
+    if (!Array.isArray(value))
+        return [];
+    const found = [];
+    for (const entry of value) {
+        const raw = asGraphRecord(entry);
+        if (raw === null || typeof raw["name"] !== "string")
+            continue;
+        found.push({
+            name: raw["name"],
+            label: typeof raw["label"] === "string" ? raw["label"] : raw["name"],
+        });
+    }
+    return found;
+}
+function asGraphLeaflet(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const settings = {};
+    const given = asGraphRecord(raw["settings"]);
+    if (given !== null) {
+        for (const [key, one] of Object.entries(given)) {
+            if (typeof one === "string" || typeof one === "number" || one === null)
+                settings[key] = one;
+        }
+    }
+    const feeds = [];
+    if (Array.isArray(raw["feeds"])) {
+        for (const entry of raw["feeds"]) {
+            const feed = asGraphRecord(entry);
+            if (feed === null || typeof feed["id"] !== "number")
+                continue;
+            feeds.push({ id: feed["id"], title: typeof feed["title"] === "string" ? feed["title"] : "" });
+        }
+    }
+    return {
+        settings,
+        feeds,
+        charts: asGraphChoices(raw["charts"]),
+        goes: asGraphChoices(raw["goes"]),
+    };
+}
+function asGraphPamphlet(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    return {
+        url: typeof raw["url"] === "string" ? raw["url"] : "",
+        default: raw["default"] === true,
+    };
+}
+/** Every leaflet that hangs from something, by what and which edge: one per edge. */
+function graphHanging(state) {
+    const hanging = new Map();
+    const leaflets = state.nodes
+        .filter((node) => { var _a; return graphIsLeaflet(node.kind) && ((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) != null; })
+        .sort((a, b) => a.id - b.id);
+    for (const node of leaflets) {
+        const piece = node.piece;
+        if (piece === null || piece.under === null)
+            continue;
+        const key = `${piece.under}:${piece.side}`;
+        if (!hanging.has(key))
+            hanging.set(key, node);
+    }
+    return hanging;
+}
+/** Lay out every pamphlet's leaflets: a column under each leaflet, the next
+ *  column beside it — far enough along to clear everything below the one
+ *  before, so a column that splits into columns of its own never overlaps
+ *  the next. Measured, as every piece is, once they are in the document. */
+function placeGraphLeaflets(state) {
+    const hanging = graphHanging(state);
+    if (hanging.size === 0)
+        return;
+    const at = (id, side) => hanging.get(`${id}:${side}`);
+    const width = (node) => { var _a; var _b; return (_b = (_a = state.boxes.get(node.id)) === null || _a === void 0 ? void 0 : _a.offsetWidth) !== null && _b !== void 0 ? _b : 0; };
+    const most = 60; // deeper than any page; a ring built before they were refused
+    const rowWidth = (first, depth) => {
+        let total = 0;
+        let walk = first;
+        for (let step = 0; walk !== undefined && depth + step < most; step += 1) {
+            total += columnWidth(walk, depth + step + 1);
+            walk = at(walk.id, "beside");
+        }
+        return total;
+    };
+    const columnWidth = (node, depth) => depth > most ? 0 : Math.max(width(node), rowWidth(at(node.id, "below"), depth + 1));
+    const seen = new Set();
+    const placeRow = (first, left, top, depth) => {
+        let walk = first;
+        let x = left;
+        while (walk !== undefined && !seen.has(walk.id) && depth < most) {
+            seen.add(walk.id);
+            const box = state.boxes.get(walk.id);
+            if (box === undefined)
+                return;
+            box.dataset["host"] = "pamphlet";
+            box.style.left = `${x}px`;
+            box.style.top = `${top}px`;
+            walk.x = x;
+            walk.y = top;
+            const below = at(walk.id, "below");
+            const beside = at(walk.id, "beside");
+            box.classList.toggle("has-piece", below !== undefined);
+            box.classList.toggle("has-beside", beside !== undefined);
+            placeRow(below, x, top + box.offsetHeight, depth + 1);
+            x += columnWidth(walk, depth + 1);
+            walk = beside;
+        }
+    };
+    for (const node of state.nodes) {
+        if (node.kind !== "pamphlet")
+            continue;
+        const box = state.boxes.get(node.id);
+        const first = at(node.id, "below");
+        if (box === undefined || first === undefined)
+            continue;
+        box.classList.add("has-piece");
+        placeRow(first, node.x, node.y + box.offsetHeight, 0);
+    }
+}
+/** Every empty edge a leaflet could be dropped on: below a pamphlet with
+ *  nothing under it yet, and below or beside any leaflet already on one. */
+function graphLeafletSlots(state) {
+    var _a;
+    const hanging = graphHanging(state);
+    const found = [];
+    for (const node of state.nodes) {
+        const box = state.boxes.get(node.id);
+        if (box === undefined)
+            continue;
+        const onPage = node.kind === "pamphlet" || (graphIsLeaflet(node.kind) && ((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) != null);
+        if (!onPage)
+            continue;
+        if (!hanging.has(`${node.id}:below`)) {
+            found.push({
+                under: node.id, side: "below",
+                x: node.x, y: node.y + box.offsetHeight, width: box.offsetWidth, height: 0,
+            });
+        }
+        if (node.kind !== "pamphlet" && !hanging.has(`${node.id}:beside`)) {
+            found.push({
+                under: node.id, side: "beside",
+                x: node.x + box.offsetWidth, y: node.y, width: 0, height: box.offsetHeight,
+            });
+        }
+    }
+    return found;
+}
+/** A Pamphlet box's panel: where its page is. Its name is the page's title. */
+function graphPamphletFields(form, node) {
+    var _a;
+    form.appendChild(graphElement("p", "hint", "Slot leaflets under this box to lay out its page: below one another for a column, beside one another for columns side by side."));
+    if (((_a = node.pamphlet) === null || _a === void 0 ? void 0 : _a.default) === true) {
+        form.appendChild(graphElement("p", "hint", "The Pamphlets tab opens on this one."));
+    }
+}
+/** A select of choices, with one picked. */
+function graphLeafletSelect(name, choices, picked, none = "") {
+    const select = document.createElement("select");
+    select.name = name;
+    const all = none === "" ? choices : [{ name: "", label: none }, ...choices];
+    for (const choice of all) {
+        const option = document.createElement("option");
+        option.value = choice.name;
+        option.textContent = choice.label;
+        option.selected = choice.name === picked;
+        select.appendChild(option);
+    }
+    return select;
+}
+function graphLeafletText(name, value, placeholder = "") {
+    const field = document.createElement("input");
+    field.type = "text";
+    field.name = name;
+    field.value = value;
+    field.placeholder = placeholder;
+    return field;
+}
+function graphLeafletNumber(name, value, least, most) {
+    const field = document.createElement("input");
+    field.type = "number";
+    field.name = name;
+    field.value = value;
+    field.min = String(least);
+    field.max = String(most);
+    return field;
+}
+/** A leaflet's panel: what this block of the page shows. */
+function graphLeafletFields(form, node) {
+    var _a;
+    const leaflet = node.leaflet;
+    if (leaflet === null)
+        return;
+    if (((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null) {
+        form.appendChild(graphElement("p", "hint", "Loose on the canvas. Drop it under a Pamphlet box, or below or beside another leaflet."));
+    }
+    const said = (key) => {
+        const value = leaflet.settings[key];
+        return value === null || value === undefined ? "" : String(value);
+    };
+    const feeds = leaflet.feeds.map((feed) => ({ name: String(feed.id), label: feed.title }));
+    if (node.kind === "leaflet-feed") {
+        form.appendChild(graphLabelled("Feed", graphLeafletSelect("leaflet_feed", feeds, said("feed"), "Pick a feed")));
+        form.appendChild(graphLabelled("How many", graphLeafletNumber("leaflet_count", said("count"), 1, 60)));
+        form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
+    }
+    else if (node.kind === "leaflet-chart") {
+        form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
+        form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
+        form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
+        form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only."));
+    }
+    else if (node.kind === "leaflet-text") {
+        form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
+        const body = document.createElement("textarea");
+        body.name = "leaflet_body";
+        body.rows = 5;
+        body.value = said("body");
+        form.appendChild(graphLabelled("Words", body));
+        form.appendChild(graphElement("p", "hint", "A blank line starts a new paragraph."));
+    }
+    else if (node.kind === "leaflet-link") {
+        form.appendChild(graphLabelled("Goes to", graphLeafletSelect("leaflet_goes", leaflet.goes, said("goes"))));
+        form.appendChild(graphLabelled("Feed", graphLeafletSelect("leaflet_feed", feeds, said("feed"), "Everything")));
+        form.appendChild(graphLabelled("Address", graphLeafletText("leaflet_url", said("url"), "https://")));
+        form.appendChild(graphLabelled("Says", graphLeafletText("leaflet_label", said("label"), "worked out from where it goes")));
+        form.appendChild(graphElement("p", "hint", "Focus with no feed picked goes through everything."));
+    }
+}
+
+"use strict";
 // What the canvas draws: the kinds of box, and what each kind may do.
 //
 // Part of the Configuration canvas; see main.ts.
@@ -1707,13 +1971,13 @@ function graphConditionKinds() {
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
     return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
-        kind === "after-watch" ||
+        kind === "after-watch" || graphIsLeaflet(kind) ||
         kind === "rule" || graphConditionKinds().indexOf(kind) >= 0);
 }
 /** Which boxes have somewhere for a piece to go. */
 function graphTakesPieces(kind) {
     return (kind === "feed" || kind === "decay" || kind === "expire" ||
-        kind === "filter" || kind === "sort");
+        kind === "filter" || kind === "sort" || kind === "pamphlet");
 }
 
 "use strict";
@@ -1825,6 +2089,9 @@ function graphSlots(state, held = false, under = "") {
         // its own chain rather than starting a second one.
         if (node.kind === "group" || node.piece !== null)
             continue;
+        // A pamphlet's leaflets are a tree, with slots of their own.
+        if (node.kind === "pamphlet")
+            continue;
         // A box that ignores what is slotted into it is not somewhere a piece
         // goes: offering a slot under a source box would be an invitation to
         // nothing. The same list the notch is drawn from.
@@ -1846,11 +2113,15 @@ function graphSlots(state, held = false, under = "") {
             continue;
         found.push({
             under: last.id,
+            side: "below",
             x: last.x,
             y: last.y + box.offsetHeight,
             width: box.offsetWidth,
+            height: 0,
         });
     }
+    if (!held || graphPieceGoesUnder("pamphlet", under))
+        found.push(...graphLeafletSlots(state));
     return found;
 }
 /** The slot a piece being dragged would drop into, if any. */
@@ -1862,7 +2133,7 @@ function graphSlotFor(state, event, held = false, under = "") {
         // Measured to the slot's middle, so a box is easiest to hit from
         // directly below it and hardest from off to one side.
         const dx = at.x - (slot.x + slot.width / 2);
-        const dy = at.y - slot.y;
+        const dy = at.y - (slot.y + slot.height / 2);
         const away = Math.sqrt(dx * dx + dy * dy);
         if (away < best) {
             best = away;
@@ -1897,6 +2168,8 @@ function showGraphSlot(state, wanted) {
     marker.style.left = `${wanted.x}px`;
     marker.style.top = `${wanted.y}px`;
     marker.style.width = `${wanted.width}px`;
+    marker.style.height = wanted.side === "beside" ? `${wanted.height}px` : "";
+    marker.classList.toggle("is-beside", wanted.side === "beside");
 }
 /** The outline drawn where a piece would land. Made once and kept. */
 function graphSlotMarker(state) {
@@ -1917,8 +2190,7 @@ function hideGraphSlot(state) {
 }
 /** Drop a palette row: a new box where it landed, or a piece into its slot. */
 function finishGraphDrop(state, event) {
-    var _a;
-    var _b;
+    var _a, _b;
     const dropping = state.dropping;
     if (dropping === null || dropping.pointerId !== event.pointerId)
         return;
@@ -1934,18 +2206,20 @@ function finishGraphDrop(state, event) {
     // A piece goes into the slot it was nearest, rather than lying where it
     // landed. Dropped nowhere near one it is simply a piece on the canvas,
     // which can be picked up and put somewhere.
-    const onto = graphIsPiece(dropping.kind)
-        ? ((_b = (_a = graphSlotFor(state, event, true, dropping.under)) === null || _a === void 0 ? void 0 : _a.under) !== null && _b !== void 0 ? _b : null)
+    const slot = graphIsPiece(dropping.kind)
+        ? graphSlotFor(state, event, true, dropping.under)
         : null;
-    void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which, onto);
+    void dropGraphNode(state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30), dropping.which, (_a = slot === null || slot === void 0 ? void 0 : slot.under) !== null && _a !== void 0 ? _a : null, (_b = slot === null || slot === void 0 ? void 0 : slot.side) !== null && _b !== void 0 ? _b : "below");
 }
 /** Make a box of this kind, at this spot in the drawing. */
-async function dropGraphNode(state, kind, x, y, which = "", onto = null) {
+async function dropGraphNode(state, kind, x, y, which = "", onto = null, side = "below") {
     toggleGraphPalette(state, false);
     const before = state.nodes;
     const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
-    if (onto !== null)
+    if (onto !== null) {
         asking.set("attach_to", String(onto));
+        asking.set("side", side);
+    }
     // The same word off the palette row, sent under whichever name the kind
     // being made reads it by.
     if (which !== "")
@@ -2176,6 +2450,10 @@ function graphNodeForm(state, node) {
         graphConditionFields(form, node, node.condition);
     else if (node.kind === "rule")
         graphPluginFields(form, node);
+    else if (node.leaflet !== null)
+        graphLeafletFields(form, node);
+    else if (node.kind === "pamphlet")
+        graphPamphletFields(form, node);
     else if (node.stamp !== null)
         graphStampFields(form, node);
     else if (node.piece !== null)
@@ -2828,6 +3106,11 @@ function asGraphNodeKind(value) {
         value === "sort" ||
         value === "feed" ||
         value === "group" ||
+        value === "pamphlet" ||
+        value === "leaflet-feed" ||
+        value === "leaflet-chart" ||
+        value === "leaflet-text" ||
+        value === "leaflet-link" ||
         value === "deposit" ||
         value === "withdraw" ||
         value === "timer" ||
@@ -2885,6 +3168,8 @@ function asGraphNode(value) {
         condition: asGraphCondition(raw["condition"]),
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
+        leaflet: asGraphLeaflet(raw["leaflet"]),
+        pamphlet: asGraphPamphlet(raw["pamphlet"]),
     };
 }
 /** What an empty source box asks to be told. */
@@ -2909,6 +3194,7 @@ function asGraphPiece(value) {
     const under = raw["under"];
     return {
         under: typeof under === "number" ? under : null,
+        side: raw["side"] === "beside" ? "beside" : "below",
         minutes: typeof raw["minutes"] === "number" ? raw["minutes"] : 30,
         cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
         from: typeof raw["from"] === "string" ? raw["from"] : "",

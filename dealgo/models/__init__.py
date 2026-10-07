@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .account import LoginSession, User
 from .base import Base
-from .canvas import CONDITION_LABELS, GraphEdge, GraphNode
+from .canvas import CONDITION_LABELS, LEAFLET_LABELS, GraphEdge, GraphNode
 from .feed import (
     GENERIC_ITEM_PREFIX,
     GENERIC_PLAYLIST_PREFIX,
@@ -34,6 +34,7 @@ __all__ = [
     "Channel",
     "channel_playlist",
     "CONDITION_LABELS",
+    "LEAFLET_LABELS",
     "GENERIC_ITEM_PREFIX",
     "GENERIC_PLAYLIST_PREFIX",
     "GraphEdge",

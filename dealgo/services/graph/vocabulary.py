@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .conditions import CONDITION_KINDS, RULE
+from .leaflets import LEAFLET_KINDS
 
 #: The box kinds that read what is slotted under them. A feed reads a Timer
 #: as a sitting and a Reset as when it comes back; a Decay reads a Timer as
@@ -12,7 +13,7 @@ from .conditions import CONDITION_KINDS, RULE
 #: whatever ones the plugins declared — and a Sort reads an Order.
 #: Every other kind ignores a piece entirely, which is why only these are
 #: drawn with somewhere for one to go.
-SLOTTED = ("feed", "decay", "expire", "filter", "sort")
+SLOTTED = ("feed", "decay", "expire", "filter", "sort", "pamphlet")
 
 
 #: The boxes that mark what goes through them. On a path like a filter, but
@@ -31,13 +32,14 @@ STAMPS = ("decay", "expire", "tag")
 #: "piece" is what one looks like.
 AUGMENTATIONS: tuple[str, ...] = (
     ("timer", "reset", "alive", "lock", "after-watch") + CONDITION_KINDS + (RULE,)
+    + LEAFLET_KINDS
 )
 
 
 #: What each box is called where one is named out loud.
 BOX_NAMES: dict[str, str] = {
     "feed": "Feed", "filter": "Filter", "sort": "Sort",
-    "decay": "Decay", "expire": "Expire",
+    "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet",
 }
 
 
@@ -63,6 +65,10 @@ ENDS = ("feed", "deposit")
 ALLOWED: dict[str, tuple[str, ...]] = {
     # A group is not on any path: it surrounds, it does not carry.
     "group": (),
+    # A page of its own, laid out by the leaflets slotted under it. Nothing
+    # runs through it: what it shows, it reads when the page is opened.
+    "pamphlet": (),
+    **{kind: () for kind in LEAFLET_KINDS},
     # Into a channel it says when to poll; into a feed it says when that feed
     # may be read; into a withdraw it says when to pull. A trigger carries no
     # content any of those ways.

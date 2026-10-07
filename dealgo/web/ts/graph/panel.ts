@@ -202,6 +202,8 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   // before the broad ones.
   else if (node.condition !== null) graphConditionFields(form, node, node.condition);
   else if (node.kind === "rule") graphPluginFields(form, node);
+  else if (node.leaflet !== null) graphLeafletFields(form, node);
+  else if (node.kind === "pamphlet") graphPamphletFields(form, node);
   else if (node.stamp !== null) graphStampFields(form, node);
   else if (node.piece !== null) graphPieceFields(form, node);
   else if (node.store !== null) graphStoreFields(form, node.store);

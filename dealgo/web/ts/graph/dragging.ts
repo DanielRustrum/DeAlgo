@@ -399,7 +399,7 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
         void applyGraph(
           state,
           `/graph/nodes/${loose.id}/attach`,
-          new URLSearchParams({ under: String(slot.under) }),
+          new URLSearchParams({ under: String(slot.under), side: slot.side }),
         );
         return;
       }

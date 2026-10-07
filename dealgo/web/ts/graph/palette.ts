@@ -83,9 +83,13 @@ function graphSlotReach(): number {
  *  box itself when there is none — and carrying where that slot is drawn. */
 interface GraphSlot {
   under: number;
+  /** Which edge: below, or — for a leaflet — beside, the next column. */
+  side: "below" | "beside";
   x: number;
   y: number;
+  /** A slot below is a line across; one beside is a line down. */
   width: number;
+  height: number;
 }
 
 /** Whether a piece belongs under this kind of box.
@@ -124,6 +128,8 @@ function graphSlots(
     // A group is a background, and a piece belongs to the box at the top of
     // its own chain rather than starting a second one.
     if (node.kind === "group" || node.piece !== null) continue;
+    // A pamphlet's leaflets are a tree, with slots of their own.
+    if (node.kind === "pamphlet") continue;
     // A box that ignores what is slotted into it is not somewhere a piece
     // goes: offering a slot under a source box would be an invitation to
     // nothing. The same list the notch is drawn from.
@@ -142,11 +148,14 @@ function graphSlots(
     if (box === undefined) continue;
     found.push({
       under: last.id,
+      side: "below",
       x: last.x,
       y: last.y + box.offsetHeight,
       width: box.offsetWidth,
+      height: 0,
     });
   }
+  if (!held || graphPieceGoesUnder("pamphlet", under)) found.push(...graphLeafletSlots(state));
   return found;
 }
 
@@ -161,7 +170,7 @@ function graphSlotFor(
     // Measured to the slot's middle, so a box is easiest to hit from
     // directly below it and hardest from off to one side.
     const dx = at.x - (slot.x + slot.width / 2);
-    const dy = at.y - slot.y;
+    const dy = at.y - (slot.y + slot.height / 2);
     const away = Math.sqrt(dx * dx + dy * dy);
     if (away < best) {
       best = away;
@@ -201,6 +210,8 @@ function showGraphSlot(state: GraphState, wanted: GraphSlot | null): void {
   marker.style.left = `${wanted.x}px`;
   marker.style.top = `${wanted.y}px`;
   marker.style.width = `${wanted.width}px`;
+  marker.style.height = wanted.side === "beside" ? `${wanted.height}px` : "";
+  marker.classList.toggle("is-beside", wanted.side === "beside");
 }
 
 /** The outline drawn where a piece would land. Made once and kept. */
@@ -239,12 +250,12 @@ function finishGraphDrop(state: GraphState, event: PointerEvent): void {
   // A piece goes into the slot it was nearest, rather than lying where it
   // landed. Dropped nowhere near one it is simply a piece on the canvas,
   // which can be picked up and put somewhere.
-  const onto = graphIsPiece(dropping.kind as GraphNodeKind)
-    ? (graphSlotFor(state, event, true, dropping.under)?.under ?? null)
+  const slot = graphIsPiece(dropping.kind as GraphNodeKind)
+    ? graphSlotFor(state, event, true, dropping.under)
     : null;
   void dropGraphNode(
     state, dropping.kind, Math.round(at.x - 100), Math.round(at.y - 30),
-    dropping.which, onto,
+    dropping.which, slot?.under ?? null, slot?.side ?? "below",
   );
 }
 
@@ -256,11 +267,15 @@ async function dropGraphNode(
   y: number,
   which = "",
   onto: number | null = null,
+  side: "below" | "beside" = "below",
 ): Promise<void> {
   toggleGraphPalette(state, false);
   const before = state.nodes;
   const asking = new URLSearchParams({ kind, x: String(x), y: String(y) });
-  if (onto !== null) asking.set("attach_to", String(onto));
+  if (onto !== null) {
+    asking.set("attach_to", String(onto));
+    asking.set("side", side);
+  }
   // The same word off the palette row, sent under whichever name the kind
   // being made reads it by.
   if (which !== "") asking.set(kind === "source" ? "source_kind" : "plugin_node", which);

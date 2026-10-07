@@ -98,6 +98,7 @@ def graph_add_node(
     plugin_node: str = Form(""),
     source_kind: str = Form(""),
     attach_to: str = Form(""),
+    side: str = Form("below"),
     x: int = Form(0),
     y: int = Form(0),
 ) -> JSONResponse:
@@ -124,13 +125,17 @@ def graph_add_node(
                 session, owner, kind=kind, marks=title.strip(), x=x, y=y
             )
         elif kind in graph_service.AUGMENTATIONS:
-            refused = _add_piece_box(session, owner, kind, plugin_node, attach_to, x=x, y=y)
+            refused = _add_piece_box(
+                session, owner, kind, plugin_node, attach_to, side=side, x=x, y=y
+            )
         elif kind in ("deposit", "withdraw"):
             graph_service.add_store(
                 session, owner, kind=kind, repository=title.strip(), x=x, y=y
             )
         elif kind == "group":
             graph_service.add_group(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "pamphlet":
+            graph_service.add_pamphlet(session, owner, label=title.strip(), x=x, y=y)
         elif kind in graph_service.TRIGGER_KINDS:
             graph_service.add_trigger(
                 session, owner, trigger_kind=kind, label=title.strip(), x=x, y=y
@@ -175,6 +180,7 @@ def _add_piece_box(
     plugin_node: str,
     attach_to: str,
     *,
+    side: str = "below",
     x: int,
     y: int,
 ) -> JSONResponse | None:
@@ -203,7 +209,7 @@ def _add_piece_box(
         asked = {one.name: one.default for one in box.fields if one.default}
     try:
         graph_service.add_piece(
-            session, owner, kind=kind, host=host, ref=ref, settings=asked, x=x, y=y,
+            session, owner, kind=kind, host=host, ref=ref, settings=asked, side=side, x=x, y=y,
         )
     except graph_service.GraphError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
@@ -211,7 +217,9 @@ def _add_piece_box(
 
 
 @router.post("/graph/nodes/{node_pk}/attach")
-def graph_attach(request: Request, node_pk: int, under: str = Form("")) -> JSONResponse:
+def graph_attach(
+    request: Request, node_pk: int, under: str = Form(""), side: str = Form("below")
+) -> JSONResponse:
     """Slot a piece that is already on the canvas into a box, or take it out.
 
     The other way a piece gets slotted in. Dragging one out of the palette
@@ -239,7 +247,7 @@ def graph_attach(request: Request, node_pk: int, under: str = Form("")) -> JSONR
         if host is None:
             return JSONResponse({"error": "That box is not here."}, status_code=404)
         try:
-            graph_service.attach(session, piece, host, owner)
+            graph_service.attach(session, piece, host, owner, side=side)
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(graph_payload(session, owner))

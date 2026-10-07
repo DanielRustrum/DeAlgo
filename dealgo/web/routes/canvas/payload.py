@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from ....models import GraphNode
 from ....services import channels as channel_service
+from ....db import get_settings
 from ....services import graph as graph_service
+from ....services import playlists as playlist_service
 from ....services.scope import OwnerId
 from ...templates import Context
 from .facts import (
@@ -77,6 +79,10 @@ class _Canvas:
     hosts: dict[int, GraphNode | None]
     #: Every tag there is, for a tag condition to offer.
     tags: list[str]
+    #: Every feed, by id, for a leaflet to be pointed at and to name.
+    feeds: dict[int, str]
+    #: The pamphlet the Pamphlets tab opens on, if one is chosen.
+    default_pamphlet: int | None
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
@@ -106,11 +112,51 @@ class _Canvas:
                 if node.kind in graph_service.AUGMENTATIONS
             },
             tags=known_tags(session, nodes, owner),
+            feeds={
+                playlist.id: playlist.title or playlist.playlist_id
+                for playlist in playlist_service.list_playlists(session, owner)
+            },
+            default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
         )
 
 
 def _node(node: GraphNode, canvas: _Canvas) -> Context:
     """One box or piece, as the canvas draws it."""
+    drawn = _drawn(node, canvas)
+    if node.kind in graph_service.LEAFLET_KINDS:
+        if node.attached_to is not None:
+            drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)
+        drawn["leaflet"] = _leaflet(node, canvas)
+    elif node.kind == "pamphlet":
+        drawn["note"] = _pamphlet_note(canvas.slotted.get(node.id, []))
+        drawn["detail"] = f"/pamphlets/{node.id}"
+        drawn["pamphlet"] = {
+            "url": f"/pamphlets/{node.id}",
+            "default": canvas.default_pamphlet == node.id,
+        }
+    return drawn
+
+
+def _leaflet(node: GraphNode, canvas: _Canvas) -> Context:
+    """What a leaflet is set to, and what its panel offers to choose from."""
+    leaflets = graph_service.leaflets
+    return {
+        "settings": leaflets.settings(node),
+        "feeds": [{"id": pk, "title": title} for pk, title in canvas.feeds.items()],
+        "charts": [{"name": name, "label": label} for name, label in leaflets.CHARTS],
+        "goes": [{"name": name, "label": label} for name, label in leaflets.GOES],
+    }
+
+
+def _pamphlet_note(pieces: list[GraphNode]) -> str:
+    """How much page a Pamphlet box has."""
+    count = sum(1 for one in pieces if one.kind in graph_service.LEAFLET_KINDS)
+    if not count:
+        return "slot leaflets under it to lay out its page"
+    return f"{count} leaflet{'s' if count != 1 else ''} · on the Pamphlets tab"
+
+
+def _drawn(node: GraphNode, canvas: _Canvas) -> Context:
     return {
         "id": node.id,
         "kind": node.kind,
@@ -191,6 +237,8 @@ def _piece(node: GraphNode) -> Context | None:
         return None
     return {
         "under": node.attached_to,
+        # Which edge it hangs from: a leaflet can hang beside another.
+        "side": graph_service.leaflets.side_of(node),
         "minutes": node.duration_minutes or graph_service.DEFAULT_DURATION_MINUTES,
         "cron": node.cron or graph_service.DEFAULT_CRON,
         "from": graph_service.clock_time(node.alive_from),

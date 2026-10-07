@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_garden.html" import page_head with context %}
+{% block title %}De-Algo — Pamphlets{% endblock %}
+{% block content %}
+{{ page_head('Pamphlets', 'Pages of your own, laid out on the canvas.') }}
+
+{% if tiles %}
+<ul class="shelf-grid pamphlet-tiles">
+  {% for tile in tiles %}
+  <li class="pamphlet-tile {{ 'is-default' if tile.default }}">
+    <a class="pamphlet-tile-link" href="/pamphlets/{{ tile.node.id }}">
+      <span class="pamphlet-tile-title">{{ tile.node.title }}</span>
+      <span class="pamphlet-tile-meta">
+        {{ tile.leaflets }} leaflet{{ 's' if tile.leaflets != 1 }}{% if tile.default %} · opens first{% endif %}
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<section class="panel">
+  <p class="empty">
+    No pamphlets yet. On the <a href="/channels">Configuration</a> canvas, drag a
+    <strong>Pamphlet</strong> box out of the palette, then slot leaflets under it — below one
+    another for a column, beside one another for columns side by side.
+  </p>
+</section>
+{% endif %}
+{% endblock %}

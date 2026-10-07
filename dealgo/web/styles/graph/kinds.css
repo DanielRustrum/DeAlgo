@@ -18,6 +18,8 @@
   &.kind-withdraw { --kind-colour: var(--kind-store); }
   &.kind-feed { --kind-colour: var(--kind-feed); }
   &.kind-group { --kind-colour: var(--line); }
+  /* A page, and the blocks of it: a colour of their own, apart from the flow. */
+  &.kind-pamphlet { --kind-colour: var(--leaf); }
 
   /* The augmentations, a plugin's conditions among them. */
   &.kind-timer,
@@ -50,4 +52,5 @@
   &[data-host="sort"] { --kind-colour: var(--kind-sort); }
   &[data-host="decay"],
   &[data-host="expire"] { --kind-colour: var(--kind-stamp); }
+  &[data-host="pamphlet"] { --kind-colour: var(--leaf); }
 }

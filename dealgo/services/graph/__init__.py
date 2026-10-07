@@ -38,6 +38,7 @@ from __future__ import annotations
 from .adding import (
     add_feed,
     add_filter,
+    add_pamphlet,
     add_piece,
     add_sort,
     add_source,
@@ -63,6 +64,8 @@ from .groups import (
     update_group,
 )
 from .names import store_name, tag_name, tag_names
+from . import leaflets
+from .leaflets import LEAFLET_KINDS
 from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, pieces_under
 from .reading import channels_of, edges, nodes
 from .report import Judged, filter_report
@@ -99,6 +102,7 @@ __all__ = [
     "add_feed",
     "add_filter",
     "add_group",
+    "add_pamphlet",
     "add_piece",
     "add_sort",
     "add_source",
@@ -106,6 +110,8 @@ __all__ = [
     "add_store",
     "add_trigger",
     "attach",
+    "leaflets",
+    "LEAFLET_KINDS",
     "attach_channel",
     "AUGMENTATIONS",
     "begin_sitting",

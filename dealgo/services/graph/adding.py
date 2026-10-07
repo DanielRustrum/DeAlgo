@@ -68,10 +68,12 @@ def add_piece(
     settings: dict[str, str] | None = None,
     sort_by: str = "",
     newest_first: bool = True,
+    side: str = "below",
     x: int = 0,
     y: int = 0,
 ) -> GraphNode:
-    """An augmentation, slotted under a box if one was named.
+    """An augmentation, slotted under a box if one was named — or, for a
+    leaflet, beside another if that is the side it was dropped on.
 
     Its own position is kept for the moment it is unslotted: a piece that is
     attached is drawn under its host and does not use it, but a piece nobody
@@ -110,7 +112,7 @@ def add_piece(
         # "that goes under a Sort" would leave the thing it refused lying on
         # the canvas, which is a refusal that did half of what was asked.
         try:
-            attach(session, piece, host, owner)
+            attach(session, piece, host, owner, side=side)
         except GraphError:
             session.delete(piece)
             session.flush()
@@ -271,6 +273,17 @@ def add_trigger(
         x=max(0, x),
         y=max(0, y),
     )
+    session.add(node)
+    session.flush()
+    return node
+
+
+def add_pamphlet(
+    session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
+) -> GraphNode:
+    """A Pamphlet box: a page under the Pamphlets tab, laid out by the
+    leaflets slotted under it."""
+    node = GraphNode(owner_pk=owner, kind="pamphlet", label=label.strip()[:120], x=x, y=y)
     session.add(node)
     session.flush()
     return node

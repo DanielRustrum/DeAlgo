@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -18,6 +19,7 @@ from ...models import (
 from .. import ordering
 from ..scope import OwnerId, owned
 from .adding import (
+    add_pamphlet,
     add_feed,
     add_filter,
     add_piece,
@@ -27,8 +29,10 @@ from .adding import (
     add_store,
     add_trigger,
 )
+from . import leaflets
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, condition, conditions_for
 from .errors import GraphError
+from .leaflets import LEAFLET_KINDS
 from .pieces import attach
 from .reading import nodes
 from .vocabulary import AUGMENTATIONS, GROUP_LEAST, GROUP_SIZE, STAMPS
@@ -87,6 +91,13 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             node.group_key = _new_key()
     session.flush()
 
+    # A leaflet showing a feed in the group travels pointing at that feed's
+    # box, since a feed's id means nothing to the account loading the file.
+    feed_refs = {
+        node.playlist_pk: refs[node.id] for node in carried
+        if node.kind == "feed" and node.playlist_pk is not None
+    }
+
     packed: list[dict[str, Any]] = []
     for node in carried:
         entry: dict[str, Any] = {
@@ -102,6 +113,13 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             # A piece travels as what it is slotted under, not as where it
             # happens to lie: the assembly is the thing being handed over.
             entry["under"] = refs[node.attached_to]
+        if node.kind in LEAFLET_KINDS:
+            entry["side"] = leaflets.side_of(node)
+            shown = leaflets.settings(node)
+            feed = shown.pop("feed", None)
+            if feed in feed_refs:
+                entry["feed_ref"] = feed_refs[feed]
+            entry["leaflet"] = shown
         if node.kind == "source" and node.channel is not None:
             entry["channel_id"] = node.channel.channel_id
             entry["title"] = node.channel.title
@@ -225,20 +243,39 @@ def import_group(
     # before what it goes under. A piece that refuses to go where the file
     # says is left lying on the canvas rather than dropped.
     for entry in payload.get("nodes") or []:
-        if not isinstance(entry, dict) or "under" not in entry:
-            continue
-        piece = made.get(int(entry.get("ref", -1)))
-        host = made.get(int(entry.get("under", -1)))
-        if piece is None or host is None:
-            continue
-        try:
-            attach(session, piece, host, owner)
-        except GraphError:
-            continue
+        if isinstance(entry, dict):
+            _slot(session, entry, made, owner)
     session.flush()
 
     _slot_and_wire(session, payload, made, owner, slot=False)
     return group
+
+
+def _slot(
+    session: Session, entry: dict[str, Any], made: dict[int, GraphNode], owner: OwnerId
+) -> None:
+    """Slot one piece where the file says, and point a leaflet at its feed.
+
+    Refused slots leave the piece lying on the canvas rather than dropped.
+    """
+    piece = made.get(int(entry.get("ref", -1)))
+    if piece is None:
+        return
+    if piece.kind in LEAFLET_KINDS and "feed_ref" in entry:
+        feed = made.get(int(entry.get("feed_ref", -1)))
+        if feed is not None and feed.playlist_pk is not None:
+            shown = leaflets.settings(piece)
+            shown["feed"] = feed.playlist_pk
+            piece.leaflet = json.dumps(shown, sort_keys=True)
+    if "under" not in entry:
+        return
+    host = made.get(int(entry.get("under", -1)))
+    if host is None or (piece.attached_to == host.id and piece.kind not in LEAFLET_KINDS):
+        return
+    try:
+        attach(session, piece, host, owner, side=str(entry.get("side") or "below"))
+    except GraphError:
+        return
 
 
 def _slot_and_wire(
@@ -258,16 +295,8 @@ def _slot_and_wire(
     """
     if slot:
         for entry in payload.get("nodes") or []:
-            if not isinstance(entry, dict) or "under" not in entry:
-                continue
-            piece = made.get(int(entry.get("ref", -1)))
-            host = made.get(int(entry.get("under", -1)))
-            if piece is None or host is None or piece.attached_to == host.id:
-                continue
-            try:
-                attach(session, piece, host, owner)
-            except GraphError:
-                continue
+            if isinstance(entry, dict):
+                _slot(session, entry, made, owner)
         session.flush()
     for pair in payload.get("wires") or []:
         if not isinstance(pair, list) or len(pair) != 2:
@@ -325,6 +354,16 @@ def _apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owne
         node.alive_to = str(entry.get("alive_to") or "") or None
     elif kind in STAMPS:
         node.marks = str(entry.get("marks") or "")
+    elif kind in LEAFLET_KINDS and isinstance(entry.get("leaflet"), dict):
+        # What it shows, but its feed: that is put back once the feed's box
+        # exists, by `_slot`.
+        shown = leaflets.settings(node)
+        feed = shown.get("feed")
+        for key, value in entry["leaflet"].items():
+            if key in shown and key != "feed" and (value is None or isinstance(value, (str, int))):
+                shown[key] = value
+        shown["feed"] = feed
+        node.leaflet = json.dumps(shown, sort_keys=True)
     elif kind in ("deposit", "withdraw"):
         node.repository = str(entry.get("repository") or "")
         node.takes = entry.get("takes")
@@ -453,6 +492,7 @@ def update_group(
     for node in made.values():
         if node.kind in AUGMENTATIONS and node.attached_to is not None:
             node.attached_to = None
+            node.attached_side = None
     session.flush()
     _slot_and_wire(session, payload, made, owner)
 
@@ -525,6 +565,9 @@ def _unpack(
 
     if kind in CONDITION_KINDS:
         return _unpack_condition(session, entry, owner, kind=kind, at=at)
+
+    if kind == "pamphlet":
+        return add_pamphlet(session, owner, label=label, x=x, y=y)
 
     if kind in AUGMENTATIONS:
         return add_piece(

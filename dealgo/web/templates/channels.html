@@ -304,6 +304,18 @@
         {% endif %}
 
         <details class="palette-group">
+          <summary>Pamphlets</summary>
+          <ul class="palette-list">
+            {{ node_row('pamphlet', 'Pamphlet', 'A page of your own under the Pamphlets tab, laid out by the leaflets under it.') }}
+            {{ node_row('leaflet-feed', 'Feed leaflet', 'The newest few items of one feed, as cards.') }}
+            {{ node_row('leaflet-chart', 'Chart leaflet', 'What you watched, what arrived, what each feed holds.') }}
+            {{ node_row('leaflet-text', 'Text leaflet', 'A heading and words of your own.') }}
+            {{ node_row('leaflet-link', 'Link leaflet', 'A button: Focus on a feed, open one, or go to an address.') }}
+          </ul>
+          <p class="hint">Below another leaflet is the next thing down its column; beside one is the next column.</p>
+        </details>
+
+        <details class="palette-group">
           <summary>Layout</summary>
           <ul class="palette-list">
             {{ node_row('group', 'Group', 'A rectangle around a piece of the flow. Moves as one, and can be given away.') }}

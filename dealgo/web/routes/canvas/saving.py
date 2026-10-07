@@ -23,6 +23,7 @@ from ....models import (
 from ....plugins import registry
 from ....services import channels as channel_service
 from ....services import graph as graph_service
+from ....services import playlists as playlist_service
 from ....services.scope import OwnerId, owned
 from ...responses import owner_of
 
@@ -102,6 +103,19 @@ async def graph_save_node(
             return answer
 
         graph_service.rename(session, node.id, label, owner)
+
+        if node.kind in graph_service.LEAFLET_KINDS:
+            # Each kind of leaflet has its own few fields, all `leaflet_…`,
+            # read off the form rather than named one parameter each.
+            given = await request.form()
+            try:
+                graph_service.leaflets.save(
+                    node,
+                    {key: str(value) for key, value in given.items() if key.startswith("leaflet_")},
+                    {one.id for one in playlist_service.list_playlists(session, owner)},
+                )
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
 
         if box_form == "1":
             _switch(session, node, on=active == "1", owner=owner)

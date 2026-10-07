@@ -5,6 +5,15 @@
 /** Every kind of box and piece the canvas draws. */
 type GraphNodeKind =
   | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
+  // A page under the Pamphlets tab, laid out by the leaflets slotted under
+  // it. On no path: nothing is wired into or out of one.
+  | "pamphlet"
+  // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
+  // hang beside each other as well as below — beside is the next column.
+  | "leaflet-feed"
+  | "leaflet-chart"
+  | "leaflet-text"
+  | "leaflet-link"
   // The two ends of a named repository. A deposit ends a path the way a feed
   // does; a withdraw starts one the way a source does.
   | "deposit"
@@ -48,7 +57,7 @@ function graphConditionKinds(): GraphNodeKind[] {
 function graphIsPiece(kind: GraphNodeKind): boolean {
   return (
     kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
-    kind === "after-watch" ||
+    kind === "after-watch" || graphIsLeaflet(kind) ||
     kind === "rule" || graphConditionKinds().indexOf(kind) >= 0
   );
 }
@@ -57,7 +66,7 @@ function graphIsPiece(kind: GraphNodeKind): boolean {
 function graphTakesPieces(kind: GraphNodeKind): boolean {
   return (
     kind === "feed" || kind === "decay" || kind === "expire" ||
-    kind === "filter" || kind === "sort"
+    kind === "filter" || kind === "sort" || kind === "pamphlet"
   );
 }
 
@@ -107,6 +116,10 @@ interface GraphNodeView {
   condition: GraphCondition | null;
   /** Feed boxes: how it fills. */
   feed: GraphFeed | null;
+  /** Leaflets: what this block of a pamphlet shows, and what it could. */
+  leaflet: GraphLeaflet | null;
+  /** Pamphlet boxes: where its page is, and whether the tab opens on it. */
+  pamphlet: GraphPamphlet | null;
 }
 
 /** A feed box's reading windows and caps. */

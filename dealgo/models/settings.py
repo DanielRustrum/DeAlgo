@@ -36,5 +36,8 @@ class Settings(Base):
     # How long Focus mode holds a community post before moving on. A post has
     # no end of its own, so reading time is the only thing that can advance it.
     post_seconds: Mapped[int] = mapped_column(Integer, default=30)
+    # The pamphlet the Pamphlets tab opens on, a Pamphlet box's id. Not a
+    # foreign key: the box can go, and the tab then shows them all.
+    default_pamphlet_pk: Mapped[Optional[int]] = mapped_column(Integer)
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

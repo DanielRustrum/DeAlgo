@@ -100,9 +100,11 @@ def remove(session: Session, node_pk: int, owner: OwnerId = None) -> bool:
         # being left on the canvas slotted into nothing. Said here rather
         # than left to the cascade, which a column added to an existing
         # database does not carry.
-        for piece in pieces_under(nodes(session, owner), node.id):
+        # Deepest first: a piece's own pieces cascade with it on a database
+        # built from scratch, and deleting them after would find them gone.
+        for piece in reversed(pieces_under(nodes(session, owner), node.id)):
             session.delete(piece)
-        session.flush()
+            session.flush()
 
     session.delete(node)
     session.flush()

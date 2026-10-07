@@ -38,6 +38,16 @@ CONDITION_LABELS: dict[str, str] = {
 }
 
 
+#: What each leaflet is called. Here for the same reason the conditions'
+#: names are: a row has to be able to say what it is on its own.
+LEAFLET_LABELS: dict[str, str] = {
+    "leaflet-feed": "Feed leaflet",
+    "leaflet-chart": "Chart leaflet",
+    "leaflet-text": "Text leaflet",
+    "leaflet-link": "Link leaflet",
+}
+
+
 class GraphNode(Base):
     """One box on the Configuration canvas.
 
@@ -143,6 +153,15 @@ class GraphNode(Base):
     attached_to: Mapped[Optional[int]] = mapped_column(
         ForeignKey("graph_node.id", ondelete="CASCADE"), index=True
     )
+    # Leaflets only: which edge of what it is attached to it hangs from —
+    # "below", the next thing down its column, or "beside", the next column
+    # to its right. Every other piece hangs below, and leaves this empty.
+    attached_side: Mapped[Optional[str]] = mapped_column(String(8))
+    # Leaflets only: what this block of the page shows, as JSON — which feed
+    # and how many, which chart, what words, where a link goes. One column
+    # for four kinds of leaflet, each with its own few settings: see
+    # services/graph/leaflets.py, which is the only thing that reads it.
+    leaflet: Mapped[Optional[str]] = mapped_column(Text)
 
     # Deposit and Withdraw boxes only: which repository this one is about.
     # A label two boxes agree on rather than a row of its own, so typing the
@@ -237,6 +256,10 @@ class GraphNode(Base):
             return "Expire"
         if self.kind == "group":
             return "Group"
+        if self.kind == "pamphlet":
+            return "Pamphlet"
+        if self.kind in LEAFLET_LABELS:
+            return LEAFLET_LABELS[self.kind]
         if self.kind == "rule":
             # From the piece's own name rather than from the registry: a model
             # that had to ask which plugins are loaded in order to say what a

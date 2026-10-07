@@ -17,6 +17,7 @@ boxes each one fits.
 | **Order** | Sort | What to order by. See [Sort](Sort.md). |
 | Plugin conditions | Filter | See [Filter](Filter.md). |
 | Plugin orderings | Sort | See [Sort](Sort.md). |
+| **Feed**, **Chart**, **Text**, **Link** leaflets | Pamphlet — below, or beside another leaflet | A block of the pamphlet's page. See [Pamphlets](Pamphlets.md). |
 
 A **Timer** means:
 

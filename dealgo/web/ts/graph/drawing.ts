@@ -31,6 +31,11 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "lacks-words") return "Title lacks";
   if (kind === "longer-than") return "Longer than";
   if (kind === "shorter-than") return "Shorter than";
+  if (kind === "pamphlet") return "Pamphlet";
+  if (kind === "leaflet-feed") return "Feed leaflet";
+  if (kind === "leaflet-chart") return "Chart leaflet";
+  if (kind === "leaflet-text") return "Text leaflet";
+  if (kind === "leaflet-link") return "Link leaflet";
   if (kind === "carrying") return "Has tag";
   if (kind === "lacks-tag") return "Lacks tag";
   if (kind === "at-most") return "At most";
@@ -60,6 +65,8 @@ interface GraphAsks {
 interface GraphPiece {
   /** The box or piece it sits under. Null while it is loose on the canvas. */
   under: number | null;
+  /** Which edge of that it hangs from. Only a leaflet ever hangs beside. */
+  side: "below" | "beside";
   /** Timer: how long the sitting lasts. */
   minutes: number;
   /** Reset: the cron that gives you another. */
@@ -278,7 +285,9 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     box.appendChild(graphElement("strong", "graph-node-title", node.note));
     return box;
   }
-  if (node.kind !== "trigger") {
+  // A pamphlet is on no path: nothing runs into or out of one.
+  const wired = node.kind !== "pamphlet";
+  if (node.kind !== "trigger" && wired) {
     // A channel and a withdraw are set off by a signal; everything else is
     // fed content.
     const takes: GraphCarries =
@@ -290,7 +299,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   box.appendChild(graphElement("span", "graph-node-note", node.note));
   if (node.trigger !== null) box.appendChild(graphFireButton(node));
   // A feed and a deposit are both ends of a path: nothing leaves either.
-  if (node.kind !== "feed" && node.kind !== "deposit") {
+  if (node.kind !== "feed" && node.kind !== "deposit" && wired) {
     const gives: GraphCarries = node.kind === "trigger" ? "signal" : "content";
     box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
   }
@@ -384,10 +393,13 @@ function placeGraphPieces(state: GraphState): void {
   for (const node of state.nodes) {
     const host = node.piece?.under;
     if (host === undefined || host === null) continue;
+    // Leaflets hang beside as well as below: they are laid out as a page.
+    if (graphIsLeaflet(node.kind)) continue;
     const kept = under.get(host);
     if (kept === undefined) under.set(host, [node]);
     else kept.push(node);
   }
+  placeGraphLeaflets(state);
   if (under.size === 0) return;
 
   // From the model's own coordinates, which is what every other box is drawn

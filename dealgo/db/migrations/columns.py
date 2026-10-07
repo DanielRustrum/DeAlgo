@@ -116,6 +116,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # A Filter box can narrow on a tag a Tag box put on.
     ("graph_node", "tagged", "VARCHAR(40)"),
     ("graph_node", "untagged", "VARCHAR(400)"),
+    # Leaflets: which edge they hang from, and what each shows.
+    ("graph_node", "attached_side", "VARCHAR(8)"),
+    ("graph_node", "leaflet", "TEXT"),
+    ("settings", "default_pamphlet_pk", "INTEGER"),
     # What a Tag box marks whatever comes through it with.
     ("graph_node", "marks", "VARCHAR(40)"),
     # What a person granted each plugin. plugin_state may already exist from

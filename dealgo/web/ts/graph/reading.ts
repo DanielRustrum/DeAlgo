@@ -21,6 +21,11 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "sort" ||
     value === "feed" ||
     value === "group" ||
+    value === "pamphlet" ||
+    value === "leaflet-feed" ||
+    value === "leaflet-chart" ||
+    value === "leaflet-text" ||
+    value === "leaflet-link" ||
     value === "deposit" ||
     value === "withdraw" ||
     value === "timer" ||
@@ -78,6 +83,8 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     condition: asGraphCondition(raw["condition"]),
     plugin: asGraphPlugin(raw["plugin"]),
     feed: asGraphFeed(raw["feed"]),
+    leaflet: asGraphLeaflet(raw["leaflet"]),
+    pamphlet: asGraphPamphlet(raw["pamphlet"]),
   };
 }
 
@@ -102,6 +109,7 @@ function asGraphPiece(value: unknown): GraphPiece | null {
   const under = raw["under"];
   return {
     under: typeof under === "number" ? under : null,
+    side: raw["side"] === "beside" ? "beside" : "below",
     minutes: typeof raw["minutes"] === "number" ? raw["minutes"] : 30,
     cron: typeof raw["cron"] === "string" ? raw["cron"] : "",
     from: typeof raw["from"] === "string" ? raw["from"] : "",

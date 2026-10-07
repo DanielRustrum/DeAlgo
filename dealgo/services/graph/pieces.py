@@ -12,6 +12,7 @@ from ...models import (
 )
 from ..scope import OwnerId
 from .conditions import CONDITIONS, RULE
+from .leaflets import LEAFLET_KINDS, SIDES, side_of
 from .errors import GraphError
 from .reading import nodes
 from .vocabulary import AUGMENTATIONS, BOX_NAMES
@@ -36,6 +37,8 @@ PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     # After watching starts an Expire's Timer when the item is watched.
     "after-watch": ("expire",),
     **{one.kind: (one.under,) for one in CONDITIONS},
+    # A leaflet is a block of a Pamphlet's page, and means nothing anywhere else.
+    **{kind: ("pamphlet",) for kind in LEAFLET_KINDS},
 }
 
 
@@ -88,12 +91,16 @@ def piece_hosts(piece: GraphNode) -> tuple[str, ...] | None:
 
 
 def attach(
-    session: Session, piece: GraphNode, host: GraphNode, owner: OwnerId = None
+    session: Session, piece: GraphNode, host: GraphNode, owner: OwnerId = None,
+    side: str = "below",
 ) -> GraphNode:
     """Slot an augmentation under a box, or under another one.
 
     Refused where it would make no sense, said at the moment of the drop
     rather than discovered later by a piece that quietly does nothing.
+
+    A leaflet can also go `side="beside"` another leaflet, which starts the
+    next column of its pamphlet's page. Every other piece only hangs below.
     """
     if piece.kind not in AUGMENTATIONS:
         raise GraphError(f"A {piece.kind} box is not an augmentation.")
@@ -112,6 +119,12 @@ def attach(
             named = " or a ".join(one.capitalize() for one in wanted)
             raise GraphError(f"{piece.title} goes under a {named} box.")
 
+    leaflet = piece.kind in LEAFLET_KINDS
+    if leaflet:
+        side = side if side in SIDES else "below"
+        if side == "beside" and host.kind not in LEAFLET_KINDS:
+            raise GraphError("A leaflet goes beside another leaflet, or below the Pamphlet box.")
+
     # No rings. Walking up from the host must not arrive back at the piece.
     seen = {piece.id}
     walk: GraphNode | None = host
@@ -121,9 +134,38 @@ def attach(
         seen.add(walk.id)
         walk = session.get(GraphNode, walk.attached_to) if walk.attached_to else None
 
+    if not leaflet:
+        piece.attached_to = host.id
+        session.flush()
+        return piece
+
+    # A leaflet moved from elsewhere leaves a closed-up gap behind it.
+    if piece.attached_to is not None:
+        close_up(session, piece)
+    # An edge holds one leaflet. Whatever already hung there hangs on from
+    # the new one instead, so dropping a leaflet between two puts it between
+    # them rather than beside the one that was there.
+    taken = _hanging(session, host.id, side, but=piece.id)
     piece.attached_to = host.id
+    piece.attached_side = side
     session.flush()
+    if taken is not None:
+        end = piece
+        while (further := _hanging(session, end.id, side, but=taken.id)) is not None:
+            end = further
+        taken.attached_to = end.id
+        session.flush()
     return piece
+
+
+def _hanging(session: Session, host_pk: int, side: str, *, but: int = 0) -> GraphNode | None:
+    """The leaflet hanging from one edge of a box or leaflet, if any."""
+    for one in session.scalars(
+        select(GraphNode).where(GraphNode.attached_to == host_pk).order_by(GraphNode.id)
+    ):
+        if one.id != but and one.kind in LEAFLET_KINDS and side_of(one) == side:
+            return one
+    return None
 
 
 def detach(session: Session, piece: GraphNode) -> bool:
@@ -138,6 +180,7 @@ def detach(session: Session, piece: GraphNode) -> bool:
         return False
     close_up(session, piece)
     piece.attached_to = None
+    piece.attached_side = None
     session.flush()
     return True
 
@@ -149,11 +192,42 @@ def close_up(session: Session, piece: GraphNode) -> None:
     unslotting it and deleting it — have to do it, and a chain that healed
     one way and not the other would be worse than one that never healed.
     """
-    for below in session.scalars(
-        select(GraphNode).where(GraphNode.attached_to == piece.id)
-    ):
+    hanging = list(session.scalars(
+        select(GraphNode).where(GraphNode.attached_to == piece.id).order_by(GraphNode.id)
+    ))
+    if piece.kind in LEAFLET_KINDS:
+        _close_up_leaflet(session, piece, hanging)
+        return
+    for below in hanging:
         below.attached_to = piece.attached_to
     session.flush()
+
+
+def _close_up_leaflet(session: Session, piece: GraphNode, hanging: list[GraphNode]) -> None:
+    """A leaflet's gap, closed the way its page would close it.
+
+    What was below it moves up into its place; what was beside it stays
+    beside, now beside what moved up. With nothing below, what was beside it
+    moves across into its place instead.
+    """
+    below = [one for one in hanging if side_of(one) == "below"]
+    beside = [one for one in hanging if side_of(one) == "beside"]
+    order = below + beside
+    if not order:
+        return
+    first = order[0]
+    first.attached_to = piece.attached_to
+    first.attached_side = piece.attached_side if piece.attached_to is not None else None
+    session.flush()
+    # Anything else that hung from it goes beside the end of the row the
+    # first one now heads, so nothing is left hanging from a gap.
+    for one in order[1:]:
+        end = first
+        while (further := _hanging(session, end.id, "beside", but=one.id)) is not None:
+            end = further
+        one.attached_to = end.id
+        one.attached_side = "beside"
+        session.flush()
 
 
 def pieces_under(all_nodes: list[GraphNode], host_pk: int) -> list[GraphNode]:

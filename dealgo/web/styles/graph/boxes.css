@@ -92,7 +92,8 @@
 .graph-node.kind-decay:not(.has-piece)::after,
 .graph-node.kind-expire:not(.has-piece)::after,
 .graph-node.kind-filter:not(.has-piece)::after,
-.graph-node.kind-sort:not(.has-piece)::after {
+.graph-node.kind-sort:not(.has-piece)::after,
+.graph-node.kind-pamphlet:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(var(--graph-tab) / -2);
@@ -122,6 +123,19 @@
   pointer-events: none;
 }
 .graph-slot[hidden] { display: none; }
+/* Beside a leaflet: the next column, so a line down its right edge. */
+.graph-slot.is-beside {
+  width: 34px !important;
+  border: 2px dashed var(--accent);
+  border-left: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* A leaflet with another beside it shares that edge: a seam, not a corner. */
+.graph-node.has-beside {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
 
 .graph-node-kind {
   font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);
