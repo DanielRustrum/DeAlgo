@@ -93,7 +93,7 @@
 .graph-node.kind-expire:not(.has-piece)::after,
 .graph-node.kind-filter:not(.has-piece)::after,
 .graph-node.kind-sort:not(.has-piece)::after,
-.graph-node.kind-pamphlet:not(.has-piece)::after {
+.graph-node.kind-pamphlet:not(.has-leaflets)::after {
   content: "";
   position: absolute;
   bottom: calc(var(--graph-tab) / -2);
@@ -131,11 +131,28 @@
   border-radius: 0 var(--radius) var(--radius) 0;
 }
 
-/* A leaflet with another beside it shares that edge: a seam, not a corner. */
-.graph-node.has-beside {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+/* A pamphlet is a small picture of its page: a frame, with its leaflets as
+   cards inside it in their columns. Tinted, so the cards stand out from it;
+   the cards are whole, with no tabs or notches, since they sit in the frame
+   rather than hanging off one another. */
+.graph-node.kind-pamphlet {
+  background: color-mix(in oklab, var(--kind-colour) 8%, var(--panel));
+  justify-content: flex-start;
 }
+.graph-node.is-piece[data-host="pamphlet"] {
+  z-index: 1;
+  border-radius: calc(var(--radius) * 0.6);
+  border-top-color: var(--line);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+.graph-node.is-piece[data-host="pamphlet"]:hover,
+.graph-node.is-piece[data-host="pamphlet"].is-picked {
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.graph-node.is-piece[data-host="pamphlet"]::before,
+.graph-node.is-piece[data-host="pamphlet"]::after { content: none; }
 
 .graph-node-kind {
   font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);

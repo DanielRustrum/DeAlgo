@@ -101,22 +101,36 @@ function graphHanging(state: GraphState): Map<string, GraphNodeView> {
   return hanging;
 }
 
-/** Lay out every pamphlet's leaflets: a column under each leaflet, the next
- *  column beside it — far enough along to clear everything below the one
- *  before, so a column that splits into columns of its own never overlaps
- *  the next. Measured, as every piece is, once they are in the document. */
+/** The room around and between leaflets inside a Pamphlet box. */
+function graphLeafletSpacing(): { pad: number; gap: number } {
+  return { pad: 10, gap: 8 };
+}
+
+/** Lay out every pamphlet's leaflets inside it, as a small picture of the
+ *  page: the box's own title at the top, then its leaflets as cards — a
+ *  column under each leaflet, the next column beside it, far enough along to
+ *  clear everything below the one before. The box grows to hold them, so a
+ *  pamphlet reads as one thing rather than a box with pieces hung off it.
+ *  Measured, as every piece is, once they are in the document. */
 function placeGraphLeaflets(state: GraphState): void {
   const hanging = graphHanging(state);
-  if (hanging.size === 0) return;
+  const { pad, gap } = graphLeafletSpacing();
   const at = (id: number, side: string): GraphNodeView | undefined => hanging.get(`${id}:${side}`);
   const width = (node: GraphNodeView): number => state.boxes.get(node.id)?.offsetWidth ?? 0;
   const most = 60; // deeper than any page; a ring built before they were refused
+
+  // Each at its own width first: a leaflet is stretched below to the width
+  // of everything under it, and that has to be measured from scratch.
+  for (const one of hanging.values()) {
+    const box = state.boxes.get(one.id);
+    if (box !== undefined) box.style.width = "";
+  }
 
   const rowWidth = (first: GraphNodeView | undefined, depth: number): number => {
     let total = 0;
     let walk = first;
     for (let step = 0; walk !== undefined && depth + step < most; step += 1) {
-      total += columnWidth(walk, depth + step + 1);
+      total += (step > 0 ? gap : 0) + columnWidth(walk, depth + step + 1);
       walk = at(walk.id, "beside");
     }
     return total;
@@ -125,35 +139,49 @@ function placeGraphLeaflets(state: GraphState): void {
     depth > most ? 0 : Math.max(width(node), rowWidth(at(node.id, "below"), depth + 1));
 
   const seen = new Set<number>();
-  const placeRow = (first: GraphNodeView | undefined, left: number, top: number, depth: number): void => {
+  // Places a row, and answers how far down the page it reached.
+  const placeRow = (first: GraphNodeView | undefined, left: number, top: number, depth: number): number => {
     let walk = first;
     let x = left;
+    let bottom = top;
     while (walk !== undefined && !seen.has(walk.id) && depth < most) {
       seen.add(walk.id);
       const box = state.boxes.get(walk.id);
-      if (box === undefined) return;
+      if (box === undefined) break;
       box.dataset["host"] = "pamphlet";
+      // As wide as its column, as it is on the page: a heading over two
+      // columns spans both.
+      const across = columnWidth(walk, depth + 1);
+      box.style.width = `${across}px`;
       box.style.left = `${x}px`;
       box.style.top = `${top}px`;
       walk.x = x;
       walk.y = top;
+      let reached = top + box.offsetHeight;
       const below = at(walk.id, "below");
-      const beside = at(walk.id, "beside");
-      box.classList.toggle("has-piece", below !== undefined);
-      box.classList.toggle("has-beside", beside !== undefined);
-      placeRow(below, x, top + box.offsetHeight, depth + 1);
-      x += columnWidth(walk, depth + 1);
-      walk = beside;
+      if (below !== undefined) reached = placeRow(below, x, reached + gap, depth + 1);
+      bottom = Math.max(bottom, reached);
+      x += across + gap;
+      walk = at(walk.id, "beside");
     }
+    return bottom;
   };
 
   for (const node of state.nodes) {
     if (node.kind !== "pamphlet") continue;
     const box = state.boxes.get(node.id);
+    if (box === undefined) continue;
+    // Its own size first, with nothing in it, to know where the page starts.
+    box.style.width = "";
+    box.style.height = "";
     const first = at(node.id, "below");
-    if (box === undefined || first === undefined) continue;
-    box.classList.add("has-piece");
-    placeRow(first, node.x, node.y + box.offsetHeight, 0);
+    box.classList.toggle("has-leaflets", first !== undefined);
+    if (first === undefined) continue;
+    const inset = box.offsetWidth - box.clientWidth - 1; // the coloured bar down its left
+    const top = node.y + box.offsetHeight;
+    const bottom = placeRow(first, node.x + inset + pad, top, 0);
+    box.style.width = `${Math.max(box.offsetWidth, inset + pad * 2 + rowWidth(first, 0))}px`;
+    box.style.height = `${bottom - node.y + pad}px`;
   }
 }
 
@@ -167,16 +195,18 @@ function graphLeafletSlots(state: GraphState): GraphSlot[] {
     if (box === undefined) continue;
     const onPage = node.kind === "pamphlet" || (graphIsLeaflet(node.kind) && node.piece?.under != null);
     if (!onPage) continue;
+    const { gap } = graphLeafletSpacing();
     if (!hanging.has(`${node.id}:below`)) {
       found.push({
         under: node.id, side: "below",
-        x: node.x, y: node.y + box.offsetHeight, width: box.offsetWidth, height: 0,
+        x: node.x, y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
+        width: box.offsetWidth, height: 0,
       });
     }
     if (node.kind !== "pamphlet" && !hanging.has(`${node.id}:beside`)) {
       found.push({
         under: node.id, side: "beside",
-        x: node.x + box.offsetWidth, y: node.y, width: 0, height: box.offsetHeight,
+        x: node.x + box.offsetWidth + gap / 2, y: node.y, width: 0, height: box.offsetHeight,
       });
     }
   }
