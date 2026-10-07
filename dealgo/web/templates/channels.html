@@ -118,11 +118,13 @@
    before you pick it up — and the rows are mixed in among the boxes under
    Conditions and under Plugins.
 
-   Drawn rather than written, because the same shape is what you then aim at:
-   the notch under the box you are dropping it on. #}
+   Drawn rather than written: a jigsaw piece, because that is how one goes
+   on — into the notch under the box you are dropping it on. #}
 {% macro augment_mark() -%}
-  <svg class="palette-augment" viewBox="0 0 16 12" aria-hidden="true" focusable="false">
-    <path d="M1 11 L1 4 L5.2 4 A2.8 2.8 0 1 1 10.8 4 L15 4 L15 11"
+  <svg class="palette-augment" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    {#- A jigsaw piece: a knob on top and on the right, the way a piece locks
+        into the box above it on the canvas. -#}
+    <path d="M1.8 6 H5.6 A2.4 2.4 0 1 1 10.4 6 H13 V7.6 A2.4 2.4 0 1 1 13 12.4 V14.2 H1.8 Z"
           fill="none" stroke="currentColor" stroke-width="1.6"
           stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
