@@ -15,8 +15,8 @@
     <span>{{ waiting }} stor{{ 'y' if waiting == 1 else 'ies' }} inside</span>
     <form method="post" action="/pamphlets/{{ pamphlet.id }}/default">
       <button class="paper-default" type="submit"
-              title="{{ 'Stop opening the Pamphlets tab on this one' if is_default else 'Open the Pamphlets tab on this pamphlet' }}">
-        {{ '★ The tab opens here' if is_default else '☆ Open the tab here' }}
+              title="{{ 'Stop opening the app on this one' if is_default else 'Open the app — and the Pamphlets tab — on this pamphlet' }}">
+        {{ '★ The front page' if is_default else '☆ Make it the front page' }}
       </button>
     </form>
   </div>

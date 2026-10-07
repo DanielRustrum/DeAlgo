@@ -420,3 +420,28 @@ def test_a_feed_leaflet_can_show_its_feed_as_a_tile(client, db):
     page = client.get(f"/pamphlets/{pamphlet_pk}").text
     assert 'class="paper-stack' in page and "A Science video" in page
     assert f'href="/feed/{feed_pk}"' in page and 'class="story' not in page
+
+
+def test_the_bare_address_is_the_default_pamphlet_or_else_the_tab(client, db):
+    # None chosen: the Pamphlets tab.
+    first = client.get("/", follow_redirects=False)
+    assert first.status_code == 303 and first.headers["location"] == "/pamphlets"
+
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session, label="Front Page")
+        text = leaflet(session, "text", pamphlet)
+        leaflets.save(text, {"leaflet_heading": "Hello there"}, set())
+        pamphlet_pk = pamphlet.id
+    client.post(f"/pamphlets/{pamphlet_pk}/default")
+
+    # Chosen: shown at the bare address itself, with its tab lit.
+    page = client.get("/", follow_redirects=False)
+    assert page.status_code == 200
+    assert "Hello there" in page.text and "Front Page" in page.text
+    assert 'href="/pamphlets" class="active"' in page.text
+    assert "★ The front page" in page.text
+
+    # Gone: back to the tab.
+    with db.session_scope() as session:
+        graph.remove(session, pamphlet_pk)
+    assert client.get("/", follow_redirects=False).headers["location"] == "/pamphlets"

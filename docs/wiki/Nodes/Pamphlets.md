@@ -66,9 +66,12 @@ story to read it in Focus mode.
 
 ## The Pamphlets tab
 
-The tab lists every pamphlet. On a pamphlet's page, the star on the dateline makes the tab open straight
-on it (the dateline says **☆ Open the tab here**); press it again to go back to the list. The full list is always one click away
-through **Pamphlets** at the top of the page.
+The tab lists every pamphlet. On a pamphlet's page, **☆ Make it the front page** on the dateline
+makes it the **default**: the app opens on it — it is the page at the app's bare address, and what an
+installed app opens to — and the Pamphlets tab opens straight on it too. The dateline then says
+**★ The front page**; press it again to go back to the list. With no default chosen, the bare
+address goes to the list. The full list is always one click away through **Pamphlets** at the top
+of the page.
 
 Pamphlets travel in [groups](Groups.md) like any other box. A Feed leaflet pointing at a feed in
 the same group stays wired to the loaded copy of that feed.

@@ -73,27 +73,44 @@ def pamphlet_page(request: Request, node_pk: int) -> Response:
         )
         if pamphlet is None:
             return redirect("/pamphlets", err="That pamphlet is not here.")
-        rows = graph_service.leaflets.layout(graph_service.nodes(session, owner), pamphlet)
-        shown: dict[int, Context] = {}
-        _fill(session, owner, rows, shown)
-        return render(request, "pamphlet.html", {
-            "pamphlet": pamphlet,
-            "rows": rows,
-            "shown": shown,
-            "is_default": get_settings(session, owner).default_pamphlet_pk == pamphlet.id,
-            "others": len(_pamphlets(session, owner)) > 1,
-            # The dateline, as a paper prints it.
-            "today": utcnow().strftime("%A %-d %B %Y"),
-            "waiting": sum(
-                one["tile"].waiting if one.get("tile") else len(one.get("videos") or [])
-                for one in shown.values()
-            ),
-        })
+        return show_pamphlet(request, session, owner, pamphlet)
+
+
+def default_pamphlet(session: Session, owner: OwnerId) -> GraphNode | None:
+    """The pamphlet the app opens on, if one is chosen and still there."""
+    chosen = get_settings(session, owner).default_pamphlet_pk
+    if chosen is None:
+        return None
+    return session.scalar(
+        owned(select(GraphNode), GraphNode, owner)
+        .where(GraphNode.id == chosen, GraphNode.kind == "pamphlet")
+    )
+
+
+def show_pamphlet(request: Request, session: Session, owner: OwnerId, pamphlet: GraphNode) -> Response:
+    """A pamphlet's page — at its own address, or at the front door."""
+    rows = graph_service.leaflets.layout(graph_service.nodes(session, owner), pamphlet)
+    shown: dict[int, Context] = {}
+    _fill(session, owner, rows, shown)
+    return render(request, "pamphlet.html", {
+        "pamphlet": pamphlet,
+        "rows": rows,
+        "shown": shown,
+        "is_default": get_settings(session, owner).default_pamphlet_pk == pamphlet.id,
+        "others": len(_pamphlets(session, owner)) > 1,
+        # The dateline, as a paper prints it.
+        "today": utcnow().strftime("%A %-d %B %Y"),
+        "waiting": sum(
+            one["tile"].waiting if one.get("tile") else len(one.get("videos") or [])
+            for one in shown.values()
+        ),
+    })
 
 
 @router.post("/pamphlets/{node_pk}/default")
 def choose_default(request: Request, node_pk: int) -> Response:
-    """Make this the pamphlet the tab opens on, or, if it already is, stop."""
+    """Make this the pamphlet the app opens on — at its bare address, and on
+    the Pamphlets tab — or, if it already is, stop."""
     owner = owner_of(request)
     with session_scope() as session:
         pamphlet = session.scalar(
@@ -105,10 +122,10 @@ def choose_default(request: Request, node_pk: int) -> Response:
         settings = get_settings(session, owner)
         if settings.default_pamphlet_pk == pamphlet.id:
             settings.default_pamphlet_pk = None
-            said = "The Pamphlets tab shows them all again."
+            said = "No pamphlet opens first now: the app opens on the list of them."
         else:
             settings.default_pamphlet_pk = pamphlet.id
-            said = f"The Pamphlets tab opens on “{pamphlet.title}”."
+            said = f"The app opens on “{pamphlet.title}”."
     return redirect(f"/pamphlets/{node_pk}", ok=said)
 
 

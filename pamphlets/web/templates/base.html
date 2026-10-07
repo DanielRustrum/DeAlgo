@@ -92,7 +92,7 @@
     <span class="menu-title">Go to</span>
 
   <nav id="site-nav">
-    <a href="/pamphlets" class="{{ 'active' if request.url.path.startswith('/pamphlets') }}">Pamphlets</a>
+    <a href="/pamphlets" class="{{ 'active' if request.url.path.startswith('/pamphlets') or request.url.path == '/' }}">Pamphlets</a>
     <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
     <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
     <a href="/settings" class="{{ 'active' if request.url.path == '/settings' }}">Settings</a>

@@ -98,14 +98,13 @@ def test_video_action_swaps_only_that_row(client, db):
         assert session.scalar(select(Video)).status == "ignored"
 
 
-def test_the_front_door_leads_to_the_feed(client):
-    """There was a dashboard here. Every part of it was a second view of
-    something with a page of its own, and it sat in front of the thing the
-    app is for."""
+def test_the_front_door_leads_to_the_pamphlets(client):
+    """There was a dashboard here, then the feed. With no default pamphlet
+    chosen, it is the Pamphlets tab (see test_pamphlets for the default)."""
     landed = client.get("/", follow_redirects=False)
 
     assert landed.status_code in (302, 303, 307)
-    assert landed.headers["location"] == "/feed"
+    assert landed.headers["location"] == "/pamphlets"
     # And it is not a tab any more.
     assert ">Dashboard</a>" not in client.get("/feed").text
 
