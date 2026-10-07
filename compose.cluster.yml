@@ -5,10 +5,10 @@
 #   make up CLUSTER=1
 #
 # Requires Compose v2.24+ for `!reset`. On an older version, drop this file and
-# set DEALGO_BIND=127.0.0.1:8080 instead.
+# set PAMPHLETS_BIND=127.0.0.1:8080 instead.
 
 services:
-  dealgo:
+  pamphlets:
     # The proxy reaches the container on the shared network, so nothing needs
     # to be exposed on the host at all.
     ports: !reset []
@@ -19,16 +19,16 @@ services:
 
     # Traefik example. Swap these for whatever your cluster runs — the only
     # thing that matters is that traffic arrives on container port 8080 and
-    # DEALGO_PUBLIC_URL matches the hostname people actually use.
+    # PAMPHLETS_PUBLIC_URL matches the hostname people actually use.
     labels:
       traefik.enable: "true"
-      traefik.docker.network: "${DEALGO_PROXY_NETWORK:-proxy}"
-      traefik.http.routers.dealgo.rule: "Host(`${DEALGO_HOSTNAME:-dealgo.example.com}`)"
-      traefik.http.routers.dealgo.entrypoints: "${TRAEFIK_ENTRYPOINT:-websecure}"
-      traefik.http.routers.dealgo.tls.certresolver: "${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
-      traefik.http.services.dealgo.loadbalancer.server.port: "8080"
+      traefik.docker.network: "${PAMPHLETS_PROXY_NETWORK:-proxy}"
+      traefik.http.routers.pamphlets.rule: "Host(`${PAMPHLETS_HOSTNAME:-pamphlets.example.com}`)"
+      traefik.http.routers.pamphlets.entrypoints: "${TRAEFIK_ENTRYPOINT:-websecure}"
+      traefik.http.routers.pamphlets.tls.certresolver: "${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      traefik.http.services.pamphlets.loadbalancer.server.port: "8080"
 
 networks:
   proxy:
     external: true
-    name: ${DEALGO_PROXY_NETWORK:-proxy}
+    name: ${PAMPHLETS_PROXY_NETWORK:-proxy}

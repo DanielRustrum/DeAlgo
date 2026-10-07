@@ -1,6 +1,6 @@
 # Sources and Parsing
 
-`dealgo/sources/` turns what someone typed into a feed address, reads feeds, and respects hosts'
+`pamphlets/sources/` turns what someone typed into a feed address, reads feeds, and respects hosts'
 rate limits. It makes no decisions about accounts, feeds or routing.
 
 ## From a reference to a source

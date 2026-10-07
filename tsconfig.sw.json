@@ -16,12 +16,12 @@
     "useUnknownInCatchVariables": true,
     "forceConsistentCasingInFileNames": true,
 
-    "rootDir": "dealgo/web/ts",
-    "outDir": "dealgo/web/static",
+    "rootDir": "pamphlets/web/ts",
+    "outDir": "pamphlets/web/static",
     "removeComments": false,
     "newLine": "lf",
     "declaration": false,
     "sourceMap": false
   },
-  "files": ["dealgo/web/ts/sw.ts"]
+  "files": ["pamphlets/web/ts/sw.ts"]
 }

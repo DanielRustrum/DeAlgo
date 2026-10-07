@@ -14,10 +14,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphNode, Video, utcnow
-from dealgo.services import graph
-from dealgo.services import playlists as playlist_service
-from dealgo.services.graph import formatting
+from pamphlets.models import Channel, GraphNode, Video, utcnow
+from pamphlets.services import graph
+from pamphlets.services import playlists as playlist_service
+from pamphlets.services.graph import formatting
 from tests.test_rest_source import serve
 
 ANSWER = {"data": {"children": [
@@ -144,7 +144,7 @@ def test_a_source_wires_into_a_format_box_and_that_into_a_chart(db):
 
 
 def test_a_rest_source_keeps_its_answer_when_it_is_polled(db, monkeypatch):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     serve(monkeypatch, {"items": [{"title": "One", "url": "https://example.com/1"}],
                         "stats": {"users": 12}})
@@ -164,8 +164,8 @@ def test_a_rest_source_keeps_its_answer_when_it_is_polled(db, monkeypatch):
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -309,7 +309,7 @@ def test_a_rest_answer_becomes_its_rows_on_the_way_through(db):
 
 
 def test_a_repository_gives_what_is_waiting_in_it_as_data(db):
-    from dealgo.models import RepositoryItem
+    from pamphlets.models import RepositoryItem
 
     with db.session_scope() as session:
         media_source(session, TITLES[:2])
@@ -336,7 +336,7 @@ def test_data_goes_only_where_it_means_something(db):
 def test_wires_from_before_say_what_they_carry(db):
     from sqlalchemy import text
 
-    from dealgo.db.migrations import wires_say_what_they_carry
+    from pamphlets.db.migrations import wires_say_what_they_carry
 
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)
@@ -441,7 +441,7 @@ def test_the_canvas_draws_a_rest_source_with_only_a_data_port(client, db):
 def test_item_wires_from_a_rest_source_become_data_or_go(db):
     from sqlalchemy import text
 
-    from dealgo.db.migrations import rest_sources_give_data
+    from pamphlets.db.migrations import rest_sources_give_data
 
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)

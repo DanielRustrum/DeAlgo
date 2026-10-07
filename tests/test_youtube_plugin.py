@@ -17,11 +17,11 @@ import json
 import httpx
 import pytest
 
-from dealgo import outgoing
-from dealgo.models import OAuthToken, User, utcnow
-from dealgo.plugins import registry
-from dealgo.plugins.capabilities import acting_for
-from dealgo.plugins.publisher import Publisher
+from pamphlets import outgoing
+from pamphlets.models import OAuthToken, User, utcnow
+from pamphlets.plugins import registry
+from pamphlets.plugins.capabilities import acting_for
+from pamphlets.plugins.publisher import Publisher
 
 
 @pytest.fixture
@@ -291,7 +291,7 @@ def test_renaming_carries_the_description_so_it_is_not_wiped(signed_in, google):
 
 
 def spent(db, owner=1) -> int:
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     with db.session_scope() as session:
         return quota.state(session).used
@@ -335,7 +335,7 @@ def test_a_request_google_refuses_is_still_charged(signed_in, google, db):
             publisher().insert_playlist_item("PL", "a")
 
     assert after_refusal - before == 50
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     with db.session_scope() as session:
         day = quota.state(session)
@@ -480,9 +480,9 @@ def an_item(**over) -> dict:
 def shipped():
     from pathlib import Path
 
-    from dealgo.plugins import registry
+    from pamphlets.plugins import registry
 
-    here = Path(__file__).resolve().parent.parent / "dealgo" / "plugins" / "builtin"
+    here = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
     return registry.read(here)
 
 

@@ -14,16 +14,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, Placement, Playlist, Video, utcnow
-from dealgo.services.playlists import shelf as shelf_service
+from pamphlets.models import Channel, Placement, Playlist, Video, utcnow
+from pamphlets.services.playlists import shelf as shelf_service
 
 TITLES = ["Alpha", "Bravo", "Charlie", "Delta"]
 
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -209,9 +209,9 @@ def test_an_unknown_feed_cannot_be_starred_moved_or_opened(client):
 
 def test_one_account_cannot_reach_anothers_feeds(db, monkeypatch):
     from fakes import use_config
-    from dealgo import config, scheduler
-    from dealgo.services import accounts
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.services import accounts
+    from pamphlets.web import app as web_app
 
     secured = config.Config(**{**config.CONFIG.__dict__, "admin_user": "admin", "admin_password": "admin"})
     use_config(monkeypatch, secured)

@@ -1,12 +1,12 @@
-# Dealgo container tasks. Run `make` for the list.
+# Pamphlets container tasks. Run `make` for the list.
 
 # make <target> CLUSTER=1 adds the reverse-proxy overlay.
 CLUSTER   ?=
 COMPOSE_FILES := $(if $(CLUSTER),-f docker-compose.yml -f compose.cluster.yml,)
 COMPOSE   ?= docker compose $(COMPOSE_FILES)
-SERVICE   ?= dealgo
+SERVICE   ?= pamphlets
 REGISTRY  ?= repo.home.app
-IMAGE     ?= $(REGISTRY)/rusty/dealgo
+IMAGE     ?= $(REGISTRY)/rusty/pamphlets
 TAG       ?= latest
 URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
@@ -15,7 +15,7 @@ PY      ?= .venv/bin/python
 .PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts docs toc wiki release-image release push-release dev clean
 
 help: ## Show this help
-	@echo "Dealgo — usage: make <target>"
+	@echo "Pamphlets — usage: make <target>"
 	@echo
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "} {printf "  \033[1m%-15s\033[0m %s\n", $$1, $$2}'
@@ -30,7 +30,7 @@ publish: ## Build and push the image to the registry (IMAGE=, TAG=)
 	docker build -t $(IMAGE):$(TAG) .
 	docker push $(IMAGE):$(TAG)
 	@echo
-	@echo "Pushed $(IMAGE):$(TAG) — Portainer can pull it with DEALGO_IMAGE=$(IMAGE):$(TAG)"
+	@echo "Pushed $(IMAGE):$(TAG) — Portainer can pull it with PAMPHLETS_IMAGE=$(IMAGE):$(TAG)"
 
 publish-multiarch: ## Build and push for amd64 and arm64 (needs buildx)
 	docker buildx build --platform linux/amd64,linux/arm64 -t $(IMAGE):$(TAG) --push .
@@ -38,7 +38,7 @@ publish-multiarch: ## Build and push for amd64 and arm64 (needs buildx)
 config: ## Show the resolved compose configuration
 	$(COMPOSE) config
 
-up: ## Start Dealgo in the background and wait for it to be healthy (CLUSTER=1 for the proxy overlay)
+up: ## Start Pamphlets in the background and wait for it to be healthy (CLUSTER=1 for the proxy overlay)
 	$(COMPOSE) up -d
 	@printf 'waiting for %s ' "$(URL)"; \
 	for _ in $$(seq 1 60); do \
@@ -49,7 +49,7 @@ up: ## Start Dealgo in the background and wait for it to be healthy (CLUSTER=1 f
 	done; \
 	printf '\n\nStill not healthy. Try: make logs\n'; exit 1
 
-down: ## Stop Dealgo, keeping its data
+down: ## Stop Pamphlets, keeping its data
 	$(COMPOSE) down
 
 restart: ## Restart the container
@@ -71,9 +71,9 @@ add: ## Watch a source (CHANNEL=@handle, a URL, a UC… id, r/name, or a feed ad
 	@test -n "$(CHANNEL)" || { echo "usage: make add CHANNEL=@handle"; exit 2; }
 	$(COMPOSE) run --rm $(SERVICE) add "$(CHANNEL)"
 
-backup: ## Write a JSON backup of the setup to ./de-algo-backup.json
-	$(COMPOSE) run --rm -T $(SERVICE) export > de-algo-backup.json
-	@echo "wrote de-algo-backup.json"
+backup: ## Write a JSON backup of the setup to ./pamphlets-backup.json
+	$(COMPOSE) run --rm -T $(SERVICE) export > pamphlets-backup.json
+	@echo "wrote pamphlets-backup.json"
 
 channels: ## List watched channels
 	$(COMPOSE) run --rm $(SERVICE) channels
@@ -85,7 +85,7 @@ watched: ## Mark videos watched (VIDEO="id-or-url ...")
 remove-watched: ## Remove watched videos from the playlist
 	$(COMPOSE) run --rm $(SERVICE) remove-watched
 
-info: ## Show Dealgo's configuration
+info: ## Show Pamphlets's configuration
 	$(COMPOSE) run --rm $(SERVICE) status
 
 test: ## Run the test suite locally
@@ -116,15 +116,15 @@ watch-js: ## Recompile the page scripts on save (the worker and the scripts writ
 assets: fonts css js ## Rebuild the fonts, the stylesheet and the scripts
 
 watch-css: ## Recompile the stylesheet on every save to web/styles or a template (run `make css` before committing)
-	npx tailwindcss --input dealgo/web/styles/app.css --output dealgo/web/static/app.css --watch
+	npx tailwindcss --input pamphlets/web/styles/app.css --output pamphlets/web/static/app.css --watch
 
 AUTODOC := docs/internal/autodoc
 
 docs: ## Generate the API reference from code comments into docs/internal/autodoc
-	@# Importing dealgo.config creates its data folder, so point it somewhere disposable.
+	@# Importing pamphlets.config creates its data folder, so point it somewhere disposable.
 	@tmp=$$(mktemp -d); \
-	DEALGO_DATA_DIR=$$tmp DEALGO_DATABASE_URL=sqlite:// \
-		$(PY) -m pdoc dealgo --docformat markdown --no-show-source -o $(AUTODOC)/python; \
+	PAMPHLETS_DATA_DIR=$$tmp PAMPHLETS_DATABASE_URL=sqlite:// \
+		$(PY) -m pdoc pamphlets --docformat markdown --no-show-source -o $(AUTODOC)/python; \
 	status=$$?; rm -rf $$tmp; exit $$status
 	npm install --prefix $(AUTODOC) --no-audit --no-fund
 	cd $(AUTODOC) && npx typedoc --options typedoc.browser.json --logLevel Warn
@@ -150,9 +150,9 @@ push-release: ## Publish releases/<version>/ to the hubs in ops/hubs.toml (HUB=n
 	$(PY) ops/publish_image.py $(if $(VERSION),--version $(VERSION)) $(if $(HUB),--hub $(HUB)) $(if $(DRY_RUN),--dry-run)
 
 dev: assets ## Run the app locally without Docker (reads .env if there is one)
-	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m dealgo serve
+	@set -a; [ -f .env ] && . ./.env; set +a; $(PY) -m pamphlets serve
 
-clean: ## Stop Dealgo and delete its data volume (irreversible)
+clean: ## Stop Pamphlets and delete its data volume (irreversible)
 	@printf 'This erases every watched channel and all sync history. Type yes to confirm: '; \
 	read answer; [ "$$answer" = yes ] || { echo "aborted"; exit 1; }
 	$(COMPOSE) down -v

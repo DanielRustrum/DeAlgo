@@ -1,6 +1,6 @@
 # Data Model
 
-All tables are in `dealgo/models/`. Times are stored as **naive UTC**. Names are historical:
+All tables are in `pamphlets/models/`. Times are stored as **naive UTC**. Names are historical:
 a `Channel` is any source, a `Playlist` is any feed, a `Video` is any item.
 
 ```

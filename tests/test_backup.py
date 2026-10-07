@@ -10,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, OAuthToken, Placement, Playlist, Video, utcnow
-from dealgo.services import backup
+from pamphlets.models import Channel, OAuthToken, Placement, Playlist, Video, utcnow
+from pamphlets.services import backup
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def export(db) -> dict:
 
 def legacy_export(db) -> dict:
     """A file as an earlier version wrote it: history, and a client id."""
-    from dealgo.models import Placement, Video
+    from pamphlets.models import Placement, Video
 
     data = export(db)
     with db.session_scope() as session:
@@ -99,7 +99,7 @@ def legacy_export(db) -> dict:
 def test_the_setup_comes_out_whole(populated):
     data = export(populated)
 
-    assert data["de_algo_backup"] == backup.FORMAT_VERSION
+    assert data["pamphlets_backup"] == backup.FORMAT_VERSION
     assert data["settings"]["poll_interval_minutes"] == 45
     assert data["counts"] == {"feeds": 2, "channels": 1}
 
@@ -159,13 +159,13 @@ def test_an_empty_install_still_exports(db):
 
 def test_the_filename_is_dated():
     stamped = backup.filename(dt.datetime(2026, 3, 9, tzinfo=dt.timezone.utc))
-    assert stamped == "de-algo-backup-2026-03-09.json"
+    assert stamped == "pamphlets-backup-2026-03-09.json"
 
 
 @pytest.fixture
 def client(populated, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -188,7 +188,7 @@ def test_the_browser_is_told_to_save_it(client):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
     assert "attachment" in response.headers["content-disposition"]
-    assert "de-algo-backup-" in response.headers["content-disposition"]
+    assert "pamphlets-backup-" in response.headers["content-disposition"]
 
     data = response.json()
     assert data["counts"]["channels"] == 1
@@ -210,7 +210,7 @@ def test_a_backup_restores_onto_an_empty_install(populated, db):
     exported = export(populated)
 
     # A brand new database, sharing nothing but the file.
-    from dealgo.models import Base
+    from pamphlets.models import Base
 
     with db.session_scope() as session:
         for table in reversed(Base.metadata.sorted_tables):
@@ -274,7 +274,7 @@ def test_an_older_file_with_history_still_restores(populated, db):
 
     # Credentials in an old file are not taken: they belong to the plugin's
     # settings for everyone now, set by the admin, never by a restore.
-    from dealgo.services import plugin_settings
+    from pamphlets.services import plugin_settings
 
     assert plugin_settings.stored("youtube", "app") == {}
 
@@ -300,7 +300,7 @@ def test_a_file_that_is_not_a_backup_is_refused(db):
 def test_a_newer_format_is_refused_rather_than_half_read(db):
     with db.session_scope() as session:
         with pytest.raises(backup.RestoreError) as caught:
-            backup.restore(session, {"de_algo_backup": backup.FORMAT_VERSION + 1})
+            backup.restore(session, {"pamphlets_backup": backup.FORMAT_VERSION + 1})
     assert "reads" in str(caught.value)
 
 
@@ -346,9 +346,9 @@ def test_a_restored_backup_comes_back_wired(db, tmp_path):
     restore a setup that collects nothing."""
     import json
 
-    from dealgo.models import Channel, GraphEdge, GraphNode, Playlist
-    from dealgo.services import backup as backup_service
-    from dealgo.services import graph as graph_service
+    from pamphlets.models import Channel, GraphEdge, GraphNode, Playlist
+    from pamphlets.services import backup as backup_service
+    from pamphlets.services import graph as graph_service
 
     with db.session_scope() as session:
         channel = Channel(channel_id="UCaaaaaaaaaaaaaaaaaaaaaa", title="One", source_kind="youtube")

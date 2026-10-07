@@ -13,7 +13,7 @@ import datetime as dt
 import httpx
 import pytest
 
-from dealgo.sources import patience
+from pamphlets.sources import patience
 
 
 @pytest.fixture(autouse=True)
@@ -132,7 +132,7 @@ def test_nonsense_headers_fall_back_rather_than_being_believed():
 def test_a_fetch_refuses_to_ask_a_host_that_is_still_waiting(monkeypatch):
     """What the second Backfill press does now: nothing at all, rather than a
     request everybody involved knows will be refused."""
-    from dealgo.sources import syndication
+    from pamphlets.sources import syndication
 
     asked = []
 

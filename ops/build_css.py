@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "dealgo" / "web"
+WEB = ROOT / "pamphlets" / "web"
 SOURCE = WEB / "styles" / "app.css"
 TARGET = WEB / "static" / "app.css"
 TAILWIND = ROOT / "node_modules" / ".bin" / "tailwindcss"

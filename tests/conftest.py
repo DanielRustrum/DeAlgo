@@ -6,21 +6,21 @@ from dataclasses import replace
 import pytest
 from sqlalchemy import select
 
-# Keep tests off any real data directory before dealgo.config is imported.
-os.environ.setdefault("DEALGO_DATA_DIR", "/tmp/dealgo-tests")
-os.environ.pop("DEALGO_CLIENT_ID", None)
-os.environ.pop("DEALGO_CLIENT_SECRET", None)
-os.environ.pop("DEALGO_API_KEY", None)
+# Keep tests off any real data directory before pamphlets.config is imported.
+os.environ.setdefault("PAMPHLETS_DATA_DIR", "/tmp/pamphlets-tests")
+os.environ.pop("PAMPHLETS_CLIENT_ID", None)
+os.environ.pop("PAMPHLETS_CLIENT_SECRET", None)
+os.environ.pop("PAMPHLETS_API_KEY", None)
 # Nor any plugin setting given by the environment.
-for _name in [name for name in os.environ if name.startswith("DEALGO_PLUGIN_")]:
+for _name in [name for name in os.environ if name.startswith("PAMPHLETS_PLUGIN_")]:
     os.environ.pop(_name, None)
 
 
 @pytest.fixture
 def db(tmp_path, monkeypatch):
     """A fresh SQLite database per test, wired into the real db module."""
-    from dealgo import db as db_module
-    from dealgo.config import CONFIG
+    from pamphlets import db as db_module
+    from pamphlets.config import CONFIG
 
     monkeypatch.setattr(db_module.engine, "CONFIG", replace(CONFIG, database_url=f"sqlite:///{tmp_path / 'test.sqlite3'}"))
     monkeypatch.setattr(db_module.engine, "_engine", None)
@@ -40,9 +40,9 @@ def fresh_plugins():
     what each is granted, so one cached across a database swap is a registry
     answering about somewhere else.
     """
-    from dealgo.plugins import registry
-    from dealgo.services import plugin_settings
-    from dealgo.services.theming import store as themes
+    from pamphlets.plugins import registry
+    from pamphlets.services import plugin_settings
+    from pamphlets.services.theming import store as themes
 
     # And the plugins' setting values and each account's theme, which are
     # held the same way.
@@ -64,7 +64,7 @@ def no_community_scraping(monkeypatch, request):
     a test running a sync without knowing posts exist would otherwise quietly
     hit YouTube. `world` overrides this with its own controllable list.
     """
-    from dealgo.plugins import registry
+    from pamphlets.plugins import registry
 
     # Unless the test is about that reading itself, in which case it says so
     # and stubs the page it is fed.
@@ -76,11 +76,11 @@ def no_community_scraping(monkeypatch, request):
 @pytest.fixture
 def world(db, monkeypatch):
     """A watched channel, a target playlist, and controllable YouTube responses."""
-    from dealgo.models import Channel, Playlist
-    from dealgo.services import sync as sync_service
-    from dealgo.services import watched as watched_service
-    from dealgo.plugins import registry
-    from dealgo.sources import syndication
+    from pamphlets.models import Channel, Playlist
+    from pamphlets.services import sync as sync_service
+    from pamphlets.services import watched as watched_service
+    from pamphlets.plugins import registry
+    from pamphlets.sources import syndication
 
     from fakes import CHANNEL_ID, MAIN_PLAYLIST, FakeYouTube
 
@@ -105,7 +105,7 @@ def world(db, monkeypatch):
     monkeypatch.setattr(
         registry.Registry, "posts", lambda self, kind, key: list(state["posts"])
     )
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     def fake_build_client(session, http, owner=None):
         return state["client"].bind_meter(quota.meter(session))
@@ -113,7 +113,7 @@ def world(db, monkeypatch):
     monkeypatch.setattr(sync_service.run, "build_client", fake_build_client)
     monkeypatch.setattr(watched_service, "build_client", fake_build_client)
 
-    from dealgo.models import GraphEdge, GraphNode
+    from pamphlets.models import GraphEdge, GraphNode
 
     with db.session_scope() as session:
         channel = Channel(channel_id=CHANNEL_ID, title="Fake Channel")
@@ -148,9 +148,9 @@ def add_playlist(db):
     """Create another target playlist and point the channel at it too."""
 
     def _add(playlist_id: str, title: str | None = None, *, feeds_channel: bool = True, **kwargs):
-        from dealgo.models import Channel, Playlist
+        from pamphlets.models import Channel, Playlist
 
-        from dealgo.models import GraphEdge, GraphNode
+        from pamphlets.models import GraphEdge, GraphNode
 
         with db.session_scope() as session:
             playlist = Playlist(playlist_id=playlist_id, title=title or playlist_id, **kwargs)

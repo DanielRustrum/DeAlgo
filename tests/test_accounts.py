@@ -10,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakes import use_config
-from dealgo.services import accounts
-from dealgo.web import guard
+from pamphlets.services import accounts
+from pamphlets.web import guard
 
 # The same pair as .env, so what the tests exercise is what you can sign in
 # with by hand. Short on purpose: it is also what proves Pamphlets accepts an
@@ -22,9 +22,9 @@ ADMIN = ("admin", "admin")
 @pytest.fixture
 def secured(db, monkeypatch):
     """An instance with an admin configured, and a member alongside."""
-    from dealgo import config, scheduler
-    from dealgo.services import accounts as accounts_module
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.services import accounts as accounts_module
+    from pamphlets.web import app as web_app
 
     secured_config = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
@@ -100,7 +100,7 @@ def test_the_same_answer_whichever_half_was_wrong(db):
 
 def test_the_cookie_is_the_secret_not_the_row(db):
     """Only a hash is stored: a copy of this table cannot sign in as anyone."""
-    from dealgo.models import LoginSession
+    from pamphlets.models import LoginSession
 
     with db.session_scope() as session:
         user = accounts.create_user(session, "sam", "member-password")
@@ -135,7 +135,7 @@ def test_switching_an_account_off_signs_it_out(db):
 def test_an_expired_session_is_not_an_identity(db):
     import datetime as dt
 
-    from dealgo.models import LoginSession, utcnow
+    from pamphlets.models import LoginSession, utcnow
 
     with db.session_scope() as session:
         user = accounts.create_user(session, "sam", "member-password")
@@ -169,7 +169,7 @@ def test_the_environment_wins_back_a_changed_admin_password(secured, db):
 
 def test_a_former_admin_loses_the_powers(secured, db, monkeypatch):
     """Point the variable at a different name and the old one is a member."""
-    from dealgo import config
+    from pamphlets import config
 
     with db.session_scope() as session:
         use_config(monkeypatch, config.Config(**{**config.CONFIG.__dict__, "admin_user": "someone-else"}))
@@ -296,7 +296,7 @@ def test_signing_out_ends_the_session(secured):
 def test_every_route_is_classified(secured):
     """The rules are a list, and a new route is easy to leave off it. Anything
     the app answers must be deliberately public, a member's, or the admin's."""
-    from dealgo.web.app import app as application
+    from pamphlets.web.app import app as application
 
     unreachable = []
     for route in application.routes:
@@ -388,7 +388,7 @@ def test_the_admins_password_is_not_changed_from_the_page(secured, db):
         data={"password": "changed-by-hand"}, follow_redirects=False,
     )
 
-    assert "DEALGO_ADMIN_PASSWORD" in response.headers["location"]
+    assert "PAMPHLETS_ADMIN_PASSWORD" in response.headers["location"]
     with db.session_scope() as session:
         assert accounts.verify_password(ADMIN[1], accounts.find(session, ADMIN[0]).password_hash)
 
@@ -420,15 +420,15 @@ def test_the_admin_page_explains_itself_when_accounts_are_off(client):
     body = client.get("/admin/accounts").text
 
     assert "Accounts are switched off" in body
-    assert "DEALGO_ADMIN_USER" in body
+    assert "PAMPHLETS_ADMIN_USER" in body
     assert "Add an account" not in body
 
 
 @pytest.fixture
 def client(db, monkeypatch):
     """The ordinary instance: no admin configured, so no sign-in."""
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -481,7 +481,7 @@ def test_a_short_admin_password_says_so_on_the_page(secured, monkeypatch):
 
 
 def test_a_long_admin_password_is_not_nagged_about(db, monkeypatch):
-    from dealgo import config
+    from pamphlets import config
 
     strong = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": "admin",
@@ -544,7 +544,7 @@ def test_a_signed_in_visitor_is_recognised_on_public_pages(secured):
 def test_assets_do_not_cost_a_lookup_each(secured, monkeypatch):
     """Identifying on public paths must not mean identifying on every file the
     page pulls in."""
-    from dealgo.web import app as web_app
+    from pamphlets.web import app as web_app
 
     looked = []
     original = web_app._identify
@@ -667,9 +667,9 @@ def test_the_admin_can_take_one(secured):
     response = secured.post("/admin/backup", data={"passphrase": "a-long-enough-one"})
 
     assert response.status_code == 200
-    assert "de-algo-site-" in response.headers["content-disposition"]
+    assert "pamphlets-site-" in response.headers["content-disposition"]
     envelope = json.loads(response.text)
-    assert envelope["format"] == "dealgo-site-backup"
+    assert envelope["format"] == "pamphlets-site-backup"
     assert "payload" in envelope and "admin" not in response.text
 
 

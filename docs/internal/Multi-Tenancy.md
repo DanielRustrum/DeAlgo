@@ -5,7 +5,7 @@ quota and run log are its own. The admin manages accounts but cannot see their d
 
 ## Two modes, one code path
 
-| `DEALGO_ADMIN_USER` set? | Mode | Owner of every row |
+| `PAMPHLETS_ADMIN_USER` set? | Mode | Owner of every row |
 | --- | --- | --- |
 | No | Sign-in off | `NULL` — the *implicit owner* |
 | Yes | Sign-in on | The signed-in user's `user.id` |
@@ -15,7 +15,7 @@ single-user path to drift.
 
 ## How a request gets its owner
 
-1. `require_account` middleware (`web/app.py`) reads the `dealgo_session` cookie and resolves an
+1. `require_account` middleware (`web/app.py`) reads the `pamphlets_session` cookie and resolves an
    `Identity` (`username`, `is_admin`, `user_pk`).
 2. Every route calls `owner_of(request)` → `identity.user_pk`, or `None` when sign-in is off.
 3. Services take `owner: OwnerId` and pass it to every query.
@@ -52,15 +52,15 @@ each **in turn**. Sequential on purpose: one SQLite file, one playlist lock, and
 
 ## Plugins and owners
 
-Plugins are install-wide; data is not. The `dealgo` and `account` capabilities answer nothing
+Plugins are install-wide; data is not. The `pamphlets` and `account` capabilities answer nothing
 until the host enters `capabilities.acting_for(owner)`, which the sync engine does only around `keep`,
-`rank`, `posts` and publisher calls. Outside it, `dealgo.sources()` is empty and changes are
+`rank`, `posts` and publisher calls. Outside it, `pamphlets.sources()` is empty and changes are
 refused. Enforced in one place (`plugins/capabilities/`) so no plugin function can forget it. See
 [Plugin Registry](Plugin%20Registry.md).
 
 ## The admin
 
-- Comes from `DEALGO_ADMIN_USER` / `DEALGO_ADMIN_PASSWORD`, reconciled on every start
+- Comes from `PAMPHLETS_ADMIN_USER` / `PAMPHLETS_ADMIN_PASSWORD`, reconciled on every start
   (`accounts.ensure_admin`). Changing the variable and restarting is the recovery path.
 - Sees `/admin/*` (accounts, plugins, instance migration). `guard.needs_admin` gates it.
 - Has their own canvas and feeds like anyone else, and no view into others'.

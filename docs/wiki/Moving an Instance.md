@@ -26,7 +26,7 @@ Load the file on the new machine and enter the passphrase.
 - Each account's setup is merged into its own space. Nothing existing is deleted; restoring twice
   changes nothing.
 - An account marked admin in the file is restored as a member. The admin always comes from
-  `DEALGO_ADMIN_USER`.
+  `PAMPHLETS_ADMIN_USER`.
 
 ## Moving everything instead
 

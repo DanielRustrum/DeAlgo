@@ -10,9 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.db import get_settings
-from dealgo.models import Channel, Placement, Playlist, SyncRun, Video
-from dealgo.web import contexts as web_contexts
+from pamphlets.db import get_settings
+from pamphlets.models import Channel, Placement, Playlist, SyncRun, Video
+from pamphlets.web import contexts as web_contexts
 from fakes import give_youtube_a_client, unwire, wire, set_quota
 
 HX = {"HX-Request": "true"}
@@ -29,8 +29,8 @@ def squashed(css: str) -> str:
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     # No background thread in tests, and the app must use the temp database.
     monkeypatch.setattr(scheduler, "start", lambda: None)
@@ -83,7 +83,7 @@ def test_sync_finished_event_fires_once_per_run(client, db):
         run_id = run.id
 
     stale = client.get("/partials/sync-status?seen=0", headers=HX)
-    assert stale.headers.get("HX-Trigger") == "dealgo:sync-finished"
+    assert stale.headers.get("HX-Trigger") == "pamphlets:sync-finished"
 
     current = client.get(f"/partials/sync-status?seen={run_id}", headers=HX)
     assert "HX-Trigger" not in current.headers
@@ -127,20 +127,20 @@ def test_the_watched_view_renders(client):
 def test_marking_watched_swaps_the_row_and_announces_the_change(client, db):
     response = client.post("/videos/2/watched", headers=HX)
     assert response.status_code == 200
-    assert response.headers.get("HX-Trigger") == "dealgo:watched-changed"
+    assert response.headers.get("HX-Trigger") == "pamphlets:watched-changed"
     assert 'pill-watched' in response.text
     with db.session_scope() as session:
         assert session.get(Video, 2).watched_at is not None
 
     undo = client.post("/videos/2/unwatched", headers=HX)
-    assert undo.headers.get("HX-Trigger") == "dealgo:watched-changed"
+    assert undo.headers.get("HX-Trigger") == "pamphlets:watched-changed"
     with db.session_scope() as session:
         assert session.get(Video, 2).watched_at is None
 
 
 def test_remove_watched_does_nothing_when_nothing_is_watched(client, db, monkeypatch):
-    from dealgo.models import OAuthToken
-    from dealgo.services import watched as watched_service
+    from pamphlets.models import OAuthToken
+    from pamphlets.services import watched as watched_service
 
     with db.session_scope() as session:
         session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
@@ -169,8 +169,8 @@ def test_remove_watched_refuses_when_it_could_not_work(client, db):
 
 
 def test_remove_watched_starts_only_on_request(client, db, monkeypatch):
-    from dealgo.models import OAuthToken
-    from dealgo.services import watched as watched_service
+    from pamphlets.models import OAuthToken
+    from pamphlets.services import watched as watched_service
 
     with db.session_scope() as session:
         session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
@@ -232,7 +232,7 @@ def test_without_a_client_signing_in_says_whose_job_it_is(client):
 
 
 def test_sign_in_errors_are_explained(client):
-    from dealgo.web.routes import connections as connecting
+    from pamphlets.web.routes import connections as connecting
 
     give_youtube_a_client()
 
@@ -250,7 +250,7 @@ def test_sign_in_errors_are_explained(client):
 
 def test_a_dead_refresh_grant_is_reported_not_hidden(client, db):
     """While the consent screen is in Testing, Google expires grants weekly."""
-    from dealgo.models import OAuthToken
+    from pamphlets.models import OAuthToken
 
     with db.session_scope() as session:
         session.add(
@@ -276,8 +276,8 @@ def test_a_dead_refresh_grant_is_reported_not_hidden(client, db):
 def test_the_account_playlist_lookup_is_cached_across_renders(client, db, monkeypatch):
     """The panel renders on a page you actually browse, so it must not call
     YouTube every time."""
-    from dealgo.models import OAuthToken
-    from dealgo.web import app as web_app
+    from pamphlets.models import OAuthToken
+    from pamphlets.web import app as web_app
 
     with db.session_scope() as session:
         session.add(OAuthToken(provider="youtube", id=1, access_token="token"))
@@ -318,7 +318,7 @@ def test_there_is_no_way_to_sync_everything_from_the_header(client):
 
 
 def test_a_playlists_add_limit_can_be_saved(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     assert 'name="max_per_run"' in client.get("/feeds/1").text
 
@@ -335,7 +335,7 @@ def test_a_playlists_add_limit_can_be_saved(client, db):
 
 
 def test_a_nonsense_add_limit_is_refused(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     response = client.post(
         "/settings/playlists/1", data={"max_items": "0", "max_per_run": "lots"}, headers=HX
@@ -372,7 +372,7 @@ def test_the_descriptions_are_reachable_without_a_mouse(client):
 
 
 def test_a_feed_lists_its_channels_for_editing(client, db):
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Second Channel"))
@@ -388,7 +388,7 @@ def test_a_feed_lists_its_channels_for_editing(client, db):
 
 
 def test_a_channel_can_be_added_to_a_feed_from_its_row(client, db):
-    from dealgo.models import Channel, Playlist
+    from pamphlets.models import Channel, Playlist
 
     with db.session_scope() as session:
         session.add(Channel(channel_id="UCbbbbbbbbbbbbbbbbbbbbbb", title="Second Channel"))
@@ -406,7 +406,7 @@ def test_a_channel_can_be_added_to_a_feed_from_its_row(client, db):
 
 
 def test_a_channel_can_be_removed_from_a_feed(client, db):
-    from dealgo.models import Channel, Playlist
+    from pamphlets.models import Channel, Playlist
 
     response = client.post(
         "/settings/playlists/1/channels", data={"channel_id": "1", "include": "0"}, headers=HX
@@ -419,7 +419,7 @@ def test_a_channel_can_be_removed_from_a_feed(client, db):
 
 
 def test_editing_membership_leaves_placed_videos_alone(client, db):
-    from dealgo.models import Placement
+    from pamphlets.models import Placement
 
     client.post(
         "/settings/playlists/1/channels", data={"channel_id": "1", "include": "0"}, headers=HX
@@ -442,7 +442,7 @@ def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
 
     # The run log is read in a dialog on the canvas now rather than on a page
     # of its own, and its table only renders for a run that wrote something.
-    from dealgo.services import runlog
+    from pamphlets.services import runlog
 
     with db.session_scope() as session:
         run = SyncRun(ok=True)
@@ -454,7 +454,7 @@ def test_the_wide_tables_scroll_rather_than_escape_their_panel(client, db):
 
 
 def test_the_letter_colour_is_stable_for_a_channel(db):
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     channel = Channel(channel_id="UCzzzzzzzzzzzzzzzzzzzzzz", title="Anything")
     assert channel.avatar_hue == Channel(channel_id=channel.channel_id).avatar_hue
@@ -463,9 +463,9 @@ def test_the_letter_colour_is_stable_for_a_channel(db):
 
 
 def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, monkeypatch):
-    from dealgo.models import Channel, Playlist
-    from dealgo.services import playlists as playlist_service
-    from dealgo.plugins.publisher import PlaylistInfo
+    from pamphlets.models import Channel, Playlist
+    from pamphlets.services import playlists as playlist_service
+    from pamphlets.plugins.publisher import PlaylistInfo
 
     made = {}
 
@@ -499,7 +499,7 @@ def test_creating_a_feed_makes_the_playlist_and_links_the_channels(client, db, m
 
 
 def test_naming_a_generic_feed_sticks(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     response = client.post(
         "/settings/feeds/new",
@@ -514,7 +514,7 @@ def test_naming_a_generic_feed_sticks(client, db):
 
 
 def test_a_feed_can_be_unlinked_from_its_playlist(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     detail = client.get("/feeds/1").text
     assert "/settings/playlists/1/unlink" in detail
@@ -531,7 +531,7 @@ def test_a_feed_can_be_unlinked_from_its_playlist(client, db):
 
 
 def test_a_generic_feed_offers_no_unlink_button(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         session.get(Playlist, 1).playlist_id = "generic:abc123"
@@ -587,7 +587,7 @@ def test_the_pages_are_titled_to_match_their_tab(client):
 
 
 def test_a_feed_can_be_renamed_from_its_row(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     listing = client.get("/feeds/1").text
     assert ">Rename<" in listing
@@ -611,7 +611,7 @@ def test_a_feed_can_be_renamed_from_its_row(client, db):
 
 
 def test_an_empty_rename_keeps_the_field_open(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         session.get(Playlist, 1).playlist_id = "generic:abc123"
@@ -624,7 +624,7 @@ def test_an_empty_rename_keeps_the_field_open(client, db):
 
 
 def test_filling_is_a_toggle_not_a_checkbox_in_the_save_form(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     body = client.get("/feeds/1").text
     assert "/settings/playlists/1/filling" in body
@@ -643,7 +643,7 @@ def test_filling_is_a_toggle_not_a_checkbox_in_the_save_form(client, db):
 def test_saving_limits_no_longer_pauses_the_feed(client, db):
     """The checkbox used to live in this form: submitting without it would
     silently switch the feed off."""
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     client.post(
         "/settings/playlists/1", data={"max_items": "10", "max_per_run": "2"}, headers=HX
@@ -655,7 +655,7 @@ def test_saving_limits_no_longer_pauses_the_feed(client, db):
 
 
 def test_a_feed_has_its_own_page(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     # The canvas links through rather than carrying every control: a feed's
     # box opens its page, where the rest of its settings are.
@@ -670,7 +670,7 @@ def test_a_feed_has_its_own_page(client, db):
 
 def test_a_feed_page_action_returns_to_that_page(client, db):
     """The detail page posts plainly, so it must not land back on the list."""
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     response = client.post(
         "/settings/playlists/1/filling", data={"back": "/feeds/1"}, follow_redirects=False
@@ -690,7 +690,7 @@ def test_an_unknown_feed_page_says_so(client):
 def test_only_a_feeds_own_page_says_it_is_generic(client, db):
     """Whether a feed is backed by a playlist belongs with its settings, not
     in either list."""
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         session.get(Playlist, 1).playlist_id = "generic:abc123"
@@ -742,7 +742,7 @@ def test_searching_a_picker_matches_ids_as_well_as_names(client):
 def test_a_long_channel_description_folds_away(client, db):
     """A channel that treats its about box as a blog would otherwise push
     every control on the page below the fold."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     essay = "I make videos about lathes. " * 40
     with db.session_scope() as session:
@@ -760,7 +760,7 @@ def test_a_long_channel_description_folds_away(client, db):
 
 def test_a_description_of_a_few_short_lines_is_not_folded(client, db):
     """Folding three lines away behind a toggle costs a click and buys nothing."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         session.get(Channel, 1).description = "Lathes.\nMostly.\nSometimes chisels."
@@ -773,7 +773,7 @@ def test_a_description_of_a_few_short_lines_is_not_folded(client, db):
 def test_a_short_description_of_many_lines_still_folds(client, db):
     """Length is not the only way to fill the panel — a stack of link lines
     is short by character count and tall on screen."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         session.get(Channel, 1).description = "\n".join(f"link {n}" for n in range(12))
@@ -852,7 +852,7 @@ def test_the_drawer_says_whether_it_is_open(client):
     about a drawer. The script fills that in, and only claims it while it is
     actually running."""
     source = (
-        __import__("pathlib").Path("dealgo/web/ts/menu.ts").read_text()
+        __import__("pathlib").Path("pamphlets/web/ts/menu.ts").read_text()
     )
 
     assert 'setAttribute("aria-expanded"' in source
@@ -1228,7 +1228,7 @@ def test_the_settings_that_left_are_not_reset_by_saving(client, db):
 def test_one_switch_covers_both_google_notices(client, db):
     """They say the same thing twice — the banner above every page and the one
     on the dashboard — so they go together."""
-    from dealgo.models import Settings
+    from pamphlets.models import Settings
 
     with db.session_scope() as session:
         get_settings(session).hide_connect_notice = True
@@ -1239,7 +1239,7 @@ def test_one_switch_covers_both_google_notices(client, db):
 
 
 def test_switching_a_notice_off_leaves_the_page_working(client, db):
-    from dealgo.models import Settings
+    from pamphlets.models import Settings
 
     with db.session_scope() as session:
         settings = get_settings(session)
@@ -1297,6 +1297,6 @@ def test_each_plugins_settings_fold_away(client):
     """Folded until opened; the address a save comes back to opens its own."""
     body = client.get("/settings").text
     assert '<details class="plugin-card" id="plugin-youtube"' in body
-    from dealgo.web.templates import BASE_DIR
+    from pamphlets.web.templates import BASE_DIR
 
     assert "openTargetSection" in (BASE_DIR / "static" / "sections.js").read_text()

@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "dealgo" / "web"
+WEB = ROOT / "pamphlets" / "web"
 
 #: Each script written as a folder: where tsc puts its parts, and where the
 #: joined script goes.

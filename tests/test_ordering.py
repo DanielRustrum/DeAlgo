@@ -4,18 +4,18 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, Playlist, Video
-from dealgo.services import ordering
-from dealgo.services import quota
-from dealgo.services import sync as sync_service
-from dealgo.plugins.publisher import VideoDetails
+from pamphlets.models import Channel, Playlist, Video
+from pamphlets.services import ordering
+from pamphlets.services import quota
+from pamphlets.services import sync as sync_service
+from pamphlets.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry, set_quota
 
 SECOND = "PL_second"
 
 
 def add_channel(db, channel_id: str, title: str, *, playlists=None):
-    from dealgo.models import GraphEdge, GraphNode
+    from pamphlets.models import GraphEdge, GraphNode
 
     with db.session_scope() as session:
         channel = Channel(channel_id=channel_id, title=title)
@@ -95,7 +95,7 @@ def test_the_highest_priority_channel_is_inserted_first(world, db):
     # Both channels have an upload; the newer one belongs to the top channel.
     # Keyed by the feed address now, because that is what a source is read
     # from — the channel id is only how YouTube's happens to be built.
-    from dealgo.sources import syndication
+    from pamphlets.sources import syndication
 
     base = "https://www.youtube.com/feeds/videos.xml?channel_id="
     by_address = {
@@ -168,7 +168,7 @@ def test_the_first_playlist_is_filled_first(world, add_playlist, db):
 def test_a_new_channel_joins_the_end_of_the_order(world, db):
     import httpx
 
-    from dealgo.services import channels as channel_service
+    from pamphlets.services import channels as channel_service
 
     with db.session_scope() as session, httpx.Client() as http:
         channel = channel_service.add_source(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)

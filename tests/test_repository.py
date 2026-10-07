@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, Placement, Playlist, RepositoryItem, Video, utcnow
-from dealgo.plugins.publisher import VideoDetails
-from dealgo.services import graph
-from dealgo.services import sync as sync_service
+from pamphlets.models import Channel, Placement, Playlist, RepositoryItem, Video, utcnow
+from pamphlets.plugins.publisher import VideoDetails
+from pamphlets.services import graph
+from pamphlets.services import sync as sync_service
 import pytest
 
 from fakes import entry, unwire
@@ -24,8 +24,8 @@ def canvas(world, db, monkeypatch):
     """The app over the database `world` set up, for pressing the buttons."""
     from fastapi.testclient import TestClient
 
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -40,7 +40,7 @@ def build(world, db, *, name="News", takes=None, pull=True, wired=True):
 
     Returns the ids of the boxes a test will want to press.
     """
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         # Far enough back that every upload a test writes arrives; these are
@@ -182,7 +182,7 @@ def test_pulling_sends_what_comes_out_down_its_own_path(world, db):
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         said = sync_service.withdraw_now(session, [box.id])
@@ -199,7 +199,7 @@ def test_it_takes_only_as_many_as_it_was_told_to(world, db):
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         pk = box.id
@@ -222,7 +222,7 @@ def test_the_oldest_goes_first(world, db):
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         first = session.scalars(
@@ -245,7 +245,7 @@ def test_what_is_taken_is_taken(world, db):
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         pk = box.id
@@ -263,7 +263,7 @@ def test_a_withdraw_wired_to_nothing_still_empties_it(world, db):
     assert holding(db) == 2
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         sync_service.withdraw_now(session, [box.id])
@@ -278,7 +278,7 @@ def test_a_withdraw_that_is_switched_off_pulls_nothing(world, db):
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         box = session.scalar(select(GraphNode).where(GraphNode.kind == "withdraw"))
         box.enabled = False
@@ -297,7 +297,7 @@ def test_a_run_pulls_when_the_trigger_has_come_round(world, db):
     uploads(world, 2)
 
     with db.session_scope() as session:
-        from dealgo.models import GraphNode
+        from pamphlets.models import GraphNode
 
         for box in session.scalars(
             select(GraphNode).where(GraphNode.kind.in_(("trigger", "withdraw")))
@@ -314,7 +314,7 @@ def test_a_run_pulls_when_the_trigger_has_come_round(world, db):
 
 def test_two_deposits_with_one_name_are_one_pile(world, db):
     """Which is how you funnel several sources into one place."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     build(world, db)
     uploads(world, 2)
@@ -336,7 +336,7 @@ def test_two_deposits_with_one_name_are_one_pile(world, db):
 
 def wired_through_a_filter(world, db, *, exclude="skip", takes=None):
     """A repository whose way out goes through a filter, as on a real canvas."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     _, _, pulling = build(world, db, takes=takes)
     with db.session_scope() as session:
@@ -394,7 +394,7 @@ def test_a_filter_after_a_withdraw_is_asked(world, db):
 def test_a_test_from_the_trigger_follows_the_withdrawal(world, db, canvas):
     """A trigger wired to a Withdraw box used to report nothing at all —
     every box on its path said the last test did not come through it."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     _, pulling = wired_through_a_filter(world, db)
     mixed(world, 4)
@@ -420,7 +420,7 @@ def test_a_test_from_the_trigger_follows_the_withdrawal(world, db, canvas):
 def test_a_test_says_what_the_next_pull_would_do_and_no_more(world, db, canvas):
     """Bounded by what the box takes. "What would happen" means the next
     pull, not every pull there will ever be."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     _, box_pk, pulling = build(world, db, takes=2)
     uploads(world, 5)
@@ -432,7 +432,7 @@ def test_a_test_says_what_the_next_pull_would_do_and_no_more(world, db, canvas):
 
 
 def test_a_trigger_wired_to_nothing_at_all_still_says_so(world, db, canvas):
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         lonely = graph.add_trigger(session, trigger_kind="pulse")

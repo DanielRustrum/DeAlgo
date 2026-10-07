@@ -10,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakes import use_config
-from dealgo.plugins import registry
-from dealgo.services import accounts
+from pamphlets.plugins import registry
+from pamphlets.services import accounts
 
 ADMIN = ("admin", "admin")
 
@@ -38,9 +38,9 @@ def here(tmp_path, monkeypatch):
 
 @pytest.fixture
 def admin(db, monkeypatch, here):
-    from dealgo import config, scheduler
-    from dealgo.services import accounts as accounts_module
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.services import accounts as accounts_module
+    from pamphlets.web import app as web_app
 
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
@@ -230,7 +230,7 @@ def test_removing_a_shipped_plugin_by_address_is_refused(admin):
     assert registry.current().recognise("UCzzzzzzzzzzzzzzzzzzzzzz") is not None
 
 
-@pytest.mark.parametrize("target", ["..%2F..%2Fdealgo", "..", "sub%2Fthing", "Caps"])
+@pytest.mark.parametrize("target", ["..%2F..%2Fpamphlets", "..", "sub%2Fthing", "Caps"])
 def test_a_removal_cannot_reach_outside_the_folder(admin, here, target):
     answer = admin.post(f"/admin/plugins/{target}/remove", follow_redirects=True)
 
@@ -305,7 +305,7 @@ def test_the_switch_outlives_a_restart(admin, db):
 def test_sources_already_watched_keep_working_while_it_is_off(admin, db):
     """Nothing is deleted and nothing stops polling: a channel holds its own
     feed address, and the plugin's job was only to work it out once."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         session.add(Channel(
@@ -323,7 +323,7 @@ def test_sources_already_watched_keep_working_while_it_is_off(admin, db):
 
 def test_the_page_says_how_much_is_leaning_on_one(admin, db):
     """Switching one off should be a decision rather than a discovery."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         for name in ("r/a", "r/b"):
@@ -575,7 +575,7 @@ def test_a_plugin_offers_its_source_box_beside_its_filters(admin):
 def test_the_only_source_box_that_is_not_a_plugins_is_the_address_one():
     """RSS is the floor every plugin's parsing is built on, so it is not
     filed under Plugins with the rest."""
-    from dealgo.sources import kinds
+    from pamphlets.sources import kinds
 
     assert kinds.RSS.noun == "Feed address"
     assert kinds.RSS.plugin == ""

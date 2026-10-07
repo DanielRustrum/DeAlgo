@@ -5,8 +5,8 @@ from __future__ import annotations
 import datetime as dt
 from collections import defaultdict
 
-from dealgo.sources import syndication
-from dealgo.plugins.publisher import ChannelInfo, PlaylistItem, cost_of
+from pamphlets.sources import syndication
+from pamphlets.plugins.publisher import ChannelInfo, PlaylistItem, cost_of
 
 CHANNEL_ID = "UCzzzzzzzzzzzzzzzzzzzzzz"
 MAIN_PLAYLIST = "PL_target"
@@ -131,7 +131,7 @@ def wire(session, channel, playlist):
     with the feed is no longer enough to route anything. This does both: the
     pairing the rest of the app reads, and the wire the canvas routes from.
     """
-    from dealgo.models import GraphEdge, GraphNode
+    from pamphlets.models import GraphEdge, GraphNode
     from sqlalchemy import select
 
     feed = session.scalar(
@@ -178,7 +178,7 @@ def wire(session, channel, playlist):
 
 def unwire(session, channel):
     """Take out every wire from this channel's boxes to any feed."""
-    from dealgo.models import GraphEdge, GraphNode
+    from pamphlets.models import GraphEdge, GraphNode
     from sqlalchemy import select
 
     boxes = [
@@ -210,7 +210,7 @@ def use_config(monkeypatch, config):
     import sys
 
     for name, module in list(sys.modules.items()):
-        if (name == "dealgo" or name.startswith("dealgo.")) and hasattr(module, "CONFIG"):
+        if (name == "pamphlets" or name.startswith("pamphlets.")) and hasattr(module, "CONFIG"):
             monkeypatch.setattr(module, "CONFIG", config)
 
 
@@ -223,8 +223,8 @@ def set_quota(*, daily: int | None = None, reserve: int | None = None, session=N
     """
     from sqlalchemy import select
 
-    from dealgo.models import PluginAppSetting
-    from dealgo.services import plugin_settings
+    from pamphlets.models import PluginAppSetting
+    from pamphlets.services import plugin_settings
 
     values = {}
     if daily is not None:
@@ -247,7 +247,7 @@ def set_quota(*, daily: int | None = None, reserve: int | None = None, session=N
 
 def give_youtube_a_client() -> None:
     """The admin's half of signing in: an OAuth client on the YouTube plugin."""
-    from dealgo.services import plugin_settings
+    from pamphlets.services import plugin_settings
 
     plugin_settings.save(
         "youtube", "app", None, {"client_id": "client-id", "client_secret": "secret"}

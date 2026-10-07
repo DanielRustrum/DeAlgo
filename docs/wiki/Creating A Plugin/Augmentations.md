@@ -92,7 +92,7 @@ always fall back: `tonumber(settings.minutes) or 5`.
 ## When they run
 
 `keep` runs as items are filed during a run, and in **Test**. `rank` runs as a batch is ordered. Both
-run on an account's behalf, so [`dealgo`](The%20dealgo%20Object.md) and [`account`](Account.md) answer.
+run on an account's behalf, so [`pamphlets`](The%20pamphlets%20Object.md) and [`account`](Account.md) answer.
 
 ## Several on one Filter
 

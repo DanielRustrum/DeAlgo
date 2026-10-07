@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from dealgo.plugins import registry, runtime
+from pamphlets.plugins import registry, runtime
 
-SHIPPED = Path(__file__).resolve().parent.parent / "dealgo" / "plugins" / "builtin"
+SHIPPED = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
 
 
 def a_plugin(tmp_path, name: str, body: str) -> Path:
@@ -122,7 +122,7 @@ def test_a_capability_that_never_said_what_it_offers_offers_nothing():
 def test_every_capability_says_what_it_offers():
     """Checked over the real ones, so a new capability cannot be added
     without deciding what a plugin may reach on it."""
-    from dealgo.plugins import capabilities
+    from pamphlets.plugins import capabilities
 
     handed = [
         capabilities.Account, capabilities.Site,
@@ -282,7 +282,7 @@ def test_a_colour_off_the_list_refuses_the_plugin(tmp_path, asked):
 def test_every_allowed_colour_is_drawn_in_both_themes():
     """The list lives in Python and the colours in CSS. One added to the list
     and not to the stylesheet would be a box with no colour at all."""
-    from dealgo.plugins.registry.plugin import SOURCE_COLOURS
+    from pamphlets.plugins.registry.plugin import SOURCE_COLOURS
 
     styles = SHIPPED.parent.parent / "web" / "styles"
     tokens = (styles / "tokens.css").read_text()
@@ -293,7 +293,7 @@ def test_every_allowed_colour_is_drawn_in_both_themes():
 
 
 def test_the_shipped_plugins_choose_colours_from_the_list():
-    from dealgo.plugins.registry.plugin import SOURCE_COLOURS
+    from pamphlets.plugins.registry.plugin import SOURCE_COLOURS
 
     found = registry.read(SHIPPED)
     chosen = {kind.kind: kind.colour for kind in found.source_kinds()}
@@ -421,9 +421,9 @@ def test_every_file_the_app_reads_from_its_own_package_is_shipped():
     import tomllib
 
     root = Path(__file__).resolve().parent.parent
-    package = root / "dealgo"
+    package = root / "pamphlets"
     config = tomllib.loads((root / "pyproject.toml").read_text())
-    globs = config["tool"]["setuptools"]["package-data"]["dealgo"]
+    globs = config["tool"]["setuptools"]["package-data"]["pamphlets"]
 
     shipped: set[Path] = set()
     for pattern in globs:
@@ -554,7 +554,7 @@ def test_a_source_that_declares_kinds_must_say_which_an_item_is(tmp_path):
 
 
 def test_a_new_source_leaves_out_what_its_plugin_starts_off(db):
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         youtube = Channel(channel_id="UCx", title="x", source_kind="youtube")

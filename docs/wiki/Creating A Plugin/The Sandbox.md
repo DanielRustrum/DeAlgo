@@ -9,7 +9,7 @@ Plugins run in **Lua 5.5**, one sandbox per plugin. A plugin sees only the table
 | Functions | `assert` `error` `ipairs` `next` `pairs` `pcall` `select` `tonumber` `tostring` `type` `xpcall` |
 | Libraries | `string`, `table`, `math` |
 | Globals table | `_G` — the plugin's own; setting a global affects only this plugin |
-| Capabilities | `dealgo` always; `net`, `clock`, `log`, `account` only if granted — see [Permissions](Permissions.md) |
+| Capabilities | `pamphlets` always; `net`, `clock`, `log`, `account` only if granted — see [Permissions](Permissions.md) |
 
 ## Not available
 

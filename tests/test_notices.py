@@ -11,11 +11,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakes import give_youtube_a_client, use_config
-from dealgo.plugins import registry
-from dealgo.plugins.registry.connect import connect_in
-from dealgo.plugins.registry.settings import settings_in
-from dealgo.plugins.runtime import PluginError
-from dealgo.services import accounts
+from pamphlets.plugins import registry
+from pamphlets.plugins.registry.connect import connect_in
+from pamphlets.plugins.registry.settings import settings_in
+from pamphlets.plugins.runtime import PluginError
+from pamphlets.services import accounts
 
 ADMIN = ("admin", "admin")
 MEMBER = ("sam", "member-password")
@@ -23,8 +23,8 @@ MEMBER = ("sam", "member-password")
 
 @pytest.fixture
 def site(db, monkeypatch):
-    from dealgo import config, scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.web import app as web_app
 
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}

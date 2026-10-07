@@ -1,0 +1,20 @@
+{# The header's ear on the sync. No buttons: a run is started by a trigger box
+   on the Configuration canvas, which is where the thing being polled is drawn
+   and where the schedule that governs it lives. Two ways to start the same run
+   meant a header button that ignored every wire on the canvas.
+
+   Still here because it is doing the listening: it polls slowly while idle,
+   quickly while a run is in flight, and fires pamphlets:sync-finished at the page
+   when one lands, which is what tells the feed and the panels to refresh.
+   It is also where a flash message from the other header actions lands. #}
+<div id="sync-controls" class="topbar-action"
+     hx-get="/partials/sync-status?seen={{ last_run_id or 0 }}"
+     hx-trigger="every {{ 2 if sync_running else 15 }}s"
+     hx-swap="outerHTML">
+  {% if sync_running %}
+  <a class="btn btn-quiet sync-busy" href="/channels"
+     title="A sync is running. The canvas shows which box it is on.">
+    <span class="spinner"></span>Syncing…
+  </a>
+  {% endif %}
+</div>

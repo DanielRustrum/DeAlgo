@@ -13,8 +13,8 @@ import datetime as dt
 
 import pytest
 
-from dealgo import sources
-from dealgo.sources import kinds, syndication
+from pamphlets import sources
+from pamphlets.sources import kinds, syndication
 
 
 # -- what somebody typed ---------------------------------------------------
@@ -339,7 +339,7 @@ def test_a_guess_stops_being_a_guess_once_the_kind_is_settled():
     assert kinds.resolve("me.example.com", within="bluesky").kind == "bluesky"
     # Asked of nobody in particular, the same words are only ever a guess,
     # and a plugin certain about them would win.
-    from dealgo.plugins import registry
+    from pamphlets.plugins import registry
 
     said = registry.current().recognise("me.example.com")
     assert said is not None and said.guess

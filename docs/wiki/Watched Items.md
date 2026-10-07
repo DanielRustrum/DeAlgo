@@ -7,7 +7,7 @@ YouTube does not tell apps what you have watched, so Pamphlets only knows what y
 - **✓** on a card on [The Feed Page](The%20Feed%20Page.md).
 - **Done · next** in [Focus Mode](Focus%20Mode.md).
 - **Watched** / **Unwatch** on a row in [The Raw List](The%20Raw%20List.md).
-- From the shell: `dealgo watched <video id or URL> …` — see [Command Line](Command%20Line.md).
+- From the shell: `pamphlets watched <video id or URL> …` — see [Command Line](Command%20Line.md).
 
 Watched items are hidden from a feed's default view and from Focus mode.
 

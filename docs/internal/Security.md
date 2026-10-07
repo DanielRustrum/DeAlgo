@@ -17,11 +17,11 @@ small group.
 
 - **Passwords:** scrypt (N = 2¹⁴, r = 8, p = 1, 32-byte key, 16-byte salt), compared with
   `hmac.compare_digest`. 8–1024 characters for members.
-- **Sessions:** `secrets.token_urlsafe(32)` in the `dealgo_session` cookie; only its SHA-256 is
+- **Sessions:** `secrets.token_urlsafe(32)` in the `pamphlets_session` cookie; only its SHA-256 is
   stored, so a database leak does not yield live sessions. `HttpOnly`, `SameSite=Lax`, `Secure` when
-  served over HTTPS. Lifetime `DEALGO_SESSION_DAYS` (default 30). Disabling an account or resetting
+  served over HTTPS. Lifetime `PAMPHLETS_SESSION_DAYS` (default 30). Disabling an account or resetting
   its sessions revokes them at once.
-- **Admin:** from `DEALGO_ADMIN_USER`/`DEALGO_ADMIN_PASSWORD`, reconciled every start. A password
+- **Admin:** from `PAMPHLETS_ADMIN_USER`/`PAMPHLETS_ADMIN_PASSWORD`, reconciled every start. A password
   under 8 characters is allowed (it is the operator's choice) but warned about in the log and on
   every page the admin views.
 - **No sign-in configured** → no accounts at all; everyone reaching the port is the implicit owner.

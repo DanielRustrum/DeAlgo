@@ -69,7 +69,7 @@ back.
 - A `connect` that could not work — a missing address, an `http://` one, a host that is not a plain
   name, a setting name you did not declare, a time zone that does not exist — stops the plugin
   loading, with the reason on the Plugins page.
-- The redirect URI is the same for every plugin: `DEALGO_PUBLIC_URL` plus `/oauth/callback`.
+- The redirect URI is the same for every plugin: `PAMPHLETS_PUBLIC_URL` plus `/oauth/callback`.
 - Removing the plugin keeps accounts' tokens in the database but nothing uses them; signing out
   under Settings removes them.
 

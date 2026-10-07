@@ -11,7 +11,7 @@ These break the rule that accounts are private. They come first because the inst
 `web/routes/feeds.py`, `videos.py`, `sources.py`, `focus.py` and `feed.py` look rows up with
 `session.get(Model, id)` and never check the owner. A signed-in member who sends another account's
 id can rename, re-cap, unlink or delete its feeds, change which sources fill them, stop watching
-its sources, and requeue, ignore or mark its items (15 places: `grep -n "session.get(" dealgo/web`).
+its sources, and requeue, ignore or mark its items (15 places: `grep -n "session.get(" pamphlets/web`).
 The canvas routes are scoped and tested; these older ones are not.
 **Fix:** look rows up with `owned(...)` (a small `owned_get(session, Model, id, owner)` helper), and
 add a tenancy test per route that tries another account's id.
@@ -88,7 +88,7 @@ Focus does not consult Timer/Reset/Alive. Decay timers apply only to non-video i
 `priority` on feeds and sources decides who fills first under quota pressure, with no way to change it.
 
 ### 13. CLI acts on the implicit owner
-`dealgo add/export/channels/watched/remove-watched` (and `make backup`) operate on unowned rows,
+`pamphlets add/export/channels/watched/remove-watched` (and `make backup`) operate on unowned rows,
 which are empty once sign-in is on. Only `sync` and `serve` are useful there.
 
 ### 15. Two "Newsletter" boxes
@@ -103,7 +103,7 @@ The Substack plugin's box is labelled Newsletter, as is the built-in Newsletter 
 ### 17. Forwarded headers trusted from anywhere
 `uvicorn.run(proxy_headers=True, forwarded_allow_ips="*")`. Exposed without a proxy, a client can
 spoof its scheme and address (affecting the `Secure` cookie flag).
-**Fix:** a `DEALGO_TRUSTED_PROXIES` variable defaulting to `127.0.0.1`.
+**Fix:** a `PAMPHLETS_TRUSTED_PROXIES` variable defaulting to `127.0.0.1`.
 
 ### 18. No login rate limiting
 Passwords are scrypt-hashed, but attempts are not throttled or locked out.

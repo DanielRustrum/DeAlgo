@@ -38,7 +38,7 @@ local dates = require("lib.dates")   -- dots are folders: lib/dates.lua
 - **A module runs once.** Every `require` of the same name gets what its first run returned (or
   `true` if it returned nothing).
 - **Modules share the plugin's world**: the same globals and the same capabilities (`settings`,
-  `dealgo`, and whatever was granted), under the same memory and time limits.
+  `pamphlets`, and whatever was granted), under the same memory and time limits.
 - A module that requires itself, directly or in a loop, is an error. So is a missing file, which names
   the file it looked for.
 - Up to 64 modules, each up to 256 KiB.
@@ -50,8 +50,8 @@ local dates = require("lib.dates")   -- dots are folders: lib/dates.lua
 
 | Folder | Holds |
 | --- | --- |
-| `dealgo/plugins/builtin/<id>/` | Shipped plugins, inside the image. |
-| `<DEALGO_DATA_DIR>/plugins/<id>/` | Plugins the admin added (`/data/plugins` in Docker). |
+| `pamphlets/plugins/builtin/<id>/` | Shipped plugins, inside the image. |
+| `<PAMPHLETS_DATA_DIR>/plugins/<id>/` | Plugins the admin added (`/data/plugins` in Docker). |
 
 Both are read in name order, shipped first. A plugin in the data folder with the same id as a shipped
 one **replaces** it. Plugins load on start, and again whenever one is added, removed, switched off or

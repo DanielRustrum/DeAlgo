@@ -15,13 +15,13 @@
     "useUnknownInCatchVariables": true,
     "forceConsistentCasingInFileNames": true,
 
-    "rootDir": "dealgo/web/ts",
-    "outDir": "dealgo/web/static",
+    "rootDir": "pamphlets/web/ts",
+    "outDir": "pamphlets/web/static",
     "removeComments": false,
     "newLine": "lf",
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["dealgo/web/ts/**/*.ts"],
-  "exclude": ["dealgo/web/ts/sw.ts", "dealgo/web/ts/graph/**", "dealgo/web/ts/focus/**"]
+  "include": ["pamphlets/web/ts/**/*.ts"],
+  "exclude": ["pamphlets/web/ts/sw.ts", "pamphlets/web/ts/graph/**", "pamphlets/web/ts/focus/**"]
 }

@@ -5,9 +5,9 @@
     "noEmit": true
   },
   "include": [
-    "../../../dealgo/web/ts/**/*.ts"
+    "../../../pamphlets/web/ts/**/*.ts"
   ],
   "exclude": [
-    "../../../dealgo/web/ts/sw.ts"
+    "../../../pamphlets/web/ts/sw.ts"
   ]
 }

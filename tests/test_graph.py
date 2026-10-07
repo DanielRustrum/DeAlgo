@@ -17,11 +17,11 @@ import time
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphEdge, GraphNode, Playlist
+from pamphlets.models import Channel, GraphEdge, GraphNode, Playlist
 from fakes import unwire, wire, set_left_out
-from dealgo.services import graph
-from dealgo.web.routes.canvas import running as canvas_running
-from dealgo.web.routes.canvas import saving as canvas_saving
+from pamphlets.services import graph
+from pamphlets.web.routes.canvas import running as canvas_running
+from pamphlets.web.routes.canvas import saving as canvas_saving
 
 
 def build(db, channels=("UCone",), feeds=("PLone",)):
@@ -372,9 +372,9 @@ def test_a_filter_wired_to_nothing_routes_nothing(db):
 def test_a_filter_node_changes_what_reaches_one_feed(world, db):
     """The whole point, end to end: the same upload lands in one feed and is
     turned away from the other, because of a box on the wire."""
-    from dealgo.models import Placement, Video
-    from dealgo.services import sync as sync_service
-    from dealgo.plugins.publisher import VideoDetails
+    from pamphlets.models import Placement, Video
+    from pamphlets.services import sync as sync_service
+    from pamphlets.plugins.publisher import VideoDetails
     from fakes import entry
 
     with db.session_scope() as session:
@@ -620,9 +620,9 @@ def canvas(db, monkeypatch):
     """The app, over a database holding one channel and one feed."""
     from fastapi.testclient import TestClient
 
-    from dealgo import scheduler
-    from dealgo.models import Video
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.models import Video
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -784,7 +784,7 @@ def test_a_condition_only_goes_under_the_box_it_belongs_to(canvas):
 def test_a_box_can_be_taken_off_the_canvas_whatever_it_stands_for(canvas, db):
     """The canvas is the whole configuration now: there is no list left to
     remove a channel from, so removing the box removes the channel."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     graph_now = canvas.post("/graph/nodes", data={"kind": "filter", "title": "Trim"}).json()
 
@@ -840,7 +840,7 @@ def test_the_canvas_is_the_whole_configuration_page(canvas):
 def test_a_channel_box_arrives_empty_and_is_told_what_it_is(canvas, db):
     """You drop a channel box, then type the @handle into it. Until then it
     stands for nothing, which is a state the rest of the app must tolerate."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     payload = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "youtube", "x": 40, "y": 60}).json()
     empty = [node for node in boxes(payload, "source") if node["detail"] is None]
@@ -882,8 +882,8 @@ def test_a_channel_that_youtube_does_not_have_is_refused_with_a_reason(canvas):
 def test_a_source_box_takes_somewhere_that_is_not_youtube(canvas, db, monkeypatch):
     """The whole point of the expansion: the box that used to mean "a YouTube
     channel" now means "somewhere that publishes", and says which."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(
         syndication,
@@ -910,9 +910,9 @@ def test_a_source_box_takes_somewhere_that_is_not_youtube(canvas, db, monkeypatc
 
 def add_reddit(canvas, db, monkeypatch, *, items=()):
     """A subscribed Reddit source with a box on the canvas."""
-    from dealgo.models import Channel as ChannelModel, Video as VideoModel
-    from dealgo.services import sync as sync_service
-    from dealgo.sources import syndication
+    from pamphlets.models import Channel as ChannelModel, Video as VideoModel
+    from pamphlets.services import sync as sync_service
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(
         syndication, "fetch", lambda _url, _http: syndication.Feed(title="r/python", items=[])
@@ -954,7 +954,7 @@ def test_wiring_it_to_a_feed_that_can_hold_it_brings_back_what_was_stranded(
 ):
     """Wiring it somewhere that works should fill that feed, not leave the
     backlog stranded waiting for the next new post."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     reddit = add_reddit(canvas, db, monkeypatch, items=("One", "Two", "Three"))
     made = canvas.post("/graph/nodes", data={"kind": "feed", "title": "Reading"}).json()
@@ -972,7 +972,7 @@ def test_wiring_it_to_a_feed_that_can_hold_it_brings_back_what_was_stranded(
 def test_a_youtube_source_wired_to_a_generic_feed_strands_nothing(canvas, db, monkeypatch):
     """The requeue is for items that had nowhere to go, not for everything a
     filter ever turned away."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -994,8 +994,8 @@ def test_a_youtube_source_wired_to_a_generic_feed_strands_nothing(canvas, db, mo
 def test_a_source_already_watched_is_attached_however_it_was_written(canvas, db, monkeypatch):
     """A pasted URL and the r/ name that means the same thing are one source,
     so a second box for it wires to the same row rather than being refused."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(
         syndication,
@@ -1023,7 +1023,7 @@ def test_a_source_already_watched_is_attached_however_it_was_written(canvas, db,
 def test_a_feed_box_makes_its_feed_at_once(canvas, db):
     """A name is all a feed inside Pamphlets needs, so there is nothing to wait
     for — unlike a channel, which YouTube has to agree exists."""
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     payload = canvas.post("/graph/nodes", data={"kind": "feed", "title": "Evening"}).json()
     made = [node for node in boxes(payload, "feed") if node["title"] == "Evening"]
@@ -1038,7 +1038,7 @@ def test_a_feed_box_makes_its_feed_at_once(canvas, db):
 def test_a_box_can_be_renamed_and_the_thing_behind_it_follows(canvas, db):
     """Renaming the box and renaming the feed are the same act: two names for
     one thing is how a canvas and the rest of an app drift apart."""
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     feed = only(canvas.get("/api/graph").json(), "feed")
     renamed = canvas.post(f"/graph/nodes/{feed['id']}", data={"label": "Weeknights"}).json()
@@ -1060,7 +1060,7 @@ def test_a_box_may_sit_anywhere_including_off_to_the_left(canvas):
 def test_a_channel_box_carries_what_the_channel_does(canvas, db):
     """The same things its own page says under "What it does", so the canvas
     is a place to work rather than a place to look before going elsewhere."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -1098,7 +1098,7 @@ def test_a_channels_switches_can_be_set_from_its_box(canvas, db):
 def test_a_channel_box_does_not_offer_to_set_its_own_interval(canvas, db):
     """A trigger wired into it decides when it is polled. An interval offered
     in two places is an interval that will disagree with itself."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     with db.session_scope() as session:
         session.scalars(select(ChannelModel)).one().min_pull_minutes = 60
@@ -1116,7 +1116,7 @@ def test_a_channel_box_does_not_offer_to_set_its_own_interval(canvas, db):
 def test_turning_a_switch_back_on_brings_back_what_it_skipped(canvas, db):
     """Through the same service the channel's own page uses. Writing the
     column directly would leave the skipped ones skipped for ever."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -1138,7 +1138,7 @@ def test_turning_a_switch_back_on_brings_back_what_it_skipped(canvas, db):
 def test_saving_a_box_without_touching_a_switch_requeues_nothing(canvas, db):
     """Each switch is only applied when the answer changed, so pressing Save
     after a rename does not drag back everything that was ever skipped."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -1159,7 +1159,7 @@ def test_saving_a_box_without_touching_a_switch_requeues_nothing(canvas, db):
 
 def test_a_feed_box_carries_how_it_fills(canvas, db):
     """The same two things its own page calls Filling."""
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     with db.session_scope() as session:
         playlist = session.scalars(select(PlaylistModel)).one()
@@ -1175,7 +1175,7 @@ def test_a_feed_box_carries_how_it_fills(canvas, db):
 
 
 def test_a_feeds_limits_can_be_set_from_its_box(canvas, db):
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
     saved = canvas.post(
@@ -1190,7 +1190,7 @@ def test_a_feeds_limits_can_be_set_from_its_box(canvas, db):
 
 
 def test_a_feed_can_be_stopped_from_filling(canvas, db):
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
     canvas.post(f"/graph/nodes/{node_id}", data={"box_form": "1"})  # Active unticked
@@ -1202,7 +1202,7 @@ def test_a_feed_can_be_stopped_from_filling(canvas, db):
 def test_an_unreadable_limit_means_no_limit_not_a_limit_of_nothing(canvas, db):
     """Zero means no limit for both of these. Reading rubbish as a limit of
     zero would quietly stop the feed filling at all."""
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
     canvas.post(
@@ -1218,7 +1218,7 @@ def test_an_unreadable_limit_means_no_limit_not_a_limit_of_nothing(canvas, db):
 def test_a_rename_cannot_stop_a_feed_filling(canvas, db):
     """The same hazard as the channel switches: an unticked box and an absent
     one arrive looking identical."""
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     node_id = only(canvas.get("/api/graph").json(), "feed")["id"]
     canvas.post(f"/graph/nodes/{node_id}", data={"label": "Renamed"})
@@ -1231,7 +1231,7 @@ def test_a_channel_box_does_not_offer_to_filter(canvas, db):
     """Narrowing by title or length is a filter box's job. Offering it here as
     well would be two places to look for one answer, and two places for them
     to disagree."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     with db.session_scope() as session:
         session.scalars(select(ChannelModel)).one().title_include = "weekly"
@@ -1250,7 +1250,7 @@ def test_a_channel_box_does_not_offer_to_filter(canvas, db):
 def test_a_channel_can_be_paused_from_its_box(canvas, db):
     """Pausing is the first thing to reach for when a channel is too much
     rather than the wrong kind, and its box is the only place left to do it."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     node_id = only(canvas.get("/api/graph").json(), "source")["id"]
     canvas.post(
@@ -1272,7 +1272,7 @@ def test_a_form_that_never_showed_a_switch_cannot_turn_it_off(canvas, db):
     """An unticked box sends nothing, so "off" and "not on this form" arrive
     looking identical. The form says which it is; without that marker a rename
     would switch off everything the channel takes."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).one()
@@ -1464,7 +1464,7 @@ def test_pressing_a_pulse_with_nothing_wired_to_it_says_so(canvas):
 def test_pressing_a_pulse_polls_what_it_is_wired_to(canvas, db, monkeypatch):
     """The polling itself runs in a thread; what is asserted here is what was
     asked for — which channels, forced, and for whose account."""
-    from dealgo.web import app as web_app
+    from pamphlets.web import app as web_app
 
     asked: dict[str, object] = {}
 
@@ -1501,7 +1501,7 @@ def test_a_trigger_can_be_taken_off_the_canvas_over_http(canvas):
 def test_the_palette_is_reachable_with_nothing_on_the_canvas(canvas, db):
     """A new account has an empty canvas. The palette lives inside it, so
     anything that hides an empty canvas leaves them nothing to add with."""
-    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
+    from pamphlets.models import Channel as ChannelModel, Playlist as PlaylistModel
 
     with db.session_scope() as session:
         for row in session.scalars(select(ChannelModel)):
@@ -1515,7 +1515,7 @@ def test_the_palette_is_reachable_with_nothing_on_the_canvas(canvas, db):
     # And the script is told never to hide the canvas that holds it.
     script = (
         pathlib.Path(__file__).resolve().parent.parent
-        / "dealgo" / "web" / "static" / "graph.js"
+        / "pamphlets" / "web" / "static" / "graph.js"
     ).read_text()
     assert "canvas.hidden" not in script
 
@@ -1690,7 +1690,7 @@ def wire_trigger(canvas, channel="One Channel"):
 def test_a_trial_says_where_everything_would_land(canvas, db):
     """A run with the consequences taken out: nothing is written, nothing is
     sent, and the answer is the same one a run would give."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -1721,7 +1721,7 @@ def test_a_trial_says_a_reddit_thread_cannot_go_into_a_youtube_playlist(canvas, 
     reached through a tag node — still has to be explained rather than left to
     fail at the insert. So the link is made in the database, the way the ones
     already out there were."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         source = Channel(
@@ -1751,8 +1751,8 @@ def test_backfill_brings_back_what_was_passed_over_as_too_old(canvas, db, monkey
     """A poll takes what is new. Backfill takes everything the feed still
     lists, including what the first check set aside for predating the backfill
     window — which is what somebody means by "catch me up"."""
-    from dealgo.models import Video as VideoModel
-    from dealgo.services import sync as sync_service
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -1785,7 +1785,7 @@ def test_backfill_brings_back_what_was_passed_over_as_too_old(canvas, db, monkey
 
 
 def test_running_a_trigger_normally_does_not_reach_back(canvas, db, monkeypatch):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     trigger = wire_trigger(canvas)
     ran = []
@@ -1805,7 +1805,7 @@ def test_a_feed_that_refuses_us_is_reported_as_that_not_as_stops_here(canvas, db
     which reads as a wiring fault you go looking for and never find."""
     import httpx
 
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     drawn = canvas.get("/api/graph").json()
     source, feed = only(drawn, "source"), only(drawn, "feed")
@@ -1843,7 +1843,7 @@ def test_a_feed_that_is_simply_gone_says_something_different(canvas, db, monkeyp
     going to look at."""
     import httpx
 
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     trigger = wire_trigger(canvas)
 
@@ -1870,7 +1870,7 @@ def test_pressing_a_trigger_does_not_show_the_previous_runs_answer(canvas, db, m
     the last one's marks."""
     import threading
 
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     trigger = wire_trigger(canvas)
 
@@ -1897,7 +1897,7 @@ def test_pressing_a_trigger_does_not_show_the_previous_runs_answer(canvas, db, m
 def test_a_run_that_never_got_going_does_not_hold_the_canvas_for_ever(canvas, monkeypatch):
     """The claim has to be given back however the run ends, or the canvas
     watches a run that threw on its way out of the door."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     trigger = wire_trigger(canvas)
     monkeypatch.setattr(
@@ -1914,7 +1914,7 @@ def test_a_run_that_never_got_going_does_not_hold_the_canvas_for_ever(canvas, mo
 
 
 def test_a_mirror_can_be_set_on_a_source_that_is_not_youtube(canvas, db, monkeypatch):
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     reddit = add_reddit(canvas, db, monkeypatch)
     mirror = "https://openrss.org/reddit.com/r/python"
@@ -1944,7 +1944,7 @@ def test_a_mirror_has_to_be_a_web_address(canvas, db, monkeypatch):
 
 
 def test_clearing_the_mirror_puts_it_back_to_none(canvas, db, monkeypatch):
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     reddit = add_reddit(canvas, db, monkeypatch)
     canvas.post(
@@ -1970,7 +1970,7 @@ def test_the_backfill_button_asks_how_far_back_to_reach(canvas):
 
 def test_a_trial_writes_nothing(canvas, db):
     """The whole point: it answers the question without doing the thing."""
-    from dealgo.models import Placement as PlacementModel, Video as VideoModel
+    from pamphlets.models import Placement as PlacementModel, Video as VideoModel
 
     drawn = canvas.get("/api/graph").json()
     canvas.post(
@@ -1989,7 +1989,7 @@ def test_a_trial_writes_nothing(canvas, db):
 
 
 def test_a_trial_names_the_filter_that_held_something(canvas, db):
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -2022,8 +2022,8 @@ def test_a_trial_names_the_filter_that_held_something(canvas, db):
 
 
 def test_a_trial_puts_a_feeds_items_in_the_sorted_order(canvas, db):
-    from dealgo.models import Video as VideoModel
-    from dealgo.models import utcnow
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.models import utcnow
 
     import datetime as dt
 
@@ -2051,7 +2051,7 @@ def test_a_trial_puts_a_feeds_items_in_the_sorted_order(canvas, db):
 def test_every_box_the_trial_touched_gets_its_own_share(canvas, db):
     """Asked while looking at a filter, the question is what that filter did —
     not what the trigger three wires back did."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -2088,7 +2088,7 @@ def test_every_box_the_trial_touched_gets_its_own_share(canvas, db):
 
 
 def test_a_box_the_trial_never_reached_carries_no_share(canvas, db):
-    from dealgo.models import Playlist as PlaylistModel
+    from pamphlets.models import Playlist as PlaylistModel
 
     with db.session_scope() as session:
         session.add(PlaylistModel(playlist_id="PLidle", title="Idle"))
@@ -2129,8 +2129,8 @@ def test_a_switched_off_trigger_can_still_be_asked(canvas):
 
 
 def test_a_trial_covers_only_the_channels_that_trigger_sets_off(canvas, db):
-    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel, Playlist as PlaylistModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         other = ChannelModel(channel_id="UCother", title="Other")
@@ -2230,7 +2230,7 @@ def test_a_switched_off_filter_holds_everything_and_says_why(canvas, db):
 def test_a_filter_says_what_it_lets_through_and_what_it_holds_back(canvas, db):
     """Worked out from the rules as they stand, over everything upstream —
     not a log, which would show what an older version of the rules did."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel_pk = session.scalars(select(Channel)).one().id
@@ -2267,7 +2267,7 @@ def test_only_a_filter_is_asked_what_it_catches(canvas):
 def test_an_earlier_filter_on_the_path_still_counts(canvas, db):
     """Two filters in a row: the second judges what the first let through, so
     its answer depends on the path, not just on its own rules."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel_pk = session.scalars(select(Channel)).one().id
@@ -2300,7 +2300,7 @@ def test_nothing_is_running_to_begin_with(canvas):
 
 def test_a_run_says_which_box_it_is_working_on(canvas, db, monkeypatch):
     """The canvas draws from this, so what it names has to be boxes."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         channel_pk = session.scalars(select(Channel)).one().id
@@ -2333,10 +2333,10 @@ def test_a_run_says_which_box_it_is_working_on(canvas, db, monkeypatch):
 
 def test_a_filter_that_lets_nothing_through_is_where_the_flow_stops(world, db):
     """The run says which box the items stopped at, not just that they did."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.services import graph, sync as sync_service
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.services import graph, sync as sync_service
     from fakes import CHANNEL_ID, entry
-    from dealgo.plugins.publisher import VideoDetails
+    from pamphlets.plugins.publisher import VideoDetails
 
     with db.session_scope() as session:
         graph.load(session)
@@ -2367,7 +2367,7 @@ def test_a_channel_with_nothing_new_leaves_its_feed_alone(world, db):
     the run. Marking them would say the run did something there, and reading
     "nothing new" on a feed that was never reached is worse than reading
     nothing at all."""
-    from dealgo.services import graph, sync as sync_service
+    from pamphlets.services import graph, sync as sync_service
 
     with db.session_scope() as session:
         graph.load(session)
@@ -2384,7 +2384,7 @@ def test_a_channel_with_nothing_new_leaves_its_feed_alone(world, db):
 
     # Which is what the canvas is told: the channel was polled, and nothing
     # downstream of it was touched.
-    from dealgo.web import app as web_app
+    from pamphlets.web import app as web_app
 
     with db.session_scope() as session:
         marks = canvas_running._run_marks(session, state, None)
@@ -2395,9 +2395,9 @@ def test_a_channel_with_nothing_new_leaves_its_feed_alone(world, db):
 def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
     """Found three, let none out: the channel's own settings are the reason,
     and the channel is the box to point at."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.services import graph, sync as sync_service
-    from dealgo.plugins.publisher import VideoDetails
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.services import graph, sync as sync_service
+    from pamphlets.plugins.publisher import VideoDetails
     from fakes import entry
 
     with db.session_scope() as session:
@@ -2410,7 +2410,7 @@ def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
     world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}
     sync_service.run_sync("pulse", force=True)
 
-    from dealgo.web import app as web_app
+    from pamphlets.web import app as web_app
 
     state = sync_service.progress()
     with db.session_scope() as session:
@@ -2425,8 +2425,8 @@ def test_a_channel_that_turns_its_own_uploads_away_is_where_it_stops(world, db):
 def test_a_trigger_wired_to_a_switched_off_channel_says_it_stopped_there(canvas, db):
     """It never looked, so it cannot report having found nothing. The count
     is of its own channels, not of whatever else the run was doing."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.services import sync as sync_service
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.services import sync as sync_service
 
     added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
     trigger, source = only(added, "trigger"), only(added, "source")
@@ -2451,8 +2451,8 @@ def test_a_trigger_wired_to_a_switched_off_channel_says_it_stopped_there(canvas,
 
 def test_a_trigger_does_not_count_channels_that_are_not_its_own(canvas, db):
     """Two triggers, one run: each says what it set off, not what the run did."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.services import sync as sync_service
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         session.add(ChannelModel(channel_id="UCother", title="Other"))
@@ -2476,7 +2476,7 @@ def test_a_trigger_does_not_count_channels_that_are_not_its_own(canvas, db):
 def test_the_trigger_that_was_pressed_stays_lit_for_the_whole_run(canvas, db):
     """The run has to read as coming out of the box somebody pressed, not as
     starting in the middle of the drawing."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     added = canvas.post("/graph/nodes", data={"kind": "pulse"}).json()
     trigger, source = only(added, "trigger"), only(added, "source")
@@ -2494,7 +2494,7 @@ def test_the_trigger_that_was_pressed_stays_lit_for_the_whole_run(canvas, db):
 
 
 def test_pressing_a_pulse_tells_the_run_which_box_did_it(canvas, monkeypatch):
-    from dealgo.web import app as web_app
+    from pamphlets.web import app as web_app
 
     asked: dict[str, object] = {}
 
@@ -2801,7 +2801,7 @@ def test_a_press_in_a_panel_over_the_canvas_is_not_a_press_on_it(canvas_report):
 
 
 def piece(kind, **fields):
-    from dealgo.models import GraphNode as Node
+    from pamphlets.models import GraphNode as Node
 
     return Node(kind=kind, enabled=True, **fields)
 
@@ -3379,7 +3379,7 @@ def test_a_trigger_can_no_longer_be_wired_to_a_feed(db):
 
 def test_a_shut_feed_says_it_is_shut_rather_than_going_quiet(canvas, db):
     """A feed that vanished would read as a feed that had gone."""
-    from dealgo.models import Playlist as PlaylistModel, utcnow
+    from pamphlets.models import Playlist as PlaylistModel, utcnow
 
     with db.session_scope() as session:
         graph.load(session)
@@ -3479,8 +3479,8 @@ def test_a_group_can_be_given_away_and_loaded_back(db):
     assert [node for node in packed["nodes"] if node["kind"] == "source"][0]["x"] == 50
 
     # Loaded into a second account, which has never heard of any of it.
-    from dealgo.models import Channel as ChannelModel, Playlist as PlaylistModel
-    from dealgo.services import accounts
+    from pamphlets.models import Channel as ChannelModel, Playlist as PlaylistModel
+    from pamphlets.services import accounts
 
     with db.session_scope() as session:
         friend = accounts.create_user(session, "friend", "their-password")
@@ -3507,7 +3507,7 @@ def test_a_group_can_be_given_away_and_loaded_back(db):
 def test_a_file_that_is_not_a_group_is_refused(db):
     build(db)
     with db.session_scope() as session:
-        for rubbish in ({}, {"de_algo_group": 99}, []):
+        for rubbish in ({}, {"pamphlets_group": 99}, []):
             with pytest.raises(graph.GraphError):
                 graph.import_group(session, rubbish)
 
@@ -3549,18 +3549,18 @@ def test_a_group_is_exported_as_a_file_to_hand_over(canvas):
     answer = canvas.get(f"/graph/nodes/{only(added, 'group')['id']}/export")
 
     assert answer.status_code == 200
-    assert "de-algo-my-flow.json" in answer.headers["content-disposition"]
+    assert "pamphlets-my-flow.json" in answer.headers["content-disposition"]
     # 3: a group carries augmentations (2), and an id and keys so a newer
     # copy can update what an older one made (3). Older files still load.
-    assert answer.json()["de_algo_group"] == 3
+    assert answer.json()["pamphlets_group"] == 3
     assert answer.json()["id"]
 
 
 def test_loading_a_group_adds_it_beside_what_is_already_here(canvas, db):
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     packed = {
-        "de_algo_group": 1,
+        "pamphlets_group": 1,
         "name": "Theirs",
         "nodes": [
             {"ref": 0, "kind": "source", "x": 0, "y": 0,
@@ -3628,7 +3628,7 @@ def test_removing_a_group_leaves_what_it_surrounded(db):
 def test_a_channel_already_watched_is_attached_rather_than_refused(canvas, db):
     """Two nodes for one channel is how it is wired down two paths that filter
     differently, which is worth being able to draw."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     payload = canvas.post("/graph/nodes", data={"kind": "source", "source_kind": "reddit"}).json()
     empty = [node for node in boxes(payload, "source") if node["detail"] is None][0]
@@ -3864,8 +3864,8 @@ def test_the_open_panel_follows_whichever_node_it_belongs_to(canvas_report):
 def test_a_channel_nodes_switch_still_pauses_the_channel(db):
     """A lone box and the channel behind it are the same thing said twice, so
     switching the box off pauses the channel, as it always did."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.web import app as web_app
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.web import app as web_app
 
     build(db)
     with db.session_scope() as session:
@@ -3947,7 +3947,7 @@ def test_removing_a_node_only_asks_where_something_is_at_stake(canvas_report):
 def test_an_empty_channel_node_can_be_pointed_at_a_source_already_watched(canvas, db):
     """Needs no lookup and no credentials — and most of the time the channel
     is already on the Sources page anyway."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     drawn = canvas.get("/api/graph").json()
     # Each carries its kind, so an empty box offers only the ones it could
@@ -4026,8 +4026,8 @@ def test_a_source_box_with_no_kind_at_all_is_refused(canvas):
 def test_a_box_reads_what_is_typed_the_way_its_own_kind_would(canvas, db, monkeypatch):
     """"python" is not a subreddit to anybody in general. It is one in a
     Subreddit box, which is the whole reason the box has a kind."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(
         syndication, "fetch", lambda _url, _http: syndication.Feed(title="r/python", items=[])
@@ -4060,7 +4060,7 @@ def test_what_a_box_refuses_names_its_own_kind(canvas):
 def test_a_box_from_before_kinds_still_draws_and_can_be_pointed_somewhere(canvas, db):
     """Nothing makes one any more, but a canvas built earlier may hold one and
     must not become unreadable because of it."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         session.add(GraphNode(kind="source", x=0, y=0))
@@ -4077,7 +4077,7 @@ def test_a_box_from_before_kinds_still_draws_and_can_be_pointed_somewhere(canvas
 
 def test_a_box_whose_plugin_was_switched_off_says_so(canvas, db, monkeypatch):
     """Rather than drawing a box that silently refuses everything typed in."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         session.add(GraphNode(kind="source", source_kind="gopher", x=0, y=0))
@@ -4177,7 +4177,7 @@ def drawn_twice(canvas):
 
 
 def test_renaming_one_box_does_not_rename_the_other(canvas, db):
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     first, second = drawn_twice(canvas)
 
@@ -4196,7 +4196,7 @@ def test_renaming_one_box_does_not_rename_the_other(canvas, db):
 
 
 def test_switching_one_box_off_leaves_the_other_on(canvas, db):
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     first, second = drawn_twice(canvas)
 
@@ -4213,7 +4213,7 @@ def test_switching_a_box_back_on_wakes_the_channel_it_needs(canvas, db):
     """However many boxes there are. A box switched on for a channel nobody
     watches would sit there doing nothing, and there is nowhere else to say
     you want it back."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     first, second = drawn_twice(canvas)
     with db.session_scope() as session:
@@ -4278,9 +4278,9 @@ def test_a_run_from_one_trigger_fills_only_the_boxes_it_is_wired_to(world, db):
     draw it. Filing is a question about the box, because each starts a path
     of its own.
     """
-    from dealgo.models import Placement, Playlist as PlaylistModel, Video
-    from dealgo.plugins.publisher import VideoDetails
-    from dealgo.services import graph, sync as sync_service
+    from pamphlets.models import Placement, Playlist as PlaylistModel, Video
+    from pamphlets.plugins.publisher import VideoDetails
+    from pamphlets.services import graph, sync as sync_service
     from fakes import entry
 
     with db.session_scope() as session:
@@ -4329,9 +4329,9 @@ def test_a_run_from_one_trigger_fills_only_the_boxes_it_is_wired_to(world, db):
 def test_a_run_with_no_box_named_still_fills_everything(world, db):
     """Which is what a scheduled pass wants: it is standing in for every
     trigger at once, so it is not one trigger's run."""
-    from dealgo.models import Placement
-    from dealgo.plugins.publisher import VideoDetails
-    from dealgo.services import sync as sync_service
+    from pamphlets.models import Placement
+    from pamphlets.plugins.publisher import VideoDetails
+    from pamphlets.services import sync as sync_service
     from fakes import entry
 
     world["entries"] = [entry("v0", minutes_ago=5)]

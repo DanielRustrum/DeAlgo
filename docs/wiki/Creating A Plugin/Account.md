@@ -43,7 +43,7 @@ logged with the reason `connect.refusal` reads out of the answer.
 
 ## When it answers
 
-Only while Pamphlets is working for an account — see [The dealgo Object](The%20dealgo%20Object.md#whose-account).
+Only while Pamphlets is working for an account — see [The pamphlets Object](The%20pamphlets%20Object.md#whose-account).
 Otherwise `connected()` is `false` and `send` returns `nil`.
 
 **Related:** [Signing In](Signing%20In.md) · [Publishing](Publishing.md) · [Permissions](Permissions.md)

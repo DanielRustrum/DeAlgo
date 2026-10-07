@@ -3,11 +3,11 @@
   "name": "Pamphlets browser scripts",
   "tsconfig": "./tsconfig.json",
   "entryPoints": [
-    "../../../dealgo/web/ts/*.ts",
-    "../../../dealgo/web/ts/graph/*.ts",
-    "../../../dealgo/web/ts/focus/*.ts"
+    "../../../pamphlets/web/ts/*.ts",
+    "../../../pamphlets/web/ts/graph/*.ts",
+    "../../../pamphlets/web/ts/focus/*.ts"
   ],
-  "exclude": ["../../../dealgo/web/ts/sw.ts"],
+  "exclude": ["../../../pamphlets/web/ts/sw.ts"],
   "out": "browser",
   "readme": "none",
   "excludeExternals": true,

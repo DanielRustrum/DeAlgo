@@ -21,9 +21,9 @@ import tarfile
 import httpx
 import pytest
 
-from dealgo import outgoing
-from dealgo.plugins import fetching, registry
-from dealgo.plugins.runtime import PluginError
+from pamphlets import outgoing
+from pamphlets.plugins import fetching, registry
+from pamphlets.plugins.runtime import PluginError
 from tests.test_plugin_page import admin  # noqa: F401
 
 GOOD = """return {
@@ -155,7 +155,7 @@ def test_something_that_is_not_a_repository_is_refused(url):
     [
         ("https://github.com/someone/letterboxd", "letterboxd"),
         # The prefix says what it is for, which the folder already says.
-        ("https://github.com/someone/dealgo-plugin-letterboxd", "letterboxd"),
+        ("https://github.com/someone/pamphlets-plugin-letterboxd", "letterboxd"),
         ("https://github.com/someone/plugin-letterboxd", "letterboxd"),
         ("https://gitlab.com/someone/Thing.git", "thing"),
     ],
@@ -520,7 +520,7 @@ def test_fetching_offers_a_plugin_rather_than_installing_it(admin, here, serving
 
 
 def test_agreeing_to_it_lands_it_with_what_came_with_it(admin, here, serving, db):
-    from dealgo.models import PluginState
+    from pamphlets.models import PluginState
 
     serving.archives["https://codeload.github.com/one/letterboxd/tar.gz/main"] = tarball(
         {"plugin.lua": GOOD, "README.md": "how it works"}

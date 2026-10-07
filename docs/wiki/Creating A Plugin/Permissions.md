@@ -1,6 +1,6 @@
 # Permissions
 
-A plugin starts with pure Lua and the [`dealgo`](The%20dealgo%20Object.md) object, nothing else.
+A plugin starts with pure Lua and the [`pamphlets`](The%20pamphlets%20Object.md) object, nothing else.
 Everything more is asked for by name, with a reason, and granted by the admin.
 
 ## Asking
@@ -22,8 +22,8 @@ for. Asking for the same permission twice is an error.
 | `network` | The `net` object: fetch web pages | [Network](Network.md) |
 | `clock` | The `clock` object: the current time | [Clock and Log](Clock%20and%20Log.md) |
 | `log` | The `log` object: write to Pamphlets's log | [Clock and Log](Clock%20and%20Log.md) |
-| `read` | `dealgo.sources()` and `dealgo.feeds()` answer | [The dealgo Object](The%20dealgo%20Object.md) |
-| `manage` | `dealgo.watch()` and `dealgo.pause()` work | [The dealgo Object](The%20dealgo%20Object.md) |
+| `read` | `pamphlets.sources()` and `pamphlets.feeds()` answer | [The pamphlets Object](The%20pamphlets%20Object.md) |
+| `manage` | `pamphlets.watch()` and `pamphlets.pause()` work | [The pamphlets Object](The%20pamphlets%20Object.md) |
 | `account` | The `account` object: requests to Google as the connected account | [Account](Account.md) |
 
 A name not in this list is shown to the admin as unknown and can never be granted.
@@ -42,15 +42,15 @@ if net then
 end
 ```
 
-`read` and `manage` are different: `dealgo` is always there, and its functions answer nothing
+`read` and `manage` are different: `pamphlets` is always there, and its functions answer nothing
 (empty lists, `nil`, `false`) without them.
 
 ## Reading your own grants
 
-`dealgo.permissions()` returns what you asked for and how it went — useful to explain yourself:
+`pamphlets.permissions()` returns what you asked for and how it went — useful to explain yourself:
 
 ```lua
-for _, p in ipairs(dealgo.permissions()) do
+for _, p in ipairs(pamphlets.permissions()) do
   -- p.name, p.label, p.why, p.granted (boolean), p.known (boolean)
 end
 ```
@@ -62,4 +62,4 @@ end
 Plugins shipped with Pamphlets start with everything they asked for. Plugins added by the admin start
 with whatever was ticked at install.
 
-**Related:** [The Sandbox](The%20Sandbox.md) · [The dealgo Object](The%20dealgo%20Object.md)
+**Related:** [The Sandbox](The%20Sandbox.md) · [The pamphlets Object](The%20pamphlets%20Object.md)

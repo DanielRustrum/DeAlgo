@@ -1,13 +1,13 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "dealgo/web/ts",
+    "rootDir": "pamphlets/web/ts",
     "outDir": "build/scripts"
   },
   "include": [
-    "dealgo/web/ts/graph/*.ts",
-    "dealgo/web/ts/focus/*.ts",
-    "dealgo/web/ts/globals.d.ts"
+    "pamphlets/web/ts/graph/*.ts",
+    "pamphlets/web/ts/focus/*.ts",
+    "pamphlets/web/ts/globals.d.ts"
   ],
   "exclude": []
 }

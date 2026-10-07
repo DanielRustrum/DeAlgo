@@ -16,8 +16,8 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TS_DIR = ROOT / "dealgo" / "web" / "ts"
-STATIC = ROOT / "dealgo" / "web" / "static"
+TS_DIR = ROOT / "pamphlets" / "web" / "ts"
+STATIC = ROOT / "pamphlets" / "web" / "static"
 
 # tsc lives in node_modules, which is a developer's tool and not part of the
 # app. Where it is absent — a container, a fresh clone — these skip rather

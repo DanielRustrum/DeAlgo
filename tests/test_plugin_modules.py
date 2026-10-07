@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dealgo.plugins import registry
+from pamphlets.plugins import registry
 
 
 def a_folder(tmp_path: Path, files: dict[str, str], name: str = "split") -> Path:

@@ -2,7 +2,7 @@
   "$schema": "https://typedoc.org/schema.json",
   "name": "Pamphlets service worker",
   "tsconfig": "../../../tsconfig.sw.json",
-  "entryPoints": ["../../../dealgo/web/ts/sw.ts"],
+  "entryPoints": ["../../../pamphlets/web/ts/sw.ts"],
   "out": "service-worker",
   "readme": "none",
   "excludeExternals": true,

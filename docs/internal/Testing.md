@@ -11,13 +11,13 @@ CI runs both on every push before building the image.
 
 | Fixture | Gives |
 | --- | --- |
-| `db` | A fresh SQLite file per test, wired into `dealgo.db`, `init_db()` already run |
+| `db` | A fresh SQLite file per test, wired into `pamphlets.db`, `init_db()` already run |
 | `fresh_plugins` (autouse) | `registry.forget()` around each test, so a registry built against one database never answers for another |
 | no-posts guard (autouse) | Stubs `Registry.posts` to `[]` so no test scrapes a real page; opt out with `@pytest.mark.reads_pages` |
 | `world` | A channel wired to a playlist, `syndication.fetch` serving `state["entries"]`, `FakeYouTube` as the publisher (patched in `sync.run.build_client`), quota metered |
 
-`DEALGO_DATA_DIR` is set to `/tmp/dealgo-tests` and Google variables are cleared **before**
-`dealgo.config` is imported.
+`PAMPHLETS_DATA_DIR` is set to `/tmp/pamphlets-tests` and Google variables are cleared **before**
+`pamphlets.config` is imported.
 
 ## Fakes — `tests/fakes.py`
 

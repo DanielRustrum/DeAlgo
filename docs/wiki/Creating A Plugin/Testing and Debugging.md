@@ -12,8 +12,8 @@ Its row on **Admin → Plugins** says why, usually with a line number. See
   having no opinion — so a broken condition lets everything through.
 - **Ask for `log`** and write your own lines: `log.info("saw " .. item.title)`.
 - **Check the grants.** A permission the admin did not tick is simply absent. `if net then … end`.
-- **Check `dealgo` is answering.** It only answers inside `keep`, `rank`, `posts` and publisher
-  functions — see [The dealgo Object](The%20dealgo%20Object.md#whose-account).
+- **Check `pamphlets` is answering.** It only answers inside `keep`, `rank`, `posts` and publisher
+  functions — see [The pamphlets Object](The%20pamphlets%20Object.md#whose-account).
 - **Press Test** on a trigger. Items your condition held show *held by <its label>*.
 
 ## Developing locally
@@ -27,10 +27,10 @@ The registry can load a folder of plugins and call them directly — no web app 
 
 ```python
 from pathlib import Path
-# Set DEALGO_DATA_DIR to a scratch folder and DEALGO_DATABASE_URL=sqlite:// first.
-from dealgo import outgoing
-from dealgo.plugins import registry
-from dealgo.plugins.capabilities import acting_for
+# Set PAMPHLETS_DATA_DIR to a scratch folder and PAMPHLETS_DATABASE_URL=sqlite:// first.
+from pamphlets import outgoing
+from pamphlets.plugins import registry
+from pamphlets.plugins.capabilities import acting_for
 
 found = registry.read(
     Path("my-plugins"),                                   # holds hackernews/plugin.lua
@@ -46,7 +46,7 @@ item = {"source": "hackernews", "title": "Ask HN: why?", "kind": "link"}
 assert found.keeps("hackernews:no-ask-hn", item, {}) is False
 print(found.ranks("<id>:<ordering kind>", item, {}))  # an ordering: a number
 
-with acting_for(None):                        # so `dealgo` and `account` answer
+with acting_for(None):                        # so `pamphlets` and `account` answer
     print(found.keeps("hackernews:no-ask-hn", item, {}))
 ```
 

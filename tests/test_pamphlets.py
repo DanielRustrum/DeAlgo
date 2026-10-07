@@ -14,11 +14,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphNode, Placement, Video, utcnow
-from dealgo.services import graph
-from dealgo.services import pamphlet_charts as charts
-from dealgo.services import playlists as playlist_service
-from dealgo.services.graph import leaflets
+from pamphlets.models import Channel, GraphNode, Placement, Video, utcnow
+from pamphlets.services import graph
+from pamphlets.services import pamphlet_charts as charts
+from pamphlets.services import playlists as playlist_service
+from pamphlets.services.graph import leaflets
 
 
 def leaflet(session, kind, host=None, side="below"):
@@ -158,8 +158,8 @@ def test_the_scale_rounds_up_to_a_readable_number():
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -322,7 +322,7 @@ def wire_id(wires, target):
 
 
 def test_leaflets_pointed_at_a_feed_before_wires_are_wired_to_it(db):
-    from dealgo.db.migrations import leaflets_are_wired_to_their_feeds
+    from pamphlets.db.migrations import leaflets_are_wired_to_their_feeds
 
     with db.session_scope() as session:
         news = graph.add_feed(session, playlist_service.create_generic(session, "News"))

@@ -14,13 +14,13 @@ TWO_HUBS = """
 [[hub]]
 name = "docker-hub"
 registry = "docker.io"
-repository = "someone/dealgo"
+repository = "someone/pamphlets"
 tags = ["{version}", "latest"]
 
 [[hub]]
 name = "home"
 registry = "registry.example"
-repository = "rusty/dealgo"
+repository = "rusty/pamphlets"
 enabled = false
 """
 
@@ -37,7 +37,7 @@ def a_release(tmp_path: Path, archs=("amd64",), version="1.2.3") -> Path:
     folder.mkdir(parents=True)
     lines = []
     for arch in archs:
-        name = f"dealgo-v{version}-{arch}.tar.gz"
+        name = f"pamphlets-v{version}-{arch}.tar.gz"
         (folder / name).write_bytes(gzip.compress(arch.encode()))
         lines.append(f"{hashlib.sha256((folder / name).read_bytes()).hexdigest()}  {name}\n")
     (folder / pub.CHECKSUMS).write_text("".join(lines))
@@ -87,7 +87,7 @@ def test_a_release_is_checked_against_its_checksums(tmp_path):
     release = pub.find_release("1.2.3", root)
     assert sorted(release.images) == ["amd64", "arm64"]
 
-    (root / "1.2.3" / "dealgo-v1.2.3-arm64.tar.gz").write_bytes(b"tampered")
+    (root / "1.2.3" / "pamphlets-v1.2.3-arm64.tar.gz").write_bytes(b"tampered")
     with pytest.raises(pub.PublishError, match="does not match its checksum"):
         pub.find_release("1.2.3", root)
 
@@ -100,11 +100,11 @@ def test_a_missing_release_says_how_to_make_one(tmp_path):
 def test_one_platform_is_tagged_and_pushed_under_each_tag(tmp_path):
     (hub, _) = pub.load_hubs(hubs_file(tmp_path, TWO_HUBS))
     release = pub.Release("1.2.3", tmp_path, {"amd64": tmp_path / "x"})
-    assert pub.plan(release, hub, {"amd64": "dealgo:1.2.3"}) == [
-        ["docker", "tag", "dealgo:1.2.3", "docker.io/someone/dealgo:1.2.3"],
-        ["docker", "push", "docker.io/someone/dealgo:1.2.3"],
-        ["docker", "tag", "dealgo:1.2.3", "docker.io/someone/dealgo:latest"],
-        ["docker", "push", "docker.io/someone/dealgo:latest"],
+    assert pub.plan(release, hub, {"amd64": "pamphlets:1.2.3"}) == [
+        ["docker", "tag", "pamphlets:1.2.3", "docker.io/someone/pamphlets:1.2.3"],
+        ["docker", "push", "docker.io/someone/pamphlets:1.2.3"],
+        ["docker", "tag", "pamphlets:1.2.3", "docker.io/someone/pamphlets:latest"],
+        ["docker", "push", "docker.io/someone/pamphlets:latest"],
     ]
 
 
@@ -112,12 +112,12 @@ def test_several_platforms_are_joined_under_one_name(tmp_path):
     (hub, _) = pub.load_hubs(hubs_file(tmp_path, TWO_HUBS))
     release = pub.Release("1.2.3", tmp_path)
     commands = pub.plan(
-        release, hub, {"amd64": "dealgo:1.2.3-amd64", "arm64": "dealgo:1.2.3-arm64"}
+        release, hub, {"amd64": "pamphlets:1.2.3-amd64", "arm64": "pamphlets:1.2.3-arm64"}
     )
-    assert ["docker", "push", "docker.io/someone/dealgo:1.2.3-arm64"] in commands
+    assert ["docker", "push", "docker.io/someone/pamphlets:1.2.3-arm64"] in commands
     assert commands[-1] == [
-        "docker", "buildx", "imagetools", "create", "--tag", "docker.io/someone/dealgo:latest",
-        "docker.io/someone/dealgo:1.2.3-amd64", "docker.io/someone/dealgo:1.2.3-arm64",
+        "docker", "buildx", "imagetools", "create", "--tag", "docker.io/someone/pamphlets:latest",
+        "docker.io/someone/pamphlets:1.2.3-amd64", "docker.io/someone/pamphlets:1.2.3-arm64",
     ]
 
 
@@ -158,5 +158,5 @@ def test_a_dry_run_runs_nothing(tmp_path, monkeypatch, capsys):
     pub.publish("1.2.3", [], dry_run=True, hubs_file=hubs_file(tmp_path, TWO_HUBS))
 
     out = capsys.readouterr().out
-    assert "+ docker push docker.io/someone/dealgo:latest" in out
-    assert "would publish docker.io/someone/dealgo:1.2.3" in out
+    assert "+ docker push docker.io/someone/pamphlets:latest" in out
+    assert "would publish docker.io/someone/pamphlets:1.2.3" in out

@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TARGET = ROOT / "dealgo" / "web" / "static" / "fonts"
+TARGET = ROOT / "pamphlets" / "web" / "static" / "fonts"
 PACKAGES = ROOT / "node_modules" / "@fontsource-variable"
 
 #: Each font file, by the package it comes from. Latin only, weight axis only.

@@ -41,7 +41,7 @@ runs the flow:
 
 - `services/oauth.py` — the generic authorization-code flow, refresh and revoke, given a `Connect`.
 - `services/connections.py` — the client credentials (the plugin's app settings, then
-  `DEALGO_PLUGIN_<ID>_<NAME>`, then defaults), tokens per `(owner, provider)` in `oauth_token`,
+  `PAMPHLETS_PLUGIN_<ID>_<NAME>`, then defaults), tokens per `(owner, provider)` in `oauth_token`,
   refreshing (`valid_access_token`, failures kept in `refresh_error`), `build_client` for the
   publishing plugin, and `disconnect`.
 - `web/routes/connections.py` — `GET /connect/{id}` (to the consent page), `GET /oauth/callback`

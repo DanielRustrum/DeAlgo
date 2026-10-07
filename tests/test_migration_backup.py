@@ -12,8 +12,8 @@ import json
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, OAuthToken, Playlist, User
-from dealgo.services import accounts, migration
+from pamphlets.models import Channel, OAuthToken, Playlist, User
+from pamphlets.services import accounts, migration
 
 PASSPHRASE = "a-long-enough-passphrase"
 
@@ -114,7 +114,7 @@ def test_the_envelope_says_what_the_file_is(instance):
     with instance.session_scope() as session:
         envelope = json.loads(migration.build_site_export(session, PASSPHRASE))
 
-    assert envelope["format"] == "dealgo-site-backup"
+    assert envelope["format"] == "pamphlets-site-backup"
     assert envelope["accounts"] == 2
     assert envelope["kdf"]["name"] == "scrypt"
     assert "salt" in envelope["kdf"]
@@ -239,7 +239,7 @@ def test_the_restore_says_what_is_still_missing(instance, tmp_path, monkeypatch)
 
 def test_the_admin_of_the_new_machine_stays_its_own(instance, tmp_path, monkeypatch):
     """An account marked admin in a file must not become one here: the admin
-    is whatever DEALGO_ADMIN_USER says, on this machine."""
+    is whatever PAMPHLETS_ADMIN_USER says, on this machine."""
     with instance.session_scope() as session:
         blob = migration.build_site_export(session, PASSPHRASE)
 
@@ -268,7 +268,7 @@ def test_restoring_twice_does_not_double_anything(instance, tmp_path, monkeypatc
 
 def _fresh_instance(tmp_path, monkeypatch):
     """A second database, standing in for the machine being moved to."""
-    from dealgo import config, db as db_module
+    from pamphlets import config, db as db_module
 
     path = tmp_path / "elsewhere.sqlite3"
     elsewhere = config.Config(**{**config.CONFIG.__dict__, "database_url": f"sqlite:///{path}"})

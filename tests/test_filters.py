@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from dealgo.plugins import registry
-from dealgo.plugins.capabilities import acting_for
-from dealgo.services import plugin_settings
-from dealgo.services.filters import evaluate, format_duration, validate_pattern
+from pamphlets.plugins import registry
+from pamphlets.plugins.capabilities import acting_for
+from pamphlets.services import plugin_settings
+from pamphlets.services.filters import evaluate, format_duration, validate_pattern
 
 
 # -- the host's rules ------------------------------------------------------------

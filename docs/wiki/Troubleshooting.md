@@ -48,6 +48,6 @@ See [Connecting YouTube](Connecting%20YouTube.md#if-google-refuses-the-sign-in).
 
 ## Locked out
 
-Change `DEALGO_ADMIN_PASSWORD` and restart. See [Accounts](Accounts.md).
+Change `PAMPHLETS_ADMIN_PASSWORD` and restart. See [Accounts](Accounts.md).
 
 **Related:** [The Run Log](The%20Run%20Log.md) · [Sources](Nodes/Sources.md) · [Triggers](Nodes/Triggers.md)

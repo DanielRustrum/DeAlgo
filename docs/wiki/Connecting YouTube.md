@@ -12,12 +12,12 @@ install; then each account signs in with its own Google account.
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable
    **YouTube Data API v3**.
 2. Create an OAuth client of type **Web application**.
-3. Add an **Authorized redirect URI**: your `DEALGO_PUBLIC_URL` plus `/oauth/callback`, e.g.
+3. Add an **Authorized redirect URI**: your `PAMPHLETS_PUBLIC_URL` plus `/oauth/callback`, e.g.
    `http://localhost:8080/oauth/callback`. It must match character for character. The YouTube
    plugin's card under **Admin → Plugins** shows the exact string, with a copy button.
 4. On that card, under **Settings for everyone**, enter the client id and secret, and optionally an
-   API key. They can also come from the environment: `DEALGO_PLUGIN_YOUTUBE_CLIENT_ID`,
-   `DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET`, `DEALGO_PLUGIN_YOUTUBE_API_KEY`.
+   API key. They can also come from the environment: `PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID`,
+   `PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET`, `PAMPHLETS_PLUGIN_YOUTUBE_API_KEY`.
 
 ## Each account: sign in
 

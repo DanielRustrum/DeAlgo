@@ -25,11 +25,11 @@ and storing everything in one SQL database. No queue, no cache server, no worker
 
 | Layer | Package | Knows about |
 | --- | --- | --- |
-| Web | `dealgo/web` | HTTP, templates, who is signed in. Calls services. |
-| Services | `dealgo/services` | The domain: graph, sync, accounts, quota, backups. |
-| Sources | `dealgo/sources` | Reading feeds and pages. Nothing about accounts or feeds. |
-| Plugins | `dealgo/plugins` | Running Lua and exposing what it declares. |
-| Storage | `dealgo/models/`, `dealgo/db/` | Tables, sessions, migrations. |
+| Web | `pamphlets/web` | HTTP, templates, who is signed in. Calls services. |
+| Services | `pamphlets/services` | The domain: graph, sync, accounts, quota, backups. |
+| Sources | `pamphlets/sources` | Reading feeds and pages. Nothing about accounts or feeds. |
+| Plugins | `pamphlets/plugins` | Running Lua and exposing what it declares. |
+| Storage | `pamphlets/models/`, `pamphlets/db/` | Tables, sessions, migrations. |
 
 Dependencies point downwards. `sources` never imports `services`; `plugins/runtime` knows nothing
 about sources or graphs.

@@ -11,14 +11,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.db import get_settings
-from dealgo.models import Channel, Placement, Playlist, Video, utcnow
+from pamphlets.db import get_settings
+from pamphlets.models import Channel, Placement, Playlist, Video, utcnow
 
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -191,7 +191,7 @@ def test_the_feed_offers_a_way_in(client):
     """From the shelf, every feed at once; from a feed's page, that feed, or an item."""
     import re
 
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     shelf = client.get("/feed").text
     assert 'href="/focus"' in shelf
@@ -213,7 +213,7 @@ def test_the_page_offers_a_way_to_rebuild_a_stuck_player(client):
 
 
 def test_reloading_lands_on_the_video_it_names(client, db):
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     with db.session_scope() as session:
         second = session.get(Video, 2)
@@ -231,7 +231,7 @@ def make_post(db, *, body="Something written", images=("https://i.test/a.jpg",),
     """Put a post in the first feed, the way a sync would."""
     import json as _json
 
-    from dealgo.models import Channel, Placement, Playlist, Video
+    from pamphlets.models import Channel, Placement, Playlist, Video
 
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
@@ -294,7 +294,7 @@ def test_opening_on_a_post_hides_the_player(client, db):
 def test_a_post_gets_no_countdown_unless_a_decay_box_gave_it_one(client, db):
     """A countdown nobody asked for is one that hurries you for no reason,
     and a Decay box is how you ask."""
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     post_id = make_post(db)
     timer = client.get(f"/focus?start={post_id}").text.split('id="focus-timer"', 1)[1]
@@ -324,7 +324,7 @@ def test_opening_on_a_post_does_not_autoplay_a_video_underneath(client, db):
 
 def make_link(db, *, title="An article", body="Some words", link="https://example.com/a"):
     """Put an item from a feed elsewhere in the first feed, as a sync would."""
-    from dealgo.models import Channel, Placement, Playlist, Video
+    from pamphlets.models import Channel, Placement, Playlist, Video
 
     with db.session_scope() as session:
         channel = Channel(
@@ -374,7 +374,7 @@ def test_a_feed_item_shows_the_one_picture_its_feed_named(client, db):
     nothing. A feed often names one picture and carries no others — Reddit's
     media:thumbnail with nothing in the post's own words — and the card fell
     back to it while Focus did not."""
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     item_id = make_link(db)
     with db.session_scope() as session:
@@ -393,7 +393,7 @@ def test_the_pictures_a_feed_carries_win_over_the_one_it_named(client, db):
     the named one is already first in it."""
     import json
 
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     item_id = make_link(db)
     with db.session_scope() as session:
@@ -442,7 +442,7 @@ def test_a_video_first_still_autoplays(client):
 
 
 def test_the_timer_comes_from_settings(client, db):
-    from dealgo.models import Settings
+    from pamphlets.models import Settings
 
     post_id = make_post(db)
     with db.session_scope() as session:
@@ -455,7 +455,7 @@ def test_the_timer_comes_from_settings(client, db):
 
 
 def test_a_queue_of_only_posts_loads_no_player_at_all(client, db):
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     with db.session_scope() as session:
         for video in session.scalars(select(Video)):
@@ -479,7 +479,7 @@ def test_the_old_theater_address_still_works(client, db):
 # These read the TypeScript, not the compiled JavaScript: the source is what
 # anyone edits, and the compiler decides how the output reads. Focus mode is a
 # folder of parts, read here as the one script they are joined into.
-FOCUS_PARTS = pathlib.Path("dealgo/web/ts/focus")
+FOCUS_PARTS = pathlib.Path("pamphlets/web/ts/focus")
 
 
 def focus_source() -> str:
@@ -585,7 +585,7 @@ def test_something_skipped_stays_out_of_the_sitting(client, db):
 
 
 def test_a_skipped_video_is_still_unwatched_afterwards(client, db):
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     order = queue_ids(client)
     client.post(
@@ -600,7 +600,7 @@ def test_a_skipped_video_is_still_unwatched_afterwards(client, db):
 def test_a_video_from_a_source_with_no_player_is_read_not_played(client, db):
     """Whether an item is played is its source's plugin's choice of player —
     only YouTube chose one — not whether it calls itself a video."""
-    from dealgo.models import Channel, Playlist, Video
+    from pamphlets.models import Channel, Playlist, Video
 
     with db.session_scope() as session:
         for video in session.scalars(select(Video)):

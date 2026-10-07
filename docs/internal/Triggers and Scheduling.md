@@ -5,7 +5,7 @@ when it does.
 
 ## The heartbeat — `scheduler.py`
 
-- An APScheduler `BackgroundScheduler` in UTC with one job, `dealgo-sync`, running
+- An APScheduler `BackgroundScheduler` in UTC with one job, `pamphlets-sync`, running
   `run_for_everyone("scheduled")`.
 - Interval: the implicit owner's `Settings.poll_interval_minutes` (default 30). `max_instances=1`,
   `coalesce=True`, `misfire_grace_time=300`, first run 20 s after start.

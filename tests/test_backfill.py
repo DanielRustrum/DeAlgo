@@ -7,10 +7,10 @@ import datetime as dt
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, Video
-from dealgo.services import channels as channel_service
-from dealgo.services import sync as sync_service
-from dealgo.plugins.publisher import VideoDetails
+from pamphlets.models import Channel, Video
+from pamphlets.services import channels as channel_service
+from pamphlets.services import sync as sync_service
+from pamphlets.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 

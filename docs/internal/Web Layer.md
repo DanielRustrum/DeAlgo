@@ -1,6 +1,6 @@
 # Web Layer
 
-`dealgo/web/` is the whole HTTP surface: one FastAPI app (`app.py`), a router per part of the app
+`pamphlets/web/` is the whole HTTP surface: one FastAPI app (`app.py`), a router per part of the app
 (`routes/`), server-rendered Jinja2 pages, htmx for partial updates, and a JSON API for the canvas.
 
 ## Why server-rendered
@@ -48,7 +48,7 @@ Templates starting `_` are partials, re-rendered by htmx (`/partials/log`, `/par
 
 - `<body hx-boost="true">`: links and forms become partial swaps without page reloads.
 - Out-of-band swaps update secondary regions (e.g. the toast flash).
-- `HX-Trigger: dealgo:sync-finished` tells scripts a run ended.
+- `HX-Trigger: pamphlets:sync-finished` tells scripts a run ended.
 - Non-boosted fallbacks always work: every form posts and redirects.
 
 ## The canvas API

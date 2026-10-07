@@ -5,7 +5,7 @@ Pamphlets is one Python process with one SQLite file. Run it with Docker (recomm
 ## With Docker
 
 ```bash
-git clone <this repository> && cd dealgo
+git clone <this repository> && cd pamphlets
 cp .env.example .env    # optional
 make up                 # builds, starts, waits until healthy
 ```
@@ -31,7 +31,7 @@ Needs Python 3.11 or newer.
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m dealgo serve
+.venv/bin/python -m pamphlets serve
 ```
 
 `make dev` does the same and also loads `.env` and rebuilds the stylesheet and scripts first.
@@ -49,8 +49,8 @@ A Google account is optional. You only need one to write into real YouTube playl
 
 ## Where data lives
 
-Everything is in one SQLite file: `/data/dealgo.sqlite3` in Docker (the `dealgo_dealgo-data` volume),
-`./data/dealgo.sqlite3` otherwise. Copy that file to back up everything, history included. Schema
+Everything is in one SQLite file: `/data/pamphlets.sqlite3` in Docker (the `pamphlets_pamphlets-data` volume),
+`./data/pamphlets.sqlite3` otherwise. Copy that file to back up everything, history included. Schema
 changes apply automatically on start, so upgrading is just pulling and restarting.
 
 Keep the data on a local disk. SQLite over NFS or CIFS corrupts.
@@ -62,7 +62,7 @@ git pull && make build && make up
 ```
 
 Or, with a release image: download the new file from the repository's Releases page, `docker load`
-it as in [Running in Production](Running%20in%20Production.md#a-release-image), point `DEALGO_IMAGE`
+it as in [Running in Production](Running%20in%20Production.md#a-release-image), point `PAMPHLETS_IMAGE`
 at the new version and `docker compose up -d`.
 
 **Related:** [Environment Variables](Environment%20Variables.md) ·

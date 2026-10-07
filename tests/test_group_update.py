@@ -15,9 +15,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphEdge, GraphNode, Placement, Playlist, Video, utcnow
-from dealgo.services import graph
-from dealgo.services import playlists as playlist_service
+from pamphlets.models import Channel, GraphEdge, GraphNode, Placement, Playlist, Video, utcnow
+from pamphlets.services import graph
+from pamphlets.services import playlists as playlist_service
 
 
 def a_shared_group(db) -> dict:
@@ -63,7 +63,7 @@ def entry(packed, kind):
 
 def test_an_export_carries_an_id_and_a_key_per_box(db):
     packed = a_shared_group(db)
-    assert packed["de_algo_group"] == 3 and packed["id"]
+    assert packed["pamphlets_group"] == 3 and packed["id"]
     keys = [node["key"] for node in packed["nodes"]]
     assert len(keys) == 4 and len(set(keys)) == 4
 
@@ -190,13 +190,13 @@ def test_a_group_nobody_loaded_cannot_be_updated(db):
     with db.session_scope() as session:
         mine = graph.add_group(session, label="Mine", x=0, y=0).id
     with pytest.raises(graph.GraphError, match="not loaded from a file"):
-        update(db, mine, {"de_algo_group": 3, "id": "x", "nodes": [], "wires": []})
+        update(db, mine, {"pamphlets_group": 3, "id": "x", "nodes": [], "wires": []})
 
 
 def test_a_format_2_file_is_still_updatable_by_its_name_and_places(db):
     packed = a_shared_group(db)
     old = copy.deepcopy(packed)
-    old["de_algo_group"] = 2
+    old["pamphlets_group"] = 2
     del old["id"]
     for node in old["nodes"]:
         del node["key"]
@@ -213,8 +213,8 @@ def test_a_format_2_file_is_still_updatable_by_its_name_and_places(db):
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)

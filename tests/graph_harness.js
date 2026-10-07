@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const SCRIPT = path.join(__dirname, "..", "dealgo", "web", "static", "graph.js");
+const SCRIPT = path.join(__dirname, "..", "pamphlets", "web", "static", "graph.js");
 
 /** Barely a DOM: enough for the script to load and find no canvas. */
 function stubDocument() {

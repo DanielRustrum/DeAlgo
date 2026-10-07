@@ -1,5 +1,5 @@
 [project]
-name = "dealgo"
+name = "pamphlets"
 version = "0.1.0"
 description = "Mirror chosen YouTube channels into a playlist, so your feed is yours and not the algorithm's."
 readme = "README.md"
@@ -23,28 +23,28 @@ dependencies = [
 
 [project.optional-dependencies]
 # The stylesheet is compiled by Tailwind, from npm (see package.json): it is
-# committed and ships in the package, so running De-Algo needs no Node — only
+# committed and ships in the package, so running Pamphlets needs no Node — only
 # restyling it does.
 dev = ["pytest>=8.0", "mypy>=1.11"]
 # pdoc builds the Python half of docs/internal/autodoc from the docstrings.
 docs = ["pdoc==16.0.0"]
 
 [project.scripts]
-dealgo = "dealgo.__main__:main"
+pamphlets = "pamphlets.__main__:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["dealgo*"]
+include = ["pamphlets*"]
 
 # Templates and static assets ship inside the package, so the installed
 # app is self-contained (this is what the container runs).
 [tool.setuptools.package-data]
 # These globs are not recursive: `web/static/*` does not reach web/static/icons,
 # which is how the app icons were left out of the image the first time.
-dealgo = [
+pamphlets = [
     "py.typed",
     "web/templates/*.html",
     "web/static/*",
@@ -77,7 +77,7 @@ filterwarnings = [
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["dealgo", "ops"]
+files = ["pamphlets", "ops"]
 # Point at the real line rather than the top of the file.
 pretty = true
 show_error_codes = true

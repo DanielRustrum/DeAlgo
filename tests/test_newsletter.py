@@ -18,8 +18,8 @@ from sqlalchemy import select
 
 from tests.test_graph import canvas  # noqa: F401
 
-from dealgo import sources
-from dealgo.sources import newsletter
+from pamphlets import sources
+from pamphlets.sources import newsletter
 
 FEED = """<?xml version="1.0"?>
 <rss version="2.0"><channel>
@@ -73,7 +73,7 @@ def xml(text: str) -> httpx.Response:
 @pytest.fixture(autouse=True)
 def no_waiting(monkeypatch):
     """Rate limiting is somebody else's test, and it keeps state per host."""
-    from dealgo.sources import patience
+    from pamphlets.sources import patience
 
     monkeypatch.setattr(patience, "hold", lambda url: None)
     monkeypatch.setattr(patience, "note", lambda response: None)
@@ -299,8 +299,8 @@ def test_a_stylesheet_is_not_a_feed():
 def test_a_newsletter_box_finds_the_feed_and_starts_watching(db, monkeypatch):
     """The whole of it: drag out a Newsletter box, type where it lives, and
     the app works out where its feed is."""
-    from dealgo.models import Channel
-    from dealgo.services import channels as channel_service
+    from pamphlets.models import Channel
+    from pamphlets.services import channels as channel_service
 
     server = Server({
         "https://platformer.news/": html(PAGE),
@@ -323,7 +323,7 @@ def test_a_newsletter_box_finds_the_feed_and_starts_watching(db, monkeypatch):
 
 def test_a_site_with_no_feed_is_refused_with_somewhere_to_go(db):
     """Rather than a channel that would sit there failing every sync."""
-    from dealgo.services import channels as channel_service
+    from pamphlets.services import channels as channel_service
 
     server = Server({"https://quiet.example/": html("<html><head></head></html>")})
 
@@ -338,7 +338,7 @@ def test_a_site_with_no_feed_is_refused_with_somewhere_to_go(db):
 
 
 def test_the_same_newsletter_typed_twice_is_one_channel(db):
-    from dealgo.services import channels as channel_service
+    from pamphlets.services import channels as channel_service
 
     server = Server({
         "https://platformer.news/": html(PAGE),

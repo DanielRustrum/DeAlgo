@@ -1,35 +1,35 @@
-name: dealgo
+name: pamphlets
 
 services:
-  dealgo:
+  pamphlets:
     build: .
     # Tag a registry image here to deploy without a build context:
-    #   DEALGO_IMAGE=registry.example.com/dealgo:0.1.0
-    image: ${DEALGO_IMAGE:-dealgo:latest}
+    #   PAMPHLETS_IMAGE=registry.example.com/pamphlets:0.1.0
+    image: ${PAMPHLETS_IMAGE:-pamphlets:latest}
     restart: unless-stopped
 
-    # Set DEALGO_BIND=127.0.0.1:8080 to keep it off the network and let a
+    # Set PAMPHLETS_BIND=127.0.0.1:8080 to keep it off the network and let a
     # reverse proxy on the same host reach it, or use compose.cluster.yml to
     # drop the published port entirely and go through a shared proxy network.
     ports:
-      - "${DEALGO_BIND:-0.0.0.0:8080}:8080"
+      - "${PAMPHLETS_BIND:-0.0.0.0:8080}:8080"
 
     environment:
       # The URL people reach Pamphlets at. The OAuth redirect URI is this plus
       # /oauth/callback and must match the OAuth client exactly, so behind a
       # proxy this is the public https URL, not the container's own address.
-      DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
+      PAMPHLETS_PUBLIC_URL: ${PAMPHLETS_PUBLIC_URL:-http://localhost:8080}
       # The YouTube plugin's settings for everyone, if you would rather set
       # them here than on its card under Admin -> Plugins.
-      DEALGO_PLUGIN_YOUTUBE_CLIENT_ID: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_ID:-}
-      DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
-      DEALGO_PLUGIN_YOUTUBE_API_KEY: ${DEALGO_PLUGIN_YOUTUBE_API_KEY:-}
-      DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
+      PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID: ${PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID:-}
+      PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET: ${PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
+      PAMPHLETS_PLUGIN_YOUTUBE_API_KEY: ${PAMPHLETS_PLUGIN_YOUTUBE_API_KEY:-}
+      PAMPHLETS_LOG_LEVEL: ${PAMPHLETS_LOG_LEVEL:-INFO}
       # Setting both of these is what turns sign-in on. Leave them
       # empty and anyone who can reach the address can use Pamphlets.
-      DEALGO_ADMIN_USER: ${DEALGO_ADMIN_USER:-}
-      DEALGO_ADMIN_PASSWORD: ${DEALGO_ADMIN_PASSWORD:-}
-      DEALGO_SESSION_DAYS: ${DEALGO_SESSION_DAYS:-30}
+      PAMPHLETS_ADMIN_USER: ${PAMPHLETS_ADMIN_USER:-}
+      PAMPHLETS_ADMIN_PASSWORD: ${PAMPHLETS_ADMIN_PASSWORD:-}
+      PAMPHLETS_SESSION_DAYS: ${PAMPHLETS_SESSION_DAYS:-30}
       TZ: ${TZ:-UTC}
 
     # So a Text box can reach a model served on this same machine — Ollama,
@@ -41,7 +41,7 @@ services:
     volumes:
       # Everything Pamphlets remembers lives here. Keep it on local disk: this is
       # a SQLite database, and NFS/CIFS locking will corrupt it.
-      - ${DEALGO_DATA:-dealgo-data}:/data
+      - ${PAMPHLETS_DATA:-pamphlets-data}:/data
 
     # The app writes only to /data, so the rest of the filesystem is read-only.
     read_only: true
@@ -62,7 +62,7 @@ services:
         order: stop-first
       resources:
         limits:
-          memory: ${DEALGO_MEMORY_LIMIT:-512M}
+          memory: ${PAMPHLETS_MEMORY_LIMIT:-512M}
 
     logging:
       driver: json-file
@@ -71,4 +71,4 @@ services:
         max-file: "3"
 
 volumes:
-  dealgo-data:
+  pamphlets-data:

@@ -7,7 +7,7 @@ usage:
     publish_release.py local ROOT         build this checkout into ROOT/<version>, locally
 
 A release carries the image as a file rather than in a registry: one
-`dealgo-<tag>-<arch>.tar.gz` per platform, loadable with `docker load`, and a
+`pamphlets-<tag>-<arch>.tar.gz` per platform, loadable with `docker load`, and a
 `SHA256SUMS.txt` to check them against. Nothing is pushed anywhere else and
 nothing is added to the repository.
 
@@ -55,9 +55,9 @@ def code_versions() -> dict[str, str]:
     """The version each place in the code says this is."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
     package = re.search(
-        r'^__version__ = "([^"]+)"', (ROOT / "dealgo" / "__init__.py").read_text(), re.M
+        r'^__version__ = "([^"]+)"', (ROOT / "pamphlets" / "__init__.py").read_text(), re.M
     )
-    return {"pyproject.toml": project, "dealgo/__init__.py": package.group(1) if package else ""}
+    return {"pyproject.toml": project, "pamphlets/__init__.py": package.group(1) if package else ""}
 
 
 def check(tag: str) -> str:
@@ -76,8 +76,8 @@ def check(tag: str) -> str:
 
 
 def image_file(tag: str, platform: str) -> str:
-    """The release file for one platform: dealgo-v1.2.3-amd64.tar.gz."""
-    return f"dealgo-{tag}-{platform.split('/')[-1]}.tar.gz"
+    """The release file for one platform: pamphlets-v1.2.3-amd64.tar.gz."""
+    return f"pamphlets-{tag}-{platform.split('/')[-1]}.tar.gz"
 
 
 def build(tag: str, out: Path) -> list[Path]:
@@ -96,7 +96,7 @@ def build(tag: str, out: Path) -> list[Path]:
                 "docker", "buildx", "build",
                 *(["--builder", builder] if builder else []),
                 "--platform", platform,
-                "--tag", f"dealgo:{version}",
+                "--tag", f"pamphlets:{version}",
                 "--label", f"org.opencontainers.image.version={version}",
                 # A file `docker load` takes, rather than an image in a daemon.
                 "--output", f"type=docker,dest={tarball}",
@@ -139,7 +139,7 @@ def _host_platform() -> str:
 def local(root: Path) -> list[Path]:
     """Build this checkout into ROOT/<version>, with no tag, forge or special builder.
 
-    The same files a release carries — one `dealgo-v<version>-<arch>.tar.gz`
+    The same files a release carries — one `pamphlets-v<version>-<arch>.tar.gz`
     per platform and their `SHA256SUMS.txt` — plus a README saying how to load
     them. Built with the daemon's own builder (`buildx build --load`, then
     `docker save`), so nothing has to be set up first. Only this machine's
@@ -167,7 +167,7 @@ def local(root: Path) -> list[Path]:
     made: list[Path] = []
     for platform in platforms:
         arch = platform.split("/")[-1]
-        image = f"dealgo:{version}" if len(platforms) == 1 else f"dealgo:{version}-{arch}"
+        image = f"pamphlets:{version}" if len(platforms) == 1 else f"pamphlets:{version}-{arch}"
         print(f"building {image} for {platform} …", flush=True)
         subprocess.run(
             [
@@ -201,10 +201,10 @@ def local(root: Path) -> list[Path]:
         f"sha256sum --check {CHECKSUMS}\n"
         f"gunzip -c {first} | docker load\n"
         "```\n\n"
-        f"The image is then `dealgo:{version}`"
+        f"The image is then `pamphlets:{version}`"
         + ("" if len(platforms) == 1 else " with the architecture appended, e.g. "
-           f"`dealgo:{version}-{platforms[0].split('/')[-1]}`")
-        + "; point `DEALGO_IMAGE` at it in `docker-compose.yml`.\n"
+           f"`pamphlets:{version}-{platforms[0].split('/')[-1]}`")
+        + "; point `PAMPHLETS_IMAGE` at it in `docker-compose.yml`.\n"
     )
     print(sums, end="")
     print(f"done: {out}")
@@ -257,7 +257,7 @@ def _api(
 def notes(tag: str, files: list[Path], downloads: str) -> str:
     """The release's description: what is attached and how to use it."""
     images = [path.name for path in files if path.name.endswith(".tar.gz")]
-    image = images[0] if images else "dealgo.tar.gz"
+    image = images[0] if images else "pamphlets.tar.gz"
     lines = [
         f"Pamphlets {tag[1:]} as a Docker image, one file per platform"
         f" ({', '.join(one.split('/')[-1] for one in PLATFORMS)}).",
@@ -269,8 +269,8 @@ def notes(tag: str, files: list[Path], downloads: str) -> str:
         f"gunzip -c {image} | docker load",
         "```",
         "",
-        f"The image is then `dealgo:{tag[1:]}`;"
-        " point `DEALGO_IMAGE` at it in `docker-compose.yml`.",
+        f"The image is then `pamphlets:{tag[1:]}`;"
+        " point `PAMPHLETS_IMAGE` at it in `docker-compose.yml`.",
     ]
     return "\n".join(lines) + "\n"
 

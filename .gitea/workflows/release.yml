@@ -1,10 +1,10 @@
 # Publish a release: push a version tag (v1.2.3) and this builds the Docker
 # image and attaches it to that tag's page under the repository's Releases.
 #
-# The image is a file, not a registry push: one dealgo-<tag>-<arch>.tar.gz per
+# The image is a file, not a registry push: one pamphlets-<tag>-<arch>.tar.gz per
 # platform (amd64 and arm64), loaded with `gunzip -c … | docker load`, and a
 # SHA256SUMS.txt beside them. ops/publish_release.py does the work; the tag has
-# to match the version in pyproject.toml and dealgo/__init__.py, and nothing is
+# to match the version in pyproject.toml and pamphlets/__init__.py, and nothing is
 # built unless the tests pass.
 #
 # Attaching needs a token that may write to the repository. Set the secret

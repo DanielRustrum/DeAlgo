@@ -14,10 +14,10 @@ import tempfile
 import httpx
 import pytest
 
-from dealgo import outgoing
-from dealgo.models import OAuthToken, User, utcnow
-from dealgo.plugins import registry
-from dealgo.plugins.capabilities import account, acting_for
+from pamphlets import outgoing
+from pamphlets.models import OAuthToken, User, utcnow
+from pamphlets.plugins import registry
+from pamphlets.plugins.capabilities import account, acting_for
 
 
 def a_plugin(body: str, granted=frozenset({"account"})):
@@ -214,7 +214,7 @@ def test_with_an_account_it_says_so(signed_in, sent):
 
 
 def test_the_day_is_charged_what_the_plugin_says(signed_in, sent, db):
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     found, plugin = a_plugin(
         'account.send("POST", "https://www.googleapis.com/youtube/v3/playlistItems", nil, 50)'
@@ -230,7 +230,7 @@ def test_the_day_is_charged_what_the_plugin_says(signed_in, sent, db):
 def test_a_plugin_cannot_spend_the_day_in_one_call(signed_in, sent, db):
     """A quota unit is real money to somebody, and a plugin that miscounts —
     or lies — should not be able to."""
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     found, plugin = a_plugin(
         'account.send("GET", "https://www.googleapis.com/youtube/v3/playlists", nil, 99999)'
@@ -244,7 +244,7 @@ def test_a_plugin_cannot_spend_the_day_in_one_call(signed_in, sent, db):
 
 
 def test_a_call_cannot_be_free(signed_in, sent, db):
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     found, plugin = a_plugin(
         'account.send("GET", "https://www.googleapis.com/youtube/v3/playlists", nil, 0)'

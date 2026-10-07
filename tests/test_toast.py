@@ -16,7 +16,7 @@ import subprocess
 import pytest
 from fastapi.testclient import TestClient
 
-from dealgo.models import OAuthToken, Playlist
+from pamphlets.models import OAuthToken, Playlist
 
 HARNESS = pathlib.Path(__file__).resolve().parent / "toast_harness.js"
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node is not installed")
@@ -30,8 +30,8 @@ def report():
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)

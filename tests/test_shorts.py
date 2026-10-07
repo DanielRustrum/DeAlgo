@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, Video
-from dealgo.services import channels as channel_service
-from dealgo.services import sync as sync_service
-from dealgo.sources import syndication
-from dealgo.plugins.publisher import VideoDetails
+from pamphlets.models import Channel, Video
+from pamphlets.services import channels as channel_service
+from pamphlets.services import sync as sync_service
+from pamphlets.sources import syndication
+from pamphlets.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry
 
 

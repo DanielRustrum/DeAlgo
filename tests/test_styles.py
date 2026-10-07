@@ -229,12 +229,12 @@ def test_only_the_boxes_that_read_a_piece_show_a_slot():
     """
     import re
 
-    from dealgo.services import graph
+    from pamphlets.services import graph
 
     import pathlib
 
     root = pathlib.Path(__file__).resolve().parent.parent
-    css = (root / "dealgo" / "web" / "static" / "app.css").read_text(encoding="utf-8")
+    css = (root / "pamphlets" / "web" / "static" / "app.css").read_text(encoding="utf-8")
     drawn = set(re.findall(r"\.graph-node\.kind-([a-z]+):not\(\.has-piece\)::?after", css))
 
     assert drawn == set(graph.SLOTTED)

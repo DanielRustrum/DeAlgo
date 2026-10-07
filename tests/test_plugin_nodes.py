@@ -21,12 +21,12 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphNode, Playlist, Video
-from dealgo.plugins import registry
-from dealgo.services import graph as graph_service
+from pamphlets.models import Channel, GraphNode, Playlist, Video
+from pamphlets.plugins import registry
+from pamphlets.services import graph as graph_service
 from tests.test_graph import boxes, canvas, only  # noqa: F401
 
-SHIPPED = Path(__file__).resolve().parent.parent / "dealgo" / "plugins" / "builtin"
+SHIPPED = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
 
 ONE_BOX = """return {
   api = 1, name = "%s",
@@ -286,7 +286,7 @@ def wire_through_a_box(canvas, db, ref: str, settings: dict[str, str]):
 
 
 def test_a_plugin_box_holds_back_what_its_lua_refuses(canvas, db):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -307,7 +307,7 @@ def test_a_plugin_box_holds_back_what_its_lua_refuses(canvas, db):
 
 
 def test_its_fields_change_what_it_holds(canvas, db):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -326,7 +326,7 @@ def test_its_fields_change_what_it_holds(canvas, db):
 def test_a_box_whose_plugin_is_switched_off_narrows_nothing(canvas, db, here):
     """The box stays on the canvas and stops asking, which is what a filter
     with no rules does."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         channel = session.scalars(select(Channel)).one()
@@ -348,7 +348,7 @@ def test_a_box_that_throws_lets_the_item_by(canvas, db, here):
     """A filter nobody can read the mind of should not silently swallow a
     feed: the failure belongs in the log and the item belongs where it was
     going."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     (here / "cross.lua").write_text("""
         return { api = 1, name = "Cross", nodes = { { kind = "cross", label = "Cross",
@@ -506,9 +506,9 @@ def test_a_condition_is_told_whether_an_item_is_a_broadcast(db, here):
     """Whether something is live is only known while the details are in hand,
     which is when a condition is asked. The host kept it to itself once, which
     is why "no live" had to be a switch on the host's own box."""
-    from dealgo.plugins.publisher import VideoDetails
-    from dealgo.services import graph as graph_module
-    from dealgo.services import sync as sync_service
+    from pamphlets.plugins.publisher import VideoDetails
+    from pamphlets.services import graph as graph_module
+    from pamphlets.services import sync as sync_service
 
     (here / "watching.lua").write_text("""
         return { api = 1, name = "Watching", nodes = { { kind = "no-premieres",
@@ -729,8 +729,8 @@ def test_the_palette_says_which_box_a_plugins_augmentation_goes_under(canvas, he
 
 def test_a_sort_with_a_plugins_ordering_puts_the_batch_in_that_order(db, here):
     """End to end, through the thing that actually orders a batch."""
-    from dealgo.services import graph as graph_module
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import graph as graph_module
+    from pamphlets.services import sync as sync_service
 
     (here / "measure.lua").write_text(ORDERING, encoding="utf-8")
     registry.reload()

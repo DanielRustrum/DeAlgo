@@ -7,11 +7,11 @@ import datetime as dt
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, Playlist, SyncRun, Video
-from dealgo.services import quota
-from dealgo.services import sync as sync_service
-from dealgo.services import watched as watched_service
-from dealgo.plugins.publisher import PublishError, VideoDetails, cost_of
+from pamphlets.models import Channel, Playlist, SyncRun, Video
+from pamphlets.services import quota
+from pamphlets.services import sync as sync_service
+from pamphlets.services import watched as watched_service
+from pamphlets.plugins.publisher import PublishError, VideoDetails, cost_of
 from fakes import MAIN_PLAYLIST, entry, set_quota
 
 
@@ -183,7 +183,7 @@ def test_removal_may_dip_into_the_reserve(loaded):
 
 def test_a_fan_out_cut_short_is_finished_next_run(world, add_playlist, db):
     """Quota running out mid-video must not leave a playlist silently skipped."""
-    from dealgo.models import Placement
+    from pamphlets.models import Placement
 
     add_playlist("PL_second", "Mirror")
     with db.session_scope() as session:
@@ -212,7 +212,7 @@ def test_a_fan_out_cut_short_is_finished_next_run(world, add_playlist, db):
 
 def test_a_transient_insert_failure_is_retried_then_given_up_on(world, add_playlist, monkeypatch):
     """A failed placement should not be forgotten the way it once was."""
-    from dealgo.models import Placement
+    from pamphlets.models import Placement
 
     world["entries"] = [entry("v0", 1)]
     world["client"].details = {"v0": VideoDetails("v0", "Video v0", 600, "none", "public")}

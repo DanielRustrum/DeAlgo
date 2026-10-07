@@ -11,10 +11,10 @@ import datetime as dt
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, Placement, Video
-from dealgo.services import channels as channel_service
-from dealgo.services import sync as sync_service
-from dealgo.plugins.publisher import VideoDetails
+from pamphlets.models import Channel, Placement, Video
+from pamphlets.services import channels as channel_service
+from pamphlets.services import sync as sync_service
+from pamphlets.plugins.publisher import VideoDetails
 from fakes import entry
 
 
@@ -74,7 +74,7 @@ def test_a_post_is_never_pushed_to_a_youtube_playlist(world, db):
 
 
 def test_a_post_costs_no_quota(world, db):
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10
@@ -130,7 +130,7 @@ def test_allowing_posts_again_brings_back_what_was_skipped(world, db):
 
 def test_a_channel_that_cannot_be_scraped_still_gets_its_videos(world, db, monkeypatch):
     """The Posts tab is a page, not an API. Losing it must cost nothing else."""
-    from dealgo.plugins import registry
+    from pamphlets.plugins import registry
 
     def boom(self, kind, key):
         raise RuntimeError("YouTube changed the page again")
@@ -170,7 +170,7 @@ def test_the_backfill_window_applies_to_posts_too(world, db):
 
 
 def test_watching_a_post_clears_it_without_touching_youtube(world, db):
-    from dealgo.services import watched as watched_service
+    from pamphlets.services import watched as watched_service
 
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10

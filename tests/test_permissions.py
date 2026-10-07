@@ -11,8 +11,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from dealgo.plugins import capabilities, permissions
-from dealgo.plugins.capabilities import net as net_capability
+from pamphlets.plugins import capabilities, permissions
+from pamphlets.plugins.capabilities import net as net_capability
 
 
 def a_client(answers):
@@ -36,7 +36,7 @@ def a_client(answers):
 
 @pytest.fixture(autouse=True)
 def forget_waits():
-    from dealgo.sources import patience
+    from pamphlets.sources import patience
 
     patience.forget()
     yield
@@ -85,7 +85,7 @@ def test_a_plugins_fetch_waits_when_a_host_asked_it_to():
     """Through the same `patience` Pamphlets's own requests use, so a plugin
     cannot spend a rate-limit budget behind the back of the thing tracking
     it."""
-    from dealgo.sources import patience
+    from pamphlets.sources import patience
 
     body = (200, b"<rss/>")
     asked, client = a_client({"https://www.reddit.com/r/x/.rss": body})
@@ -97,7 +97,7 @@ def test_a_plugins_fetch_waits_when_a_host_asked_it_to():
 
 
 def test_a_plugins_fetch_feeds_what_it_learns_back_to_patience():
-    from dealgo.sources import patience
+    from pamphlets.sources import patience
 
     url = "https://www.reddit.com/r/x/.rss"
 
@@ -127,7 +127,7 @@ def test_a_plugin_cannot_fetch_something_that_is_not_a_web_address():
     net = capabilities.granted_to("Asker", frozenset({"network"}), client)["net"]
 
     assert net.get("file:///etc/passwd") is None
-    assert net.get("/data/dealgo.sqlite3") is None
+    assert net.get("/data/pamphlets.sqlite3") is None
     assert net.get("") is None
     assert asked == []
 
@@ -205,7 +205,7 @@ def a_page(body: str) -> str:
 
 
 def a_net(answers=None):
-    from dealgo.plugins import runtime
+    from pamphlets.plugins import runtime
 
     box, _ = runtime.load("reader", "return { api = 1, name = 'Reader' }")
     _, client = a_client(answers or {})
@@ -281,7 +281,7 @@ def test_the_request_budget_is_per_call_not_for_ever():
     """A capability is built once, when the plugin loads. A counter that was
     never put back would give a plugin four requests in its life — and then
     have it quietly do nothing for the rest of the day."""
-    from dealgo.plugins import registry
+    from pamphlets.plugins import registry
 
     source = """
     return {

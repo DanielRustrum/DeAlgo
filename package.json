@@ -1,7 +1,7 @@
 {
-  "name": "dealgo-frontend",
+  "name": "pamphlets-frontend",
   "private": true,
-  "description": "Build tools for De-Algo's browser side: TypeScript for the scripts, Tailwind for the stylesheet, and the typefaces. Everything they produce is committed under dealgo/web/static/, so running De-Algo needs no Node \u2014 only editing the scripts or styles does.",
+  "description": "Build tools for Pamphlets's browser side: TypeScript for the scripts, Tailwind for the stylesheet, and the typefaces. Everything they produce is committed under pamphlets/web/static/, so running Pamphlets needs no Node \u2014 only editing the scripts or styles does.",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",

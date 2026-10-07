@@ -34,8 +34,8 @@ HUBS = Path(__file__).resolve().parent / "hubs.toml"
 RELEASES = ROOT / "releases"
 CHECKSUMS = "SHA256SUMS.txt"
 
-#: A release file's name: dealgo-v1.2.3-amd64.tar.gz.
-IMAGE_FILE = re.compile(r"dealgo-v(?P<version>[^-]+(?:-[^-]+)*)-(?P<arch>[a-z0-9]+)\.tar\.gz")
+#: A release file's name: pamphlets-v1.2.3-amd64.tar.gz.
+IMAGE_FILE = re.compile(r"pamphlets-v(?P<version>[^-]+(?:-[^-]+)*)-(?P<arch>[a-z0-9]+)\.tar\.gz")
 #: A repository Docker accepts: lowercase path parts separated by slashes.
 REPOSITORY = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)+")
 
@@ -57,7 +57,7 @@ class Hub:
     token_env: str = ""
 
     def reference(self, tag: str) -> str:
-        """The full name to push as: docker.io/me/dealgo:1.2.3."""
+        """The full name to push as: docker.io/me/pamphlets:1.2.3."""
         return f"{self.registry}/{self.repository}:{tag}"
 
 
@@ -130,12 +130,12 @@ def choose(hubs: list[Hub], wanted: list[str]) -> list[Hub]:
         if not hub.repository:
             raise PublishError(
                 f"Hub {hub.name} has no repository yet. Set `repository` in ops/hubs.toml, "
-                "like \"yourname/dealgo\"."
+                "like \"yourname/pamphlets\"."
             )
         if not REPOSITORY.fullmatch(hub.repository):
             raise PublishError(
                 f"Hub {hub.name}: “{hub.repository}” is not a repository Docker accepts "
-                "(lowercase, like \"yourname/dealgo\")."
+                "(lowercase, like \"yourname/pamphlets\")."
             )
         for tag in hub.tags:
             rendered = tag.format(version="0.0.0")
@@ -237,7 +237,7 @@ def load(release: Release, *, dry_run: bool) -> dict[str, str]:
         if dry_run:
             print(f"+ gunzip -c {path.name} | docker load")
             suffix = "" if len(release.images) == 1 else f"-{arch}"
-            loaded[arch] = f"dealgo:{release.version}{suffix}"
+            loaded[arch] = f"pamphlets:{release.version}{suffix}"
             continue
         print(f"+ gunzip -c {path.name} | docker load", flush=True)
         unzip = subprocess.Popen(["gunzip", "-c", str(path)], stdout=subprocess.PIPE)

@@ -7,7 +7,7 @@ Two deliberately different things.
 | Code | `services/backup/` | `services/migration/` |
 | Who | Any account, for itself (Settings) | Admin only (`/admin/backup`, `/admin/restore`) |
 | Covers | One account's feeds and sources | Every account and its setup |
-| Format | Plain JSON, `de_algo_backup: 1` | Encrypted blob, `dealgo-site-backup` v1 |
+| Format | Plain JSON, `pamphlets_backup: 1` | Encrypted blob, `pamphlets-site-backup` v1 |
 | Secrets | None | None |
 | Purpose | Keep and restore your own setup | Move the whole instance to another machine |
 

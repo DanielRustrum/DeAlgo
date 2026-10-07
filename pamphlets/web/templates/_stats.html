@@ -1,0 +1,28 @@
+<section class="stats" id="stats"
+         hx-get="/partials/stats" hx-trigger="pamphlets:sync-finished from:body" hx-swap="outerHTML">
+  <a class="stat stat-channels" href="/channels">
+    <span class="stat-value">{{ enabled_channels }}</span>
+    <span class="stat-label">channels watched</span>
+  </a>
+  <a class="stat stat-queued" href="/videos?status=added">
+    <span class="stat-value">{{ in_playlist }}</span>
+    <span class="stat-label">in the playlist</span>
+  </a>
+  <a class="stat stat-watched" href="/videos?watched=1">
+    <span class="stat-value">{{ watched_count }}</span>
+    <span class="stat-label">watched</span>
+  </a>
+  <a class="stat stat-pending" href="/videos?status=pending">
+    <span class="stat-value">{{ counts.get('pending', 0) }}</span>
+    <span class="stat-label">pending</span>
+  </a>
+  <a class="stat stat-quiet" href="/videos?status=skipped">
+    <span class="stat-value">{{ counts.get('skipped', 0) }}</span>
+    <span class="stat-label">filtered out</span>
+  </a>
+  {# Quiet at zero; a warning only when there is something to look at. #}
+  <a class="stat {{ 'stat-bad' if counts.get('failed', 0) else 'stat-quiet' }}" href="/videos?status=failed">
+    <span class="stat-value">{{ counts.get('failed', 0) }}</span>
+    <span class="stat-label">failed</span>
+  </a>
+</section>

@@ -5,7 +5,7 @@
 - **Run exactly one instance.** One SQLite file and an in-process scheduler: a second copy would
   write everything twice and fight over locks. The compose file pins `replicas: 1` and stops the
   old container before starting a new one.
-- **Set `DEALGO_PUBLIC_URL` to the public address** (e.g. `https://dealgo.example.com`) and register
+- **Set `PAMPHLETS_PUBLIC_URL` to the public address** (e.g. `https://pamphlets.example.com`) and register
   `<that>/oauth/callback` with Google. Pamphlets builds the redirect from this, not from the request.
 - **Use a subdomain, not a subpath.** Pages and assets are served from `/`.
 - **Keep `/data` on local disk.** SQLite over network filesystems corrupts.
@@ -24,14 +24,14 @@ make up CLUSTER=1
 ```
 
 Edit the labels in `compose.cluster.yml` for your proxy. Needs Compose 2.24+; on older versions,
-skip the overlay and set `DEALGO_BIND=127.0.0.1:8080` instead.
+skip the overlay and set `PAMPHLETS_BIND=127.0.0.1:8080` instead.
 
 ## Portainer
 
 `stack.yml` is a self-contained stack using a prebuilt image.
 
 1. **Stacks → Add stack**, then paste `stack.yml` or point at this repository.
-2. Set at least `DEALGO_IMAGE`, `DEALGO_PUBLIC_URL` and the admin variables.
+2. Set at least `PAMPHLETS_IMAGE`, `PAMPHLETS_PUBLIC_URL` and the admin variables.
 3. Deploy. Enable **Automatic updates** to follow new images.
 
 ## A release image
@@ -40,13 +40,13 @@ Every version tag has a page under the repository's **Releases**, with the image
 file for each platform (`amd64`, `arm64`) and a `SHA256SUMS.txt`. No build is needed:
 
 ```bash
-curl -LO <release page>/download/v0.2.0/dealgo-v0.2.0-amd64.tar.gz
+curl -LO <release page>/download/v0.2.0/pamphlets-v0.2.0-amd64.tar.gz
 curl -LO <release page>/download/v0.2.0/SHA256SUMS.txt
 sha256sum --check --ignore-missing SHA256SUMS.txt
-gunzip -c dealgo-v0.2.0-amd64.tar.gz | docker load      # gives dealgo:0.2.0
+gunzip -c pamphlets-v0.2.0-amd64.tar.gz | docker load      # gives pamphlets:0.2.0
 ```
 
-Then set `DEALGO_IMAGE=dealgo:0.2.0` and start it. Each release's notes have the exact links.
+Then set `PAMPHLETS_IMAGE=pamphlets:0.2.0` and start it. Each release's notes have the exact links.
 
 ### Building one yourself
 
@@ -66,7 +66,7 @@ pushes the image to every *hub* listed in `ops/hubs.toml`.
 - **The hubs file:** each `[[hub]]` block gives a registry, a repository and the tags to push
   (`{version}` and `latest` by default). Add a block to publish somewhere else; delete it, or set
   `enabled = false`, to stop. The Docker Hub entry needs its `repository` filled in (like
-  `yourname/dealgo`) before it will push.
+  `yourname/pamphlets`) before it will push.
 - **Signing in:** either run `docker login` for each registry once beforehand, or set the
   environment variables a hub names (for Docker Hub, `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN`
   holding an access token). The token goes to Docker on standard input and is never printed.

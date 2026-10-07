@@ -8,7 +8,7 @@ Publish a plugin in a public git repository and the admin of any Pamphlets can i
 Put `plugin.lua` at the top of the repository, or one folder down:
 
 ```
-dealgo-plugin-hackernews/          dealgo-plugins/
+pamphlets-plugin-hackernews/          pamphlets-plugins/
 ├── plugin.lua                     ├── README.md
 ├── README.md                      └── hackernews/
 └── LICENSE                            ├── plugin.lua
@@ -19,9 +19,9 @@ If there are several, the shallowest `plugin.lua` is used.
 
 ## The plugin's id
 
-Taken from the **repository's** name, lowercased: `dealgo-plugin-`, `dealgo-` or `plugin-` is removed
+Taken from the **repository's** name, lowercased: `pamphlets-plugin-`, `pamphlets-` or `plugin-` is removed
 from the front, and anything other than letters, digits, `-` and `_` becomes `-`. So
-`dealgo-plugin-hackernews` installs as `hackernews`. Keep the id stable: conditions people have placed
+`pamphlets-plugin-hackernews` installs as `hackernews`. Keep the id stable: conditions people have placed
 are stored against it.
 
 ## Hosts

@@ -1,0 +1,87 @@
+{# One feed's page body: how it is laid out, what can be done with it, and its
+   items. Swapped whole by its own controls, and refreshed when a sync lands
+   (without counting as somebody sitting down to read). #}
+<div id="feed-view"
+     hx-get="/partials/feed/{{ section.playlist.id }}"
+     hx-trigger="pamphlets:sync-finished from:body" hx-swap="outerHTML">
+  {% set unwatched = section.videos | length %}
+  {% set show = section.playlist.view_show %}
+  <section class="panel feed-section">
+    {# Each feed remembers its own layout, so these sit with the feed. #}
+    <div class="section-view">
+      <span class="filter-label">Show</span>
+      {% for value, label in [('unwatched', 'unwatched'), ('all', 'everything')] %}
+      <form method="post" action="/feeds/{{ section.playlist.id }}/view"
+            hx-post="/feeds/{{ section.playlist.id }}/view"
+            hx-target="#feed-view" hx-swap="outerHTML">
+        <input type="hidden" name="show" value="{{ value }}">
+        <button class="chip {{ 'chip-on' if section.playlist.view_show == value }}"
+                type="submit">{{ label }}</button>
+      </form>
+      {% endfor %}
+
+      <span class="filter-label">Order</span>
+      {% for value, label, hint in [
+           ('oldest', 'oldest first', 'The order the playlist itself reads in'),
+           ('newest', 'newest first', '')] %}
+      <form method="post" action="/feeds/{{ section.playlist.id }}/view"
+            hx-post="/feeds/{{ section.playlist.id }}/view"
+            hx-target="#feed-view" hx-swap="outerHTML">
+        <input type="hidden" name="order" value="{{ value }}">
+        <button class="chip {{ 'chip-on' if section.playlist.view_order == value }}"
+                type="submit" {% if hint %}title="{{ hint }}"{% endif %}>{{ label }}</button>
+      </form>
+      {% endfor %}
+    </div>
+
+    <div class="section-actions">
+      {% if section.videos %}
+      <a class="btn btn-quiet" href="/focus?order={{ section.playlist.view_order }}&playlist={{ section.playlist.id }}"
+         title="Play this feed through, marking each one watched">Focus ▶</a>
+      {% endif %}
+      {% if section.playlist.url %}
+        {% if publishing_offline(identity.user_pk if identity else none) %}
+        <span class="pill pill-dormant"
+              title="No {{ publishing().service }} account, so nothing is being written to this playlist">
+          local only</span>
+        {% else %}
+        <a class="btn btn-quiet" href="{{ section.playlist.url }}" target="_blank" rel="noopener">
+          On {{ publishing().publisher }} ↗</a>
+        {% endif %}
+      {% endif %}
+      <a class="btn btn-quiet" href="/feeds/{{ section.playlist.id }}">Settings</a>
+      {% if section.total %}
+      {# Everything leaves the feed, watched or not — and its real playlist,
+         where it has one and an account to do it with. Kept as removed, so
+         the next run does not put it all back. #}
+      <form method="post" action="/feeds/{{ section.playlist.id }}/clear"
+            hx-post="/feeds/{{ section.playlist.id }}/clear"
+            hx-target="#feed-view" hx-swap="outerHTML"
+            hx-confirm="Clear “{{ section.playlist.title }}”? Its {{ section.total }} item{{ 's' if section.total != 1 }} leave the feed{{ ' and its playlist' if section.playlist.url and not publishing_offline(identity.user_pk if identity else none) }}. They stay in your history and are not added again.">
+        <button class="btn btn-danger" type="submit"
+                title="Take everything out of this feed">Clear</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if section.shut %}
+    {# A window on this feed's second input, and it is not open. Shown as
+       shut rather than hidden: a feed that vanished would read as a feed
+       that had gone. #}
+    <p class="empty shut-note">
+      This feed is shut. You set it to be
+      {% for window in section.shut %}{{ window }}{% if not loop.last %}, and {% endif %}{% endfor %}.
+      {# The thing actually worth knowing when you find it shut. #}
+      {% if section.opens_at %}It opens again {{ section.opens_at | ago }}.{% endif %}
+    </p>
+    {% elif section.videos %}
+    <div class="card-grid">
+      {% for video in section.videos %}{% include "_feed_card.html" %}{% endfor %}
+    </div>
+    {% elif show == 'unwatched' and section.total %}
+    <p class="empty">All {{ section.total }} watched. Nothing left here.</p>
+    {% else %}
+    <p class="empty">Nothing in this feed yet.</p>
+    {% endif %}
+  </section>
+</div>

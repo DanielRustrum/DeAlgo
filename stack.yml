@@ -1,4 +1,4 @@
-# De-Algo as a Portainer stack.
+# Pamphlets as a Portainer stack.
 #
 # Portainer deploys a prebuilt image rather than a build context, so this file
 # has no `build:` and nothing that needs a local checkout. Paste it into
@@ -9,30 +9,30 @@
 # works too.
 
 services:
-  dealgo:
-    image: ${DEALGO_IMAGE:-repo.home.app/rusty/dealgo:latest}
+  pamphlets:
+    image: ${PAMPHLETS_IMAGE:-repo.home.app/rusty/pamphlets:latest}
     restart: unless-stopped
 
     ports:
       # Drop this whole block if a reverse proxy on a shared network fronts it.
-      - "${DEALGO_BIND:-0.0.0.0:8080}:8080"
+      - "${PAMPHLETS_BIND:-0.0.0.0:8080}:8080"
 
     environment:
       # Must be the URL people actually open, and <this>/oauth/callback must be
       # an authorized redirect URI on the Google OAuth client.
-      DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
+      PAMPHLETS_PUBLIC_URL: ${PAMPHLETS_PUBLIC_URL:-http://localhost:8080}
       # The YouTube plugin's settings for everyone, if you would rather set
       # them here than on its card under Admin -> Plugins.
-      DEALGO_PLUGIN_YOUTUBE_CLIENT_ID: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_ID:-}
-      DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET: ${DEALGO_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
-      DEALGO_PLUGIN_YOUTUBE_API_KEY: ${DEALGO_PLUGIN_YOUTUBE_API_KEY:-}
-      DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
+      PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID: ${PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID:-}
+      PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET: ${PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
+      PAMPHLETS_PLUGIN_YOUTUBE_API_KEY: ${PAMPHLETS_PLUGIN_YOUTUBE_API_KEY:-}
+      PAMPHLETS_LOG_LEVEL: ${PAMPHLETS_LOG_LEVEL:-INFO}
       TZ: ${TZ:-UTC}
 
     volumes:
       # Keep this on local disk. It is a SQLite database, and NFS/CIFS locking
       # will corrupt it.
-      - dealgo-data:/data
+      - pamphlets-data:/data
 
     read_only: true
     tmpfs:
@@ -43,7 +43,7 @@ services:
       - ALL
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import os,sys,urllib.request; sys.exit(0 if urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('DEALGO_PORT','8080')}/healthz\", timeout=4).status == 200 else 1)"]
+      test: ["CMD", "python", "-c", "import os,sys,urllib.request; sys.exit(0 if urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('PAMPHLETS_PORT','8080')}/healthz\", timeout=4).status == 200 else 1)"]
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -56,7 +56,7 @@ services:
         order: stop-first
       resources:
         limits:
-          memory: ${DEALGO_MEMORY_LIMIT:-512M}
+          memory: ${PAMPHLETS_MEMORY_LIMIT:-512M}
 
     logging:
       driver: json-file
@@ -69,4 +69,4 @@ services:
       com.centurylinklabs.watchtower.enable: "true"
 
 volumes:
-  dealgo-data:
+  pamphlets-data:

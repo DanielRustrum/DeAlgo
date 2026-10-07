@@ -2,14 +2,14 @@
 
 `plugins/registry/` decides what plugins exist, what each offers, and what went wrong.
 Beside it: `permissions.py` (the vocabulary), `capabilities/` (what a plugin is handed: `clock`,
-`log`, `net`, `account`, the `dealgo` object in `site`, and `owner` for whose work is in hand),
+`log`, `net`, `account`, the `pamphlets` object in `site`, and `owner` for whose work is in hand),
 `publisher/` (playlist operations) and `fetching/` (git archives).
 
 ## Where plugins come from
 
 | Folder | Trust | Notes |
 | --- | --- | --- |
-| `dealgo/plugins/builtin/<id>/plugin.lua` | Shipped: granted what it asks for until the admin changes it | youtube, reddit, bluesky, substack, shape |
+| `pamphlets/plugins/builtin/<id>/plugin.lua` | Shipped: granted what it asks for until the admin changes it | youtube, reddit, bluesky, substack, shape |
 | `<DATA_DIR>/plugins/<id>/plugin.lua` | Granted only what the admin ticked | Uploads and fetches |
 
 The id is the **folder name**, never anything the file says. Later folders win, so a data-folder
@@ -31,7 +31,7 @@ The registry is held in memory and rebuilt on demand, never stored: the folder i
 
 ## Loading one plugin — two passes
 
-1. **Judge** (`_judge`): load with a `dealgo` granted nothing. Check it returned a table,
+1. **Judge** (`_judge`): load with a `pamphlets` granted nothing. Check it returned a table,
    `api == 1`, id is `[a-z0-9_-]`. Parse `permissions`, `sources`, `augmentations` (and legacy
    `nodes`), `publisher`. Any problem becomes `plugin.trouble` — shown on the Plugins page — and
    the rest of the app carries on. A source's `colour` must be in `SOURCE_COLOURS`
@@ -73,15 +73,15 @@ Built per plugin per load by `capabilities.granted_to`; absent unless granted.
 | `network` | `net` (`get`, `embedded`, `find`) | 4 requests/call, 2 MiB/response, header allow-list (`user-agent`, `accept`, `accept-language`, `referer`), honours `patience` |
 | `clock` | `clock` | — |
 | `log` | `log` | prefixed with the plugin name |
-| `read` | `dealgo.sources/feeds` | owner-scoped |
-| `manage` | `dealgo.pause/watch` | owner-scoped |
+| `read` | `pamphlets.sources/feeds` | owner-scoped |
+| `manage` | `pamphlets.pause/watch` | owner-scoped |
 | `account` | `account.send` | Google API hosts only, 30 calls/call, cost 1–100 each, 4 MiB |
 | *(always)* | `settings` (`app`, `user`) | The plugin's own values only; `user` for the owner in hand, else defaults |
 
 ## Acting for an owner
 
 Plugins are install-wide; data is per account. `capabilities.acting_for(owner)` sets a **thread-local**
-owner for the duration of a block. `dealgo` and `account` read it: outside a block they answer
+owner for the duration of a block. `pamphlets` and `account` read it: outside a block they answer
 nothing and refuse changes. The sync engine opens a block around `keep`, `rank`, `posts` and
 publisher calls. Nested blocks restore the outer owner.
 
@@ -116,7 +116,7 @@ for, whatever the form says.
   devices), no absolute paths or `..`, ≤ 200 files, ≤ 8 MiB unpacked.
 - Entry is the shallowest `plugin.lua`. Keep only `.lua .md .txt .json .toml` and
   `LICENSE LICENCE COPYING NOTICE` beside it, up to three folders deep.
-- Id from the repository name, minus `dealgo-plugin-`/`dealgo-`/`plugin-`.
+- Id from the repository name, minus `pamphlets-plugin-`/`pamphlets-`/`plugin-`.
 - Git is never run: a clone runs hooks and reads config; an archive is inert.
 
 ## State in the database

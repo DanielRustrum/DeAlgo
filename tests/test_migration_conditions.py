@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from sqlalchemy import select, text
 
-from dealgo.models import Channel, GraphNode, Playlist
-from dealgo.services import graph
+from pamphlets.models import Channel, GraphNode, Playlist
+from pamphlets.services import graph
 
 
 def a_canvas(db):
@@ -170,7 +170,7 @@ def test_a_filter_that_said_nothing_about_content_gets_no_youtube_condition(db):
 
 def test_the_youtube_box_holds_what_the_switch_held(db):
     """Asked of the plugin rather than of the host, and answering the same."""
-    from dealgo.plugins import registry
+    from pamphlets.plugins import registry
 
     found = registry.current()
     item = {"source": "youtube", "kind": "video", "hint": "shorts", "live": ""}

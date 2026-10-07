@@ -8,10 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.db import get_settings
-from dealgo.models import Channel, GraphNode, Video, utcnow
-from dealgo.services import graph, tagging, writing
-from dealgo.services import playlists as playlist_service
+from pamphlets.db import get_settings
+from pamphlets.models import Channel, GraphNode, Video, utcnow
+from pamphlets.services import graph, tagging, writing
+from pamphlets.services import playlists as playlist_service
 
 TAGS = "reviews — a verdict on one product\nnews: what happened this week\ntutorial"
 
@@ -108,7 +108,7 @@ def test_with_a_model_chosen_it_asks_a_batch_at_a_time(db, monkeypatch):
 
 
 def test_a_choosing_box_puts_nothing_on_everything_and_filters_see_its_choice(db):
-    from dealgo.services.sync.deciding import decide
+    from pamphlets.services.sync.deciding import decide
 
     with db.session_scope() as session:
         channel = a_source(session)
@@ -131,7 +131,7 @@ def test_a_choosing_box_puts_nothing_on_everything_and_filters_see_its_choice(db
 
 
 def test_a_run_tags_what_it_files(world, db):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 10
@@ -144,7 +144,7 @@ def test_a_run_tags_what_it_files(world, db):
         graph.connect(session, source, box)
         graph.connect(session, box, feed)
     from fakes import entry
-    from dealgo.plugins.publisher import VideoDetails
+    from pamphlets.plugins.publisher import VideoDetails
 
     world["entries"] = [entry("v0", minutes_ago=1), entry("v1", minutes_ago=2)]
     world["client"].details = {f"v{n}": VideoDetails(f"v{n}", f"Video v{n}", 600, "none", "public")
@@ -157,8 +157,8 @@ def test_a_run_tags_what_it_files(world, db):
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)

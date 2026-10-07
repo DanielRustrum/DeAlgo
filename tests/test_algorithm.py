@@ -14,10 +14,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.db import get_settings
-from dealgo.models import Channel, Consumption, Placement, Video, utcnow
-from dealgo.services import algorithm, graph
-from dealgo.services import playlists as playlist_service
+from pamphlets.db import get_settings
+from pamphlets.models import Channel, Consumption, Placement, Video, utcnow
+from pamphlets.services import algorithm, graph
+from pamphlets.services import playlists as playlist_service
 
 
 def two_sources(session):
@@ -126,7 +126,7 @@ def aggregation_under(session, host, threshold=50, signal="interest"):
 
 
 def test_under_a_filter_it_holds_back_what_it_predicts_below_the_threshold(db):
-    from dealgo.services.sync.deciding import decide
+    from pamphlets.services.sync.deciding import decide
 
     with db.session_scope() as session:
         liked, passed = two_sources(session)
@@ -156,7 +156,7 @@ def test_under_a_filter_it_holds_back_what_it_predicts_below_the_threshold(db):
 
 
 def test_under_a_sort_it_puts_the_most_predicted_first(db):
-    from dealgo.services.sync.ordering import reorder
+    from pamphlets.services.sync.ordering import reorder
 
     with db.session_scope() as session:
         liked, passed = two_sources(session)
@@ -178,7 +178,7 @@ def test_under_a_sort_it_puts_the_most_predicted_first(db):
 
 
 def test_under_an_expire_box_what_it_predicts_below_leaves_sooner(db):
-    from dealgo.services.sync.expiry import life_share
+    from pamphlets.services.sync.expiry import life_share
 
     with db.session_scope() as session:
         liked, passed = two_sources(session)
@@ -209,7 +209,7 @@ def test_only_a_filter_sort_or_expire_box_takes_one(db):
 
 
 def test_a_run_learns_again_when_it_is_due(world, db):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     with db.session_scope() as session:
         liked, passed = two_sources(session)
@@ -224,8 +224,8 @@ def test_a_run_learns_again_when_it_is_due(world, db):
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -317,7 +317,7 @@ def a_feed_full_of(session, channel, count, feed):
 
 
 def test_saturation_is_room_left_in_a_feed_against_what_you_open(db):
-    from dealgo.services.sync.deciding import decide
+    from pamphlets.services.sync.deciding import decide
 
     with db.session_scope() as session:
         liked, passed = two_sources(session)
@@ -376,7 +376,7 @@ def test_saturation_of_a_tag_leaves_untagged_items_alone(db):
 
 
 def test_a_maximum_keeps_out_what_it_is_too_sure_of(db):
-    from dealgo.services.sync.deciding import decide
+    from pamphlets.services.sync.deciding import decide
 
     with db.session_scope() as session:
         liked, passed = two_sources(session)

@@ -5,11 +5,11 @@ from __future__ import annotations
 from fakes import CHANNEL_ID, MAIN_PLAYLIST, entry, wire, set_quota
 from sqlalchemy import select
 
-from dealgo import outgoing
-from dealgo.models import Channel, Video
-from dealgo.plugins.publisher import VideoDetails
-from dealgo.services import sync as sync_service
-from dealgo.sources import items
+from pamphlets import outgoing
+from pamphlets.models import Channel, Video
+from pamphlets.plugins.publisher import VideoDetails
+from pamphlets.services import sync as sync_service
+from pamphlets.sources import items
 
 
 def statuses(db) -> dict[str, str]:
@@ -116,7 +116,7 @@ def test_max_per_run_defers_the_rest_to_the_next_pass(world):
 
 
 def _three_waiting_and_a_feed_that_takes_two(world, playlist_id=None):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with world["db"].session_scope() as session:
         world["db"].get_settings(session).initial_backfill = 10
@@ -131,7 +131,7 @@ def _three_waiting_and_a_feed_that_takes_two(world, playlist_id=None):
 
 
 def _owed(db) -> int:
-    from dealgo.models import Placement
+    from pamphlets.models import Placement
 
     with db.session_scope() as session:
         return len(session.scalars(select(Placement).where(Placement.playlist_item_id.is_(None))).all())
@@ -178,7 +178,7 @@ def test_running_out_of_quota_stops_the_filing_and_says_so_once(world):
 
 
 def test_pruning_trims_the_oldest_entries(world):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with world["db"].session_scope() as session:
         world["db"].get_settings(session).initial_backfill = 10
@@ -195,7 +195,7 @@ def test_pruning_trims_the_oldest_entries(world):
 
 
 def test_without_a_playlist_videos_are_queued_not_lost(world):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with world["db"].session_scope() as session:
         session.delete(session.scalar(select(Playlist)))
@@ -224,7 +224,7 @@ def test_unavailable_videos_are_skipped_with_a_reason(world):
 def test_a_feed_failure_is_recorded_on_the_channel(world, monkeypatch):
     import httpx
 
-    from dealgo.sources import syndication
+    from pamphlets.sources import syndication
 
     def boom(_url, _http):
         raise httpx.ConnectError("dns is having a day")
@@ -241,7 +241,7 @@ def test_a_feed_failure_is_recorded_on_the_channel(world, monkeypatch):
 def test_a_channel_added_by_bare_id_gets_its_picture_on_the_next_sync(world, db):
     """The Atom feed carries a title and nothing else, so the avatar is filled
     in from the API — fifty channels for one quota unit."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         assert session.scalar(select(Channel)).thumbnail_url is None
@@ -258,7 +258,7 @@ def test_a_channel_added_by_bare_id_gets_its_picture_on_the_next_sync(world, db)
 def test_a_channel_tracked_before_descriptions_existed_gets_one(world, db):
     """The lookup keys off anything missing, not the avatar alone, so an
     already-pictured channel from an older database is still filled in."""
-    from dealgo.models import Channel
+    from pamphlets.models import Channel
 
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
@@ -274,8 +274,8 @@ def test_a_channel_tracked_before_descriptions_existed_gets_one(world, db):
 def test_a_channel_with_no_about_text_is_not_asked_about_again(world, db, monkeypatch):
     """An empty description is an answer. Storing NULL would mean every sync
     spent a lookup on a channel that simply has nothing to say."""
-    from dealgo.models import Channel
-    from dealgo.plugins.publisher import ChannelInfo
+    from pamphlets.models import Channel
+    from pamphlets.plugins.publisher import ChannelInfo
 
     asked: list[int] = []
 
@@ -324,7 +324,7 @@ def wire_trigger(db, *, kind: str, every_minutes: int | None = None, cron: str |
     Whatever was wired before comes off first: these tests are about what one
     trigger does, and a second one saying yes underneath would answer for it.
     """
-    from dealgo.services import graph
+    from pamphlets.services import graph
 
     with db.session_scope() as session:
         graph.load(session)
@@ -348,7 +348,7 @@ def test_a_channel_with_no_trigger_is_not_polled_at_all(world, db):
     """A trigger is how a run starts. A source fetched on a schedule drawn
     nowhere is a source filling feeds for reasons the canvas cannot explain,
     which is exactly how a channel nobody wired ends up in somebody's feed."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         for node in session.scalars(select(GraphNode).where(GraphNode.kind == "trigger")):
@@ -367,7 +367,7 @@ def test_a_channel_with_no_trigger_is_not_polled_at_all(world, db):
 def test_an_unwired_channel_is_still_polled_when_a_person_forces_it(world, db):
     """Force means force: the CLI's `--force` is somebody saying "poll
     everything now", and it is the way to reach a source not yet wired."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         for node in session.scalars(select(GraphNode).where(GraphNode.kind == "trigger")):
@@ -383,7 +383,7 @@ def test_a_pulse_replaces_the_channels_own_gap(world):
     """The box on the canvas has the last word, not the channel's settings."""
     import datetime as dt
 
-    from dealgo.models import utcnow
+    from pamphlets.models import utcnow
 
     wire_trigger(world["db"], kind="pulse", every_minutes=60)
     world["entries"] = [entry("v0", minutes_ago=5)]
@@ -403,7 +403,7 @@ def test_a_schedule_polls_once_its_time_has_come_round(world):
     after it, it waits for tomorrow."""
     import datetime as dt
 
-    from dealgo.models import utcnow
+    from pamphlets.models import utcnow
 
     now = utcnow()
     # A time an hour ago, so today's occurrence has already passed.
@@ -424,7 +424,7 @@ def test_a_forced_run_ignores_the_triggers_too(world):
     """Force means every channel, whatever anything else says."""
     import datetime as dt
 
-    from dealgo.models import utcnow
+    from pamphlets.models import utcnow
 
     wire_trigger(world["db"], kind="pulse", every_minutes=600)
     last_checked(world["db"], utcnow() - dt.timedelta(minutes=5))
@@ -436,7 +436,7 @@ def test_a_forced_run_ignores_the_triggers_too(world):
 
 def test_only_narrows_a_pass_to_the_channels_named(world, db):
     """A pulse is wired to some channels and not others."""
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     with db.session_scope() as session:
         session.add(ChannelModel(channel_id="UCother", title="Other"))
@@ -459,7 +459,7 @@ def test_only_narrows_a_pass_to_the_channels_named(world, db):
 
 def wire_sort(db, *, sort_by: str, newest_first: bool = True):
     """Put a sort box between the channel and the feed."""
-    from dealgo.services import graph
+    from pamphlets.services import graph
 
     with db.session_scope() as session:
         graph.load(session)
@@ -531,7 +531,7 @@ def test_a_sort_box_can_order_by_likes(world):
 
 
 def test_the_counts_are_kept_so_the_next_run_need_not_ask_again(world, db):
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     three_videos(world)
     sync_service.run_sync()
@@ -554,8 +554,8 @@ def test_three_quick_presses_make_one_request_not_three(world, db, monkeypatch):
     Now the other two never reach the network."""
     import httpx
 
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import patience, syndication
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import patience, syndication
 
     patience.forget()
     asked = []
@@ -635,7 +635,7 @@ def test_an_item_already_here_gains_the_picture_we_can_now_read(world, db, monke
     """The whole backlog was stored before there was anywhere to put a
     picture, and a feed says the same things about the same items every poll.
     An entry we have seen before is a second chance at it."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     add_rss_source(db, monkeypatch, REDDIT)         # first, with no picture in it
     sync_service.run_sync("manual", force=True)
@@ -645,7 +645,7 @@ def test_an_item_already_here_gains_the_picture_we_can_now_read(world, db, monke
         assert stored.thumbnail_url is None and stored.images is None
 
     # The same entry, read again by a version that knows how to see pictures.
-    from dealgo.sources import syndication
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(
         syndication, "fetch", lambda _url, _http: syndication.parse(REDDIT_WITH_A_PICTURE)
@@ -664,8 +664,8 @@ def test_a_stale_reading_is_corrected_by_a_fresh_one(world, db, monkeypatch):
     row came from an earlier reading of this same entry — and an earlier
     reading is exactly what wants correcting. Under a fill-only rule a body
     stored before the words were unescaped keeps its "&#32;" for ever."""
-    from dealgo.models import Video as VideoModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.sources import syndication
 
     add_rss_source(db, monkeypatch, REDDIT)
     sync_service.run_sync("manual", force=True)
@@ -685,8 +685,8 @@ def test_a_stale_reading_is_corrected_by_a_fresh_one(world, db, monkeypatch):
 def test_a_reading_that_comes_back_empty_takes_nothing_away(world, db, monkeypatch):
     """A parse that finds nothing is a reason to keep what we have, not to
     throw it away."""
-    from dealgo.models import Video as VideoModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.sources import syndication
 
     add_rss_source(db, monkeypatch, REDDIT_WITH_A_PICTURE)
     sync_service.run_sync("manual", force=True)
@@ -712,8 +712,8 @@ def test_a_reading_that_comes_back_empty_takes_nothing_away(world, db, monkeypat
 def test_a_second_reading_does_not_discover_it_twice(world, db, monkeypatch):
     """Filling a gap is not finding something new, and must not be counted
     as one."""
-    from dealgo.models import Video as VideoModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.sources import syndication
 
     add_rss_source(db, monkeypatch, REDDIT)
     sync_service.run_sync("manual", force=True)
@@ -733,8 +733,8 @@ def test_a_second_reading_does_not_discover_it_twice(world, db, monkeypatch):
 
 
 def stored_link(db, *, body, thumbnail=None, images=None):
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         source = ChannelModel(
@@ -757,7 +757,7 @@ def test_a_picture_is_read_back_out_of_the_words_it_was_left_in(world, db):
     couple of dozen items and no more, and most of what is in hand fell off
     the end of it long ago. But nothing needs fetching — the address is in
     the text."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     item_pk = stored_link(
         db,
@@ -779,7 +779,7 @@ def test_a_picture_is_read_back_out_of_the_words_it_was_left_in(world, db):
 
 
 def test_an_item_with_no_picture_is_still_tidied_and_marked_looked_at(world, db):
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     item_pk = stored_link(db, body="just words &#32; submitted by &#32; /u/someone")
 
@@ -795,7 +795,7 @@ def test_an_item_with_no_picture_is_still_tidied_and_marked_looked_at(world, db)
 def test_the_repair_never_throws_away_a_picture_a_reading_found(world, db):
     """This one looks only at the words, and a feed names pictures the words
     do not."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     item_pk = stored_link(
         db,
@@ -827,8 +827,8 @@ def test_the_repair_converges(world, db):
 def test_a_youtube_video_is_left_entirely_alone(world, db):
     """Its thumbnail comes from the feed's own field and its body is a
     community post's writing. Neither is this repair's business."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -851,9 +851,9 @@ def test_a_youtube_video_is_left_entirely_alone(world, db):
 def stranded_reddit(db, *, playlist_id="generic:reading"):
     """A Reddit source whose items were refused for having nowhere to go, and
     a feed on the end of its wire."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Playlist as PlaylistModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Playlist as PlaylistModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         source = ChannelModel(
@@ -877,7 +877,7 @@ def test_a_feed_turned_generic_brings_back_what_it_could_not_hold(world, db, mon
     """The wire was never redrawn — the feed on the end of it changed
     underneath. Connecting brings these back; nothing else did, so they sat
     there skipped for ever."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     stranded_reddit(db)
     monkeypatch.setattr(sync_service.polling, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
@@ -893,7 +893,7 @@ def test_a_feed_turned_generic_brings_back_what_it_could_not_hold(world, db, mon
 def test_items_stay_put_while_the_only_feed_is_still_a_youtube_one(world, db, monkeypatch):
     """Reviving them into the same refusal every run would be churn that
     reads as a feed doing something."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     stranded_reddit(db, playlist_id="PLarealyoutubeplaylist")
     monkeypatch.setattr(sync_service.polling, "_poll", lambda *a: items.Batch("r/python", "r/python", []))
@@ -910,7 +910,7 @@ def test_items_stay_put_while_the_only_feed_is_still_a_youtube_one(world, db, mo
 def test_a_filters_verdict_is_not_reconsidered(world, db, monkeypatch):
     """Only the routing one. What a filter decided was about the item itself,
     and a rewiring is no argument against it."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     source_pk, _ = stranded_reddit(db)
     with db.session_scope() as session:
@@ -932,7 +932,7 @@ def test_a_filters_verdict_is_not_reconsidered(world, db, monkeypatch):
 
 
 def with_mirror(db, *, mirror="https://openrss.org/reddit.com/r/python"):
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     with db.session_scope() as session:
         source = ChannelModel(
@@ -955,7 +955,7 @@ def serving(world, monkeypatch, answers):
     """
     import httpx
 
-    from dealgo.sources import syndication
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(syndication, "fetch", world["real_fetch"])
     asked = []
@@ -971,8 +971,8 @@ def serving(world, monkeypatch, answers):
 def test_a_mirror_is_read_when_the_source_refuses(world, db, monkeypatch):
     """One request a window is workable until it is not. A mirror is how you
     get a second answer without pretending to be somebody else."""
-    from dealgo.models import Video as VideoModel
-    from dealgo.sources import patience
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.sources import patience
 
     patience.forget()
     only = {with_mirror(db)}
@@ -999,7 +999,7 @@ def test_a_mirror_is_read_when_the_source_refuses(world, db, monkeypatch):
 def test_the_source_is_always_tried_first(world, db, monkeypatch):
     """The mirror is somebody else's copy and a service we do not run. It is
     a fallback, not a shortcut."""
-    from dealgo.sources import patience
+    from pamphlets.sources import patience
 
     patience.forget()
     only = {with_mirror(db)}
@@ -1021,8 +1021,8 @@ def test_a_feed_that_is_gone_does_not_fall_through_to_the_mirror(world, db, monk
     """A mirror routes around a host that will not have us. It cannot help
     with a feed that has genuinely gone, and trying it on a 404 would hide a
     source that needs fixing."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import patience
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import patience
 
     patience.forget()
     only = {with_mirror(db)}
@@ -1046,8 +1046,8 @@ def test_a_feed_that_is_gone_does_not_fall_through_to_the_mirror(world, db, monk
 def test_a_mirror_that_also_fails_reports_the_original_refusal(world, db, monkeypatch):
     """The source's answer is the one worth knowing. A second complaint about
     somebody else's copy helps nobody."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import patience
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import patience
 
     patience.forget()
     only = {with_mirror(db)}
@@ -1069,8 +1069,8 @@ def test_a_mirror_that_also_fails_reports_the_original_refusal(world, db, monkey
 
 
 def test_a_source_with_no_mirror_just_reports_the_refusal(world, db, monkeypatch):
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import patience
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import patience
 
     patience.forget()
     only = {with_mirror(db, mirror=None)}
@@ -1094,8 +1094,8 @@ def test_a_source_with_no_mirror_just_reports_the_refusal(world, db, monkeypatch
 def test_reaching_back_revives_what_was_too_old(world, db):
     """The first check sets aside anything outside the backfill window. Asking
     for a backfill is asking for exactly those."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1119,8 +1119,8 @@ def test_reaching_back_leaves_a_filters_judgement_alone(world, db):
     """"Before your time" is the one judgement being revisited. Something a
     filter turned away was a decision about the thing itself, and reaching
     further back is no argument against it."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1138,8 +1138,8 @@ def test_reaching_back_leaves_a_filters_judgement_alone(world, db):
 
 
 def test_an_ordinary_run_leaves_what_was_too_old_where_it_is(world, db):
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1159,9 +1159,9 @@ def test_reaching_back_takes_only_as_many_as_were_asked_for(world, db):
     """"The latest 2" means the latest 2, on the backlog as well as the feed."""
     import datetime as dt
 
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
-    from dealgo.models import utcnow
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.models import utcnow
 
     with db.session_scope() as session:
         channel = session.scalars(select(ChannelModel)).first()
@@ -1187,8 +1187,8 @@ def test_reaching_back_takes_only_as_many_as_were_asked_for(world, db):
 def test_reaching_back_takes_the_whole_feed_on_a_first_check(world, db, monkeypatch):
     """A source added with a tight backfill window would file most of its feed
     as too old. Reaching back the first time takes all of it instead."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
 
     add_rss_source(db, monkeypatch, REDDIT)
     with db.session_scope() as session:
@@ -1208,8 +1208,8 @@ def test_reaching_back_takes_the_whole_feed_on_a_first_check(world, db, monkeypa
 
 def add_rss_source(db, monkeypatch, feed_xml, *, url="https://example.com/feed"):
     """A subscribed RSS source, with its feed served from memory."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.sources import syndication
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.sources import syndication
 
     monkeypatch.setattr(syndication, "fetch", lambda _url, _http: syndication.parse(feed_xml))
     with db.session_scope() as session:
@@ -1240,7 +1240,7 @@ REDDIT = """<?xml version="1.0"?>
 
 
 def test_a_feed_source_is_polled_like_any_other(world, db, monkeypatch):
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     add_rss_source(db, monkeypatch, REDDIT)
     result = sync_service.run_sync("manual", force=True)
@@ -1260,12 +1260,12 @@ def test_a_feed_source_is_polled_like_any_other(world, db, monkeypatch):
 def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, monkeypatch):
     """The one thing that does not generalise, said once rather than failing
     at the insert with whatever YouTube makes of it."""
-    from dealgo.models import Video as VideoModel
+    from pamphlets.models import Video as VideoModel
 
     channel_pk = add_rss_source(db, monkeypatch, REDDIT)
     with db.session_scope() as session:
-        from dealgo.models import Channel as ChannelModel
-        from dealgo.models import Playlist as PlaylistModel
+        from pamphlets.models import Channel as ChannelModel
+        from pamphlets.models import Playlist as PlaylistModel
 
         channel = session.get(ChannelModel, channel_pk)
         # The fixture's feed is a real YouTube playlist.
@@ -1282,12 +1282,12 @@ def test_an_item_from_elsewhere_cannot_go_into_a_youtube_playlist(world, db, mon
 
 
 def test_an_item_from_elsewhere_fills_a_generic_feed(world, db, monkeypatch):
-    from dealgo.models import Video as VideoModel
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.services import playlists as playlist_service
 
     channel_pk = add_rss_source(db, monkeypatch, REDDIT)
     with db.session_scope() as session:
-        from dealgo.models import Channel as ChannelModel
+        from pamphlets.models import Channel as ChannelModel
 
         local = playlist_service.create_generic(session, "Reading")
         channel = session.get(ChannelModel, channel_pk)
@@ -1303,9 +1303,9 @@ def test_an_item_from_elsewhere_fills_a_generic_feed(world, db, monkeypatch):
 def test_a_feed_items_words_are_what_a_filter_reads(world, db, monkeypatch):
     """It has no duration and is neither a Short nor a broadcast, so its title
     and its body are all there is to go on."""
-    from dealgo.models import Channel as ChannelModel
-    from dealgo.models import Video as VideoModel
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.models import Channel as ChannelModel
+    from pamphlets.models import Video as VideoModel
+    from pamphlets.services import playlists as playlist_service
 
     channel_pk = add_rss_source(db, monkeypatch, REDDIT)
     with db.session_scope() as session:

@@ -7,10 +7,10 @@ import datetime as dt
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import SyncRun, Video
-from dealgo.services import sync as sync_service
-from dealgo.services import watched as watched_service
-from dealgo.plugins.publisher import PublishError, VideoDetails
+from pamphlets.models import SyncRun, Video
+from pamphlets.services import sync as sync_service
+from pamphlets.services import watched as watched_service
+from pamphlets.plugins.publisher import PublishError, VideoDetails
 from fakes import MAIN_PLAYLIST, entry, set_quota
 
 
@@ -140,7 +140,7 @@ def test_mark_all_only_touches_what_is_in_the_playlist(world):
 
 
 def test_removal_needs_a_playlist_and_an_account(world):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     fill_playlist(world, count=1)
     with world["db"].session_scope() as session:
@@ -166,7 +166,7 @@ def test_watched_marking_is_idempotent(world):
 
 def test_running_out_of_quota_stops_the_removal_and_says_so_once(world):
     """The rest wait for the reset, rather than each being refused in turn."""
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     fill_playlist(world)
     with world["db"].session_scope() as session:
@@ -186,7 +186,7 @@ def test_running_out_of_quota_stops_the_removal_and_says_so_once(world):
 
 
 def feed_pk(world) -> int:
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with world["db"].session_scope() as session:
         return session.scalar(select(Playlist.id).where(Playlist.playlist_id == MAIN_PLAYLIST))

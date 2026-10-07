@@ -6,11 +6,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from dealgo.models import Channel, Placement, Playlist, Video
-from dealgo.services import playlists as playlist_service
-from dealgo.services import sync as sync_service
-from dealgo.services import watched as watched_service
-from dealgo.plugins.publisher import PublishError, VideoDetails
+from pamphlets.models import Channel, Placement, Playlist, Video
+from pamphlets.services import playlists as playlist_service
+from pamphlets.services import sync as sync_service
+from pamphlets.services import watched as watched_service
+from pamphlets.plugins.publisher import PublishError, VideoDetails
 from fakes import MAIN_PLAYLIST, FakeYouTube, entry, unwire, wire
 
 SECOND = "PL_second"
@@ -165,7 +165,7 @@ def test_a_new_channel_starts_paused_with_no_feed(world, add_playlist):
     the void."""
     import httpx
 
-    from dealgo.services import channels as channel_service
+    from pamphlets.services import channels as channel_service
 
     add_playlist(SECOND, "Another", feeds_channel=False)
 
@@ -179,8 +179,8 @@ def test_a_new_channel_starts_paused_with_no_feed(world, add_playlist):
 def test_linking_the_first_feed_takes_it_off_pause(world, add_playlist, db):
     import httpx
 
-    from dealgo.services import channels as channel_service
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.services import channels as channel_service
+    from pamphlets.services import playlists as playlist_service
 
     with db.session_scope() as session, httpx.Client() as http:
         channel = channel_service.add_source(session, "UCaaaaaaaaaaaaaaaaaaaaaa", http)
@@ -193,7 +193,7 @@ def test_linking_the_first_feed_takes_it_off_pause(world, add_playlist, db):
 
 
 def test_losing_the_last_feed_pauses_it_again(world, db):
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.services import playlists as playlist_service
 
     with db.session_scope() as session:
         channel = session.scalar(select(Channel))
@@ -207,7 +207,7 @@ def test_losing_the_last_feed_pauses_it_again(world, db):
 
 def test_a_hand_paused_channel_is_not_resumed_by_a_second_feed(world, add_playlist, db):
     """Only the transitions matter: a pause someone chose must stick."""
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.services import playlists as playlist_service
 
     second_pk = add_playlist(SECOND, "Another", feeds_channel=False)
     with db.session_scope() as session:
@@ -247,7 +247,7 @@ def test_a_rename_youtube_refuses_still_lands_locally(world, db, monkeypatch):
     """Better a name that differs than an edit that silently vanished."""
     import httpx
 
-    from dealgo.plugins.publisher import PublishError
+    from pamphlets.plugins.publisher import PublishError
 
     class Refusing(FakeYouTube):
         has_write_access = True

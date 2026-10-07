@@ -7,14 +7,14 @@ Google grant. Copy it while Pamphlets is stopped:
 
 ```bash
 make down
-docker run --rm -v dealgo_dealgo-data:/data -v "$PWD":/out alpine cp /data/dealgo.sqlite3 /out/
+docker run --rm -v pamphlets_pamphlets-data:/data -v "$PWD":/out alpine cp /data/pamphlets.sqlite3 /out/
 make up
 ```
 
-Compose names the volume `<project>_dealgo-data` — `dealgo_dealgo-data` by default. Check with
+Compose names the volume `<project>_pamphlets-data` — `pamphlets_pamphlets-data` by default. Check with
 `docker volume ls`.
 
-Outside Docker, copy `./data/dealgo.sqlite3`. To restore, put the file back and start Pamphlets.
+Outside Docker, copy `./data/pamphlets.sqlite3`. To restore, put the file back and start Pamphlets.
 
 **This is the only backup that keeps everything.** Use it.
 
@@ -44,7 +44,7 @@ runs until you add them again.
 ## From the command line
 
 ```bash
-make backup    # writes ./de-algo-backup.json — the same setup file
+make backup    # writes ./pamphlets-backup.json — the same setup file
 ```
 
 **Related:** [Moving an Instance](Moving%20an%20Instance.md) · [Groups](Nodes/Groups.md)

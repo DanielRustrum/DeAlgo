@@ -13,7 +13,7 @@ from sqlalchemy import select
 import pytest
 
 from fakes import use_config
-from dealgo.models import Base
+from pamphlets.models import Base
 
 # The shape Pamphlets had before ownership: `video` carrying a table-level
 # UNIQUE(video_id), and uniqueness on channels, feeds and quota days that was
@@ -52,7 +52,7 @@ INSERT INTO placement (id, video_pk, playlist_pk, playlist_item_id) VALUES (1, 1
 @pytest.fixture
 def old_database(tmp_path, monkeypatch):
     """A database on the pre-ownership schema, migrated by init_db."""
-    from dealgo import config, db as db_module
+    from pamphlets import config, db as db_module
 
     path = tmp_path / "old.sqlite3"
     raw = sqlite3.connect(path)
@@ -136,7 +136,7 @@ def test_the_rebuild_leaves_the_foreign_keys_pointing_at_the_right_table(old_dat
 
 
 def test_migrating_twice_changes_nothing(old_database):
-    from dealgo import db as db_module
+    from pamphlets import db as db_module
 
     db_module.init_db()
 
@@ -177,9 +177,9 @@ def test_a_fresh_database_has_the_same_shape_as_a_migrated_one(tmp_path):
 import pytest
 from fastapi.testclient import TestClient
 
-from dealgo.db import get_settings
-from dealgo.models import Channel, Placement, Playlist, Video, utcnow
-from dealgo.services import accounts
+from pamphlets.db import get_settings
+from pamphlets.models import Channel, Placement, Playlist, Video, utcnow
+from pamphlets.services import accounts
 
 ADMIN = ("admin", "admin")
 
@@ -187,9 +187,9 @@ ADMIN = ("admin", "admin")
 @pytest.fixture
 def two_accounts(db, monkeypatch):
     """An admin with a channel and a feed, and a second account with nothing."""
-    from dealgo import config, scheduler
-    from dealgo.services import accounts as accounts_module
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.services import accounts as accounts_module
+    from pamphlets.web import app as web_app
 
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
@@ -265,8 +265,8 @@ def test_the_counts_are_this_accounts_own(two_accounts, db):
     """The one that got through: names were scoped but the numbers beside them
     were not, so a new account opened on somebody else's tally of watched
     videos."""
-    from dealgo.models import Video, utcnow
-    from dealgo.services import watched as watched_service
+    from pamphlets.models import Video, utcnow
+    from pamphlets.services import watched as watched_service
 
     client, admin_pk, sam_pk = two_accounts
     with db.session_scope() as session:
@@ -303,7 +303,7 @@ def test_a_backup_holds_only_your_own(two_accounts):
 def test_watched_marks_cannot_reach_across(two_accounts, db):
     """An id from another account is not this one's to mark, however it got
     into the request."""
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     client, admin_pk, _ = two_accounts
     with db.session_scope() as session:
@@ -359,7 +359,7 @@ def test_two_accounts_may_track_the_same_channel(db):
 def test_settings_are_each_accounts_own(two_accounts, db):
     """A plugin's settings for one account are that account's alone: Sam's
     choice of what counts as a Short is not the admin's."""
-    from dealgo.services import plugin_settings
+    from pamphlets.services import plugin_settings
 
     client, admin_pk, sam_pk = two_accounts
     plugin_settings.save("youtube", "user", sam_pk, {"shorts_max_seconds": "120"})
@@ -379,8 +379,8 @@ def test_turning_sign_in_on_hands_the_existing_setup_to_the_admin(db, monkeypatc
     """Upgrading an instance that already had channels and feeds: they belong
     to the implicit owner, which is nobody once there are accounts. Without
     this the admin signs in to an empty Pamphlets and the data sits invisible."""
-    from dealgo import config
-    from dealgo.services import accounts as accounts_module
+    from pamphlets import config
+    from pamphlets.services import accounts as accounts_module
 
     with db.session_scope() as session:
         session.add_all([
@@ -405,8 +405,8 @@ def test_turning_sign_in_on_hands_the_existing_setup_to_the_admin(db, monkeypatc
 
 
 def test_adoption_leaves_other_accounts_alone(db, monkeypatch):
-    from dealgo import config
-    from dealgo.services import accounts as accounts_module
+    from pamphlets import config
+    from pamphlets.services import accounts as accounts_module
 
     with db.session_scope() as session:
         sam = accounts.create_user(session, "sam", "member-password")
@@ -509,7 +509,7 @@ def test_a_new_accounts_canvas_has_no_triggers_either(two_accounts):
 def test_another_accounts_run_is_not_reported(two_accounts, db):
     """The run state names boxes and counts. Reporting one account's run to
     another would say which channels they watch and how much each brought in."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     client, admin_pk, _ = two_accounts
     as_account(client, *ADMIN)
@@ -557,13 +557,13 @@ def test_another_accounts_group_cannot_be_taken(two_accounts):
 def test_a_loaded_group_belongs_to_whoever_loaded_it(two_accounts, db):
     import json as json_module
 
-    from dealgo.models import Channel as ChannelModel
+    from pamphlets.models import Channel as ChannelModel
 
     client, _, sam_pk = two_accounts
     as_account(client, "sam", "member-password")
 
     packed = {
-        "de_algo_group": 1,
+        "pamphlets_group": 1,
         "name": "A gift",
         "nodes": [{"ref": 0, "kind": "source", "x": 0, "y": 0,
                    "channel_id": "UCgifted", "title": "A gift"}],
@@ -599,7 +599,7 @@ def test_every_account_reads_the_same_allowance_in_settings(two_accounts, db):
     """The OAuth client is the install's, so its allowance is too: every
     account spends the same day's units, and each sees what is left of them
     in the YouTube plugin's block under Settings."""
-    from dealgo.services import quota
+    from pamphlets.services import quota
 
     client, admin_pk, sam_pk = two_accounts
     with db.session_scope() as session:

@@ -106,7 +106,7 @@ its row on the Plugins page says why, with a line number.
 | [Settings](Settings.md) | Settings the admin sets for everyone, and settings each account sets for itself |
 | [Signing In](Signing%20In.md) | Letting each account sign in to your service, and its daily allowance |
 | [Permissions](Permissions.md) | Asking for more than pure Lua |
-| [The dealgo Object](The%20dealgo%20Object.md) | Reading and changing the running account's setup |
+| [The pamphlets Object](The%20pamphlets%20Object.md) | Reading and changing the running account's setup |
 | [Network](Network.md) | Fetching pages and pulling JSON out of them |
 | [Clock and Log](Clock%20and%20Log.md) | The time, and writing to the log |
 | [Account](Account.md) | Calling Google as the connected account |
@@ -114,7 +114,7 @@ its row on the Plugins page says why, with a line number.
 | [Distributing](Distributing.md) | Publishing your plugin in a git repository |
 | [Testing and Debugging](Testing%20and%20Debugging.md) | Finding out why it does not work |
 
-The five plugins that ship with Pamphlets are complete examples, in `dealgo/plugins/builtin/`, each split
+The five plugins that ship with Pamphlets are complete examples, in `pamphlets/plugins/builtin/`, each split
 into a file per job: `plugin.lua` says who it is and requires the rest. Start with `reddit/` (a source
 with a mirror and two conditions: `references.lua`, `source.lua`, `conditions.lua`) and `shape/`
 (conditions and an ordering, no source). `youtube/` is the full set: sign-in, settings, a Data API

@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from dealgo.models import Channel, Placement, Playlist, Video
-from dealgo.services import playlists as playlist_service
-from dealgo.services import quota
-from dealgo.services import sync as sync_service
-from dealgo.services import watched as watched_service
-from dealgo.plugins.publisher import VideoDetails
+from pamphlets.models import Channel, Placement, Playlist, Video
+from pamphlets.services import playlists as playlist_service
+from pamphlets.services import quota
+from pamphlets.services import sync as sync_service
+from pamphlets.services import watched as watched_service
+from pamphlets.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry, unwire, wire
 
 
@@ -291,8 +291,8 @@ def test_renaming_a_generic_feed_touches_nothing_outside(world, db):
 def test_a_local_feed_is_cleared_from_its_section_and_stays_clear(world, db, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     with db.session_scope() as session:
         unwire(session, session.scalar(select(Channel)))

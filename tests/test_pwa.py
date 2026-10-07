@@ -16,13 +16,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SW = ROOT / "dealgo" / "web" / "ts" / "sw.ts"
+SW = ROOT / "pamphlets" / "web" / "ts" / "sw.ts"
 
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -92,8 +92,8 @@ def test_the_worker_is_registered_with_the_build_version(client):
     """The version names the cache, so a deploy retires the old one."""
     body = client.get("/").text
 
-    assert 'name="dealgo-build"' in body
-    assert "/sw.js?v=" in (ROOT / "dealgo" / "web" / "ts" / "pwa.ts").read_text()
+    assert 'name="pamphlets-build"' in body
+    assert "/sw.js?v=" in (ROOT / "pamphlets" / "web" / "ts" / "pwa.ts").read_text()
 
 
 # -- what the worker actually does -----------------------------------------
@@ -118,7 +118,7 @@ def worker_report():
 @needs_node
 def test_the_cache_is_named_after_the_build(worker_report):
     """So a deploy retires what the last one stored."""
-    assert worker_report["cacheNames"] == ["dealgo-v1"]
+    assert worker_report["cacheNames"] == ["pamphlets-v1"]
 
 
 @needs_node
@@ -182,7 +182,7 @@ def test_every_page_can_say_it_is_a_stored_copy(client):
 def test_a_panel_that_cannot_refresh_keeps_what_it_has(client):
     """Letting htmx swap the failure in would replace readable content with
     nothing. The panel stays and is marked instead."""
-    source = (ROOT / "dealgo" / "web" / "ts" / "pwa.ts").read_text()
+    source = (ROOT / "pamphlets" / "web" / "ts" / "pwa.ts").read_text()
 
     assert "htmx:sendError" in source and "htmx:responseError" in source
     assert "event.preventDefault()" in source
@@ -251,7 +251,7 @@ def test_the_buttons_that_reach_the_server_declare_that_they_need_the_network():
     """The mark moved with the act. A run is started from a trigger box on the
     canvas now, so it is those buttons that go quiet when the connection does
     — the header has nothing left to press."""
-    script = (ROOT / "dealgo/web/static/graph.js").read_text()
+    script = (ROOT / "pamphlets/web/static/graph.js").read_text()
     marked = script.count('needsNetwork')
     assert marked >= 2, f"only {marked} canvas buttons claim to need the server"
 
@@ -262,5 +262,5 @@ def test_the_icons_are_packaged_with_the_app():
     import tomllib
 
     config = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    globs = config["tool"]["setuptools"]["package-data"]["dealgo"]
+    globs = config["tool"]["setuptools"]["package-data"]["pamphlets"]
     assert "web/static/icons/*" in globs

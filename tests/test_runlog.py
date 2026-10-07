@@ -13,15 +13,15 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, Playlist, RunEvent, SyncRun, Video, utcnow
-from dealgo.services import runlog
+from pamphlets.models import Channel, Playlist, RunEvent, SyncRun, Video, utcnow
+from pamphlets.services import runlog
 from tests.test_graph import canvas  # noqa: F401
 
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -218,7 +218,7 @@ def test_with_nothing_run_it_says_where_to_start(client):
 def test_a_run_writes_down_what_it_did_to_each_source(world, db):
     """The point of the whole thing: not "3 added" but which source brought
     what, and which of them went quiet and why."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     sync_service.run_sync("manual", force=True)
 
@@ -245,7 +245,7 @@ def test_a_source_that_could_not_be_read_says_so_in_the_log(world, db, monkeypat
     same in the counts and different in the log, which is the point."""
     import httpx
 
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     def refused(_channel, _http):
         request = httpx.Request("GET", "https://example.test/feed")
@@ -269,7 +269,7 @@ def test_a_source_that_could_not_be_read_says_so_in_the_log(world, db, monkeypat
 def test_a_run_prunes_the_detail_of_older_ones(world, db):
     """Housekeeping happens as part of a run, so there is no separate thing
     to remember to schedule."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     for _ in range(runlog.RUNS_WITH_DETAIL + 3):
         a_run(db, lines=["old noise"])

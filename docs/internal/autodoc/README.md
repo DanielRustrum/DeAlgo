@@ -11,14 +11,14 @@ Then open:
 
 | Reference | Open | Built by |
 | --- | --- | --- |
-| Python — every module under `dealgo/` | `python/index.html` | [pdoc](https://pdoc.dev) 16, Markdown docstrings |
-| Browser scripts — `dealgo/web/ts/`, folders of parts included | `browser/index.html` | [TypeDoc](https://typedoc.org) 0.28 |
-| Service worker — `dealgo/web/ts/sw.ts` | `service-worker/index.html` | TypeDoc, worker `tsconfig` |
+| Python — every module under `pamphlets/` | `python/index.html` | [pdoc](https://pdoc.dev) 16, Markdown docstrings |
+| Browser scripts — `pamphlets/web/ts/`, folders of parts included | `browser/index.html` | [TypeDoc](https://typedoc.org) 0.28 |
+| Service worker — `pamphlets/web/ts/sw.ts` | `service-worker/index.html` | TypeDoc, worker `tsconfig` |
 
 ## How it is set up
 
-- **Python:** `pdoc dealgo --docformat markdown --no-show-source`. Importing `dealgo.config`
-  creates the data folder, so `make docs` points `DEALGO_DATA_DIR` at a temporary folder and uses an
+- **Python:** `pdoc pamphlets --docformat markdown --no-show-source`. Importing `pamphlets.config`
+  creates the data folder, so `make docs` points `PAMPHLETS_DATA_DIR` at a temporary folder and uses an
   in-memory database.
 - **TypeScript:** this folder has its own `package.json` pinning `typedoc` and TypeScript 5.9,
   because the app compiles with TypeScript 7, which TypeDoc cannot read yet. Two configs:

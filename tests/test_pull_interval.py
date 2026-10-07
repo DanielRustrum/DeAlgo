@@ -12,9 +12,9 @@ import datetime as dt
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphNode, Video, utcnow
-from dealgo.services import sync as sync_service
-from dealgo.plugins.publisher import VideoDetails
+from pamphlets.models import Channel, GraphNode, Video, utcnow
+from pamphlets.services import sync as sync_service
+from pamphlets.plugins.publisher import VideoDetails
 from fakes import MAIN_PLAYLIST, entry, set_quota
 
 
@@ -142,7 +142,7 @@ def test_forcing_does_not_reset_the_gap_for_later_runs(world, db):
 
 
 def test_a_forced_run_is_recorded_as_such(world, db):
-    from dealgo.models import SyncRun
+    from pamphlets.models import SyncRun
 
     sync_service.run_sync(force=True)
 

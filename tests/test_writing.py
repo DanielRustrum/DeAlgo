@@ -16,8 +16,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, GraphNode, Video, utcnow
-from dealgo.services import graph, writing
+from pamphlets.models import Channel, GraphNode, Video, utcnow
+from pamphlets.services import graph, writing
 
 
 def a_media_source(session, count=3):
@@ -32,7 +32,7 @@ def a_media_source(session, count=3):
 
 
 def choose(session, provider="anthropic", **said):
-    account = __import__("dealgo.db", fromlist=["get_settings"]).get_settings(session)
+    account = __import__("pamphlets.db", fromlist=["get_settings"]).get_settings(session)
     account.ai_provider = provider
     account.ai_model = said.get("model")
     account.ai_base_url = said.get("base_url")
@@ -130,8 +130,8 @@ def test_an_open_weight_server_is_asked_over_the_chat_api():
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -142,7 +142,7 @@ def client(db, monkeypatch):
 
 
 def test_the_settings_page_keeps_a_key_it_never_shows(client, db, monkeypatch):
-    from dealgo.db import get_settings
+    from pamphlets.db import get_settings
 
     client.post("/settings/ai", data={"provider": "anthropic", "model": "", "key": "sk-secret"})
     page = client.get("/settings/ai").text
@@ -208,7 +208,7 @@ def test_a_text_box_writes_from_what_comes_in_onto_a_text_leaflet(client, db, mo
 
 
 def test_without_a_model_or_anything_in_it_says_why(db):
-    from dealgo.db import get_settings
+    from pamphlets.db import get_settings
 
     with db.session_scope() as session:
         box = graph.add_text_box(session)
@@ -221,7 +221,7 @@ def test_without_a_model_or_anything_in_it_says_why(db):
 
 
 def test_a_failure_keeps_the_last_good_writing(db, monkeypatch):
-    from dealgo.db import get_settings
+    from pamphlets.db import get_settings
 
     with db.session_scope() as session:
         choose(session)
@@ -239,7 +239,7 @@ def test_a_failure_keeps_the_last_good_writing(db, monkeypatch):
 
 
 def test_a_box_set_to_write_hourly_writes_on_a_run(world, db, monkeypatch):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     monkeypatch.setattr(writing, "write", lambda *a, **k: "On the hour.")
     with db.session_scope() as session:

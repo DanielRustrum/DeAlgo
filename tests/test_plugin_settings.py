@@ -12,9 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakes import use_config
-from dealgo.plugins import capabilities, registry
-from dealgo.plugins.registry.settings import settings_in
-from dealgo.services import accounts, plugin_settings
+from pamphlets.plugins import capabilities, registry
+from pamphlets.plugins.registry.settings import settings_in
+from pamphlets.services import accounts, plugin_settings
 
 ADMIN = ("admin", "admin")
 MEMBER = ("sam", "member-password")
@@ -144,8 +144,8 @@ def test_with_no_account_in_hand_a_user_setting_is_its_default(db, here):
 @pytest.fixture
 def site(db, monkeypatch, here):
     """The app with sign-in on: an admin, and a member called sam."""
-    from dealgo import config, scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.web import app as web_app
 
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
@@ -262,7 +262,7 @@ def test_removing_a_plugin_takes_its_settings_with_it(site):
 
 
 def member_id() -> int:
-    from dealgo.db import session_scope
+    from pamphlets.db import session_scope
 
     with session_scope() as session:
         return next(user.id for user in accounts.list_users(session) if user.username == MEMBER[0])

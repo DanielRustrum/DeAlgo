@@ -45,7 +45,7 @@ It is self-hosted: one container, one database, your server.
 ## Quick start
 
 ```bash
-git clone <this repository> dealgo && cd dealgo
+git clone <this repository> pamphlets && cd pamphlets
 cp .env.example .env          # optional: sign-in, and plugin settings
 make up                       # build, start, wait until healthy
 ```

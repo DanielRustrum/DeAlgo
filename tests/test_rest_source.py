@@ -10,11 +10,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo import outgoing, sources
-from dealgo.models import Channel, GraphNode
-from dealgo.services import graph
-from dealgo.services import playlists as playlist_service
-from dealgo.sources import rest
+from pamphlets import outgoing, sources
+from pamphlets.models import Channel, GraphNode
+from pamphlets.services import graph
+from pamphlets.services import playlists as playlist_service
+from pamphlets.sources import rest
 
 REDDITISH = {"kind": "Listing", "data": {"children": [
     {"kind": "t3", "data": {"id": "abc", "title": "Hello &amp; world",
@@ -157,7 +157,7 @@ def test_a_rest_box_takes_an_address():
 def test_it_is_read_on_a_run_and_its_answer_kept(db, monkeypatch):
     """A REST source gives data, not items: read on a run, and its whole
     answer kept for what its data wire goes to."""
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     serve(monkeypatch, REDDITISH)
     with db.session_scope() as session:
@@ -183,7 +183,7 @@ def test_it_is_read_on_a_run_and_its_answer_kept(db, monkeypatch):
 
 
 def test_an_unreadable_api_is_said_on_the_source(db, monkeypatch):
-    from dealgo.services import sync as sync_service
+    from pamphlets.services import sync as sync_service
 
     serve(monkeypatch, {"count": 0})
     with db.session_scope() as session:
@@ -204,8 +204,8 @@ def test_an_unreadable_api_is_said_on_the_source(db, monkeypatch):
 
 @pytest.fixture
 def canvas(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)

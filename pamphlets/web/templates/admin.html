@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% from "_garden.html" import page_head with context %}
+{% block title %}Pamphlets — Admin{% endblock %}
+{% block content %}
+{{ page_head('Admin', 'The accounts on this Pamphlets, and the plugins they share.') }}
+
+{# The admin's own tab: a panel for each thing it manages, each pointing at
+   that thing's page, and moving the whole instance. #}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Accounts</h2>
+    {% if auth_enabled %}<span class="count">{{ account_count }}</span>{% endif %}
+    {% if accounts_off %}<span class="pill pill-paused">{{ accounts_off }} switched off</span>{% endif %}
+  </div>
+  {% if auth_enabled %}
+  <p>Who can sign in to this Pamphlets: adding accounts, setting their passwords, and signing them out.</p>
+  {% else %}
+  <p>
+    Switched off: Pamphlets asks nobody who they are, so every visitor can already do everything.
+    Set <code>PAMPHLETS_ADMIN_USER</code> and <code>PAMPHLETS_ADMIN_PASSWORD</code> and restart to turn them on.
+  </p>
+  {% endif %}
+  <a class="btn btn-quiet" href="/admin/accounts">Manage accounts →</a>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Plugins</h2>
+    <span class="count">{{ plugin_count }}</span>
+    {% if plugin_trouble %}<span class="pill pill-failed">{{ plugin_trouble }} not loaded</span>{% endif %}
+  </div>
+  <p>
+    Every kind of source Pamphlets can watch — YouTube, Reddit, Bluesky,
+    Substack — is a plugin, and you can add your own.
+  </p>
+  <a class="btn btn-quiet" href="/admin/plugins">Manage plugins →</a>
+</section>
+
+<section class="panel" id="algorithms">
+  <div class="panel-head">
+    <h2>Algorithms</h2>
+    <span class="pill {{ 'pill-added' if algorithms_allowed else 'pill-paused' }}">{{ 'allowed' if algorithms_allowed else 'switched off' }}</span>
+  </div>
+  <p>
+    Each account can have an algorithm of its own: it learns from how that account watches in
+    Focus mode, and an <strong>Aggregation</strong> piece on the canvas uses it to filter, sort or
+    expire. It learns and predicts here, on this machine's processor, on every run for every
+    account using it — which on a small machine can be more than it should carry.
+  </p>
+  <form method="post" action="/admin/algorithms">
+    <input type="hidden" name="allowed" value="{{ '0' if algorithms_allowed else '1' }}">
+    <button class="btn {{ 'btn-danger' if algorithms_allowed else 'btn-primary' }}" type="submit">
+      {{ 'Switch algorithms off for everyone' if algorithms_allowed else 'Allow algorithms' }}
+    </button>
+  </form>
+  <p class="hint">
+    Switched off, Aggregation pieces do nothing and nothing is learned. What Focus mode remembers
+    is kept, so switching back on picks up where it was.
+  </p>
+</section>
+
+{% if auth_enabled %}
+<section class="panel">
+  <h2>Move this instance</h2>
+  <p class="hint">
+    Every account and every setup at once: who the accounts are, what each of them watches,
+    and how each is configured. The file for standing Pamphlets up on another machine.
+  </p>
+  <p class="hint">
+    <strong>No secrets are in it</strong> — no passwords, no sign-ins, no plugin settings.
+    A file like this gets copied between machines and left in a Downloads folder, so the
+    accounts come across and their credentials do not: you set a new password for each on
+    the Accounts page, and each signs in to its plugins again. It is still encrypted, because who your
+    accounts are and what they watch is nobody else's business.
+  </p>
+
+  <form method="post" action="/admin/backup" class="stack-form" hx-boost="false">
+    <div class="field-row">
+      <label>
+        Passphrase
+        <input type="password" name="passphrase" autocomplete="new-password"
+               minlength="{{ min_passphrase }}" required>
+        <span class="hint">
+          At least {{ min_passphrase }} characters. <strong>Keep it.</strong> There is no way
+          into the file without it — not for you, and not for anyone who finds it.
+        </span>
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Download site backup</button>
+  </form>
+
+  <h3>Load one</h3>
+  <p class="hint">
+    Adds to this instance rather than replacing it: accounts that are not here are created, and
+    each account's feeds and channels are restored into its own space. Nothing already here is
+    deleted. The admin account stays this machine's — it comes from the environment, not from a
+    file. Restored accounts arrive without a password and cannot be signed in to until you set
+    one on the Accounts page; Pamphlets says which ones when it is done.
+  </p>
+  <form method="post" action="/admin/restore" class="stack-form"
+        enctype="multipart/form-data" hx-boost="false">
+    <div class="field-row">
+      <label>
+        Backup file
+        <input type="file" name="backup_file" accept=".pamphlets,.dealgo,application/octet-stream" required>
+      </label>
+      <label>
+        Its passphrase
+        <input type="password" name="passphrase" autocomplete="off" required>
+      </label>
+    </div>
+    <button class="btn" type="submit">Load site backup</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

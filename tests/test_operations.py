@@ -12,17 +12,17 @@ import datetime as dt
 
 from sqlalchemy import select
 
-from dealgo.models import Channel, Placement, Playlist, Video, utcnow
-from dealgo.plugins.publisher import VideoDetails
-from dealgo.services import graph
-from dealgo.services import playlists as playlist_service
-from dealgo.services import sync as sync_service
+from pamphlets.models import Channel, Placement, Playlist, Video, utcnow
+from pamphlets.plugins.publisher import VideoDetails
+from pamphlets.services import graph
+from pamphlets.services import playlists as playlist_service
+from pamphlets.services import sync as sync_service
 from fakes import entry, unwire
 
 
 def wire(db, *boxes):
     """Wire a chain of boxes between the fixture's source and its feed."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     with db.session_scope() as session:
         db.get_settings(session).initial_backfill = 50
@@ -50,7 +50,7 @@ def uploads(world, how_many=2):
 
 def box_of(session, channel) -> int:
     """The source box that stands for this channel on the canvas."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     return session.scalar(
         select(GraphNode.id).where(
@@ -83,7 +83,7 @@ def test_a_tag_box_marks_everything_that_passes(world, db):
 
 def test_a_filter_further_down_can_ask_for_that_tag(world, db):
     """Which is the point of putting one on."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -103,7 +103,7 @@ def test_a_filter_further_down_can_ask_for_that_tag(world, db):
 
 
 def test_a_filter_asking_for_a_tag_nothing_carries_turns_it_away(world, db):
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     ids = wire(db, lambda s: graph.add_filter(s, label="Only tagged"))
     with db.session_scope() as session:
@@ -121,7 +121,7 @@ def test_a_filter_asking_for_a_tag_nothing_carries_turns_it_away(world, db):
 
 
 def test_has_tag_lets_through_what_carries_any_of_its_tags(world, db):
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -138,7 +138,7 @@ def test_has_tag_lets_through_what_carries_any_of_its_tags(world, db):
 
 
 def test_lacks_tag_holds_what_carries_any_of_its_tags(world, db):
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -158,7 +158,7 @@ def test_lacks_tag_holds_what_carries_any_of_its_tags(world, db):
 
 
 def test_lacks_tag_lets_through_what_carries_none_of_them(world, db):
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -251,7 +251,7 @@ def test_the_shorter_of_two_decays_wins(world, db):
 def test_what_a_decay_box_said_reaches_the_page(world, db):
     """Focus reads it off the queue it is handed, so that is where it has
     to be for the countdown to know about it at all."""
-    from dealgo.web.routes.focus import _focus_item
+    from pamphlets.web.routes.focus import _focus_item
 
     wire(db, decay(minutes=2, lock=True))
     uploads(world, 1)
@@ -376,7 +376,7 @@ def test_the_boxes_stack_on_one_path(world, db):
 def test_each_box_is_named_after_what_it_is(db):
     """They all read "Filter" before this: the fallback at the end of the
     list caught every kind nobody had written a branch for."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     named = {
         kind: GraphNode(kind=kind).title
@@ -397,7 +397,7 @@ def test_each_box_is_named_after_what_it_is(db):
 def test_a_tag_box_is_named_after_the_tag_it_puts_on(db):
     """On a canvas with three of them, which one this is, is the useful
     half — the same reason a Deposit box carries its repository."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     assert GraphNode(kind="tag", marks="long reads").title == "Tag: long reads"
 
@@ -408,7 +408,7 @@ def test_a_tag_box_is_named_after_the_tag_it_puts_on(db):
 def test_wiring_an_expire_box_reaches_what_is_already_in_the_feed(world, db):
     """Without this a box wired to a feed of eighty items changes nothing
     anybody can see until the eighty have been read."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     uploads(world, 2)
     sync_service.run_sync("manual", force=True)
@@ -476,8 +476,8 @@ def test_a_feed_with_no_expire_box_gets_no_ends(world, db):
 def test_a_test_marks_the_boxes_that_mark_what_passes(world, db):
     """They turn nothing away, but an item still goes through them — and a
     box that reported nothing looked broken rather than uninvolved."""
-    from dealgo.db import get_settings
-    from dealgo.models import GraphNode
+    from pamphlets.db import get_settings
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -502,8 +502,8 @@ def test_a_test_marks_the_boxes_that_mark_what_passes(world, db):
 def test_a_box_after_the_one_that_turned_it_away_is_not_marked(world, db):
     """It never saw the item. Saying it did would be worse than saying
     nothing."""
-    from dealgo.db import get_settings
-    from dealgo.models import GraphNode
+    from pamphlets.db import get_settings
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -532,7 +532,7 @@ def test_a_box_after_the_one_that_turned_it_away_is_not_marked(world, db):
 def test_a_sort_box_is_counted_once(world, db):
     """It is in the walked list with everything else now; noting it again
     would count every item through it twice."""
-    from dealgo.db import get_settings
+    from pamphlets.db import get_settings
 
     ids = wire(db, lambda s: graph.add_sort(s, label="Newest"))
     uploads(world, 3)
@@ -552,8 +552,8 @@ def test_a_test_follows_the_flow_its_trigger_is_wired_to(world, db):
     run down quite different paths. Narrowing the trial by the channel lit
     up both, so a test on one trigger reported what another flow would do.
     """
-    from dealgo.db import get_settings
-    from dealgo.models import GraphNode, Playlist
+    from pamphlets.db import get_settings
+    from pamphlets.models import GraphNode, Playlist
 
     # The fixture's channel, wired a second time down a path of its own.
     ids = wire(db, lambda s: graph.add_stamp(s, kind="tag", marks="first"))
@@ -591,8 +591,8 @@ def test_the_marks_arrive_box_by_box_and_not_all_at_once(world, db):
     box wired before a Decay box has not met the Decay box when the item
     reaches it, and saying otherwise told the reader the flow ran in an
     order it does not."""
-    from dealgo.db import get_settings
-    from dealgo.models import GraphNode
+    from pamphlets.db import get_settings
+    from pamphlets.models import GraphNode
 
     ids = wire(
         db,
@@ -733,7 +733,7 @@ def test_adding_after_watching_reaches_what_is_already_watched(world, db):
 
 
 def test_after_watching_only_slots_under_an_expire_box(db):
-    from dealgo.services.graph.errors import GraphError
+    from pamphlets.services.graph.errors import GraphError
 
     with db.session_scope() as session:
         piece = graph.add_piece(session, kind="after-watch")
@@ -748,8 +748,8 @@ def test_after_watching_only_slots_under_an_expire_box(db):
 
 
 def test_the_boxes_say_when_they_take_things_out(db):
-    from dealgo.services.graph.stamps import stamp_marks
-    from dealgo.services.graph.words import piece_words, stamp_words
+    from pamphlets.services.graph.stamps import stamp_marks
+    from pamphlets.services.graph.words import piece_words, stamp_words
 
     with db.session_scope() as session:
         alone = expires_after_watch()(session)
@@ -771,7 +771,7 @@ def test_a_delay_after_watching_from_before_becomes_once_watched(db):
     """Placements stamped when After watching started the Timer at the
     watching carried a delay; now they go once watched, and do so twice over
     without change."""
-    from dealgo.db.migrations import after_watching_is_its_own_condition
+    from pamphlets.db.migrations import after_watching_is_its_own_condition
 
     with db.session_scope() as session:
         channel = Channel(channel_id="UCold", title="Old")

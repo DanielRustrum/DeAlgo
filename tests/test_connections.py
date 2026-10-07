@@ -15,11 +15,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 from fakes import give_youtube_a_client
-from dealgo.models import AllowanceUsage, OAuthToken, PluginAppSetting, utcnow
-from dealgo.plugins import registry
-from dealgo.plugins.registry.connect import connect_in
-from dealgo.plugins.registry.settings import settings_in
-from dealgo.services import connections, oauth, plugin_settings
+from pamphlets.models import AllowanceUsage, OAuthToken, PluginAppSetting, utcnow
+from pamphlets.plugins import registry
+from pamphlets.plugins.registry.connect import connect_in
+from pamphlets.plugins.registry.settings import settings_in
+from pamphlets.services import connections, oauth, plugin_settings
 
 APP = settings_in({"app": [{"name": "client_id"}, {"name": "client_secret", "type": "secret"}]})
 
@@ -74,7 +74,7 @@ def test_youtube_declares_googles_sign_in_and_nothing_else_does():
 
 
 def test_an_app_setting_can_come_from_the_environment(db, monkeypatch):
-    monkeypatch.setenv("DEALGO_PLUGIN_YOUTUBE_CLIENT_ID", "from-env")
+    monkeypatch.setenv("PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID", "from-env")
     youtube = connections.connecting("youtube")
     assert connections.client_credentials(youtube)[0] == "from-env"
 
@@ -84,9 +84,9 @@ def test_an_app_setting_can_come_from_the_environment(db, monkeypatch):
 
 
 def test_the_environment_name_cannot_reach_the_apps_own_variables():
-    """Without PLUGIN_, a plugin called "admin" would read DEALGO_ADMIN_PASSWORD."""
-    assert plugin_settings.env_name("admin", "password") == "DEALGO_PLUGIN_ADMIN_PASSWORD"
-    assert plugin_settings.env_name("my-plugin", "api.key") == "DEALGO_PLUGIN_MY_PLUGIN_API_KEY"
+    """Without PLUGIN_, a plugin called "admin" would read PAMPHLETS_ADMIN_PASSWORD."""
+    assert plugin_settings.env_name("admin", "password") == "PAMPHLETS_PLUGIN_ADMIN_PASSWORD"
+    assert plugin_settings.env_name("my-plugin", "api.key") == "PAMPHLETS_PLUGIN_MY_PLUGIN_API_KEY"
 
 
 # -- signing in -------------------------------------------------------------------
@@ -94,8 +94,8 @@ def test_the_environment_name_cannot_reach_the_apps_own_variables():
 
 @pytest.fixture
 def site(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -158,8 +158,8 @@ def test_disconnecting_forgets_this_accounts_sign_in(site, monkeypatch):
 
 
 def test_an_installs_google_state_moves_into_the_youtube_plugin(db, monkeypatch):
-    from dealgo.db.engine import get_engine
-    from dealgo.db.migrations import youtube_becomes_a_plugin
+    from pamphlets.db.engine import get_engine
+    from pamphlets.db.migrations import youtube_becomes_a_plugin
 
     with get_engine().begin() as connection:
         for column in ("client_id", "client_secret", "api_key"):
@@ -206,7 +206,7 @@ def test_an_installs_google_state_moves_into_the_youtube_plugin(db, monkeypatch)
 
 
 def site_session():
-    from dealgo.db import session_scope
+    from pamphlets.db import session_scope
 
     return session_scope()
 
@@ -215,7 +215,7 @@ def site_session():
 
 
 def test_a_feeds_link_is_where_the_plugin_says(db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     assert Playlist(playlist_id="PLabc", title="x").url == (
         "https://www.youtube.com/playlist?list=PLabc"
@@ -232,9 +232,9 @@ def test_making_a_published_feed_sits_in_its_plugins_block(site):
 
 
 def test_youtubes_switches_move_into_its_declared_kinds(db):
-    from dealgo.db.engine import get_engine
-    from dealgo.db.migrations import youtube_takes_become_declared
-    from dealgo.models import Channel, Video
+    from pamphlets.db.engine import get_engine
+    from pamphlets.db.migrations import youtube_takes_become_declared
+    from pamphlets.models import Channel, Video
 
     with get_engine().begin() as connection:
         for column, default in (("skip_videos", 0), ("skip_shorts", 1), ("skip_live", 1),
@@ -265,8 +265,8 @@ def test_youtubes_switches_move_into_its_declared_kinds(db):
 
 
 def test_switching_a_kind_back_on_brings_back_what_it_held(db):
-    from dealgo.models import Channel, Video
-    from dealgo.services import channels as channel_service
+    from pamphlets.models import Channel, Video
+    from pamphlets.services import channels as channel_service
 
     with db.session_scope() as session:
         channel = Channel(channel_id="UCx", title="x", source_kind="youtube")

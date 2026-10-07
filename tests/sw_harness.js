@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const WORKER = path.join(__dirname, "..", "dealgo", "web", "static", "sw.js");
+const WORKER = path.join(__dirname, "..", "pamphlets", "web", "static", "sw.js");
 
 function stubResponse(body, init = {}) {
   return {
@@ -59,8 +59,8 @@ function makeWorker({ online, cached = {} }) {
   });
   vm.runInContext(fs.readFileSync(WORKER, "utf8"), context);
 
-  const shell = stores.get("dealgo-v1") ?? new Map();
-  stores.set("dealgo-v1", shell);
+  const shell = stores.get("pamphlets-v1") ?? new Map();
+  stores.set("pamphlets-v1", shell);
   shell.set("/offline", stubResponse('<html><body hx-boost="true">missing <!--OFFLINE-PATH--> page</body></html>'));
   for (const [url, body] of Object.entries(cached)) shell.set(url, stubResponse(body));
 
@@ -82,7 +82,7 @@ async function main() {
   await installed.listeners.install({ waitUntil: (value) => { pending = value; } });
   await pending;
   report.cacheNames = [...installed.stores.keys()];
-  report.precached = [...installed.stores.get("dealgo-v1").keys()];
+  report.precached = [...installed.stores.get("pamphlets-v1").keys()];
 
   // A write is never touched, however offline we are.
   const writing = makeWorker({ online: false });
@@ -112,7 +112,7 @@ async function main() {
   report.placeholder = {
     status: placeholder.status,
     type: placeholder.headers["Content-Type"],
-    marked: placeholder.headers["X-Dealgo-Placeholder"],
+    marked: placeholder.headers["X-Pamphlets-Placeholder"],
     body: placeholder.body,
   };
 

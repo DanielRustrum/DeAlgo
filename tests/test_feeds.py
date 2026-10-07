@@ -12,10 +12,10 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
-from dealgo.plugins import registry
-from dealgo.sources import syndication
+from pamphlets.plugins import registry
+from pamphlets.sources import syndication
 
-SHIPPED = Path(__file__).resolve().parent.parent / "dealgo" / "plugins" / "builtin"
+SHIPPED = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
 
 SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"

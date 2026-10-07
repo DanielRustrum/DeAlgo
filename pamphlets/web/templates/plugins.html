@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% from "_plugin_settings.html" import plugin_mark, settings_form %}
+{% block title %}Pamphlets — Plugins{% endblock %}
+{% block content %}
+
+<p class="crumbs"><a href="/admin">← Admin</a> · Plugins</p>
+
+{% if pending %}
+{# Nothing has been written yet. The file lands only when this is agreed to,
+   so a plugin nobody said yes to is never on disk at all.
+
+   `open` rather than script: it shows without JavaScript, and there is no
+   way to dismiss it except by deciding — which is the point. #}
+<dialog class="modal consent" open>
+  <div class="modal-head">
+    <h2>{{ pending.plugin.title }} wants to be added</h2>
+  </div>
+  <form class="modal-body" method="post" action="/admin/plugins/confirm">
+    <input type="hidden" name="name" value="{{ pending.name }}">
+    <textarea name="source" hidden>{{ pending.source }}</textarea>
+    {% if pending.origin %}
+    <input type="hidden" name="origin" value="{{ pending.origin }}">
+    <input type="hidden" name="ref" value="{{ pending.ref }}">
+    <p class="hint">
+      Fetched from <code>{{ pending.origin }}</code>{% if pending.ref %} at
+      <code>{{ pending.ref }}</code>{% endif %}.
+      {%- if pending.extras %} It brings {{ pending.extras | length }} other
+      file{{ 's' if pending.extras | length != 1 }} with it, which are kept
+      beside it: <code>{{ pending.extras | join('</code>, <code>') | safe }}</code>.
+      Only <code>plugin.lua</code>, and the <code>.lua</code> files it asks for with
+      <code>require</code>, are ever run — in the sandbox.{% endif %}
+    </p>
+    {% endif %}
+
+    <div class="consent-offers">
+      <strong>What it offers</strong>
+      <ul>
+        {% for kind in pending.plugin.sources %}
+        <li>Reads <strong>{{ kind.label }}</strong> sources — {{ kind.example }}</li>
+        {% endfor %}
+        {% for node in pending.plugin.augments %}
+        <li>{{ 'Orders' if node.orders else 'Narrows' }} what goes through a
+          <strong>{{ 'Sort' if node.orders else 'Filter' }}</strong> box:
+          <strong>{{ node.label }}</strong>
+          {%- if node.blurb %} — {{ node.blurb }}{% endif %}</li>
+        {% endfor %}
+        {% if not pending.plugin.sources and not pending.plugin.augments %}
+        <li>Nothing yet.</li>
+        {% endif %}
+      </ul>
+    </div>
+
+    {% if pending.plugin.wants %}
+    <div class="consent-wants">
+      <strong>What it is asking to do</strong>
+      <p class="hint">
+        Its reasons are its own words. Untick anything you would rather it
+        did without — it still loads, and simply finds that capability
+        missing. You can change your mind later.
+      </p>
+      {% for want in pending.plugin.wants %}
+      <label class="consent-want {{ 'is-unknown' if not want.known }}">
+        <input type="checkbox" name="grant_{{ want.name }}" value="1"
+               {{ 'checked' if want.known }} {{ 'disabled' if not want.known }}>
+        <span>
+          <strong>{{ want.detail.label }}</strong>
+          <span class="consent-means">{{ want.detail.means }}</span>
+          <span class="consent-why">It says: “{{ want.why }}”</span>
+          {% if want.detail.caution %}
+          <span class="consent-caution">{{ want.detail.caution }}</span>
+          {% endif %}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="hint">
+      <strong>It asks for nothing.</strong> It can compute, and that is all:
+      no network, no clock, no way to leave a mark. Most plugins need no more
+      than that.
+    </p>
+    {% endif %}
+
+    <div class="modal-foot">
+      <a class="btn btn-quiet" href="/admin/plugins">Cancel</a>
+      <button class="btn btn-primary" type="submit">Add it</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Plugins</h2>
+    <span class="count">{{ plugins | length }}</span>
+  </div>
+
+  <p class="hint">
+    A plugin is one <code>.lua</code> file. It says what a reference like
+    <code>r/python</code> or <code>@handle</code> is and where that source's
+    feed lives; Pamphlets does the fetching, so a plugin never touches the
+    network, your credentials, or anyone else's data.
+  </p>
+  <p class="hint">
+    <strong>Switching one off</strong> leaves the file where it is and stops
+    it being asked anything. Sources already being watched keep their own
+    feed address and carry on — what stops is recognising new ones. It is
+    the only way to turn off a plugin that ships with Pamphlets.
+  </p>
+
+  {% if plugins %}
+  <ul class="plugin-list">
+    {% for plugin in plugins %}
+    <li class="plugin {{ 'is-bad' if not plugin.loaded }} {{ 'is-off' if plugin.paused }}"
+        id="plugin-{{ plugin.id }}" data-colour="{{ plugin.colour }}">
+      <div class="plugin-head">
+        {{ plugin_mark(plugin.title, plugin.colour) }}
+        <strong>{{ plugin.title }}</strong>
+        {% if plugin.version %}<span class="plugin-version">{{ plugin.version }}</span>{% endif %}
+        {% if plugin.mine %}
+        <span class="pill" title="From your plugins folder">yours</span>
+        {% else %}
+        <span class="pill pill-shipped" title="Came with Pamphlets">shipped</span>
+        {% endif %}
+        {% if plugin.replaces %}
+        <span class="pill pill-paused" title="{{ plugin.replaces }}">replaces the shipped one</span>
+        {% endif %}
+        {% if plugin.origin %}
+        <a class="pill pill-origin" href="{{ plugin.origin.url }}" target="_blank"
+           rel="noopener noreferrer"
+           title="Fetched from {{ plugin.origin.url }}{{ ' at ' ~ plugin.origin.ref if plugin.origin.ref }}">
+          {{ plugin.origin.ref or 'fetched' }}</a>
+        {% endif %}
+        {% if not plugin.loaded %}<span class="pill pill-failed">not loaded</span>
+        {% elif plugin.paused %}<span class="pill pill-paused">switched off</span>{% endif %}
+      </div>
+
+      {% if plugin.trouble %}
+      <p class="error-note">{{ plugin.trouble }}</p>
+      {% else %}
+      <div class="plugin-gives">
+        {% for kind in plugin.sources %}
+        <span class="pill pill-kind kind-{{ kind.kind }}" data-colour="{{ kind.colour }}">{{ kind.label }}</span>
+        {% endfor %}
+        {% if not plugin.sources %}<span class="meta">offers nothing yet</span>{% endif %}
+      </div>
+      {% for kind in plugin.sources %}
+      <div class="meta">
+        <code>{{ kind.kind }}</code> — {{ kind.example or 'no example given' }}
+        {%- if kind.playlistable %} · may fill real playlists on its service{% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {# What the admin decides about how it runs here — what it may do, how
+         its service signs people in, its settings for everyone — folded
+         into one section until opened. A save comes back to it open. #}
+      {% set parts = [] %}
+      {% if plugin.wants %}{% set _ = parts.append('what it may do') %}{% endif %}
+      {% if plugin.connect %}{% set _ = parts.append('signing in with ' ~ plugin.connect.name) %}{% endif %}
+      {% if plugin.settings %}{% set _ = parts.append('settings for everyone') %}{% endif %}
+      {% if parts %}
+      <details class="plugin-section plugin-section-fold plugin-setup" id="plugin-{{ plugin.id }}-setup">
+        <summary class="plugin-section-head">{{ parts | join(' · ') }}</summary>
+
+      {% if plugin.wants %}
+      <form class="plugin-permissions plugin-section" method="post"
+            action="/admin/plugins/{{ plugin.id }}/permissions">
+        <strong class="plugin-section-head">Allowed to</strong>
+        {% for want in plugin.wants %}
+        <label class="consent-want {{ 'is-unknown' if not want.known }}">
+          <input type="checkbox" name="grant_{{ want.name }}" value="1"
+                 {{ 'checked' if want.name in plugin.granted }}
+                 {{ 'disabled' if not want.known }}>
+          <span>
+            <strong>{{ want.detail.label }}</strong>
+            <span class="consent-means">{{ want.detail.means }}</span>
+            <span class="consent-why">It says: “{{ want.why }}”</span>
+          </span>
+        </label>
+        {% endfor %}
+        <button class="btn btn-quiet" type="submit">Save what it may do</button>
+      </form>
+      {% endif %}
+
+      {# How it signs people in. The admin's half: register this address with
+         the service, then set the OAuth client below. #}
+      {% if plugin.connect %}
+      <section class="plugin-section">
+        <strong class="plugin-section-head">Signing in with {{ plugin.connect.name }}</strong>
+        <p class="hint plugin-section-note">
+          Each account signs in for itself, under Settings. Register this as an authorized
+          redirect URI on the OAuth client — character for character — then set the client below.
+        </p>
+        <div class="copy-row">
+          <code id="redirect-uri-{{ plugin.id }}">{{ redirect_uri }}</code>
+          <button class="btn btn-quiet" type="button"
+                  onclick="navigator.clipboard.writeText(document.getElementById('redirect-uri-{{ plugin.id }}').textContent.trim()).then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">
+            Copy
+          </button>
+        </div>
+        <p class="meta">Its token is only ever sent to {{ plugin.connect.hosts | join(', ') }}.</p>
+      </section>
+      {% endif %}
+
+      {# The admin's settings for it: one value for every account. #}
+      {% if plugin.settings %}
+      <section class="plugin-section">
+        <strong class="plugin-section-head">Settings for everyone</strong>
+        <p class="hint plugin-section-note">
+          Set once for this whole Pamphlets.
+          {%- if plugin.has_user_settings %} Each account also has settings of its own for
+          {{ plugin.title }}, under Settings.{% endif %}
+        </p>
+        {{ settings_form('/admin/plugins/' ~ plugin.id ~ '/settings', plugin.settings, 'app',
+                         plugin.id, 'Save settings for everyone') }}
+      </section>
+      {% endif %}
+      </details>
+      {% endif %}
+
+      {# Said outside the fold: these are facts about it, not decisions. #}
+      {% if plugin.wanting %}
+      <p class="meta">
+        It asked for
+        {% for want in plugin.wanting %}{{ want.detail.label | lower }}
+        {%- if not loop.last %}, {% endif %}{% endfor %}
+        and has not been given
+        {{ 'it' if plugin.wanting | length == 1 else 'them' }}. It still runs,
+        and may quietly do less than it was written to.
+      </p>
+      {% endif %}
+      {% if not plugin.wants %}
+      <div class="meta">Asks for nothing: it can compute, and that is all.</div>
+      {% endif %}
+      {% if not plugin.settings and plugin.has_user_settings %}
+      <p class="meta">Each account sets {{ plugin.title }} up for itself, under Settings.</p>
+      {% endif %}
+
+      <div class="meta plugin-where">{{ plugin.path }}</div>
+
+      {% if plugin.leaning %}
+      <div class="meta">
+        {{ plugin.leaning }} watched source{{ 's' if plugin.leaning != 1 }}
+        {{ 'are' if plugin.leaning != 1 else 'is' }} of a kind it provides.
+        {%- if plugin.paused %} They keep their own feed address and carry on;
+        what stops is recognising new ones.{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="plugin-doing">
+        {% if plugin.loaded %}
+        <form method="post" action="/admin/plugins/{{ plugin.id }}/pause"
+              {% if not plugin.paused and plugin.leaning %}
+              onsubmit="return confirm('Switch off {{ plugin.title }}? {{ plugin.leaning }} watched source(s) are of a kind it provides. Nothing is deleted and they keep polling, but adding another stops working.')"
+              {% endif %}>
+          <input type="hidden" name="on" value="{{ '1' if plugin.paused else '0' }}">
+          <button class="btn btn-quiet" type="submit">
+            {{ 'Switch on' if plugin.paused else 'Switch off' }}</button>
+        </form>
+        {% endif %}
+
+        {% if plugin.origin %}
+        <form method="post" action="/admin/plugins/fetch">
+          <input type="hidden" name="url" value="{{ plugin.origin.url }}">
+          <input type="hidden" name="ref" value="{{ plugin.origin.ref }}">
+          <button class="btn btn-quiet" type="submit"
+                  title="Fetch it again from {{ plugin.origin.url }}">Update</button>
+        </form>
+        {% endif %}
+
+        {% if plugin.mine %}
+        <form method="post" action="/admin/plugins/{{ plugin.id }}/remove"
+              onsubmit="return confirm('Remove {{ plugin.title }} for good? Switching it off keeps the file.')">
+          <button class="btn btn-quiet" type="submit">Remove</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No plugins. Even the shipped ones are missing, which is a broken install.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Add one from a repository</h2>
+  <form class="stack-form" method="post" action="/admin/plugins/fetch">
+    <label>
+      Where it lives
+      <input type="url" name="url" required
+             placeholder="https://github.com/someone/pamphlets-plugin-letterboxd">
+    </label>
+    <label>
+      Branch or tag <span class="hint">optional</span>
+      <input type="text" name="ref" placeholder="main">
+    </label>
+    <button class="btn btn-primary" type="submit">Fetch it</button>
+    <p class="hint">
+      The repository's own archive, over https — GitHub, GitLab, Codeberg and
+      anything running Gitea. Nothing is cloned and nothing in it is run:
+      what comes back is a <code>plugin.lua</code>, read and put to you
+      exactly as an uploaded one is, and kept only once you have said yes.
+    </p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Add one from a file</h2>
+  <form class="stack-form" method="post" action="/admin/plugins" enctype="multipart/form-data">
+    <label>
+      A .lua file
+      <input type="file" name="file" accept=".lua,text/plain" required>
+    </label>
+    <button class="btn btn-primary" type="submit">Add it</button>
+    <p class="hint">
+      It lands in a folder of its own under <code>{{ folder }}</code> and is
+      read straight away. One named after a plugin that ships with Pamphlets
+      replaces it, which is how you change a shipped plugin without editing
+      the image.
+    </p>
+    <p class="error-note">
+      <strong>A plugin is code, and it runs here.</strong>
+      It is walled off — no files, no network, no credentials, and it is
+      stopped if it loops or eats memory — but it still reads every reference
+      you add. Add ones you would be willing to read.
+    </p>
+  </form>
+</section>
+{% endblock %}

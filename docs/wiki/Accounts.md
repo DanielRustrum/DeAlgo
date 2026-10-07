@@ -8,8 +8,8 @@ use it, and a banner on every page says so.
 Set both variables and restart:
 
 ```bash
-DEALGO_ADMIN_USER=rusty
-DEALGO_ADMIN_PASSWORD=something-long
+PAMPHLETS_ADMIN_USER=rusty
+PAMPHLETS_ADMIN_PASSWORD=something-long
 ```
 
 The admin account comes from the environment and is re-read on every start:

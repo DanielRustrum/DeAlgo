@@ -22,7 +22,7 @@
 name = "docker-hub"
 registry = "docker.io"
 # Your Docker Hub account or organisation, then the image name, e.g.
-# "yourname/dealgo". Left empty, the script refuses to push here and says so.
+# "yourname/pamphlets". Left empty, the script refuses to push here and says so.
 repository = ""
 tags = ["{version}", "latest"]
 enabled = true
@@ -34,6 +34,6 @@ token_env = "DOCKERHUB_TOKEN"
 # [[hub]]
 # name = "home"
 # registry = "registry.home.infra"
-# repository = "rusty/dealgo"
+# repository = "rusty/pamphlets"
 # tags = ["{version}"]
 # enabled = true

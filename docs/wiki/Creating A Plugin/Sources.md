@@ -163,13 +163,13 @@ permission to fetch something — see [Network](Network.md). YouTube's community
 
 ## When hooks run
 
-| Hook | Runs | `dealgo` and `account` answer? |
+| Hook | Runs | `pamphlets` and `account` answer? |
 | --- | --- | --- |
 | `recognise`, `accept` | When somebody adds a source | No |
 | `refine`, `posts` | On every check of the source | `posts` only |
 | `home`, `item_url`, `mirror` | When pages are drawn | No |
 
-See [The dealgo Object](The%20dealgo%20Object.md) for why.
+See [The pamphlets Object](The%20pamphlets%20Object.md) for why.
 
 ## Items that cannot go everywhere
 

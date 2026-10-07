@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from sqlalchemy import select, text
 
-from dealgo.db import get_settings
-from dealgo.models import Channel, Placement, Playlist, Video
+from pamphlets.db import get_settings
+from pamphlets.models import Channel, Placement, Playlist, Video
 
 
 def make_legacy(db) -> None:

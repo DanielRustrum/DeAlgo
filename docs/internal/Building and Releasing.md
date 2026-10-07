@@ -20,21 +20,21 @@ make dev                     # rebuild assets, run on :8080 with ./data, reading
 
 `python:3.12-slim`; dependencies installed first for layer caching; the package installed with
 `pip install .` (so `package-data` globs decide what ships); runs as UID 10001; `/data` volume;
-health check hits `/healthz` on `DEALGO_PORT`. Entry `dealgo serve`.
+health check hits `/healthz` on `PAMPHLETS_PORT`. Entry `pamphlets serve`.
 
 No Node and no Sass compiler in the image: compiled assets are committed.
 
 ## Compose
 
 `docker-compose.yml` runs one service with a read-only root filesystem, `/data` on a named volume
-(`dealgo_dealgo-data`), and the environment documented in the wiki. `compose.cluster.yml` drops the
+(`pamphlets_pamphlets-data`), and the environment documented in the wiki. `compose.cluster.yml` drops the
 published port and joins a shared reverse-proxy network (`make … CLUSTER=1`).
 
 | Target | Does |
 | --- | --- |
 | `make build` / `make up` | Build; start and wait for healthy |
 | `make logs` / `make shell` / `make restart` / `make down` | Operate |
-| `make publish` / `make publish-multiarch` | Push to `$(REGISTRY)/rusty/dealgo` |
+| `make publish` / `make publish-multiarch` | Push to `$(REGISTRY)/rusty/pamphlets` |
 | `make release-image RELEASE=vX.Y.Z` | Build the release files into `build/release`, as CI does |
 | `make clean` | Delete the data volume (asks first) |
 
@@ -43,16 +43,16 @@ published port and joins a shared reverse-proxy network (`make … CLUSTER=1`).
 On a pushed tag `v*`, or by hand with a tag name:
 
 1. **test** — `ops/publish_release.py check` (the tag must equal `version` in `pyproject.toml`
-   and `__version__` in `dealgo/__init__.py`), then Python 3.12, `mypy`, Node 22, `tsc` (pages,
+   and `__version__` in `pamphlets/__init__.py`), then Python 3.12, `mypy`, Node 22, `tsc` (pages,
    worker, parts), `pytest -q`.
 2. **release** — `ops/publish_release.py build` exports the image with buildx for `linux/amd64`
-   and `linux/arm64` (arm64 under QEMU, so slowly) as `dealgo-<tag>-<arch>.tar.gz`, plus
+   and `linux/arm64` (arm64 under QEMU, so slowly) as `pamphlets-<tag>-<arch>.tar.gz`, plus
    `SHA256SUMS.txt`; `publish` creates the tag's release on the Releases page, if missing, and
    attaches the files, replacing any of the same name. A tag with a suffix (`v1.2.0-rc.1`) is a
    pre-release.
 
 The image is not pushed to a registry; whoever installs it downloads a file and runs
-`gunzip -c dealgo-<tag>-amd64.tar.gz | docker load`, which gives `dealgo:<version>`. The release
+`gunzip -c pamphlets-<tag>-amd64.tar.gz | docker load`, which gives `pamphlets:<version>`. The release
 notes say so, with the links.
 
 The token: the secret `RELEASE_TOKEN` (an access token with `write:repository`), else the job's
@@ -82,7 +82,7 @@ token. `make wiki` builds the pages into `build/wiki` to look at before pushing.
 ## Releasing
 
 1. `make assets && make test && make typecheck`.
-2. Bump `__version__` in `dealgo/__init__.py` and `version` in `pyproject.toml`.
+2. Bump `__version__` in `pamphlets/__init__.py` and `version` in `pyproject.toml`.
 3. Commit, tag `vX.Y.Z` and push the tag (`git push origin vX.Y.Z`); CI tests, builds and
    attaches the image to the release.
 

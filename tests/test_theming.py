@@ -15,13 +15,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakes import use_config
-from dealgo.services import accounts
-from dealgo.services.theming import contrast, store
-from dealgo.services.theming.css import page_theme
-from dealgo.services.theming.presets import PRESETS
-from dealgo.services.theming.theme import Theme, ThemeError, from_form, loads, parse
-from dealgo.services.theming.tokens import CHOICES, COLOURS, DIALS, FONTS
-from dealgo.web.templates import BASE_DIR
+from pamphlets.services import accounts
+from pamphlets.services.theming import contrast, store
+from pamphlets.services.theming.css import page_theme
+from pamphlets.services.theming.presets import PRESETS
+from pamphlets.services.theming.theme import Theme, ThemeError, from_form, loads, parse
+from pamphlets.services.theming.tokens import CHOICES, COLOURS, DIALS, FONTS
+from pamphlets.web.templates import BASE_DIR
 
 ADMIN = ("admin", "admin")
 MEMBER = ("sam", "member-password")
@@ -121,7 +121,7 @@ def test_contrast_is_the_wcag_ratio():
     {"choices": {"font-body": "Comic Sans MS"}},
     {"choices": {"mode": "</style><script>"}},
     {"css": "body { display: none }"},
-    {"dealgo-theme": 99},
+    {"pamphlets-theme": 99},
     ["not", "a", "theme"],
 ])
 def test_anything_but_a_known_setting_of_the_right_shape_is_refused(bad):
@@ -166,7 +166,7 @@ def test_a_theme_goes_out_and_comes_back_the_same():
     again = loads(json.dumps(theme.to_json()))
 
     assert again == theme
-    assert theme.to_json()["dealgo-theme"] == 1
+    assert theme.to_json()["pamphlets-theme"] == 1
 
 
 def test_the_form_follows_unless_told_otherwise():
@@ -247,8 +247,8 @@ def test_every_choice_and_dial_has_a_label_and_sensible_limits():
 
 @pytest.fixture
 def site(db, monkeypatch):
-    from dealgo import config, scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import config, scheduler
+    from pamphlets.web import app as web_app
 
     secured = config.Config(
         **{**config.CONFIG.__dict__, "admin_user": ADMIN[0], "admin_password": ADMIN[1]}
@@ -319,8 +319,8 @@ def test_a_bad_value_from_the_form_is_refused_with_its_name(site):
 
 
 def accounts_id(site, username):
-    from dealgo.db import session_scope
-    from dealgo.models import User
+    from pamphlets.db import session_scope
+    from pamphlets.models import User
     from sqlalchemy import select
 
     with session_scope() as session:
@@ -478,7 +478,7 @@ def test_the_theming_page_has_the_background_and_drawings_sections(site):
 
 # -- your own pictures --------------------------------------------------------------
 
-from dealgo.services.theming import images  # noqa: E402
+from pamphlets.services.theming import images  # noqa: E402
 
 #: A real one-pixel PNG.
 PNG = bytes.fromhex(
@@ -705,8 +705,8 @@ def test_the_account_picture_travels_in_the_backup(site):
 
 # -- popular themes -------------------------------------------------------------------
 
-from dealgo.services.theming import palettes  # noqa: E402
-from dealgo.services.theming.presets import POPULAR  # noqa: E402
+from pamphlets.services.theming import palettes  # noqa: E402
+from pamphlets.services.theming.presets import POPULAR  # noqa: E402
 
 
 @pytest.mark.parametrize("preset", POPULAR, ids=lambda p: p.key)

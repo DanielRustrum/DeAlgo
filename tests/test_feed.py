@@ -6,13 +6,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from dealgo.models import Channel, OAuthToken, Placement, Playlist, Video, utcnow
+from pamphlets.models import Channel, OAuthToken, Placement, Playlist, Video, utcnow
 
 
 @pytest.fixture
 def client(db, monkeypatch):
-    from dealgo import scheduler
-    from dealgo.web import app as web_app
+    from pamphlets import scheduler
+    from pamphlets.web import app as web_app
 
     monkeypatch.setattr(scheduler, "start", lambda: None)
     monkeypatch.setattr(scheduler, "shutdown", lambda: None)
@@ -105,7 +105,7 @@ def test_each_feed_is_a_tile_leading_to_its_own_page(client, db):
 
 
 def test_watched_videos_are_hidden_by_default(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     body = every_feed(client)
     assert "Seen already" not in body
@@ -122,7 +122,7 @@ def test_watched_videos_are_hidden_by_default(client, db):
 
 
 def test_showing_everything_is_set_on_one_feed_only(client, db):
-    from dealgo.models import Placement, Playlist, Video, utcnow
+    from pamphlets.models import Placement, Playlist, Video, utcnow
 
     with db.session_scope() as session:
         music = session.scalar(select(Playlist).where(Playlist.title == "Music"))
@@ -143,7 +143,7 @@ def test_showing_everything_is_set_on_one_feed_only(client, db):
 
 
 def test_oldest_first_by_default_and_newest_per_feed(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     assert order_of(every_feed(client))[:2] == ["v1", "v2"]
 
@@ -193,7 +193,7 @@ def test_a_thumbnail_opens_focus_mode(client, db):
     """One click starts a sitting rather than a single play."""
     import re
 
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -256,7 +256,7 @@ def test_a_video_removed_from_a_playlist_leaves_the_feed(client, db):
 def test_the_watch_page_does_not_label_generic_feeds(client, db):
     """Whether a feed writes to YouTube is a setting, not something you need
     while choosing what to watch."""
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         session.scalar(select(Playlist).where(Playlist.title == "Music")).playlist_id = "generic:x"
@@ -313,7 +313,7 @@ def test_show_and_order_are_on_each_feeds_own_page(client, db):
 
 
 def test_each_feed_launches_focus_its_own_way(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -325,8 +325,8 @@ def test_each_feed_launches_focus_its_own_way(client, db):
 
 
 def test_feeds_can_be_tagged_and_searched_by_tag(client, db):
-    from dealgo.models import Playlist
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.models import Playlist
+    from pamphlets.services import playlists as playlist_service
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -362,7 +362,7 @@ def test_the_feed_search_survives_typing(client):
 
 
 def test_tags_are_edited_on_the_feeds_own_page(client, db):
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     assert 'name="tags"' in client.get("/feeds/1").text
 
@@ -385,7 +385,7 @@ def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
     """Everything else was noise once the thumbnail opens Focus mode."""
     import re
 
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     with db.session_scope() as session:
         session.get(Video, 1).thumbnail_url = "https://i.ytimg.example/1.jpg"
@@ -410,7 +410,7 @@ def test_a_card_shows_only_a_thumbnail_and_a_timestamp(client, db):
 def daily_window(db, *, minutes=90, last_fired_at=None):
     """Pieces under the Science feed: 90 minutes once you sit down, and
     another 90 every midnight."""
-    from dealgo.models import GraphNode, Playlist
+    from pamphlets.models import GraphNode, Playlist
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -443,7 +443,7 @@ def test_a_daily_window_is_open_when_you_first_come_to_it(client, db):
 
 
 def test_coming_to_the_feed_starts_the_sitting(client, db):
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     pulse_pk = daily_window(db)
     # Arriving at the feed's own page is sitting down to read it; the shelf is not.
@@ -477,7 +477,7 @@ def test_a_spent_sitting_shuts_the_feed_and_says_when_it_opens(client, db):
 def test_a_sync_landing_does_not_spend_the_days_reading(client, db):
     """The sections refresh themselves when a sync finishes. Nobody arrived,
     so that must not start the sitting."""
-    from dealgo.models import GraphNode
+    from pamphlets.models import GraphNode
 
     pulse_pk = daily_window(db)
     client.get(f"/partials/feed/{feed_id(db, 'Science')}", headers={"HX-Request": "true"})
@@ -491,7 +491,7 @@ def test_a_card_for_an_item_from_elsewhere_says_where_it_came_from(client, db):
     which kind of somewhere it is and leads out to it."""
     import re
 
-    from dealgo.models import Channel, Placement, Playlist, Video
+    from pamphlets.models import Channel, Placement, Playlist, Video
 
     with db.session_scope() as session:
         source = Channel(
@@ -532,7 +532,7 @@ def test_the_watched_action_is_still_reachable_from_a_card(client, db):
     """Quiet, not gone: it appears on hover and works from the keyboard."""
     import re
 
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     body = every_feed(client)
     card = re.search(r'<article class="card[^"]*".*?</article>', body, re.S).group(0)
@@ -592,7 +592,7 @@ def test_a_connected_account_gets_no_warning(client):
 
 def test_generic_feeds_are_not_greyed_out(client, db):
     """Nothing changes for them: they never wrote to YouTube in the first place."""
-    from dealgo.models import GENERIC_PLAYLIST_PREFIX
+    from pamphlets.models import GENERIC_PLAYLIST_PREFIX
 
     with db.session_scope() as session:
         session.delete(session.get(OAuthToken, 1))
@@ -609,7 +609,7 @@ def test_leaving_focus_returns_to_every_feed(client, db):
     """The reported bug: Focus was entered from one feed, and the way back
     carried that feed as a filter, so the feed list came back holding only the
     one just watched."""
-    from dealgo.models import Playlist
+    from pamphlets.models import Playlist
 
     with db.session_scope() as session:
         science_id = session.scalar(select(Playlist).where(Playlist.title == "Science")).id
@@ -626,7 +626,7 @@ def test_leaving_focus_returns_to_every_feed(client, db):
 
 
 def test_a_tag_filters_the_shelf_and_says_which(client, db):
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.services import playlists as playlist_service
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -646,7 +646,7 @@ def test_the_unfiltered_shelf_says_nothing_about_filtering(client):
 
 
 def test_clearing_the_tag_keeps_a_search(client, db):
-    from dealgo.services import playlists as playlist_service
+    from pamphlets.services import playlists as playlist_service
 
     with db.session_scope() as session:
         science = session.scalar(select(Playlist).where(Playlist.title == "Science"))
@@ -660,7 +660,7 @@ def expiring(db, title, *, hours):
     """Put an end on one of the fixture's videos, in its Science placement."""
     import datetime as dt
 
-    from dealgo.models import Placement, Video
+    from pamphlets.models import Placement, Video
 
     with db.session_scope() as session:
         video = session.scalar(select(Video).where(Video.title == title))
@@ -713,7 +713,7 @@ def test_a_card_shows_what_the_boxes_left_on_it(client, db):
     the boxes on its way here put there."""
     import datetime as dt
 
-    from dealgo.models import Placement, Video
+    from pamphlets.models import Placement, Video
 
     with db.session_scope() as session:
         video = session.scalar(select(Video).where(Video.title == "New science video"))
@@ -756,7 +756,7 @@ def test_the_count_is_rounded_the_way_a_countdown_reads(client, db):
     nobody asked for."""
     import datetime as dt
 
-    from dealgo.web.templates import until as _until
+    from pamphlets.web.templates import until as _until
 
     now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     said = {
@@ -785,7 +785,7 @@ def test_the_count_is_rounded_the_way_a_countdown_reads(client, db):
 
 
 def test_an_item_removed_for_having_expired_is_off_the_page(client, db):
-    from dealgo.models import Placement, Video
+    from pamphlets.models import Placement, Video
 
     with db.session_scope() as session:
         video = session.scalar(select(Video).where(Video.title == "New science video"))
@@ -802,7 +802,7 @@ def test_an_item_removed_for_having_expired_is_off_the_page(client, db):
 def test_the_reading_timer_only_appears_for_what_a_decay_box_touched(client, db):
     """A countdown nobody asked for is one that hurries you for no reason,
     and a Decay box is how you ask."""
-    from dealgo.models import Video
+    from pamphlets.models import Video
 
     import re
 
