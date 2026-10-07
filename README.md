@@ -1,8 +1,8 @@
-# De-Algo
+# Pamphlets
 
 **Your feeds, wired by you. No algorithm in the loop.**
 
-De-Algo follows the YouTube channels, subreddits, Bluesky accounts, newsletters and RSS feeds you
+Pamphlets follows the YouTube channels, subreddits, Bluesky accounts, newsletters and RSS feeds you
 choose, and fills feeds you own with exactly what they publish — filtered, ordered and paced the way
 you decide. Nothing is recommended, nothing is injected, nothing autoplays into the next rabbit hole.
 
@@ -10,7 +10,7 @@ It is self-hosted: one container, one database, your server.
 
 ---
 
-## Why De-Algo
+## Why Pamphlets
 
 - **You choose what arrives.** Only the sources you follow. No "you might also like".
 - **You see how it works.** Your setup is a visual flow on the Configuration canvas: sources on the
@@ -22,7 +22,7 @@ It is self-hosted: one container, one database, your server.
 - **It writes back to YouTube.** Push videos straight into real YouTube playlists and watch them on
   your TV — Shorts and live streams filtered out if you want.
 - **Polling is free.** Sources are read through their public feeds. YouTube's API quota is only spent
-  on writing to playlists, and De-Algo keeps a ledger so it never runs out mid-run.
+  on writing to playlists, and Pamphlets keeps a ledger so it never runs out mid-run.
 - **Extend it safely.** New sources and new filter conditions are small Lua plugins, run in a sandbox
   and granted only the permissions an admin approves.
 - **Share it with your household.** Separate private accounts on one instance; the admin manages
@@ -39,7 +39,7 @@ It is self-hosted: one container, one database, your server.
 1. A **trigger** decides when to check a source.
 2. New items flow along the **wires** you drew, through **Filter**, **Sort**, **Tag**, **Decay**
    and **Expire** boxes.
-3. They land in **feeds** — inside De-Algo, or in a real YouTube playlist.
+3. They land in **feeds** — inside Pamphlets, or in a real YouTube playlist.
 4. You read them on the **Feed** page or one at a time in **Focus mode**.
 
 ## Quick start
@@ -60,9 +60,9 @@ Full walkthrough: [Installing](docs/wiki/Installing.md).
 
 | For | Start here |
 | --- | --- |
-| **Using De-Algo** — every feature, one page each | [User Wiki](docs/wiki/README.md) |
+| **Using Pamphlets** — every feature, one page each | [User Wiki](docs/wiki/README.md) |
 | **Writing plugins** — sources, conditions, the Lua API | [Creating A Plugin](docs/wiki/Creating%20A%20Plugin/GETTING%20STARTED.md) |
-| **Working on De-Algo** — architecture, systems, algorithms, decisions | [Internal Documentation](docs/internal/README.md) |
+| **Working on Pamphlets** — architecture, systems, algorithms, decisions | [Internal Documentation](docs/internal/README.md) |
 | **API reference** — generated from the code (`make docs`) | [autodoc](docs/internal/autodoc/README.md) |
 | **Every page, at a glance** | Tables of contents: [wiki](docs/wiki/Table%20of%20Contents.md) · [internal](docs/internal/Table%20of%20Contents.md) |
 | **What's broken or missing** | [Known Issues](docs/internal/Known%20Issues.md) |

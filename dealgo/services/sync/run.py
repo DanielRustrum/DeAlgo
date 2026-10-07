@@ -241,7 +241,7 @@ def _fill(
         )
     )
     quota_state = quota.state(session)
-    # Feeds that live only in De-Algo need neither an account nor quota, so a
+    # Feeds that live only in Pamphlets need neither an account nor quota, so a
     # missing sign-in holds back the published ones without stopping the run.
     published = [playlist for playlist in playlists if playlist.is_published]
     pub = names()
@@ -249,10 +249,10 @@ def _fill(
         result.messages.append("No feeds are set up — new videos are queued in Pending.")
     elif published and not client.has_write_access:
         # Not an error: the app is usable without a sign-in. The feeds still
-        # fill, they just fill inside De-Algo until an account is connected.
+        # fill, they just fill inside Pamphlets until an account is connected.
         result.messages.append(
             f"No {pub.service} account connected — {len(published)} {pub.publisher} feed(s) "
-            f"are collecting inside De-Algo. Nothing is written to {pub.publisher} until you "
+            f"are collecting inside Pamphlets. Nothing is written to {pub.publisher} until you "
             "connect one."
         )
         publish(session, client, settings, result, owner, pen=pen, sources=sources)

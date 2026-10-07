@@ -1,6 +1,6 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "De-Algo service worker",
+  "name": "Pamphlets service worker",
   "tsconfig": "../../../tsconfig.sw.json",
   "entryPoints": ["../../../dealgo/web/ts/sw.ts"],
   "out": "service-worker",

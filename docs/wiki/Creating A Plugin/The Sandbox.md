@@ -27,7 +27,7 @@ Use `log.info` instead of `print` — see [Clock and Log](Clock%20and%20Log.md).
 | Memory per plugin | 16 MiB | *hackernews asked for too much memory* |
 | Instructions per call | 10 million | *hackernews ran too long and was stopped* |
 
-The instruction limit counts from zero on every call De-Algo makes into the plugin, and also applies
+The instruction limit counts from zero on every call Pamphlets makes into the plugin, and also applies
 while the file is first loaded.
 
 ## Calling capabilities
@@ -43,7 +43,7 @@ Only the functions documented here can be reached on them.
 
 ## Values crossing over
 
-**Into Lua**, De-Algo hands tables, strings, numbers, booleans and `nil`. Lists are ordinary Lua lists,
+**Into Lua**, Pamphlets hands tables, strings, numbers, booleans and `nil`. Lists are ordinary Lua lists,
 walkable with `ipairs`.
 
 **Back from Lua**, a table whose keys are exactly `1..n` becomes a list; any other table becomes a
@@ -52,7 +52,7 @@ mapping with string keys. Return plain data. Functions are only meaningful where
 ## Errors
 
 An error inside a hook is caught. The hook is treated as having no opinion: a condition lets the item
-through, an ordering places nothing, `recognise` answers nothing, and the error goes to De-Algo's log.
+through, an ordering places nothing, `recognise` answers nothing, and the error goes to Pamphlets's log.
 A failing plugin never stops a run.
 
 Use `pcall` to recover from your own errors.

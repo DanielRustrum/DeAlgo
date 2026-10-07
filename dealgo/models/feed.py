@@ -44,7 +44,7 @@ GENERIC_PLAYLIST_PREFIX = "generic:"
 
 
 # Stand-ins for a published playlist's item id. "generic-" marks a feed that
-# lives only in De-Algo; "offline-" marks an item held in a published feed
+# lives only in Pamphlets; "offline-" marks an item held in a published feed
 # while no account is connected — same effect for reading the feed, but a later run
 # with an account turns it into a real playlist item.
 GENERIC_ITEM_PREFIX = "generic-"
@@ -54,7 +54,7 @@ OFFLINE_ITEM_PREFIX = "offline-"
 
 
 class Playlist(Base):
-    """A feed De-Algo keeps filled — a playlist on the publishing plugin's
+    """A feed Pamphlets keeps filled — a playlist on the publishing plugin's
     service, or just a local list."""
 
     __tablename__ = "playlist"

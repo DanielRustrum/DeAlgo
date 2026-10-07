@@ -1,7 +1,7 @@
 # Sources
 
-A source kind teaches De-Algo to recognise a kind of reference — `r/python`, `@name.bsky.social` —
-and where its feed is. De-Algo fetches and parses the feed (RSS or Atom); your plugin only says what is
+A source kind teaches Pamphlets to recognise a kind of reference — `r/python`, `@name.bsky.social` —
+and where its feed is. Pamphlets fetches and parses the feed (RSS or Atom); your plugin only says what is
 particular about it.
 
 Each kind becomes a box under **Plugins** in the palette.
@@ -94,7 +94,7 @@ Called for every entry read from your source's feed. Return only what you want t
 
 | Return field | Meaning |
 | --- | --- |
-| `id` | The item's identity, used to recognise it next time. **Must be unique across every source an account has** — prefix it, e.g. `example-42`. Omit to let De-Algo hash the guid. |
+| `id` | The item's identity, used to recognise it next time. **Must be unique across every source an account has** — prefix it, e.g. `example-42`. Omit to let Pamphlets hash the guid. |
 | `kind` | `"link"` (default), `"post"`, or `"video"`. Use `"video"` only for a YouTube video id: Focus mode plays those in YouTube's player. |
 | `hint` | Up to 16 characters about what it is, kept with the item and handed to your `classify` later. YouTube says `"shorts"` for an entry linked as a Short. |
 
@@ -143,7 +143,7 @@ plugin's own; anything not on the list stops the plugin loading.
 ## mirror(key)
 
 A second address serving the same feed, offered when your source rate-limits readers. It is shown as a
-suggestion in the source's panel; De-Algo uses a mirror only after the person sets it, and only when
+suggestion in the source's panel; Pamphlets uses a mirror only after the person sets it, and only when
 the source itself refuses.
 
 ## posts(key)
@@ -173,7 +173,7 @@ See [The dealgo Object](The%20dealgo%20Object.md) for why.
 
 ## Items that cannot go everywhere
 
-A source with `playlistable = false` (the default) can only fill feeds that live in De-Algo; items
+A source with `playlistable = false` (the default) can only fill feeds that live in Pamphlets; items
 reaching a YouTube-backed feed are skipped with a reason. Only YouTube is playlistable.
 
 **Related:** [Augmentations](Augmentations.md) · [Network](Network.md) · [Plugin Files](Plugin%20Files.md)

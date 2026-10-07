@@ -6,14 +6,14 @@
   write everything twice and fight over locks. The compose file pins `replicas: 1` and stops the
   old container before starting a new one.
 - **Set `DEALGO_PUBLIC_URL` to the public address** (e.g. `https://dealgo.example.com`) and register
-  `<that>/oauth/callback` with Google. De-Algo builds the redirect from this, not from the request.
+  `<that>/oauth/callback` with Google. Pamphlets builds the redirect from this, not from the request.
 - **Use a subdomain, not a subpath.** Pages and assets are served from `/`.
 - **Keep `/data` on local disk.** SQLite over network filesystems corrupts.
 - **Use HTTPS** if you want the [installable app and offline reading](Installing%20as%20an%20App.md).
 
 ## Behind a reverse proxy
 
-De-Algo trusts `X-Forwarded-*` headers, so TLS can end at the proxy.
+Pamphlets trusts `X-Forwarded-*` headers, so TLS can end at the proxy.
 
 The cluster overlay drops the published port and joins an existing `proxy` network with Traefik
 labels:

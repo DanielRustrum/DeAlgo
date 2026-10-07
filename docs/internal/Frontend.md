@@ -63,7 +63,7 @@ plain CSS with native nesting, plus a few Tailwind directives:
   `data-mode`, `data-motion` and `data-illustrations` on `<html>`. Forced dark states every colour
   under `:root[data-mode="dark"]`, because it has no stylesheet block to fall back on.
   `contrast.py` lists the pairings the app paints and their minimums. `ts/theming.ts` runs the same
-  check live and copies the form onto the preview. `presets.py` has De-Algo's own presets and
+  check live and copies the form onto the preview. `presets.py` has Pamphlets's own presets and
   the popular ones. Those are built from published palettes in `palettes.py`, mapped onto the
   roles by `roles()`, then `settle()`d: each pairing below its minimum moves its mover (text over
   its ground, a fill under its ink) 4% at a time toward black or white until it passes. The accent

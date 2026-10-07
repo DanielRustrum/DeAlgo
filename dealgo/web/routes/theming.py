@@ -1,4 +1,4 @@
-"""Settings → Theming: how De-Algo looks to the account signed in.
+"""Settings → Theming: how Pamphlets looks to the account signed in.
 
 A person changes the design system's own variables here — colours by day and
 by night, typefaces, the size of things, corners, spacing — through a form of
@@ -42,15 +42,15 @@ PAGE = "/settings/theming"
 #: The parts of a theme that can be put back on their own, and what is said
 #: once one has been.
 PARTS = {
-    "all": "Everything is back as De-Algo comes.",
-    "colours": "The colours are back as De-Algo comes.",
-    "page": "Light or dark and movement are back as De-Algo comes.",
-    "type": "The type is back as De-Algo comes.",
-    "shape": "Corners, spacing, shadows and the focus ring are back as De-Algo comes.",
-    "background": "The background is back as De-Algo comes.",
-    "gradient": "The gradient is back as De-Algo comes.",
-    "texture": "The pattern and texture are back as De-Algo comes.",
-    "drawings": "The drawings are back as De-Algo comes.",
+    "all": "Everything is back as Pamphlets comes.",
+    "colours": "The colours are back as Pamphlets comes.",
+    "page": "Light or dark and movement are back as Pamphlets comes.",
+    "type": "The type is back as Pamphlets comes.",
+    "shape": "Corners, spacing, shadows and the focus ring are back as Pamphlets comes.",
+    "background": "The background is back as Pamphlets comes.",
+    "gradient": "The gradient is back as Pamphlets comes.",
+    "texture": "The pattern and texture are back as Pamphlets comes.",
+    "drawings": "The drawings are back as Pamphlets comes.",
 }
 
 

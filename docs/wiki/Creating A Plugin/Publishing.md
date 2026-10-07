@@ -1,6 +1,6 @@
 # Publishing
 
-A plugin can teach De-Algo to write back to its service — for YouTube: look channels up, read video
+A plugin can teach Pamphlets to write back to its service — for YouTube: look channels up, read video
 details, and fill playlists. This is how YouTube-backed [feeds](../Nodes/Feeds.md) work.
 
 The `publisher` table is consulted only for a plugin with a source kind marked `playlistable = true`.
@@ -27,7 +27,7 @@ publisher = {
 },
 ```
 
-Any function may be left out; De-Algo then reports that the plugin cannot do that.
+Any function may be left out; Pamphlets then reports that the plugin cannot do that.
 
 ## Functions
 
@@ -59,7 +59,7 @@ Unknown counts should be `nil`, not `0`.
 
 ## Costs
 
-`costs` is your service's price list, in quota units. De-Algo reads `add` to decide whether it can
+`costs` is your service's price list, in quota units. Pamphlets reads `add` to decide whether it can
 afford to insert before trying, and `remove` before removing. The cost actually charged is the `cost`
 you pass to `account.send` for each request.
 

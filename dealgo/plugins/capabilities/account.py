@@ -2,7 +2,7 @@
 
 The plugin knows the service. It knows which endpoint answers what, what the
 JSON looks like coming back, and what each call costs against the day's
-allowance — all of which is YouTube's business, not De-Algo's.
+allowance — all of which is YouTube's business, not Pamphlets's.
 
 What it does not know, and must never learn, is the token. So it does not
 make the request: it says what request to make, and the host makes it. The

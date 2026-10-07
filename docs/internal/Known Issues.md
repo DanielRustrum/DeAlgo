@@ -78,7 +78,7 @@ The heartbeat is no longer editable in the UI.
 
 ### 10. Sort only orders the batch
 A Sort box orders insertion within a run. The Feed page and Focus mode order by publish date, so the
-sort is invisible there for De-Algo feeds.
+sort is invisible there for Pamphlets feeds.
 
 ### 11. Focus mode ignores reading windows; Decay ignores videos
 Focus does not consult Timer/Reset/Alive. Decay timers apply only to non-video items.

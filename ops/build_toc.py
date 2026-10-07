@@ -20,7 +20,7 @@ from urllib.parse import quote, unquote
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 OUT = "Table of Contents.md"
 BOOKS = {
-    DOCS / "wiki": "De-Algo User Wiki",
+    DOCS / "wiki": "Pamphlets User Wiki",
     DOCS / "internal": "Internal Documentation",
 }
 

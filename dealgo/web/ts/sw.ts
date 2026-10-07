@@ -1,7 +1,7 @@
-// De-Algo's service worker: what makes the app open, and stay readable, with
+// Pamphlets's service worker: what makes the app open, and stay readable, with
 // no network.
 //
-// What this can and cannot do is worth being plain about. De-Algo renders its
+// What this can and cannot do is worth being plain about. Pamphlets renders its
 // pages on the server from a database that lives there, so "offline" means
 // *reading what you have already loaded*: the shell, the styles, the pages you
 // have visited, and the thumbnails in them. It does not mean writing. Marking

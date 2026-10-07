@@ -1,4 +1,4 @@
-"""Exporting everything De-Algo knows as portable JSON.
+"""Exporting everything Pamphlets knows as portable JSON.
 
 Rows reference each other by YouTube's own ids — channel ids and playlist ids —
 rather than by database primary keys, so the file means the same thing on a

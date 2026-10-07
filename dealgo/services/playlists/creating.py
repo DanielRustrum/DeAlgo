@@ -74,7 +74,7 @@ def create(
     try:
         info = client.create_playlist(
             title,
-            description="Built by De-Algo from the channels you chose.",
+            description="Built by Pamphlets from the channels you chose.",
             privacy=privacy,
         )
     except PublishError as exc:

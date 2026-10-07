@@ -7,7 +7,7 @@ scripts that htmx re-inserts are not guaranteed to run in order, and one file
 is the only order that cannot be lost. The parts share one scope either way, as every plain script does.
 
 Every part only declares; main.ts holds the one call that starts it all, so
-it goes last. Like the stylesheet, the result is committed — running De-Algo
+it goes last. Like the stylesheet, the result is committed — running Pamphlets
 needs no Node — and a test checks it is current.
 """
 

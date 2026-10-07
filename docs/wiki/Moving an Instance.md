@@ -1,14 +1,14 @@
 # Moving an Instance
 
 **Admin → Move this instance** saves every account and its setup in one encrypted file, for standing
-De-Algo up on another machine. Admin only.
+Pamphlets up on another machine. Admin only.
 
 ## Exporting
 
 Choose a passphrase of at least 12 characters. **It is the only way to open the file** — there is no
 recovery.
 
-Anyone holding the file can see that it is a De-Algo backup, when it was made and how many accounts
+Anyone holding the file can see that it is a Pamphlets backup, when it was made and how many accounts
 it holds. Nothing else is readable. The file is authenticated: an altered file refuses to open.
 
 ## What travels

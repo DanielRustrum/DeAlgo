@@ -247,7 +247,7 @@ DIALS: tuple[Dial, ...] = (
 
 DIAL_BY_NAME = {dial.name: dial for dial in DIALS}
 
-#: Typefaces a theme may use. The first two are served by De-Algo itself;
+#: Typefaces a theme may use. The first two are served by Pamphlets itself;
 #: the rest are what the device already has, so nothing is fetched for them.
 FONTS: dict[str, tuple[str, str]] = {
     "dm-sans": ("DM Sans", '"DM Sans Variable", ui-sans-serif, system-ui, -apple-system, '

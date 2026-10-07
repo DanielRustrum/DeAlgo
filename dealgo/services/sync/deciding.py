@@ -149,7 +149,7 @@ def decide(
                 )
 
     # A published playlist holds only what its service does, so an item it
-    # cannot hold can only go into a feed that lives inside De-Algo — said
+    # cannot hold can only go into a feed that lives inside Pamphlets — said
     # here, once, rather than failing at the insert with whatever the
     # service makes of it.
     if not video.publishable and path.playlist is not None and path.playlist.is_published:

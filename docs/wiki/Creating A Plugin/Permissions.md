@@ -21,7 +21,7 @@ for. Asking for the same permission twice is an error.
 | --- | --- | --- |
 | `network` | The `net` object: fetch web pages | [Network](Network.md) |
 | `clock` | The `clock` object: the current time | [Clock and Log](Clock%20and%20Log.md) |
-| `log` | The `log` object: write to De-Algo's log | [Clock and Log](Clock%20and%20Log.md) |
+| `log` | The `log` object: write to Pamphlets's log | [Clock and Log](Clock%20and%20Log.md) |
 | `read` | `dealgo.sources()` and `dealgo.feeds()` answer | [The dealgo Object](The%20dealgo%20Object.md) |
 | `manage` | `dealgo.watch()` and `dealgo.pause()` work | [The dealgo Object](The%20dealgo%20Object.md) |
 | `account` | The `account` object: requests to Google as the connected account | [Account](Account.md) |
@@ -55,11 +55,11 @@ for _, p in ipairs(dealgo.permissions()) do
 end
 ```
 
-`known` is `false` for a permission this version of De-Algo does not have.
+`known` is `false` for a permission this version of Pamphlets does not have.
 
 ## Shipped plugins
 
-Plugins shipped with De-Algo start with everything they asked for. Plugins added by the admin start
+Plugins shipped with Pamphlets start with everything they asked for. Plugins added by the admin start
 with whatever was ticked at install.
 
 **Related:** [The Sandbox](The%20Sandbox.md) · [The dealgo Object](The%20dealgo%20Object.md)

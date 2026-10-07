@@ -123,7 +123,7 @@ class Asked:
 
     @property
     def known(self) -> bool:
-        """Whether this version of De-Algo knows the permission asked for."""
+        """Whether this version of Pamphlets knows the permission asked for."""
         return self.name in permissions.BY_NAME
 
     @property
@@ -251,7 +251,7 @@ class Plugin:
     api: int = 0
     #: The shipped plugin this one stands in for, when somebody has put their
     #: own copy in the data folder. Worth saying out loud: a stale override is
-    #: otherwise indistinguishable from a bug in De-Algo.
+    #: otherwise indistinguishable from a bug in Pamphlets.
     replaces: Path | None = None
 
     @property

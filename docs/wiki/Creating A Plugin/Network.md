@@ -15,8 +15,8 @@ if not html then return {} end
 - At most **4 requests per call** into your plugin, and **2 MiB** per response. Beyond either, `nil`.
 - Only these headers may be set: `User-Agent`, `Accept`, `Accept-Language`, `Referer`. Others are dropped.
 - Never errors: a failure returns `nil` and is logged.
-- Requests go through De-Algo, which honours rate limits a site has announced. If a site has asked
-  De-Algo to wait, `get` returns `nil` rather than asking again.
+- Requests go through Pamphlets, which honours rate limits a site has announced. If a site has asked
+  Pamphlets to wait, `get` returns `nil` rather than asking again.
 
 Remember the caution the admin sees: anything your plugin has been shown could leave the machine
 through `net.get`. Fetch only what you said you would.

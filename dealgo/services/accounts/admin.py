@@ -80,7 +80,7 @@ def adopt_unowned(session: Session, admin: User) -> int:
 
     Everything made before sign-in was switched on belongs to the implicit
     owner — which is nobody, once there are accounts. Without this the admin
-    would sign in to an empty De-Algo and its channels and feeds would sit
+    would sign in to an empty Pamphlets and its channels and feeds would sit
     there, invisible to everyone.
 
     Also covers the other direction: anything added while sign-in was off

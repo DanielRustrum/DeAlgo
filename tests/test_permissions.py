@@ -82,7 +82,7 @@ def test_a_plugin_fetches_through_the_host():
 
 
 def test_a_plugins_fetch_waits_when_a_host_asked_it_to():
-    """Through the same `patience` De-Algo's own requests use, so a plugin
+    """Through the same `patience` Pamphlets's own requests use, so a plugin
     cannot spend a rate-limit budget behind the back of the thing tracking
     it."""
     from dealgo.sources import patience

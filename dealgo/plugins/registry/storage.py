@@ -30,7 +30,7 @@ PLAIN = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 
 
 def shipped() -> Path:
-    """The plugins that come with De-Algo. Read-only, and replaced wholesale
+    """The plugins that come with Pamphlets. Read-only, and replaced wholesale
     by an upgrade, so a new version's YouTube plugin arrives with it."""
     return Path(__file__).resolve().parent.parent / "builtin"
 

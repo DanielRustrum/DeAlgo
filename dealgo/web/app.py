@@ -1,4 +1,4 @@
-"""FastAPI application: the De-Algo GUI.
+"""FastAPI application: the Pamphlets GUI.
 
 Server-rendered HTML so the container ships with no build step and the UI works
 in any browser, which is the only GUI that makes sense inside Docker.
@@ -36,14 +36,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     init_db()
     scheduler.start()
-    log.info("De-Algo %s ready on %s", __version__, CONFIG.public_url)
+    log.info("Pamphlets %s ready on %s", __version__, CONFIG.public_url)
     try:
         yield
     finally:
         scheduler.shutdown()
 
 
-app = FastAPI(title="De-Algo", version=__version__, lifespan=lifespan)
+app = FastAPI(title="Pamphlets", version=__version__, lifespan=lifespan)
 
 
 # Starlette hands the next handler in untyped; naming the shape here keeps
@@ -116,7 +116,7 @@ def _ask_to_sign_in(request: Request) -> Response:
 
 def _refuse(request: Request) -> Response:
     """Turn a member away from an admin page."""
-    message = "That part of De-Algo belongs to the admin account."
+    message = "That part of Pamphlets belongs to the admin account."
     if is_htmx(request):
         return Response(message, status_code=403)
     return RedirectResponse(f"/?err={quote(message)}", status_code=303)

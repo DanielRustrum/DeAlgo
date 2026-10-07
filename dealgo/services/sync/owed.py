@@ -59,7 +59,7 @@ def reconsider_routing(session: Session, result: SyncResult, owner: OwnerId = No
     # Which channels can now reach a feed that could hold such an item.
     welcomed: set[int] = set()
     for path in graph.routes(session, owner):
-        # A repository holds anything, the way a feed inside De-Algo does:
+        # A repository holds anything, the way a feed inside Pamphlets does:
         # nothing is being written to somebody else's service.
         if path.deposits:
             welcomed.add(path.channel.id)
@@ -111,7 +111,7 @@ def retry_deferred(
 
         if placement.playlist.is_generic or not client.has_write_access:
             if already_local:
-                continue  # readable in De-Algo already; nothing more to do here
+                continue  # readable in Pamphlets already; nothing more to do here
             _pay(session, placement, local_item_id(placement.video, placement.playlist),
                  added_per_playlist, result)
             continue

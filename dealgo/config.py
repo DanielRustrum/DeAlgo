@@ -47,7 +47,7 @@ class Config:
 
     @property
     def auth_enabled(self) -> bool:
-        """Whether De-Algo asks who you are.
+        """Whether Pamphlets asks who you are.
 
         Off unless an admin is configured, so upgrading an existing instance
         does not lock its owner out of it. The app says so, loudly, on every

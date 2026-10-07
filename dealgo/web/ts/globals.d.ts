@@ -4,7 +4,7 @@
 // there are no types to install. Declaring only the members actually used
 // keeps the guesswork visible: anything else would need adding here first.
 
-/** htmx, vendored into static/. Only the calls De-Algo makes are declared. */
+/** htmx, vendored into static/. Only the calls Pamphlets makes are declared. */
 interface Htmx {
   ajax(
     method: "GET" | "POST" | "DELETE",
@@ -28,7 +28,7 @@ interface YouTubePlayerEvent {
   data: number;
 }
 
-/** The events De-Algo listens to on the player. */
+/** The events Pamphlets listens to on the player. */
 interface YouTubePlayerOptions {
   events: {
     onReady?: () => void;
@@ -37,7 +37,7 @@ interface YouTubePlayerOptions {
   };
 }
 
-/** The part of YouTube's IFrame API De-Algo uses. */
+/** The part of YouTube's IFrame API Pamphlets uses. */
 interface YouTubeApi {
   Player: new (elementId: string, options: YouTubePlayerOptions) => YouTubePlayer;
   PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };

@@ -1,6 +1,6 @@
 # Augmentations
 
-An augmentation is a piece users slot under one of De-Algo's own boxes. A plugin can add two kinds:
+An augmentation is a piece users slot under one of Pamphlets's own boxes. A plugin can add two kinds:
 
 | `under` | Box | Your function | Answers |
 | --- | --- | --- | --- |

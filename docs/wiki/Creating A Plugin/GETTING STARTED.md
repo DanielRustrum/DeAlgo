@@ -1,17 +1,17 @@
 # Getting Started
 
-A De-Algo plugin is a Lua file that adds **kinds of source** (where items come from) and
+A Pamphlets plugin is a Lua file that adds **kinds of source** (where items come from) and
 **augmentations** (conditions and orderings that slot under Filter and Sort boxes). This page builds a
 working plugin in five minutes. The rest of this folder is the reference.
 
 ## What a plugin can and cannot do
 
-**It can** tell De-Algo how to recognise a source and where its feed is, add to what De-Algo reads
+**It can** tell Pamphlets how to recognise a source and where its feed is, add to what Pamphlets reads
 from that feed, judge or rank items, and — with permission — fetch pages, read the time, read and
 change the running account's sources, and talk to Google as that account.
 
 **It cannot** touch files, run programs, import modules or see the host. It runs in a sandbox with a
-memory and time limit, and everything beyond pure Lua must be granted by the admin. De-Algo does the
+memory and time limit, and everything beyond pure Lua must be granted by the admin. Pamphlets does the
 heavy lifting: it fetches and parses feeds, so your plugin never parses XML.
 
 ## 1. Make the folder
@@ -70,7 +70,7 @@ return {
 }
 ```
 
-The file returns one table. Nothing in it runs by itself: De-Algo calls the functions when it needs them.
+The file returns one table. Nothing in it runs by itself: Pamphlets calls the functions when it needs them.
 
 ## 3. Install it
 
@@ -79,7 +79,7 @@ As the admin, open **Admin → Plugins**:
 - **Add one from a file** — upload `plugin.lua` renamed to `hackernews.lua` (the file name becomes the id), or
 - **Add one from a repository** — push the folder to GitHub, GitLab, Codeberg or Gitea and paste its address.
 
-De-Algo shows what the plugin offers and asks for. This one asks for nothing. Confirm, and it loads at once.
+Pamphlets shows what the plugin offers and asks for. This one asks for nothing. Confirm, and it loads at once.
 
 ## 4. Use it
 
@@ -114,7 +114,7 @@ its row on the Plugins page says why, with a line number.
 | [Distributing](Distributing.md) | Publishing your plugin in a git repository |
 | [Testing and Debugging](Testing%20and%20Debugging.md) | Finding out why it does not work |
 
-The five plugins that ship with De-Algo are complete examples, in `dealgo/plugins/builtin/`, each split
+The five plugins that ship with Pamphlets are complete examples, in `dealgo/plugins/builtin/`, each split
 into a file per job: `plugin.lua` says who it is and requires the rest. Start with `reddit/` (a source
 with a mirror and two conditions: `references.lua`, `source.lua`, `conditions.lua`) and `shape/`
 (conditions and an ordering, no source). `youtube/` is the full set: sign-in, settings, a Data API

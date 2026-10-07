@@ -10,7 +10,7 @@
 | A plugin | Exactly the capabilities granted | Reach Python, files, other plugins, tokens, or other owners' data |
 | A fetched archive, a feed, a web page | Nothing | Write outside its folder, execute, exhaust memory |
 
-De-Algo is designed to sit behind a reverse proxy on a home network or a VPS, for a household or a
+Pamphlets is designed to sit behind a reverse proxy on a home network or a VPS, for a household or a
 small group.
 
 ## Accounts and sign-in — `services/accounts/`
@@ -104,7 +104,7 @@ encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See
     script and no references.
   - **Fonts** (`font-body`, `font-display`, up to 4 MB) are accepted only on a WOFF2, WOFF,
     TrueType or OpenType signature, and served as that type under the same headers. They're loaded
-    under a family name the server chooses (`De-Algo own body` / `De-Algo own heading`), so
+    under a family name the server chooses (`Pamphlets own body` / `Pamphlets own heading`), so
     nothing from the file reaches the stylesheet. The browser's own font sanitiser checks the
     file again before drawing with it.
 

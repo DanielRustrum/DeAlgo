@@ -19,7 +19,7 @@ When several triggers are wired into one source, it is checked when **any** of t
 
 ## How often triggers are looked at
 
-De-Algo wakes every **30 minutes** and checks every trigger then. So a trigger cannot fire more often
+Pamphlets wakes every **30 minutes** and checks every trigger then. So a trigger cannot fire more often
 than that: a Pulse of 5 minutes behaves like 30, and a Schedule at 09:00 fires at the first wake-up at
 or after 09:00 — up to 30 minutes late.
 

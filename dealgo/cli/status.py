@@ -16,7 +16,7 @@ def cmd_status(_args: argparse.Namespace) -> int:
     init_db()
     with session_scope() as session:
         settings = get_settings(session)
-        print(f"De-Algo {__version__}")
+        print(f"Pamphlets {__version__}")
         print(f"database:  {CONFIG.database_url}")
         targets = playlist_service.list_playlists(session)
         if targets:

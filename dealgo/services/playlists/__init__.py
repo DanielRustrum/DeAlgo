@@ -1,4 +1,4 @@
-"""Managing the set of playlists De-Algo keeps filled."""
+"""Managing the set of playlists Pamphlets keeps filled."""
 
 from __future__ import annotations
 

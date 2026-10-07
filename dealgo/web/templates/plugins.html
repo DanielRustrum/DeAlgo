@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_plugin_settings.html" import plugin_mark, settings_form %}
-{% block title %}De-Algo — Plugins{% endblock %}
+{% block title %}Pamphlets — Plugins{% endblock %}
 {% block content %}
 
 <p class="crumbs"><a href="/admin">← Admin</a> · Plugins</p>
@@ -98,14 +98,14 @@
   <p class="hint">
     A plugin is one <code>.lua</code> file. It says what a reference like
     <code>r/python</code> or <code>@handle</code> is and where that source's
-    feed lives; De-Algo does the fetching, so a plugin never touches the
+    feed lives; Pamphlets does the fetching, so a plugin never touches the
     network, your credentials, or anyone else's data.
   </p>
   <p class="hint">
     <strong>Switching one off</strong> leaves the file where it is and stops
     it being asked anything. Sources already being watched keep their own
     feed address and carry on — what stops is recognising new ones. It is
-    the only way to turn off a plugin that ships with De-Algo.
+    the only way to turn off a plugin that ships with Pamphlets.
   </p>
 
   {% if plugins %}
@@ -120,7 +120,7 @@
         {% if plugin.mine %}
         <span class="pill" title="From your plugins folder">yours</span>
         {% else %}
-        <span class="pill pill-shipped" title="Came with De-Algo">shipped</span>
+        <span class="pill pill-shipped" title="Came with Pamphlets">shipped</span>
         {% endif %}
         {% if plugin.replaces %}
         <span class="pill pill-paused" title="{{ plugin.replaces }}">replaces the shipped one</span>
@@ -208,7 +208,7 @@
       <section class="plugin-section">
         <strong class="plugin-section-head">Settings for everyone</strong>
         <p class="hint plugin-section-note">
-          Set once for this whole De-Algo.
+          Set once for this whole Pamphlets.
           {%- if plugin.has_user_settings %} Each account also has settings of its own for
           {{ plugin.title }}, under Settings.{% endif %}
         </p>
@@ -316,7 +316,7 @@
     <button class="btn btn-primary" type="submit">Add it</button>
     <p class="hint">
       It lands in a folder of its own under <code>{{ folder }}</code> and is
-      read straight away. One named after a plugin that ships with De-Algo
+      read straight away. One named after a plugin that ships with Pamphlets
       replaces it, which is how you change a shipped plugin without editing
       the image.
     </p>

@@ -52,7 +52,7 @@ After **Try it**, an empty field shows what was guessed, so you can type it in t
   rather than followed, so the key never goes anywhere else; give the address it redirects to.
 - **The key is never shown again.** The box only says one is set. Leave the field empty to keep
   it, type a new one to change it, or tick **Stop sending it**.
-- **Where it's kept:** in De-Algo's database, like a plugin's settings. It isn't included in your
+- **Where it's kept:** in Pamphlets's database, like a plugin's settings. It isn't included in your
   setup backup or in an exported group.
 
 ## When it can't be read

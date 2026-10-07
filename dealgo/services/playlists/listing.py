@@ -38,7 +38,7 @@ def enabled_playlists(session: Session, owner: OwnerId = None) -> list[Playlist]
 
 
 def item_counts(session: Session, owner: OwnerId = None) -> dict[int, int]:
-    """How many videos each playlist currently holds, as De-Algo sees it."""
+    """How many videos each playlist currently holds, as Pamphlets sees it."""
     return {
         playlist_pk: held
         for playlist_pk, held in session.execute(

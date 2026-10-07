@@ -82,4 +82,4 @@ def check_password(password: str) -> None:
     if len(password) < MIN_PASSWORD_LENGTH:
         raise AccountError(f"A password needs at least {MIN_PASSWORD_LENGTH} characters.")
     if len(password) > MAX_PASSWORD_LENGTH:
-        raise AccountError("That password is longer than De-Algo will hash.")
+        raise AccountError("That password is longer than Pamphlets will hash.")

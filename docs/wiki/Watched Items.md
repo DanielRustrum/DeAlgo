@@ -1,6 +1,6 @@
 # Watched Items
 
-YouTube does not tell apps what you have watched, so De-Algo only knows what you tell it.
+YouTube does not tell apps what you have watched, so Pamphlets only knows what you tell it.
 
 ## Marking
 

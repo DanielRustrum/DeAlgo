@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "_garden.html" import page_head with context %}
 {% from "_plugin_settings.html" import connection_block, plugin_mark, settings_form %}
-{% block title %}De-Algo — Settings{% endblock %}
+{% block title %}Pamphlets — Settings{% endblock %}
 {% block content %}
-{{ page_head('Settings', 'Your account, your plugins, and how De-Algo behaves.') }}
+{{ page_head('Settings', 'Your account, your plugins, and how Pamphlets behaves.') }}
 
 {% if identity %}
 <section class="panel account-panel" id="account">
@@ -60,7 +60,7 @@
   <div>
     <h2>Theming</h2>
     <p class="hint">
-      How De-Algo looks to you: its colours by day and by night, typefaces, text size, corners
+      How Pamphlets looks to you: its colours by day and by night, typefaces, text size, corners
       and spacing. Only you see it.
     </p>
   </div>
@@ -158,7 +158,7 @@
 
 {% block footer %}
 <footer>
-  <span>De-Algo {{ version }}</span>
+  <span>Pamphlets {{ version }}</span>
   <span>Your feed, in the order it was published.</span>
 </footer>
 {% endblock %}

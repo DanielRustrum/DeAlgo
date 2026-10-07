@@ -34,7 +34,7 @@ FONT_SLOTS: dict[str, str] = {
 
 #: The family each is loaded under. Ours, not the file's: nothing from the
 #: file reaches the stylesheet.
-FONT_FAMILIES = {"font-body": "De-Algo own body", "font-display": "De-Algo own heading"}
+FONT_FAMILIES = {"font-body": "Pamphlets own body", "font-display": "Pamphlets own heading"}
 
 #: Everything a theme can hold that is uploaded.
 THEME_SLOTS: dict[str, str] = {**SLOTS, **FONT_SLOTS}

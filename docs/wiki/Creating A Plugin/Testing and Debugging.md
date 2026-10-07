@@ -18,7 +18,7 @@ Its row on **Admin → Plugins** says why, usually with a line number. See
 
 ## Developing locally
 
-Run De-Algo from a checkout with `make dev` and put your plugin in `./data/plugins/<id>/plugin.lua`.
+Run Pamphlets from a checkout with `make dev` and put your plugin in `./data/plugins/<id>/plugin.lua`.
 Restart to pick up changes, or re-upload it on the Plugins page.
 
 ## Testing from Python
@@ -50,7 +50,7 @@ with acting_for(None):                        # so `dealgo` and `account` answer
     print(found.keeps("hackernews:no-ask-hn", item, {}))
 ```
 
-De-Algo's own tests for the shipped plugins (`tests/test_plugin_nodes.py`, `tests/test_plugins.py`)
+Pamphlets's own tests for the shipped plugins (`tests/test_plugin_nodes.py`, `tests/test_plugins.py`)
 use exactly this.
 
 **Related:** [The Sandbox](The%20Sandbox.md) · [Clock and Log](Clock%20and%20Log.md)

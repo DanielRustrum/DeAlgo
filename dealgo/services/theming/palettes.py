@@ -1,8 +1,8 @@
-"""Popular editor and terminal themes, as De-Algo themes.
+"""Popular editor and terminal themes, as Pamphlets themes.
 
 Each is its published palette, by day and by night, set out once below in
 the palette's own terms: its page, its surfaces, its ink and its named hues.
-`theme()` maps those onto De-Algo's roles — which hue is the accent, which
+`theme()` maps those onto Pamphlets's roles — which hue is the accent, which
 is "worked", which paints a trigger box — and derives the few colours a
 palette has no word for (the accent under the pointer, the selected tab's
 tint) by mixing its own.
@@ -189,7 +189,7 @@ def _ink_for(palette: Palette, *fills: str) -> str:
 
 
 def roles(palette: Palette, mode: str) -> dict[str, str]:
-    """A palette's colours in De-Algo's roles."""
+    """A palette's colours in Pamphlets's roles."""
     night = mode == "dark"
     deeper = "#ffffff" if night else "#000000"
     # The accent and the failure red are also written as text on the page's

@@ -97,7 +97,7 @@ def evaluate_post(
 
     A post or a link has no duration, so only the kind and the text
     patterns apply. The patterns are matched against the whole text rather
-    than its first line: a title here is often an excerpt De-Algo made up,
+    than its first line: a title here is often an excerpt Pamphlets made up,
     and filtering on it would be filtering on our own truncation.
     """
     if left_out:

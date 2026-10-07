@@ -1,6 +1,6 @@
 # Accounts
 
-De-Algo has no sign-in until you give it an admin. Until then, anyone who can reach the address can
+Pamphlets has no sign-in until you give it an admin. Until then, anyone who can reach the address can
 use it, and a banner on every page says so.
 
 ## Turning sign-in on

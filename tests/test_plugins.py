@@ -447,7 +447,7 @@ def test_every_file_the_app_reads_from_its_own_package_is_shipped():
 
 def test_a_shipped_plugin_starts_with_what_it_asked_for(tmp_path):
     """Nobody chose to install it. It arrives inside the image, it is how
-    De-Algo does the things it has always done, and there is no moment at
+    Pamphlets does the things it has always done, and there is no moment at
     which a consent popup could have been shown — so the alternative is
     shipping a YouTube plugin that cannot reach YouTube."""
     (tmp_path / "shipped.lua").write_text("""

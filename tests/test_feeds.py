@@ -1,6 +1,6 @@
 """Reading a YouTube channel feed.
 
-There is no YouTube parser any more. The feed is Atom, De-Algo reads Atom,
+There is no YouTube parser any more. The feed is Atom, Pamphlets reads Atom,
 and the YouTube plugin says the two things only it knows: that an entry's id
 carries the video id, and that a Short is told apart by the address it links
 to. These are the same properties the old parser was held to, asked of the

@@ -719,7 +719,7 @@ def test_a_popular_theme_has_its_own_day_and_night(preset):
         "everforest": palettes.EVERFOREST,
     }[preset.key]
     # Its page and surfaces are the palette's own, by day and by night. (One
-    # that happens to match De-Algo's own colour is simply not stored.)
+    # that happens to match Pamphlets's own colour is simply not stored.)
     for mode in ("light", "dark"):
         assert theme.colour(mode, "bg") == published[mode].bg
         assert theme.colour(mode, "panel") == published[mode].panel
@@ -783,8 +783,8 @@ def test_an_uploaded_font_is_chosen_loaded_and_private(site):
     assert "ok=" in sent.headers["location"] and sent.headers["location"].endswith("#type")
 
     page = sam.get("/feed").text
-    assert '@font-face {\n  font-family: "De-Algo own heading";' in page
-    assert '--font-display: "De-Algo own heading", "Fraunces Variable"' in page
+    assert '@font-face {\n  font-family: "Pamphlets own heading";' in page
+    assert '--font-display: "Pamphlets own heading", "Fraunces Variable"' in page
     address = re.search(r'src: url\("(/settings/picture/font-display\?v=[0-9a-f]+)"\)', page).group(1)
     served = sam.get(address)
     assert served.headers["content-type"] == "font/woff2"

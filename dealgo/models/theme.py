@@ -1,4 +1,4 @@
-"""How one account has chosen De-Algo should look."""
+"""How one account has chosen Pamphlets should look."""
 
 from __future__ import annotations
 

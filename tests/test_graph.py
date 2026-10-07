@@ -1021,7 +1021,7 @@ def test_a_source_already_watched_is_attached_however_it_was_written(canvas, db,
 
 
 def test_a_feed_box_makes_its_feed_at_once(canvas, db):
-    """A name is all a feed inside De-Algo needs, so there is nothing to wait
+    """A name is all a feed inside Pamphlets needs, so there is nothing to wait
     for — unlike a channel, which YouTube has to agree exists."""
     from dealgo.models import Playlist as PlaylistModel
 

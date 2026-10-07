@@ -15,7 +15,7 @@ import pytest
 from fakes import use_config
 from dealgo.models import Base
 
-# The shape De-Algo had before ownership: `video` carrying a table-level
+# The shape Pamphlets had before ownership: `video` carrying a table-level
 # UNIQUE(video_id), and uniqueness on channels, feeds and quota days that was
 # global rather than per account.
 OLD_SCHEMA = """
@@ -378,7 +378,7 @@ def test_settings_are_each_accounts_own(two_accounts, db):
 def test_turning_sign_in_on_hands_the_existing_setup_to_the_admin(db, monkeypatch):
     """Upgrading an instance that already had channels and feeds: they belong
     to the implicit owner, which is nobody once there are accounts. Without
-    this the admin signs in to an empty De-Algo and the data sits invisible."""
+    this the admin signs in to an empty Pamphlets and the data sits invisible."""
     from dealgo import config
     from dealgo.services import accounts as accounts_module
 

@@ -14,7 +14,7 @@ local published_at = clock.now() - 5 * 86400
 
 ## log — permission `log`
 
-Writes to De-Algo's own log (what `make logs` shows), prefixed with your plugin's `name`.
+Writes to Pamphlets's own log (what `make logs` shows), prefixed with your plugin's `name`.
 
 ```lua
 log.info("skipped 3 posts with no text")

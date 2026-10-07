@@ -60,7 +60,7 @@ the run's counts, each YouTube playlist's contents (read once) and whether quota
 1. `retry_deferred` (`owed.py`): finish owed placements (no item id, not removed, attempts left). Stops the run
    here if quota runs out again.
 2. `reconsider_routing`: revive `skipped` items whose only refusal was "not a YouTube video" if a
-   De-Algo feed or repository now reaches their channel.
+   Pamphlets feed or repository now reaches their channel.
 3. Load `pending` items ordered by channel priority, then publish date.
 4. Compute routes once; keep those in `sources` (if given) and whose feed is enabled.
 5. Fetch video details for YouTube videos (duration, counts, live state) when affordable.
@@ -74,7 +74,7 @@ the run's counts, each YouTube playlist's contents (read once) and whether quota
    - Posts → `place_locally` (no API).
    - Other items → each target feed, deduplicated, in feed `priority` order:
      - already placed → skip;
-     - De-Algo feed, or no Google account → local placement (`generic:` id), subject to
+     - Pamphlets feed, or no Google account → local placement (`generic:` id), subject to
        `max_per_run`;
      - YouTube playlist → adopt if already present in the playlist, else check quota, else insert.
        Quota stop → `defer` owed placements for every remaining target and stop the loop.
@@ -84,7 +84,7 @@ the run's counts, each YouTube playlist's contents (read once) and whether quota
      otherwise `attempts += 1`, `failed` after 3.
 8. `prune`: trim each feed to `max_items` (oldest first), on YouTube or locally.
 
-If no Google account is connected, YouTube feeds collect inside De-Algo. If quota is already spent,
+If no Google account is connected, YouTube feeds collect inside Pamphlets. If quota is already spent,
 filing still runs but YouTube writes are deferred.
 
 ### 4. Stamping and sweeping

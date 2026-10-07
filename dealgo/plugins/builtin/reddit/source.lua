@@ -9,7 +9,7 @@ return {
   noun = "Subreddit",
   blurb = "One community. Everything it posts.",
   -- A Reddit post is not a YouTube video, so it can only fill a feed that
-  -- lives inside De-Algo.
+  -- lives inside Pamphlets.
   playlistable = false,
 
   accept = references.accept,

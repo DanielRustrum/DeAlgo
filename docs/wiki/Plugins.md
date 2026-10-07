@@ -3,7 +3,7 @@
 Plugins add kinds of [source](Nodes/Sources.md) and [conditions](Nodes/Filter.md) to everyone's palette. They are
 written in Lua and run inside a sandbox. Managing them is **admin only**: **Admin → Plugins**.
 
-Five ship with De-Algo: **YouTube**, **Reddit**, **Bluesky**, **Substack** and **Shape**.
+Five ship with Pamphlets: **YouTube**, **Reddit**, **Bluesky**, **Substack** and **Shape**.
 
 ## The list
 
@@ -17,7 +17,7 @@ Each row shows:
 ## Adding one
 
 **From a repository** — paste a GitHub, GitLab, Codeberg or Gitea address, and optionally a branch or
-tag. De-Algo downloads the repository's archive over HTTPS; nothing is cloned or run. It looks for
+tag. Pamphlets downloads the repository's archive over HTTPS; nothing is cloned or run. It looks for
 `plugin.lua` at the top or one folder down.
 
 **From a file** — upload a `.lua` file. Its name becomes the plugin's id.
@@ -32,12 +32,12 @@ A plugin can do nothing outside its own code unless granted:
 
 | Permission | Allows |
 | --- | --- |
-| **Make network requests** | Fetch web pages, through De-Algo, capped in size and number. Anything it has seen could be sent elsewhere. |
+| **Make network requests** | Fetch web pages, through Pamphlets, capped in size and number. Anything it has seen could be sent elsewhere. |
 | **Read the time** | Know the current time. |
 | **See what you are watching** | Read the running account's sources and feeds. Never what you watched, never another account's. |
 | **Change what you are watching** | Add a source (always paused) or switch one on or off, for the running account. |
 | **Act as your connected account** | Send requests to its own service as your signed-in account, only to the hosts its sign-in names, charged to that service's allowance. It never sees the credential. |
-| **Write to the log** | Write lines to De-Algo's log. |
+| **Write to the log** | Write lines to Pamphlets's log. |
 
 Untick any you would rather it did without — it still loads, and simply finds that ability missing.
 Change them later on its card, in the folded section under its name. Shipped plugins start with what they asked for; you can revoke it.
@@ -75,7 +75,7 @@ and the row says so.
 ## Where they live
 
 Yours are in the data folder: `/data/plugins/<id>/plugin.lua` in Docker. A plugin placed there by hand
-is read when De-Algo next starts.
+is read when Pamphlets next starts.
 
 **Writing one:** see [Creating A Plugin](Creating%20A%20Plugin/GETTING%20STARTED.md).
 

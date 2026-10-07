@@ -1,6 +1,6 @@
 # Architecture
 
-De-Algo is one Python process serving a server-rendered web app, running a background scheduler,
+Pamphlets is one Python process serving a server-rendered web app, running a background scheduler,
 and storing everything in one SQL database. No queue, no cache server, no worker fleet.
 
 ```
@@ -54,7 +54,7 @@ readers do not block the writer.
    [The Graph](The%20Graph.md).
 4. **Decide.** Each pending item is judged per route: channel defaults, Filter conditions,
    plugin conditions.
-5. **Place.** Accepted items get a `Placement` per feed — a local id for De-Algo feeds, or a real
+5. **Place.** Accepted items get a `Placement` per feed — a local id for Pamphlets feeds, or a real
    playlist item via the YouTube plugin. Deposits go to `RepositoryItem`.
 6. **Stamp.** Decay, Expire and Tag boxes on the route leave their marks.
 7. **Sweep.** Expired placements are withdrawn; due Withdraw boxes pull from repositories.

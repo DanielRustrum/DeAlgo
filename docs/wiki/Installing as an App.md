@@ -1,9 +1,9 @@
 # Installing as an App
 
-De-Algo can be installed to a phone's home screen or a desktop like an app: **Add to Home Screen** on
+Pamphlets can be installed to a phone's home screen or a desktop like an app: **Add to Home Screen** on
 iOS, **Install app** on Android and desktop Chrome. It opens in its own window.
 
-**This needs HTTPS** (or `localhost`). Over plain HTTP at a LAN address De-Algo works normally but
+**This needs HTTPS** (or `localhost`). Over plain HTTP at a LAN address Pamphlets works normally but
 installs nothing and caches nothing. Put it behind a reverse proxy with a certificate — see
 [Running in Production](Running%20in%20Production.md).
 
@@ -20,7 +20,7 @@ installs nothing and caches nothing. Put it behind a reverse proxy with a certif
 the connection drops, and buttons that cannot work are disabled. Videos stream from YouTube, so they
 do not play offline either.
 
-Cached images are capped at a few hundred, and a new version of De-Algo replaces the old cache.
+Cached images are capped at a few hundred, and a new version of Pamphlets replaces the old cache.
 
 ## On a phone
 

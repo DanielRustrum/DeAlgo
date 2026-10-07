@@ -22,7 +22,7 @@ source's panel.
 
 ## A source says it is waiting
 
-The site asked De-Algo to slow down (Reddit does this). De-Algo waits as asked and tries again; the
+The site asked Pamphlets to slow down (Reddit does this). Pamphlets waits as asked and tries again; the
 source's page says how long. For Reddit, set a **Mirror** in the source's panel.
 
 ## Items never reach YouTube

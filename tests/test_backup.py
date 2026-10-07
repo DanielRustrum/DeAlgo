@@ -336,7 +336,7 @@ def test_uploading_rubbish_says_so(client):
         files={"backup_file": ("other.json", '{"some": "json"}', "application/json")},
         follow_redirects=False,
     )
-    assert "not a De-Algo backup" in unquote_plus(response.headers["location"])
+    assert "not a Pamphlets backup" in unquote_plus(response.headers["location"])
 
 
 def test_a_restored_backup_comes_back_wired(db, tmp_path):

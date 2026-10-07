@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_garden.html" import page_head, edges, heading_art with context %}
-{% block title %}De-Algo — Theming{% endblock %}
+{% block title %}Pamphlets — Theming{% endblock %}
 {% set mode_names = {'light': 'By day', 'dark': 'By night'} %}
 {% set drawing_sets = ['garden', 'meadow', 'fern', 'blossom', 'woodland', 'ocean', 'mountains', 'sky', 'desert', 'own'] %}
 {% set picture_slots = {'type': ['font-body', 'font-display'], 'background': ['background'], 'texture': ['texture'], 'drawings': ['edge-left', 'edge-right', 'heading']} %}
@@ -53,7 +53,7 @@
 {%- endmacro %}
 {% block content %}
 <p class="crumbs"><a href="/settings">Settings</a> › Theming</p>
-{{ page_head('Theming', 'How De-Algo looks to you. Nobody else sees what you change here.') }}
+{{ page_head('Theming', 'How Pamphlets looks to you. Nobody else sees what you change here.') }}
 
 <div class="theming">
 <div class="theming-controls">
@@ -65,14 +65,14 @@
   <summary class="panel-head"><h2>Start from</h2></summary>
   <p class="hint">
     A whole look at once. Picking one replaces what you have changed, but keeps whether
-    De-Algo is light or dark; change anything from there.
+    Pamphlets is light or dark; change anything from there.
   </p>
-  {% for family, heading in [('own', 'De-Algo’s own'), ('popular', 'Popular themes')] %}
+  {% for family, heading in [('own', 'Pamphlets’s own'), ('popular', 'Popular themes')] %}
   <h3>{{ heading }}</h3>
   {% if family == 'popular' %}
   <p class="hint">
     Well-known editor themes, each with its day and its night palette. Where a published colour
-    would be hard to read in De-Algo — pale text, white on yellow — it is nudged just far enough
+    would be hard to read in Pamphlets — pale text, white on yellow — it is nudged just far enough
     to read; the rest is as published.
   </p>
   {% endif %}
@@ -192,8 +192,8 @@
       <button class="btn btn-quiet" type="submit" form="reset-colours">Reset</button>
     </summary>
     <p class="hint">
-      Every colour De-Algo paints with, by day and by night. A colour left as it comes keeps up
-      with De-Algo when its own colours change.
+      Every colour Pamphlets paints with, by day and by night. A colour left as it comes keeps up
+      with Pamphlets when its own colours change.
     </p>
     {# Both sets are drawn; theming.js shows one at a time and points the
        preview at it. Without the script both stay open, one after the other. #}
@@ -232,7 +232,7 @@
 
 {% for part in parts %}
 <form id="reset-{{ part }}" method="post" action="/settings/theming/reset" hx-boost="false"
-      onsubmit="return confirm('Put this back as De-Algo comes?');">
+      onsubmit="return confirm('Put this back as Pamphlets comes?');">
   <input type="hidden" name="part" value="{{ part }}">
 </form>
 {% endfor %}
@@ -289,7 +289,7 @@
           <path d="M12 11c0-4 2.3-6.8 6.5-6.8 0 4-2.5 6.8-6.5 6.8Z"/>
         </svg>
       </span>
-      <span class="brand-name">De-Algo</span>
+      <span class="brand-name">Pamphlets</span>
       <span class="sample-tab sample-tab-on">Feeds</span><span class="sample-tab">Settings</span>
     </div>
 

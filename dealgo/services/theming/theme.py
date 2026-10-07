@@ -127,7 +127,7 @@ def parse(data: Any) -> Theme:
         if key not in known:
             problems.append(f"“{key}” is not part of a theme.")
     if FORMAT in data and data[FORMAT] != VERSION:
-        problems.append(f"This theme is version {data[FORMAT]!r}; this De-Algo reads version {VERSION}.")
+        problems.append(f"This theme is version {data[FORMAT]!r}; this Pamphlets reads version {VERSION}.")
 
     colours = data.get("colours", {})
     if not isinstance(colours, Mapping):

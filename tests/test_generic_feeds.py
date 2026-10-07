@@ -70,7 +70,7 @@ def test_it_is_filled_without_touching_youtube(world, db):
 
 
 def test_it_works_with_no_google_account_at_all(world, db, monkeypatch):
-    """The point of a generic feed: De-Algo alone is enough."""
+    """The point of a generic feed: Pamphlets alone is enough."""
     from fakes import FakeYouTube
 
     signed_out = FakeYouTube(write=False, read=False)
@@ -89,7 +89,7 @@ def test_it_works_with_no_google_account_at_all(world, db, monkeypatch):
 
 
 def test_without_an_account_every_feed_fills_locally(world, db, monkeypatch):
-    """Google is optional. Signed out, a YouTube feed collects inside De-Algo
+    """Google is optional. Signed out, a YouTube feed collects inside Pamphlets
     exactly as a generic one does, so the feed is still readable."""
     from fakes import FakeYouTube
 
@@ -153,7 +153,7 @@ def test_a_signed_out_run_says_what_it_did_with_the_youtube_feeds(world, db, mon
 
     result = sync_service.run_sync()
 
-    assert "collecting inside De-Algo" in result.message
+    assert "collecting inside Pamphlets" in result.message
 
 
 def test_a_generic_feed_prunes_itself(world, db):

@@ -23,7 +23,7 @@ from .times import utcnow
 
 
 class Video(Base):
-    """Every video De-Algo has ever seen, and what it decided to do with it."""
+    """Every video Pamphlets has ever seen, and what it decided to do with it."""
 
     __tablename__ = "video"
     # Per owner: two accounts watching the same channel each keep their own

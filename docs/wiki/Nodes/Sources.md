@@ -1,6 +1,6 @@
 # Sources
 
-A source is somewhere De-Algo watches: a YouTube channel, a subreddit, a newsletter, any RSS or Atom
+A source is somewhere Pamphlets watches: a YouTube channel, a subreddit, a newsletter, any RSS or Atom
 feed. On the canvas, each source is a box that items flow out of.
 
 Reading sources is free and needs no account: every one of them is read as the feed it publishes.
@@ -59,11 +59,11 @@ trigger only fills the paths out of the boxes that trigger is wired to.
 
 ## YouTube community posts
 
-There is no API for them, so De-Algo reads the channel's Posts page:
+There is no API for them, so Pamphlets reads the channel's Posts page:
 
 - costs no quota and no account, but can stop working if YouTube changes the page;
 - dates are approximate (YouTube only says "5 days ago");
-- a post can never go into a YouTube playlist, only into a feed that lives in De-Algo.
+- a post can never go into a YouTube playlist, only into a feed that lives in Pamphlets.
 
 ## Removing one
 

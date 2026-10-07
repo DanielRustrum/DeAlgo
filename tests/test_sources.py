@@ -1,6 +1,6 @@
 """Sources other than YouTube.
 
-De-Algo's polling was always an RSS reader — YouTube publishes a per-channel
+Pamphlets's polling was always an RSS reader — YouTube publishes a per-channel
 Atom feed — so following a subreddit or a newsletter is the same act with a
 different address. These cover the two halves of that: working out where a
 feed is from what somebody typed, and reading whichever shape it is written

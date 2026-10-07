@@ -1,6 +1,6 @@
 # The Raw List
 
-Every item De-Algo has ever seen, what it decided, and why. Open it from the counts at the top of
+Every item Pamphlets has ever seen, what it decided, and why. Open it from the counts at the top of
 the Configuration page — each count opens the list filtered to that status.
 
 ## Statuses

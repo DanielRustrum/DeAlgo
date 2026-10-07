@@ -19,7 +19,7 @@ class Base(DeclarativeBase):
 
 
 # Whose row this is. NULL means "the one implicit owner", which is what every
-# row is while sign-in is switched off — De-Algo then behaves exactly as it did
+# row is while sign-in is switched off — Pamphlets then behaves exactly as it did
 # before accounts existed. Turning sign-in on adopts those rows into the admin
 # account, so nothing is orphaned by the change.
 #

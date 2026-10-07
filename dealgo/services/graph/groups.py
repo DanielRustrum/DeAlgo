@@ -192,11 +192,11 @@ def _wires_within(
 def _check_file(payload: Any) -> dict[str, Any]:
     """A group file this version can read, or GraphError saying why not."""
     if not isinstance(payload, dict) or "de_algo_group" not in payload:
-        raise GraphError("That is not a De-Algo group file.")
+        raise GraphError("That is not a Pamphlets group file.")
     version = payload.get("de_algo_group")
     if not isinstance(version, int) or version > GROUP_FORMAT:
         raise GraphError(
-            f"That group is format {version}, and this version of De-Algo reads {GROUP_FORMAT}."
+            f"That group is format {version}, and this version of Pamphlets reads {GROUP_FORMAT}."
         )
     return payload
 

@@ -47,7 +47,7 @@ The bar down a box's left edge says what kind of box it is. The palette uses the
 ## Wiring
 
 Drag from a box's output (right edge) to another box's input (left edge). Only sensible pairs
-connect — a trigger into a source, a source into a filter, a filter into a feed — and De-Algo says
+connect — a trigger into a source, a source into a filter, a filter into a feed — and Pamphlets says
 why when it refuses one. Loops are refused.
 
 Each kind of wire has its own port, marked inside the dot:

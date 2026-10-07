@@ -67,7 +67,7 @@ def prune(
         if overflow <= 0:
             continue
 
-        # De-Algo appends oldest-first, so the front of the playlist is the oldest.
+        # Pamphlets appends oldest-first, so the front of the playlist is the oldest.
         for item in sorted(items, key=lambda i: i.position)[:overflow]:
             if not quota.can_afford(session, cost_of("remove")):
                 result.stopped_on_quota = True

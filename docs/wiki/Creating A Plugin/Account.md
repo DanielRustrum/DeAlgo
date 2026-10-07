@@ -1,7 +1,7 @@
 # Account
 
 With the `account` permission, a plugin gets an `account` object for calling its own service **as the
-signed-in account** — without ever seeing the credential. De-Algo attaches the token, sends the
+signed-in account** — without ever seeing the credential. Pamphlets attaches the token, sends the
 request, and charges the service's daily allowance.
 
 It needs a [`connect`](Signing%20In.md) table: that says how the service signs people in, and which
@@ -43,7 +43,7 @@ logged with the reason `connect.refusal` reads out of the answer.
 
 ## When it answers
 
-Only while De-Algo is working for an account — see [The dealgo Object](The%20dealgo%20Object.md#whose-account).
+Only while Pamphlets is working for an account — see [The dealgo Object](The%20dealgo%20Object.md#whose-account).
 Otherwise `connected()` is `false` and `send` returns `nil`.
 
 **Related:** [Signing In](Signing%20In.md) · [Publishing](Publishing.md) · [Permissions](Permissions.md)

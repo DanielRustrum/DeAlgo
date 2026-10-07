@@ -39,7 +39,7 @@ def settings_page(request: Request) -> HTMLResponse:
             "settings": get_settings(session, owner),
             "next_run": scheduler.next_run_time(),
             # Feeds backed by a real YouTube playlist are made here: the
-            # canvas makes the ones that live inside De-Algo.
+            # canvas makes the ones that live inside Pamphlets.
             **playlist_context(session, owner=owner),
             # What each switched-on plugin lets this account set for itself,
             # and its sign-in where it has one.
@@ -71,7 +71,7 @@ def restore_backup(request: Request, backup_file: UploadFile = File(...)) -> Red
     owner = owner_of(request)
     raw = backup_file.file.read()
     if len(raw) > 32 * 1024 * 1024:
-        return redirect("/settings", err="That file is too large to be a De-Algo backup.")
+        return redirect("/settings", err="That file is too large to be a Pamphlets backup.")
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):

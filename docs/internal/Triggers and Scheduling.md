@@ -1,6 +1,6 @@
 # Triggers and Scheduling
 
-Two clocks: the **heartbeat** decides when De-Algo looks; **trigger boxes** decide what is due
+Two clocks: the **heartbeat** decides when Pamphlets looks; **trigger boxes** decide what is due
 when it does.
 
 ## The heartbeat — `scheduler.py`

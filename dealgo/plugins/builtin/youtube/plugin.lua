@@ -18,7 +18,7 @@ return {
   version = "1.0.0",
   api = 1,
 
-  -- The one thing this plugin cannot do for itself. De-Algo holds the
+  -- The one thing this plugin cannot do for itself. Pamphlets holds the
   -- credential and attaches it; this says which request to make.
   permissions = {
     {

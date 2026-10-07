@@ -77,7 +77,7 @@ def reschedule() -> None:
             _job,
             trigger=trigger,
             id=JOB_ID,
-            name="De-Algo channel sync",
+            name="Pamphlets channel sync",
             max_instances=1,
             coalesce=True,
             misfire_grace_time=300,

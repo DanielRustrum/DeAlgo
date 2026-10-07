@@ -195,7 +195,7 @@ def local(root: Path) -> list[Path]:
     (out / CHECKSUMS).write_text(sums)
     first = made[0].name
     (out / "README.md").write_text(
-        f"# De-Algo {version}\n\n"
+        f"# Pamphlets {version}\n\n"
         f"Built locally from {_commit()}, for {', '.join(p.split('/')[-1] for p in platforms)}.\n\n"
         "```bash\n"
         f"sha256sum --check {CHECKSUMS}\n"
@@ -259,7 +259,7 @@ def notes(tag: str, files: list[Path], downloads: str) -> str:
     images = [path.name for path in files if path.name.endswith(".tar.gz")]
     image = images[0] if images else "dealgo.tar.gz"
     lines = [
-        f"De-Algo {tag[1:]} as a Docker image, one file per platform"
+        f"Pamphlets {tag[1:]} as a Docker image, one file per platform"
         f" ({', '.join(one.split('/')[-1] for one in PLATFORMS)}).",
         "",
         "```bash",
@@ -286,7 +286,7 @@ def release_for(
         raise SystemExit(f"the forge refused the token (HTTP {status}); check RELEASE_TOKEN")
     asked = {
         "tag_name": tag,
-        "name": f"De-Algo {tag[1:]}",
+        "name": f"Pamphlets {tag[1:]}",
         "body": notes(tag, files, downloads),
         # A version with a suffix (v1.2.0-rc.1) is offered, not recommended.
         "prerelease": "-" in tag,

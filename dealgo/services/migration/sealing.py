@@ -93,12 +93,12 @@ def open_site_export(blob: bytes, passphrase: str) -> dict[str, Any]:
     try:
         envelope = json.loads(blob.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise MigrationError("That file is not a De-Algo site backup.") from exc
+        raise MigrationError("That file is not a Pamphlets site backup.") from exc
     if not isinstance(envelope, dict) or envelope.get("format") != FORMAT:
-        raise MigrationError("That file is not a De-Algo site backup.")
+        raise MigrationError("That file is not a Pamphlets site backup.")
     if envelope.get("version") != FORMAT_VERSION:
         raise MigrationError(
-            f"That backup is version {envelope.get('version')}; this De-Algo reads "
+            f"That backup is version {envelope.get('version')}; this Pamphlets reads "
             f"version {FORMAT_VERSION}."
         )
 

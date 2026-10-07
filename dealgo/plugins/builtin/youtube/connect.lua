@@ -1,4 +1,4 @@
--- How Google signs people in. De-Algo does the sign-in and keeps the
+-- How Google signs people in. Pamphlets does the sign-in and keeps the
 -- token; `account.send` attaches it to requests for these hosts only.
 
 return {
@@ -26,17 +26,17 @@ return {
     local first = type(errors) == "table" and errors[1]
     return type(first) == "table" and first.reason or nil
   end,
-  -- What De-Algo shows as a toast while this account cannot write to YouTube yet.
+  -- What Pamphlets shows as a toast while this account cannot write to YouTube yet.
   notices = {
-    connect = "Connect your Google account so De-Algo can add items to a YouTube "
+    connect = "Connect your Google account so Pamphlets can add items to a YouTube "
            .. "playlist on your behalf.",
     reconnect = "Google needs you to sign in again. Items are still being queued, but "
              .. "nothing can reach the playlist until the account is reconnected.",
-    setup = "De-Algo can already watch channels, but writing to a YouTube playlist "
+    setup = "Pamphlets can already watch channels, but writing to a YouTube playlist "
          .. "needs an OAuth client, which the admin sets on this plugin's card.",
   },
   about = "Reading a channel uses its public feed and costs nothing, so a short poll "
        .. "interval is fine. Only playlist writes are expensive: each added video costs "
        .. "50 of the default 10,000 daily units — about 200 videos a day, shared by "
-       .. "everyone on this De-Algo.",
+       .. "everyone on this Pamphlets.",
 }

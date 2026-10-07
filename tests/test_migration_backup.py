@@ -162,7 +162,7 @@ def test_a_short_passphrase_is_refused(instance):
 def test_a_file_that_is_not_one_of_ours_says_so(rubbish):
     with pytest.raises(migration.MigrationError) as raised:
         migration.open_site_export(rubbish, PASSPHRASE)
-    assert "not a De-Algo site backup" in str(raised.value) or "missing the parts" in str(raised.value)
+    assert "not a Pamphlets site backup" in str(raised.value) or "missing the parts" in str(raised.value)
 
 
 # -- moving an instance ----------------------------------------------------

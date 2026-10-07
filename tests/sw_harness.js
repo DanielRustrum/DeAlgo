@@ -1,7 +1,7 @@
 // Runs the compiled service worker against a stub Cache API and reports what
 // it did, as JSON, for test_pwa.py to assert on.
 //
-// The worker is the one part of De-Algo that cannot be exercised from Python:
+// The worker is the one part of Pamphlets that cannot be exercised from Python:
 // it runs in a worker, talks to caches, and its whole job is what happens when
 // fetch fails. This gives it somewhere to actually run.
 const fs = require("node:fs");

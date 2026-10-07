@@ -8,7 +8,7 @@ and only if somebody granted it.
 
 The hard part is not the functions. It is whose data they are about.
 
-De-Algo keeps one account's channels, feeds and settings apart from another's,
+Pamphlets keeps one account's channels, feeds and settings apart from another's,
 and a plugin is install-wide: one file, loaded once, used by everybody. So
 this object has no account of its own and answers nothing until the host says
 whose work is in hand. During a sync for one account, `dealgo.sources()` is
@@ -73,7 +73,7 @@ class Site:
 
     @property
     def version(self) -> str:
-        """De-Algo's version. Needs no permission: it is on every page.
+        """Pamphlets's version. Needs no permission: it is on every page.
 
         Worth having so a plugin can tell an older host from a newer one and
         do less rather than fail — which is the only way a plugin outlives
@@ -101,7 +101,7 @@ class Site:
                 "label": permissions_for(name).label,
                 "why": why,
                 "granted": name in self._granted,
-                # False for one this version of De-Algo has no name for. It
+                # False for one this version of Pamphlets has no name for. It
                 # was asked for and can never be granted, and a plugin should
                 # be able to tell that apart from a plain refusal.
                 "known": name in _known_names(),

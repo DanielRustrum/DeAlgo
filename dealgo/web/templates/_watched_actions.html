@@ -2,7 +2,7 @@
 <div class="watched-actions">
   <form method="post" action="/playlist/remove-watched" hx-post="/playlist/remove-watched"
         hx-target="#sync-controls" hx-swap="outerHTML"
-        hx-confirm="Remove {{ removable_count }} watched video{{ 's' if removable_count != 1 }} from your feeds? De-Algo keeps their record, so they will not come back on the next sync.">
+        hx-confirm="Remove {{ removable_count }} watched video{{ 's' if removable_count != 1 }} from your feeds? Pamphlets keeps their record, so they will not come back on the next sync.">
     <button class="btn {{ 'btn-primary' if removable_count else '' }}" type="submit"
             {{ 'disabled' if not removable_count }}>
       Remove {{ removable_count }} watched from feeds

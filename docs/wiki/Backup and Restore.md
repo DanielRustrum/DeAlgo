@@ -2,8 +2,8 @@
 
 ## The complete backup: copy the database
 
-Everything De-Algo knows is in one SQLite file — your canvas, sources, feeds, history, settings and
-Google grant. Copy it while De-Algo is stopped:
+Everything Pamphlets knows is in one SQLite file — your canvas, sources, feeds, history, settings and
+Google grant. Copy it while Pamphlets is stopped:
 
 ```bash
 make down
@@ -14,7 +14,7 @@ make up
 Compose names the volume `<project>_dealgo-data` — `dealgo_dealgo-data` by default. Check with
 `docker volume ls`.
 
-Outside Docker, copy `./data/dealgo.sqlite3`. To restore, put the file back and start De-Algo.
+Outside Docker, copy `./data/dealgo.sqlite3`. To restore, put the file back and start Pamphlets.
 
 **This is the only backup that keeps everything.** Use it.
 

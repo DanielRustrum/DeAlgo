@@ -1,6 +1,6 @@
-# De-Algo User Wiki
+# Pamphlets User Wiki
 
-De-Algo follows the sources you choose and fills feeds you own. Nothing is recommended, ranked or
+Pamphlets follows the sources you choose and fills feeds you own. Nothing is recommended, ranked or
 injected: what you wire up is what you get, in the order you set.
 
 This wiki explains every feature. Each page covers one thing. Every page and section is listed in
@@ -8,7 +8,7 @@ the [Table of Contents](Table%20of%20Contents.md).
 
 ## Getting set up
 
-- [Installing](Installing.md) — run De-Algo with Docker or Python.
+- [Installing](Installing.md) — run Pamphlets with Docker or Python.
 - [Environment Variables](Environment%20Variables.md) — every setting read at start-up.
 - [Running in Production](Running%20in%20Production.md) — reverse proxies, clusters, Portainer.
 - [Accounts](Accounts.md) — sign-in, the admin, and members.
@@ -19,7 +19,7 @@ the [Table of Contents](Table%20of%20Contents.md).
 - [The Feed Page](The%20Feed%20Page.md) — where you browse what arrived.
 - [Focus Mode](Focus%20Mode.md) — watch and read one item after another.
 - [Watched Items](Watched%20Items.md) — marking items done and clearing them out.
-- [The Raw List](The%20Raw%20List.md) — every item De-Algo has seen, and why it went where it did.
+- [The Raw List](The%20Raw%20List.md) — every item Pamphlets has seen, and why it went where it did.
 
 ## Building your setup
 
@@ -54,7 +54,7 @@ Every box and piece on the canvas. See [Nodes](Nodes/README.md).
 - [Moving an Instance](Moving%20an%20Instance.md) — every account, encrypted, to another machine.
 - [Plugins](Plugins.md) — add, fetch, permit and pause plugins (admin only).
 - [Installing as an App](Installing%20as%20an%20App.md) — home-screen install and offline reading.
-- [Command Line](Command%20Line.md) — drive De-Algo from a shell or cron.
+- [Command Line](Command%20Line.md) — drive Pamphlets from a shell or cron.
 - [Troubleshooting](Troubleshooting.md) — when something is not arriving.
 
 ## Extending

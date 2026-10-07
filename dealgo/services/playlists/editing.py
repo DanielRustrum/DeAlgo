@@ -59,7 +59,7 @@ def rename(session: Session, playlist: Playlist, title: str, http: httpx.Client)
 
 
 def set_enabled(session: Session, playlist: Playlist, *, enabled: bool) -> None:
-    """Whether De-Algo keeps filling this feed. Nothing already in it moves."""
+    """Whether Pamphlets keeps filling this feed. Nothing already in it moves."""
     playlist.enabled = enabled
     session.flush()
 
@@ -98,7 +98,7 @@ def set_view(session: Session, playlist: Playlist, *, order: str = "", show: str
 def unlink(session: Session, playlist: Playlist) -> str:
     """Cut a feed loose from the playlist behind it, keeping the feed itself.
 
-    Everything De-Algo holds stays — the name, channels, limits, fill order and
+    Everything Pamphlets holds stays — the name, channels, limits, fill order and
     the videos already in it — but nothing is written to that playlist again. The
     playlist over there is left exactly as it is, videos and all.
 
@@ -111,7 +111,7 @@ def unlink(session: Session, playlist: Playlist) -> str:
     playlist.playlist_id = f"{GENERIC_PLAYLIST_PREFIX}{uuid4().hex[:16]}"
     session.flush()
 
-    # Those item ids point at rows in a playlist De-Algo no longer manages, so
+    # Those item ids point at rows in a playlist Pamphlets no longer manages, so
     # restate them as this feed's own rather than leaving stale references.
     for placement in session.scalars(
         select(Placement).where(

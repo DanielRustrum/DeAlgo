@@ -5,7 +5,7 @@ it is working for.
 
 | Member | Permission | Returns |
 | --- | --- | --- |
-| `dealgo.version` | none | De-Algo's version, e.g. `"0.1.0"`. A value, not a function. |
+| `dealgo.version` | none | Pamphlets's version, e.g. `"0.1.0"`. A value, not a function. |
 | `dealgo.permissions()` | none | Your permissions — see [Permissions](Permissions.md). |
 | `dealgo.sources()` | `read` | A list of `{ key, title, kind, enabled }`. |
 | `dealgo.feeds()` | `read` | A list of `{ title, generic, enabled, sources }` — `sources` is a count. |
@@ -17,7 +17,7 @@ Lists hold at most 500 rows.
 ## Whose account
 
 A plugin is shared by every account, so `dealgo` has no account of its own. It answers only while
-De-Algo is doing work for an account:
+Pamphlets is doing work for an account:
 
 - inside `keep` and `rank`,
 - inside a source's `posts`,

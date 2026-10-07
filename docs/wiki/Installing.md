@@ -1,6 +1,6 @@
 # Installing
 
-De-Algo is one Python process with one SQLite file. Run it with Docker (recommended) or directly.
+Pamphlets is one Python process with one SQLite file. Run it with Docker (recommended) or directly.
 
 ## With Docker
 
@@ -38,7 +38,7 @@ python -m venv .venv
 
 ## First steps
 
-1. Set an admin, or anyone who can reach the address can use De-Algo. See [Accounts](Accounts.md).
+1. Set an admin, or anyone who can reach the address can use Pamphlets. See [Accounts](Accounts.md).
 2. Open **Configuration** and build your first flow: a [source](Nodes/Sources.md) wired to a
    [feed](Nodes/Feeds.md), and a [trigger](Nodes/Triggers.md) wired into the source to say when to check it. See
    [The Configuration Canvas](The%20Configuration%20Canvas.md).

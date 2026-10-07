@@ -1,6 +1,6 @@
 # Quota
 
-Google gives each project 10,000 YouTube API units a day. De-Algo spends them only to talk to
+Google gives each project 10,000 YouTube API units a day. Pamphlets spends them only to talk to
 YouTube on your behalf — **reading every source is free**.
 
 ## What costs what
@@ -14,13 +14,13 @@ YouTube on your behalf — **reading every source is free**.
 | Creating or renaming a playlist | 50 |
 | Looking up a channel by name (when an `@handle` lookup falls back to search) | 100 |
 
-So roughly 200 items a day can be added to YouTube playlists. Feeds that live in De-Algo cost nothing.
+So roughly 200 items a day can be added to YouTube playlists. Feeds that live in Pamphlets cost nothing.
 Add channels by `UC…` id or `/channel/` URL to avoid lookups.
 
 ## When it runs out
 
-De-Algo keeps its own count and stops writing **before** Google refuses — even counting requests
-Google rejected. Checking sources and filling De-Algo's own feeds carry on. What was owed to YouTube
+Pamphlets keeps its own count and stops writing **before** Google refuses — even counting requests
+Google rejected. Checking sources and filling Pamphlets's own feeds carry on. What was owed to YouTube
 is written after the allowance resets at **midnight Pacific time**.
 
 See today's use in the YouTube block under **Settings → Plugins**. A run that stopped on quota says

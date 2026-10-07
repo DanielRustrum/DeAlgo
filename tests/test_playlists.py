@@ -153,7 +153,7 @@ def test_dropping_a_playlist_target_leaves_youtube_alone(world, add_playlist):
     with world["db"].session_scope() as session:
         playlist_service.remove(session, session.get(Playlist, second_pk))
 
-    # De-Algo forgets the placements; the playlist itself keeps its videos.
+    # Pamphlets forgets the placements; the playlist itself keeps its videos.
     assert world["client"].contents(SECOND) == ["v0"]
     with world["db"].session_scope() as session:
         assert session.scalar(select(Placement).where(Placement.playlist_pk == second_pk)) is None
@@ -221,7 +221,7 @@ def test_a_hand_paused_channel_is_not_resumed_by_a_second_feed(world, add_playli
 
 
 def test_renaming_a_feed_renames_the_playlist_too(world, db, monkeypatch):
-    """De-Algo's label and the playlist's own name should not drift apart."""
+    """Pamphlets's label and the playlist's own name should not drift apart."""
     import httpx
 
     renamed = {}

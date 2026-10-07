@@ -1,6 +1,6 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "De-Algo browser scripts",
+  "name": "Pamphlets browser scripts",
   "tsconfig": "./tsconfig.json",
   "entryPoints": [
     "../../../dealgo/web/ts/*.ts",

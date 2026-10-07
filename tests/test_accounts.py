@@ -14,7 +14,7 @@ from dealgo.services import accounts
 from dealgo.web import guard
 
 # The same pair as .env, so what the tests exercise is what you can sign in
-# with by hand. Short on purpose: it is also what proves De-Algo accepts an
+# with by hand. Short on purpose: it is also what proves Pamphlets accepts an
 # environment password the length rule would refuse from a form.
 ADMIN = ("admin", "admin")
 

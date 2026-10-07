@@ -20,7 +20,7 @@ Drag **Group** from **Layout** in the palette, then resize it from its corner. N
 - Sources travel as their identifiers. Missing ones are created, paused. **Only YouTube channels
   import correctly for now**: a Reddit, RSS or newsletter source arrives without its kind or
   feed address, so re-add those by hand.
-- Feeds travel as names, and are always created new as feeds inside De-Algo.
+- Feeds travel as names, and are always created new as feeds inside Pamphlets.
 - Filters, sorts, marking boxes, repositories, triggers, and every augmentation, with their settings.
 - Only wires with both ends inside the group.
 

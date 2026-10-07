@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}De-Algo{% endblock %}</title>
+  <title>{% block title %}Pamphlets{% endblock %}</title>
 
   {# Installable, and themed to match the app rather than the browser. #}
   <meta name="dealgo-build" content="{{ asset_version }}">
@@ -14,7 +14,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="De-Algo">
+  <meta name="apple-mobile-web-app-title" content="Pamphlets">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
 
@@ -53,7 +53,7 @@
         <path d="M12 11c0-4 2.3-6.8 6.5-6.8 0 4-2.5 6.8-6.5 6.8Z"/>
       </svg>
     </span>
-    <span class="brand-name">De-Algo</span>
+    <span class="brand-name">Pamphlets</span>
   </a>
 
   {% if identity %}
@@ -92,8 +92,8 @@
     <span class="menu-title">Go to</span>
 
   <nav id="site-nav">
-    <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
     <a href="/pamphlets" class="{{ 'active' if request.url.path.startswith('/pamphlets') }}">Pamphlets</a>
+    <a href="/feed" class="{{ 'active' if request.url.path.startswith('/feed') }}">Feed</a>
     <a href="/channels" class="{{ 'active' if request.url.path.startswith('/channels') }}">Configuration</a>
     <a href="/settings" class="{{ 'active' if request.url.path == '/settings' }}">Settings</a>
     {% if identity and identity.is_admin %}
@@ -103,7 +103,7 @@
 
   {% include "_sync_controls.html" %}
 
-    <span class="menu-foot">De-Algo {{ version }}</span>
+    <span class="menu-foot">Pamphlets {{ version }}</span>
   </div>
 </header>
 
@@ -137,7 +137,7 @@
   {% if not auth_enabled %}
   <div class="toast toast-bad" data-toast="no-auth">
     <strong>No sign-in required.</strong>
-    Anyone who can reach this address can use De-Algo, and act as whoever has signed in to a
+    Anyone who can reach this address can use Pamphlets, and act as whoever has signed in to a
     plugin's service. Set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code>, then
     restart, to turn accounts on.
   </div>
@@ -150,7 +150,7 @@
   {% if weak_admin_password and identity and identity.is_admin %}
   <div class="toast toast-bad" data-toast="weak-password">
     <strong>The admin password is a short one.</strong>
-    Fine while you are trying De-Algo out. Change <code>DEALGO_ADMIN_PASSWORD</code> and restart
+    Fine while you are trying Pamphlets out. Change <code>DEALGO_ADMIN_PASSWORD</code> and restart
     before this address is reachable by anyone else.
   </div>
   {% endif %}

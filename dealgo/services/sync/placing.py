@@ -226,7 +226,7 @@ class Placing:
     ) -> None:
         """No API call, no quota: the placement is the whole act. With no
         account that goes for every feed, so the app keeps working and the
-        videos are readable in De-Algo either way."""
+        videos are readable in Pamphlets either way."""
         if self._full(playlist):
             self._owe(video, playlist, outcome)
             return
@@ -345,7 +345,7 @@ class Placing:
     def _contents_of(self, playlist: Playlist) -> dict[str, str] | None:
         """What a published playlist already holds, read once per run."""
         if playlist.is_generic:
-            return {}  # nothing outside De-Algo to reconcile against
+            return {}  # nothing outside Pamphlets to reconcile against
         if playlist.id in self._contents:
             return self._contents[playlist.id]
         if playlist.id in self._unreadable:

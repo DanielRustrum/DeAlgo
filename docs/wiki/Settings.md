@@ -48,7 +48,7 @@ else. Plugins the admin has switched off are not listed.
 **Signing in.** A plugin that writes back to its service as you — YouTube, filling playlists — has
 **Connect … account**, **Reconnect** after a grant expires, and **Disconnect**. Disconnecting keeps
 your history and stops writing to that service. Where the service has a daily allowance, the block
-shows how much of it is spent today, for everyone on this De-Algo. See
+shows how much of it is spent today, for everyone on this Pamphlets. See
 [Connecting YouTube](Connecting%20YouTube.md) and [Quota](Quota.md).
 
 **Feeds on YouTube.** The plugin feeds are published through (YouTube) also has a section for
@@ -69,7 +69,7 @@ These used to be settings and now keep their defaults:
 
 | Value | Default |
 | --- | --- |
-| How often De-Algo wakes to check [triggers](Nodes/Triggers.md) | 30 minutes |
+| How often Pamphlets wakes to check [triggers](Nodes/Triggers.md) | 30 minutes |
 | Items taken from a new source when no backfill is given | 3 |
 
 **Related:** [Accounts](Accounts.md) · [Quota](Quota.md)

@@ -1,8 +1,8 @@
--- Writing back: YouTube playlists as De-Algo's feeds.
+-- Writing back: YouTube playlists as Pamphlets's feeds.
 --
 -- Everything here is the YouTube Data API v3 and nothing else: which
 -- endpoint answers what, which fields the answer carries, and what each call
--- costs. De-Algo held all of this once and had no business knowing any of it.
+-- costs. Pamphlets held all of this once and had no business knowing any of it.
 --
 -- Nothing here holds a credential. `account.send` says what request to make;
 -- the host attaches the token, charges the allowance, and refuses to sign

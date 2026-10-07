@@ -68,7 +68,7 @@ return {
 
   -- What is YouTube's about a YouTube feed.
   --
-  -- The feed is Atom and De-Algo reads Atom already, so there is no second
+  -- The feed is Atom and Pamphlets reads Atom already, so there is no second
   -- parser here — rewriting a namespace-aware XML reader as Lua string
   -- matching would be a worse parser, not a plugin. What is left is the part
   -- only YouTube knows: that an entry's id carries the video id, and that a

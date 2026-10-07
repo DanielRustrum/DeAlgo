@@ -1,6 +1,6 @@
 # Newsletters
 
-Follow a newsletter by where it lives — `platformer.news`, not `platformer.news/feed`. De-Algo finds
+Follow a newsletter by where it lives — `platformer.news`, not `platformer.news/feed`. Pamphlets finds
 its feed for you.
 
 ## Adding one

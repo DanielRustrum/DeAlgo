@@ -21,7 +21,7 @@ class Preset:
     label: str
     about: str
     data: dict[str, Any]
-    #: "own" for De-Algo's, "popular" for a well-known editor theme.
+    #: "own" for Pamphlets's, "popular" for a well-known editor theme.
     family: str = "own"
 
     def theme(self) -> Theme:
@@ -29,7 +29,7 @@ class Preset:
 
 
 PRESETS: tuple[Preset, ...] = (
-    Preset("garden", "Garden", "De-Algo as it comes: paper, forest and terracotta.", {}),
+    Preset("garden", "Garden", "Pamphlets as it comes: paper, forest and terracotta.", {}),
     Preset("high-contrast", "High contrast",
            "Darker ink, firmer lines and a thicker focus ring, by day and by night.", {
                "colours": {

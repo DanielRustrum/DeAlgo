@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "_garden.html" import page_head with context %}
-{% block title %}De-Algo — Admin{% endblock %}
+{% block title %}Pamphlets — Admin{% endblock %}
 {% block content %}
-{{ page_head('Admin', 'The accounts on this De-Algo, and the plugins they share.') }}
+{{ page_head('Admin', 'The accounts on this Pamphlets, and the plugins they share.') }}
 
 {# The admin's own tab: a panel for each thing it manages, each pointing at
    that thing's page, and moving the whole instance. #}
@@ -13,10 +13,10 @@
     {% if accounts_off %}<span class="pill pill-paused">{{ accounts_off }} switched off</span>{% endif %}
   </div>
   {% if auth_enabled %}
-  <p>Who can sign in to this De-Algo: adding accounts, setting their passwords, and signing them out.</p>
+  <p>Who can sign in to this Pamphlets: adding accounts, setting their passwords, and signing them out.</p>
   {% else %}
   <p>
-    Switched off: De-Algo asks nobody who they are, so every visitor can already do everything.
+    Switched off: Pamphlets asks nobody who they are, so every visitor can already do everything.
     Set <code>DEALGO_ADMIN_USER</code> and <code>DEALGO_ADMIN_PASSWORD</code> and restart to turn them on.
   </p>
   {% endif %}
@@ -30,7 +30,7 @@
     {% if plugin_trouble %}<span class="pill pill-failed">{{ plugin_trouble }} not loaded</span>{% endif %}
   </div>
   <p>
-    Every kind of source De-Algo can watch — YouTube, Reddit, Bluesky,
+    Every kind of source Pamphlets can watch — YouTube, Reddit, Bluesky,
     Substack — is a plugin, and you can add your own.
   </p>
   <a class="btn btn-quiet" href="/admin/plugins">Manage plugins →</a>
@@ -64,7 +64,7 @@
   <h2>Move this instance</h2>
   <p class="hint">
     Every account and every setup at once: who the accounts are, what each of them watches,
-    and how each is configured. The file for standing De-Algo up on another machine.
+    and how each is configured. The file for standing Pamphlets up on another machine.
   </p>
   <p class="hint">
     <strong>No secrets are in it</strong> — no passwords, no sign-ins, no plugin settings.
@@ -95,7 +95,7 @@
     each account's feeds and channels are restored into its own space. Nothing already here is
     deleted. The admin account stays this machine's — it comes from the environment, not from a
     file. Restored accounts arrive without a password and cannot be signed in to until you set
-    one on the Accounts page; De-Algo says which ones when it is done.
+    one on the Accounts page; Pamphlets says which ones when it is done.
   </p>
   <form method="post" action="/admin/restore" class="stack-form"
         enctype="multipart/form-data" hx-boost="false">

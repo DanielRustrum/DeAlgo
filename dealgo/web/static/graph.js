@@ -3052,7 +3052,7 @@ function graphRemovalWarning(node) {
         return `Stop watching ${node.title}? Its history goes too; anything already in a feed stays put.`;
     }
     if (node.kind === "feed") {
-        return `Remove the feed ${node.title}? What it collected inside De-Algo goes with it.`;
+        return `Remove the feed ${node.title}? What it collected inside Pamphlets goes with it.`;
     }
     return "";
 }

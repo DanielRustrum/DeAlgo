@@ -1,4 +1,4 @@
-# Overlay for running De-Algo inside an existing cluster, behind a shared
+# Overlay for running Pamphlets inside an existing cluster, behind a shared
 # reverse proxy, with nothing published on the host:
 #
 #   docker compose -f docker-compose.yml -f compose.cluster.yml up -d

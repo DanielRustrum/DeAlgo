@@ -1,13 +1,13 @@
 # Publishing and Quota
 
-How De-Algo writes to YouTube without the app knowing YouTube, and how it avoids running out of
+How Pamphlets writes to YouTube without the app knowing YouTube, and how it avoids running out of
 quota mid-run.
 
 ## Two kinds of feed
 
 | Feed | `playlist_id` | Placement | Cost |
 | --- | --- | --- | --- |
-| De-Algo feed | `generic:…` | A `Placement` row with a local item id | Nothing |
+| Pamphlets feed | `generic:…` | A `Placement` row with a local item id | Nothing |
 | YouTube playlist | YouTube's id | A real playlist item via the API | Quota units |
 
 Without a connected Google account, YouTube feeds collect locally too, and fill on YouTube once
@@ -53,7 +53,7 @@ itself. `capabilities/account.py` signs only for the plugin's own `connect.hosts
 
 ## The quota ledger — `services/quota.py`
 
-Google does not expose remaining quota, so De-Algo keeps its own.
+Google does not expose remaining quota, so Pamphlets keeps its own.
 
 - **Whose:** the plugin's `connect.allowance`. Every function defaults to the publishing plugin.
 - **Day** = the date in the allowance's `timezone` (YouTube: `America/Los_Angeles`). One
@@ -90,7 +90,7 @@ Each YouTube playlist is read once per run (`playlist_contents`). An item alread
 ## Pruning
 
 `prune` trims each feed to `max_items`, oldest first — by API calls for YouTube playlists, by
-marking placements removed for De-Algo feeds.
+marking placements removed for Pamphlets feeds.
 
 ## Known limits
 

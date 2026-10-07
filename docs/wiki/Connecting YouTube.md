@@ -1,6 +1,6 @@
 # Connecting YouTube
 
-Optional. De-Algo reads every source — YouTube included — without any Google account. You only need
+Optional. Pamphlets reads every source — YouTube included — without any Google account. You only need
 one to **write**: to fill real YouTube playlists, read video lengths and view counts, and look up
 channels by `@handle`.
 
@@ -26,7 +26,7 @@ so you do this once.
 
 ## Making a feed that writes to YouTube
 
-Feeds you drag onto the canvas live inside De-Algo. To make one backed by a YouTube playlist, use
+Feeds you drag onto the canvas live inside Pamphlets. To make one backed by a YouTube playlist, use
 **Settings → Plugins → YouTube → Feeds on YouTube**: create a new playlist (choose private, unlisted or public) or adopt
 one you already have. See [Feeds](Nodes/Feeds.md).
 
@@ -42,18 +42,18 @@ one you already have. See [Feeds](Nodes/Feeds.md).
 
 In **Testing** mode Google expires the grant after seven days. Publish the consent screen to stop
 that. A personal app stays unverified, so Google shows an "unverified app" warning once —
-choose *Advanced → Go to De-Algo*.
+choose *Advanced → Go to Pamphlets*.
 
-When a grant dies, De-Algo says so in the YouTube block under Settings, and as a toast on every
+When a grant dies, Pamphlets says so in the YouTube block under Settings, and as a toast on every
 page: the plugin's own words, with a link to reconnect. The same toast asks an account that has
 never signed in to connect, and tells everyone when the admin hasn't set up an OAuth client yet.
 Only the admin's toast links to where that is done. Dismissing a toast lasts the browsing session;
-it comes back while the condition holds. Items keep collecting inside De-Algo and are written to
+it comes back while the condition holds. Items keep collecting inside Pamphlets and are written to
 YouTube after you reconnect.
 
 ## Without an account
 
-Everything still works. YouTube-backed feeds are marked *local only* and collect inside De-Algo;
+Everything still works. YouTube-backed feeds are marked *local only* and collect inside Pamphlets;
 what they collect is written to the playlist after you connect, as [quota](Quota.md) allows.
 
 **Related:** [Quota](Quota.md) · [Feeds](Nodes/Feeds.md) · [Settings](Settings.md)

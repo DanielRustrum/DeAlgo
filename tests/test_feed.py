@@ -564,7 +564,7 @@ def test_without_an_account_the_feed_page_warns(client, db):
 
 def test_without_an_account_youtube_feeds_read_as_local(client, db):
     """Greyed out and labelled, rather than offering a link to a playlist
-    that De-Algo is no longer keeping up to date."""
+    that Pamphlets is no longer keeping up to date."""
     signed_out(db)
 
     body = client.get("/feed").text

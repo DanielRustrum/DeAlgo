@@ -3,7 +3,7 @@
 Tailwind does the work: it bundles `web/styles/` into one file, adds the
 utility classes the templates use, and minifies the lot. The compiled CSS is
 committed and shipped inside the package, so running or containerising
-De-Algo needs no Node — only editing the styles does (`npm install` first).
+Pamphlets needs no Node — only editing the styles does (`npm install` first).
 A test compares the two, so the committed file cannot quietly fall behind —
 which is also why package.json pins Tailwind to an exact version: another
 release may minify the same sources a little differently.

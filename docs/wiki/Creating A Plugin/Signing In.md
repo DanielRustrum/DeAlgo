@@ -2,7 +2,7 @@
 
 A plugin that writes back to its service as a person — YouTube filling a playlist — needs that
 person's permission: an OAuth 2.0 sign-in. The plugin says how its service does it, in a `connect`
-table; **De-Algo** does the sign-in, keeps the token, refreshes it, and attaches it to the plugin's
+table; **Pamphlets** does the sign-in, keeps the token, refreshes it, and attaches it to the plugin's
 [`account.send`](Account.md) requests. The plugin never sees it.
 
 ## Declaring it
@@ -44,14 +44,14 @@ connect = {
 | `authorize`, `token` | **yes** | The service's consent page and token endpoint. `https://` only. |
 | `revoke` | no | Where a token is revoked on disconnect. |
 | `scopes` | no | Scopes to ask for, joined with spaces. |
-| `params` | no | Extra query parameters for the consent page. De-Algo's own (`client_id`, `redirect_uri`, `response_type`, `scope`, `state`) always win. |
+| `params` | no | Extra query parameters for the consent page. Pamphlets's own (`client_id`, `redirect_uri`, `response_type`, `scope`, `state`) always win. |
 | `hosts` | **yes** | Host names the token may be sent to, and their subdomains. Up to 8. HTTPS only. |
 | `client_id`, `client_secret` | no | Which of your **app settings** hold the OAuth client. Default `client_id` / `client_secret`; each must be declared in `settings.app`. |
 | `api_key` | no | An app setting holding a key for reading before anyone signs in. Sent as `?key=`. |
 | `allowance` | no | The service's daily budget, if it has one. `daily` and `reserve` are numbers or app setting names; `timezone` is when its day starts; `exhausted` is the refusal reason that means it is spent. |
 | `refusal` | no | `function(answer)` returning why the service refused a request, read from its error JSON. |
 | `about` | no | Shown in the plugin's block under Settings, beside the sign-in. |
-| `notices` | no | What De-Algo shows as a standing toast while the account isn't ready, in your words. Each is up to 300 characters of plain text. `connect`: not signed in. `reconnect`: signed in, but the service wants it done again. `setup`: no OAuth client yet. De-Algo decides which applies, names your plugin, and adds the link: to the account's Settings, or for `setup` to your card under Admin, for the admin only. Any other key is refused. |
+| `notices` | no | What Pamphlets shows as a standing toast while the account isn't ready, in your words. Each is up to 300 characters of plain text. `connect`: not signed in. `reconnect`: signed in, but the service wants it done again. `setup`: no OAuth client yet. Pamphlets decides which applies, names your plugin, and adds the link: to the account's Settings, or for `setup` to your card under Admin, for the admin only. Any other key is refused. |
 
 The OAuth client belongs to the admin, so it lives in your [settings](Settings.md) for everyone: the
 admin enters it on your card under Admin → Plugins, where the redirect address to register with the
@@ -59,7 +59,7 @@ service is shown with a copy button. Each account then signs in under Settings �
 
 ## The allowance
 
-With an `allowance`, De-Algo keeps one count per day for the whole install, charges each
+With an `allowance`, Pamphlets keeps one count per day for the whole install, charges each
 `account.send` its `cost`, and stops writing before the day's budget runs out (leaving `reserve` for
 things done by hand). The count is shown in your block under Settings. Without one, nothing is held
 back.

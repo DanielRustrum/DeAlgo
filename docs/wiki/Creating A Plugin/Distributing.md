@@ -1,6 +1,6 @@
 # Distributing
 
-Publish a plugin in a public git repository and the admin of any De-Algo can install it from
+Publish a plugin in a public git repository and the admin of any Pamphlets can install it from
 **Admin → Plugins → Add one from a repository**.
 
 ## Repository layout
@@ -49,7 +49,7 @@ Limits: 2 MiB to download, 8 MiB unpacked, 200 files.
 The admin sees what the plugin offers and the permissions it asks for, and ticks what to grant. The
 fetched files wait aside until they confirm — what was reviewed is exactly what is installed.
 
-De-Algo remembers where it came from. **Update** on the plugin's row fetches it again from the same
+Pamphlets remembers where it came from. **Update** on the plugin's row fetches it again from the same
 branch or tag and asks for consent again.
 
 ## Good practice

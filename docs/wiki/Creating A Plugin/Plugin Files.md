@@ -16,7 +16,7 @@
   ignored.
 - **`plugin.lua` is the entry file.** It runs first and its `return { … }` is the plugin. Other files
   are not run unless something requires them.
-- A loose `<id>.lua` still loads, and is moved into `<id>/plugin.lua` the next time De-Algo starts.
+- A loose `<id>.lua` still loads, and is moved into `<id>/plugin.lua` the next time Pamphlets starts.
 
 ## Splitting a plugin across files
 
@@ -88,7 +88,7 @@ A source kind belongs to one plugin. The second plugin to claim it fails to load
 
 ## When it does not load
 
-The plugin's row on **Admin → Plugins** says why, and the rest of De-Algo carries on. Common reasons:
+The plugin's row on **Admin → Plugins** says why, and the rest of Pamphlets carries on. Common reasons:
 
 | Message | Cause |
 | --- | --- |

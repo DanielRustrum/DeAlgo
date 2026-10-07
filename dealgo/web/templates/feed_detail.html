@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import explained, search %}
-{% block title %}De-Algo — {{ playlist.title }}{% endblock %}
+{% block title %}Pamphlets — {{ playlist.title }}{% endblock %}
 {% block content %}
 {% set back = "/feeds/" ~ playlist.id %}
 
@@ -23,7 +23,7 @@
         <span class="pill" title="No playlist behind it on any service">generic</span>
       {% elif publishing_offline(identity.user_pk if identity else none) %}
         <span class="pill pill-dormant"
-              title="No {{ publishing().service }} account, so this one collects inside De-Algo for now">
+              title="No {{ publishing().service }} account, so this one collects inside Pamphlets for now">
           local only</span>
       {% endif %}
       {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
@@ -45,9 +45,9 @@
       {% if playlist.url %}<code>{{ playlist.playlist_id }}</code>
         {% if publishing_offline(identity.user_pk if identity else none) %}
         <div class="hint">Not being written to: no {{ publishing().service }} account is connected. New items
-          collect in De-Algo and go into the playlist on the first sync after you connect.</div>
+          collect in Pamphlets and go into the playlist on the first sync after you connect.</div>
         {% endif %}
-      {% else %}nothing — videos live in De-Algo only, costing no API quota{% endif %}
+      {% else %}nothing — videos live in Pamphlets only, costing no API quota{% endif %}
     </dd>
     <dt>Holds</dt>
     <dd><strong>{{ held }}</strong> video{{ 's' if held != 1 }} right now</dd>
@@ -165,7 +165,7 @@
     </form>
     {% endif %}
     <form method="post" action="/settings/playlists/{{ playlist.id }}/delete" hx-boost="false"
-          onsubmit="return confirm('Remove this feed from De-Algo? Its channel links and the record of what went into it go too. A published playlist stays where it is, with what is in it.');">
+          onsubmit="return confirm('Remove this feed from Pamphlets? Its channel links and the record of what went into it go too. A published playlist stays where it is, with what is in it.');">
       <button class="btn btn-danger" type="submit">Remove feed</button>
     </form>
   </div>

@@ -1,6 +1,6 @@
 """Database schema, one table per module.
 
-Everything De-Algo knows survives a restart: the channels being watched, every
+Everything Pamphlets knows survives a restart: the channels being watched, every
 video it has ever seen (so a video is never added twice), the OAuth grant, and
 a log of sync runs.
 """

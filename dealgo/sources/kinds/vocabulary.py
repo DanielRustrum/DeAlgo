@@ -45,7 +45,7 @@ class SourceKind:
     #: What to type, said the way somebody would say it.
     example: str
     #: Only YouTube videos can be put into a YouTube playlist. Everything
-    #: else can only fill a feed that lives inside De-Algo.
+    #: else can only fill a feed that lives inside Pamphlets.
     playlistable: bool = False
     #: Which plugin offers it, or "" for the one kind that is not a plugin.
     plugin: str = ""

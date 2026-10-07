@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_garden.html" import page_head with context %}
-{% block title %}De-Algo — {{ playlist.title }}{% endblock %}
+{% block title %}Pamphlets — {{ playlist.title }}{% endblock %}
 {% block content %}
 <p class="crumbs"><a href="/feed">Feeds</a> › {{ playlist.title }}</p>
 {% set lede = (section.videos | length) ~ ' waiting' if not section.shut else 'Shut for now' %}

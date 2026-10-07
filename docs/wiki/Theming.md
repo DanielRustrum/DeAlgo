@@ -1,6 +1,6 @@
 # Theming
 
-**Settings → Theming** changes how De-Algo looks to you. Each account has its own theme, and nobody
+**Settings → Theming** changes how Pamphlets looks to you. Each account has its own theme, and nobody
 else sees yours. Nothing on the page asks for code: every setting is a colour picker, a slider or a
 list. A preview on the right shows your changes before you save, and a list under it names anything
 that has become hard to read.
@@ -18,7 +18,7 @@ Pick one of these themes, then change anything you like:
 
 | Theme | What it is |
 | --- | --- |
-| Garden | De-Algo as it comes. |
+| Garden | Pamphlets as it comes. |
 | High contrast | Darker text, firmer lines and a thicker focus ring, by day and by night. |
 | Meadow | A cooler blue-green accent over pale sage. |
 | Ink | Black and white, nearly square corners, your device's own typeface and no plants. |
@@ -37,9 +37,9 @@ Pick one of these themes, then change anything you like:
 | Rosé Pine | Dawn | Main |
 | Everforest | Light | Dark |
 
-Each palette's colours are mapped onto De-Algo's: its accent for buttons and links, its green for
+Each palette's colours are mapped onto Pamphlets's: its accent for buttons and links, its green for
 "worked", its purple for trigger boxes, and so on. Some editor palettes put pale text or white on
-yellow in places De-Algo uses for writing. Where a published colour would read below the
+yellow in places Pamphlets uses for writing. Where a published colour would read below the
 recommended contrast, it is nudged darker or lighter just far enough; the rest is exactly as
 published. The light palettes of the softer themes (Catppuccin Latte, Nord, Everforest) are nudged
 the most.
@@ -55,7 +55,7 @@ Picking one replaces your changes. Your choice of light or dark stays, unless th
 
 ## Type
 
-- **Body typeface** and **Heading typeface:** DM Sans and Fraunces, which De-Algo serves itself;
+- **Body typeface** and **Heading typeface:** DM Sans and Fraunces, which Pamphlets serves itself;
   one of your device's own fonts (sans-serif, serif, humanist, rounded or monospace), which depends
   on what the device has installed; or **My own font**.
 - **Your own fonts:** upload a WOFF2, WOFF, TrueType or OpenType file (up to 4 MB) for body text,
@@ -78,7 +78,7 @@ Picking one replaces your changes. Your choice of light or dark stays, unless th
 
 What lies behind the panels:
 
-- **Background:** light in two corners (as De-Algo comes), a glow from above, a gradient (see
+- **Background:** light in two corners (as Pamphlets comes), a glow from above, a gradient (see
   below), your own picture, or plain.
 - **Where the light falls:** top right and bottom left, along the top, along the bottom, or either
   side. This applies to light in two corners.
@@ -127,7 +127,7 @@ Laid over whatever background you chose, under everything else:
 The scene drawn at the page's edges and beside each page's heading:
 
 - **Scene:**
-  - plants: *Garden* (leafy sprigs and round blooms, as De-Algo comes), *Meadow* (grasses and
+  - plants: *Garden* (leafy sprigs and round blooms, as Pamphlets comes), *Meadow* (grasses and
     wildflowers), *Fern* (arching fronds), *Blossom* (a flowering branch) or *Woodland* (stands of
     pines);
   - elsewhere in nature: *Ocean* (waves, coral and seaweed), *Mountains* (snowy peaks with pines
@@ -163,7 +163,7 @@ Your pictures are only shown to you.
 
 ## Colours
 
-Every colour De-Algo paints with, in two sets: **By day** and **By night**. Switching between the
+Every colour Pamphlets paints with, in two sets: **By day** and **By night**. Switching between the
 two tabs also switches the preview. The colours are grouped:
 
 - **Surfaces:** the page, panels, insets and lines.
@@ -182,11 +182,11 @@ example, and *green* follows the colour of source boxes. Untick **Same as …** 
 its own. **Reset** beside a colour puts that colour back. **Reset** on a section puts back the
 whole section.
 
-A colour you leave unchanged keeps up with De-Algo: if a later version changes it, you get the new one.
+A colour you leave unchanged keeps up with Pamphlets: if a later version changes it, you get the new one.
 
 ## Hard to read
 
-The list under the preview checks every pairing De-Algo actually uses, such as text on a panel, a
+The list under the preview checks every pairing Pamphlets actually uses, such as text on a panel, a
 button's label on the accent, a pill on an inset, or the focus ring on the page. It uses the WCAG
 guidelines: text needs a contrast of 4.5:1, and a mark that carries meaning, like a box's coloured
 bar, needs 3:1. It only checks the modes your theme can show.
@@ -200,7 +200,7 @@ pairings fall short. The stock look and every theme under Start from pass every 
   contains nothing else of yours, and none of your pictures.
 - **Load a theme:** choose a file, or paste one. Anything in it that isn't a known setting with a
   value of the right kind is refused, and the reason is named.
-- **Reset everything:** goes back to the look De-Algo comes with.
+- **Reset everything:** goes back to the look Pamphlets comes with.
 
 Your theme and your pictures are also part of your [setup file](Backup%20and%20Restore.md), so they
 come back when you restore one.

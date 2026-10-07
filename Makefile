@@ -43,7 +43,7 @@ up: ## Start Dealgo in the background and wait for it to be healthy (CLUSTER=1 f
 	@printf 'waiting for %s ' "$(URL)"; \
 	for _ in $$(seq 1 60); do \
 		state=$$($(COMPOSE) ps -q $(SERVICE) | xargs -r docker inspect -f '{{.State.Health.Status}}' 2>/dev/null); \
-		if [ "$$state" = healthy ]; then printf '\n\nDealgo is running at %s\n' "$(URL)"; exit 0; fi; \
+		if [ "$$state" = healthy ]; then printf '\n\nPamphlets is running at %s\n' "$(URL)"; exit 0; fi; \
 		if [ "$$state" = unhealthy ]; then printf '\n\nContainer is unhealthy. Try: make logs\n'; exit 1; fi; \
 		printf '.'; sleep 1; \
 	done; \

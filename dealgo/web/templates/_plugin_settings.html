@@ -73,7 +73,7 @@
       {# Not boosted: the answer redirects to the service, which an XHR cannot follow. #}
       <a class="btn btn-primary" href="/connect/{{ plugin.id }}" hx-boost="false">Reconnect {{ connection.service }} account</a>
       <form method="post" action="/connect/{{ plugin.id }}/disconnect"
-            hx-confirm="Disconnect the {{ connection.service }} account? Nothing already in De-Algo is lost.">
+            hx-confirm="Disconnect the {{ connection.service }} account? Nothing already in Pamphlets is lost.">
         <button class="btn btn-danger" type="submit">Disconnect</button>
       </form>
     </div>
@@ -81,7 +81,7 @@
     <div class="row-buttons">
       <p class="connected">Connected{% if connection.account %} as <strong>{{ connection.account }}</strong>{% endif %}.</p>
       <form method="post" action="/connect/{{ plugin.id }}/disconnect"
-            hx-confirm="Disconnect the {{ connection.service }} account? Nothing already in De-Algo is lost.">
+            hx-confirm="Disconnect the {{ connection.service }} account? Nothing already in Pamphlets is lost.">
         <button class="btn btn-danger" type="submit">Disconnect</button>
       </form>
     </div>
@@ -104,7 +104,7 @@
     </div>
     <p class="hint">
       <strong>{{ allowance.used }}</strong> of {{ allowance.budget }} {{ allowance.unit }} today,
-      for everyone on this De-Algo · resets {{ connection.resets_in }}.
+      for everyone on this Pamphlets · resets {{ connection.resets_in }}.
     </p>
     {% if allowance.exhausted or allowance.spendable == 0 %}
     <p class="error-note">

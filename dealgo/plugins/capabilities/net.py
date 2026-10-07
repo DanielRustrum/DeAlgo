@@ -29,7 +29,7 @@ MOST_REQUESTS = 4
 class Net:
     """Fetching, through the host rather than around it.
 
-    Every request goes out the way De-Algo's own do: the same client, the same
+    Every request goes out the way Pamphlets's own do: the same client, the same
     user agent, and the same `patience` — so a plugin cannot spend a host's
     rate-limit budget behind the back of the thing that tracks it.
     """

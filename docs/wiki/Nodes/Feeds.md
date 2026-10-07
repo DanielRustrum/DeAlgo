@@ -5,7 +5,7 @@ A feed is where items end up. You read feeds on [The Feed Page](../The%20Feed%20
 
 ## Two kinds
 
-| | Lives in De-Algo | Backed by a YouTube playlist |
+| | Lives in Pamphlets | Backed by a YouTube playlist |
 | --- | --- | --- |
 | Make it | Drag **Feed** from the palette and name it | **Settings → Plugins → YouTube → Feeds on YouTube** |
 | Holds | Anything: videos, posts, Reddit, RSS, newsletters | YouTube videos only |
@@ -14,7 +14,7 @@ A feed is where items end up. You read feeds on [The Feed Page](../The%20Feed%20
 A YouTube-backed feed can be a new playlist (private, unlisted or public) or one you already have.
 Non-YouTube items reaching it are turned away with a reason.
 
-Without a connected account a YouTube-backed feed is marked *local only* and collects inside De-Algo.
+Without a connected account a YouTube-backed feed is marked *local only* and collects inside Pamphlets.
 Its items are written to the playlist after you [connect](../Connecting%20YouTube.md).
 
 ## Limits
@@ -40,7 +40,7 @@ Open a feed box's panel and follow its link, or go to `/feeds/<id>`.
 
 ## When one item reaches several feeds
 
-It is placed in each. In YouTube-backed feeds that costs 50 quota units per playlist. De-Algo
+It is placed in each. In YouTube-backed feeds that costs 50 quota units per playlist. Pamphlets
 records every placement, so an item is never added to the same feed twice.
 
 ## Fill order

@@ -1,6 +1,6 @@
 # Internal Documentation
 
-How De-Algo works inside: the architecture, how the parts fit, why they are built the way they
+How Pamphlets works inside: the architecture, how the parts fit, why they are built the way they
 are, and the algorithms they run. For contributors and maintainers.
 
 Users want the [wiki](../wiki/README.md). Plugin authors want

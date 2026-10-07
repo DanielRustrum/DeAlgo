@@ -60,7 +60,7 @@ synced. Outside one, while a reference is being recognised for example, it gives
 
 ## What happens to the values
 
-They are kept in De-Algo's database. They do not go into the plugin's folder, and they are not in
+They are kept in Pamphlets's database. They do not go into the plugin's folder, and they are not in
 per-account backups or migration files. Removing the plugin removes its settings, both the admin's
 and every account's. Switching it off keeps them, and the admin can still change the app settings
 while it is off.

@@ -37,19 +37,19 @@ def read(
     grow more than one file without the folder above it becoming a heap.
     A loose ``<id>.lua`` is still read, because that is the shape every
     plugin had until now and nobody's should stop loading; `settle` moves
-    one into a folder of its own the next time De-Algo starts.
+    one into a folder of its own the next time Pamphlets starts.
 
     Name order so the list is the same on every start: which plugin owns a
     source kind should not depend on how the filesystem feels.
 
     Later folders win. The shipped plugins are read first and a person's own
     second, so dropping a `youtube.lua` into the data folder replaces the one
-    that came with De-Algo rather than fighting it — which is the only way to
+    that came with Pamphlets rather than fighting it — which is the only way to
     change a shipped plugin without editing the image.
 
     ``trusted`` is the folder whose plugins start with what they asked for.
     That is the shipped folder and nothing else: those arrive inside the
-    image, they are how De-Algo does the things it has always done, and
+    image, they are how Pamphlets does the things it has always done, and
     nobody chose to install them — so there is no moment at which a consent
     popup would have been shown. They are still listed with everything they
     hold, and every one of them can be revoked on the Admin page.

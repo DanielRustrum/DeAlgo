@@ -32,7 +32,7 @@ KNOWN: tuple[Permission, ...] = (
         label="Make network requests",
         means=(
             "Fetch web addresses of its own choosing while it runs. Requests go "
-            "through De-Algo, so they wait when a host asks them to and are "
+            "through Pamphlets, so they wait when a host asks them to and are "
             "capped in size and number."
         ),
         caution=(
@@ -73,7 +73,7 @@ KNOWN: tuple[Permission, ...] = (
         means=(
             "Make requests to the service your connected account belongs to — "
             "reading your playlists, adding to them, looking up channels. "
-            "De-Algo signs and sends them and charges the day's allowance; "
+            "Pamphlets signs and sends them and charges the day's allowance; "
             "the plugin never sees the credential, and nothing is signed for "
             "any address but that service's own."
         ),
@@ -86,7 +86,7 @@ KNOWN: tuple[Permission, ...] = (
         name="log",
         label="Write to the log",
         means=(
-            "Leave lines in De-Algo's own log, which is how a plugin explains "
+            "Leave lines in Pamphlets's own log, which is how a plugin explains "
             "itself when it is not doing what you expected."
         ),
     ),
@@ -105,6 +105,6 @@ def describe(name: str) -> Permission:
     return Permission(
         name=name,
         label=name,
-        means="This version of De-Algo does not know what that is, so it is refused.",
+        means="This version of Pamphlets does not know what that is, so it is refused.",
         caution="Nothing is granted for a permission nobody here understands.",
     )

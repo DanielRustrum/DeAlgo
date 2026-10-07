@@ -99,11 +99,11 @@ def restore(session: Session, payload: Any, owner: OwnerId = None) -> RestoreSum
 def _check(payload: Any) -> None:
     """Raise `RestoreError` unless this is a backup of a format this version reads."""
     if not isinstance(payload, dict) or "de_algo_backup" not in payload:
-        raise RestoreError("That is not a De-Algo backup file.")
+        raise RestoreError("That is not a Pamphlets backup file.")
     version = payload.get("de_algo_backup")
     if not isinstance(version, int) or version > FORMAT_VERSION:
         raise RestoreError(
-            f"This backup is format {version}, but this version of De-Algo reads {FORMAT_VERSION}."
+            f"This backup is format {version}, but this version of Pamphlets reads {FORMAT_VERSION}."
         )
 
 

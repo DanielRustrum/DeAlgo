@@ -1,6 +1,6 @@
 {
-  "name": "De-Algo",
-  "short_name": "De-Algo",
+  "name": "Pamphlets",
+  "short_name": "Pamphlets",
   "description": "Your feed, in the order it was published.",
   "start_url": "/",
   "scope": "/",

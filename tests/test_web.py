@@ -581,8 +581,8 @@ def test_the_raw_list_is_reached_from_the_counts_not_from_a_tab(client):
 
 
 def test_the_pages_are_titled_to_match_their_tab(client):
-    assert "<title>De-Algo — Configuration</title>" in client.get("/channels").text
-    assert "<title>De-Algo — Raw</title>" in client.get("/videos").text
+    assert "<title>Pamphlets — Configuration</title>" in client.get("/channels").text
+    assert "<title>Pamphlets — Raw</title>" in client.get("/videos").text
     assert "Raw videos" in client.get("/videos").text
 
 
@@ -660,7 +660,7 @@ def test_a_feed_has_its_own_page(client, db):
     # The canvas links through rather than carrying every control: a feed's
     # box opens its page, where the rest of its settings are.
     page = client.get("/feeds/1").text
-    assert "<title>De-Algo — My Feed</title>" in page
+    assert "<title>Pamphlets — My Feed</title>" in page
     for section in ("Filling", "Filled by", "In this feed", "Retiring it"):
         assert section in page, section
     assert "Fill order" in page and "1 of 1" in page
@@ -700,7 +700,7 @@ def test_only_a_feeds_own_page_says_it_is_generic(client, db):
 
     page = client.get("/feeds/1").text
     assert ">generic</span>" in page
-    assert "videos live in De-Algo only" in page
+    assert "videos live in Pamphlets only" in page
 
 
 def test_videos_can_be_searched(client, db):

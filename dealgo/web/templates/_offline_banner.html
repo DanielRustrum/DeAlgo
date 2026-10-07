@@ -1,4 +1,4 @@
-{# Shown wherever feeds are: De-Algo works without a sign-in, but the
+{# Shown wherever feeds are: Pamphlets works without a sign-in, but the
    playlists behind these feeds are not being touched, and it should never be
    a surprise which state you are in. #}
 {% set offline = publishing_offline(identity.user_pk if identity else none) %}
@@ -14,7 +14,7 @@
   </strong>
   {{ offline.feeds }} {{ 'feed points' if offline.feeds == 1 else 'feeds point' }} at a {{ pub.publisher }} playlist.
   Until an account is connected they behave like generic feeds:
-  new items collect inside De-Algo and are watchable here, but nothing is added to,
+  new items collect inside Pamphlets and are watchable here, but nothing is added to,
   or removed from, {{ pub.publisher }}. Whatever collects meanwhile is added to the playlists on the
   first sync after you connect.
   <a href="{{ pub.where }}">Settings →</a>

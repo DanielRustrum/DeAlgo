@@ -15,7 +15,7 @@ services:
       - "${DEALGO_BIND:-0.0.0.0:8080}:8080"
 
     environment:
-      # The URL people reach De-Algo at. The OAuth redirect URI is this plus
+      # The URL people reach Pamphlets at. The OAuth redirect URI is this plus
       # /oauth/callback and must match the OAuth client exactly, so behind a
       # proxy this is the public https URL, not the container's own address.
       DEALGO_PUBLIC_URL: ${DEALGO_PUBLIC_URL:-http://localhost:8080}
@@ -26,7 +26,7 @@ services:
       DEALGO_PLUGIN_YOUTUBE_API_KEY: ${DEALGO_PLUGIN_YOUTUBE_API_KEY:-}
       DEALGO_LOG_LEVEL: ${DEALGO_LOG_LEVEL:-INFO}
       # Setting both of these is what turns sign-in on. Leave them
-      # empty and anyone who can reach the address can use De-Algo.
+      # empty and anyone who can reach the address can use Pamphlets.
       DEALGO_ADMIN_USER: ${DEALGO_ADMIN_USER:-}
       DEALGO_ADMIN_PASSWORD: ${DEALGO_ADMIN_PASSWORD:-}
       DEALGO_SESSION_DAYS: ${DEALGO_SESSION_DAYS:-30}
@@ -39,7 +39,7 @@ services:
       - "host.docker.internal:host-gateway"
 
     volumes:
-      # Everything De-Algo remembers lives here. Keep it on local disk: this is
+      # Everything Pamphlets remembers lives here. Keep it on local disk: this is
       # a SQLite database, and NFS/CIFS locking will corrupt it.
       - ${DEALGO_DATA:-dealgo-data}:/data
 

@@ -1,7 +1,7 @@
 """Marking videos as watched, and clearing them out of the playlist.
 
 YouTube exposes no watch history to applications — the ``watchHistory``
-playlist has returned nothing since 2016 — so "watched" is state De-Algo keeps
+playlist has returned nothing since 2016 — so "watched" is state Pamphlets keeps
 on the user's say-so, either from the UI or the CLI.
 
 Removal never deletes the video's record. That record is what stops the next
