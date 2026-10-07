@@ -418,5 +418,5 @@ def test_a_feed_leaflet_can_show_its_feed_as_a_tile(client, db):
         pamphlet_pk, feed_pk = pamphlet.id, feed.id
 
     page = client.get(f"/pamphlets/{pamphlet_pk}").text
-    assert "pamphlet-tile-grid" in page and 'class="feed-tile' in page
+    assert 'class="paper-stack' in page and "A Science video" in page
     assert f'href="/feed/{feed_pk}"' in page and 'class="story' not in page

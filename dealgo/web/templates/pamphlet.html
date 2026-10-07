@@ -74,10 +74,38 @@
     {% endif %}
 
   {% elif node.kind == 'leaflet-feed' and said.tile %}
-    {#- One tile, the Feeds tab's own, in one cell of a grid. -#}
-    <ul class="shelf-grid pamphlet-tile-grid">
-      {% with tile=said.tile %}{% include "_feed_tile.html" %}{% endwith %}
-    </ul>
+    {#- The feed as a stack of papers: its newest item on the front page of the
+        top sheet, and a sheet showing behind for every few more waiting, so
+        how tall the stack is says how much there is to read. -#}
+    {% set tile = said.tile %}
+    {% set feed = tile.playlist %}
+    {% set lead = tile.previews | first %}
+    {% set sheets = [3, ((tile.waiting + 2) // 3)] | min if tile.waiting else 0 %}
+    <a class="paper-stack sheets-{{ sheets }} {{ 'is-shut' if tile.shut }}" href="/feed/{{ feed.id }}"
+       aria-label="{{ feed.title }}: {{ tile.waiting }} waiting{{ ', shut' if tile.shut }}">
+      {% for n in range(sheets) %}<span class="paper-sheet behind-{{ n + 1 }}" aria-hidden="true"></span>{% endfor %}
+      <span class="paper-sheet is-front">
+        <span class="stack-masthead">{{ feed.title }}</span>
+        <span class="stack-dateline">
+          <span>{{ tile.latest | ago if tile.latest else 'nothing yet' }}</span>
+          <span>{{ 'shut' if tile.shut else tile.waiting ~ ' waiting' }}</span>
+        </span>
+        {% if lead %}
+          {% if lead.picture %}
+          <img class="stack-picture" src="{{ lead.picture }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+          {% endif %}
+          <span class="stack-headline">{{ lead.words | truncate(90) }}</span>
+          {% if tile.previews | length > 1 %}
+          <span class="stack-also">
+            <span class="stack-also-label">Also inside</span>
+            {% for one in tile.previews[1:3] %}<span class="stack-also-item">{{ one.words | truncate(60) }}</span>{% endfor %}
+          </span>
+          {% endif %}
+        {% else %}
+          <span class="stack-empty">{{ 'All caught up.' if tile.total else 'Nothing has arrived yet.' }}</span>
+        {% endif %}
+      </span>
+    </a>
 
   {% elif node.kind == 'leaflet-feed' %}
     {% if said.playlist %}
