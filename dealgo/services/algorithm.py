@@ -51,6 +51,18 @@ SIGNALS: tuple[tuple[str, str], ...] = (
     ("interest", "Interest — would you open it at all"),
     ("retention", "Retention — how much of it you would take in"),
     ("engagement", "Engagement — how steadily you would stay with it"),
+    ("saturation", "Saturation — whether a feed already has more of its source, or a tag, "
+                   "than you take in"),
+)
+
+#: The signals learned as a model. Saturation is worked out as it goes,
+#: from the feed and what you open: there is nothing to train.
+LEARNED = ("interest", "retention", "engagement")
+
+#: What saturation is measured by.
+SATURATION_OF: tuple[tuple[str, str], ...] = (
+    ("source", "Its source"),
+    ("tag", "A tag"),
 )
 
 #: How often an account's algorithm learns again.
@@ -364,7 +376,7 @@ def due(session: Session, owner: OwnerId, account: Settings) -> bool:
 
 
 def train_all(session: Session, owner: OwnerId, account: Settings) -> dict[str, Learned | None]:
-    return {signal: train(session, owner, account, signal) for signal, _ in SIGNALS}
+    return {signal: train(session, owner, account, signal) for signal in LEARNED}
 
 
 # -- predicting --------------------------------------------------------------------
@@ -399,21 +411,101 @@ def learned(session: Session, owner: OwnerId, signal: str) -> Learned | None:
     return model
 
 
-def score(session: Session, video: Video, piece: GraphNode) -> float | None:
-    """What an Aggregation piece's algorithm predicts for an item, 0 to 1 —
-    or None when it has nothing to say: switched off, or not learned yet."""
+def score(
+    session: Session,
+    video: Video,
+    piece: GraphNode,
+    playlist_pk: int | None = None,
+    tags: Iterable[str] = (),
+) -> float | None:
+    """What an Aggregation piece's algorithm says about an item, 0 to 1 —
+    or None when it has nothing to say: switched off, not learned yet, or
+    (for saturation) no feed to measure it in.
+
+    `playlist_pk` is the feed the item is on its way to; `tags` are the ones
+    a Tag box on its way will put on it, which it does not carry yet.
+    """
     from ..db import get_settings
 
     owner = video.owner_pk
-    if not runs_for(session, get_settings(session, owner)):
+    account = get_settings(session, owner)
+    if not runs_for(session, account):
         return None
-    model = learned(session, owner, str(settings(piece)["signal"]))
+    said = settings(piece)
+    if said["signal"] == "saturation":
+        return saturation(session, video, account, said, playlist_pk, tags)
+    model = learned(session, owner, str(said["signal"]))
     return None if model is None else model.predict(video)
+
+
+def saturation(
+    session: Session,
+    video: Video,
+    account: Settings,
+    said: Mapping[str, Any],
+    playlist_pk: int | None,
+    tags: Iterable[str] = (),
+) -> float | None:
+    """How much room a feed has left for more like this item, 0 to 1.
+
+    "Like it" is its source, or carrying a tag. Room is the share of what you
+    open in Focus mode that is like it, against the share of what is waiting
+    in this feed that is: a feed already fuller of it than you take in has
+    less room, and 1 means as much as you like, or less. Shares are smoothed
+    so that a source you have opened once is not taken as all you want.
+    """
+    if playlist_pk is None:
+        return None
+    owner = video.owner_pk
+    by_tag = said.get("of") == "tag"
+    wanted = tag_name_of(str(said.get("tag") or ""))
+    if by_tag and not wanted:
+        return None
+    carried = set(video.tag_list) | {tag_name_of(one) for one in tags}
+    if by_tag and wanted not in carried:
+        return 1.0  # not like it at all: nothing to crowd
+
+    def alike(one: Video) -> bool:
+        return wanted in one.tag_list if by_tag else one.channel_pk == video.channel_pk
+
+    since = utcnow() - dt.timedelta(days=max(1, account.algorithm_days))
+    opened = {
+        row.video_pk
+        for row in session.scalars(
+            owned(select(Consumption), Consumption, owner).where(Consumption.at >= since)
+        )
+        if row.clicked or row.finished or row.seconds >= OPENED_AFTER
+    }
+    if len(opened) < max(2, account.algorithm_min):
+        return None  # too little to know what you like
+    seen = list(session.scalars(owned(select(Video), Video, owner).where(Video.id.in_(opened))))
+    liked = (sum(1 for one in seen if alike(one)) + 1) / (len(seen) + 2)
+
+    waiting = list(session.scalars(
+        owned(select(Video), Video, owner)
+        .join(Placement, Placement.video_pk == Video.id)
+        .where(
+            Placement.playlist_pk == playlist_pk,
+            Placement.playlist_item_id.is_not(None),
+            Placement.removed_at.is_(None),
+            Video.watched_at.is_(None),
+        )
+    ))
+    here = any(one.id == video.id for one in waiting)
+    total = len(waiting) + (0 if here else 1)
+    crowding = (sum(1 for one in waiting if alike(one)) + (0 if here else 1)) / total
+    return round(min(1.0, liked / crowding), 4)
+
+
+def tag_name_of(raw: str) -> str:
+    from .graph.names import tag_name
+
+    return tag_name(raw)
 
 
 # -- the piece -----------------------------------------------------------------------
 
-DEFAULTS: dict[str, Any] = {"signal": "interest", "threshold": 50}
+DEFAULTS: dict[str, Any] = {"signal": "interest", "threshold": 50, "of": "source", "tag": ""}
 
 
 def settings(piece: GraphNode) -> dict[str, Any]:
@@ -435,6 +527,16 @@ def save(piece: GraphNode, form: Mapping[str, str]) -> None:
         if signal not in dict(SIGNALS):
             raise ValueError("That is not something the algorithm learns.")
         said["signal"] = signal
+    of = form.get("aggregation_of")
+    if of is not None:
+        if of not in dict(SATURATION_OF):
+            raise ValueError("Saturation is of a source or a tag.")
+        said["of"] = of
+    tag = form.get("aggregation_tag")
+    if tag is not None:
+        said["tag"] = tag_name_of(tag)
+    if said["signal"] == "saturation" and said["of"] == "tag" and not said["tag"]:
+        raise ValueError("Say which tag's saturation to watch.")
     threshold = form.get("aggregation_threshold")
     if threshold is not None and str(threshold).strip():
         if not str(threshold).strip().isdigit():
@@ -451,6 +553,16 @@ def words(piece: GraphNode, host: GraphNode | None) -> str:
     """What an Aggregation piece does, in the terms of the box it is in."""
     said = settings(piece)
     signal, threshold = str(said["signal"]), int(said["threshold"])
+    if signal == "saturation":
+        what = f"“{said['tag']}”" if said["of"] == "tag" else "a source"
+        if host is None:
+            return f"saturation of {what}, {threshold}%"
+        if host.kind == "filter":
+            return f"holds back {what} once it fills this feed past what you take in"
+        if host.kind == "sort":
+            return f"puts {what} later the more it fills this feed"
+        if host.kind == "expire":
+            return f"{what} leaves sooner once it fills this feed past what you take in"
     if host is None:
         return f"{signal}, {threshold}%"
     if host.kind == "filter":

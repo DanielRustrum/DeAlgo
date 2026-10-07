@@ -303,3 +303,69 @@ def test_the_canvas_says_where_the_algorithm_is(client, db):
     }).json()
     assert next(n for n in saved["nodes"] if n["id"] == piece["id"])["note"] == \
         "only what it predicts at 70% retention or more"
+
+
+# -- saturation ------------------------------------------------------------------------
+
+
+def a_feed_full_of(session, channel, count, feed):
+    for n in range(count):
+        video = item(session, channel, 200 + n)
+        session.add(Placement(video_pk=video.id, playlist_pk=feed.id,
+                              playlist_item_id=f"g-{channel.id}-{n}", added_at=utcnow()))
+    session.flush()
+
+
+def test_saturation_is_room_left_in_a_feed_against_what_you_open(db):
+    from dealgo.services.sync.deciding import decide
+
+    with db.session_scope() as session:
+        liked, passed = two_sources(session)
+        get_settings(session).algorithm_min = 10
+        # Half of what you open is from each.
+        account = get_settings(session)
+        for n in range(8):
+            for channel in (liked, passed):
+                algorithm.record(session, None, item(session, channel, 100 + n), account, seconds=60,
+                                 reached=None, duration=None, pauses=0, clicked=True,
+                                 skipped=False, finished=True)
+        middle = graph.add_filter(session)
+        piece = aggregation_under(session, middle, threshold=70, signal="saturation")
+        feed_box = graph.add_feed(session, playlist_service.create_generic(session, "Feed"))
+        feed = feed_box.playlist
+        a_feed_full_of(session, passed, 9, feed)        # the feed is nearly all one source
+        for channel in (liked, passed):
+            graph.connect(session, graph.add_source(session, channel=channel), middle)
+        graph.connect(session, middle, feed_box)
+        routes = {route.channel.id: route for route in graph.routes(session)}
+
+        crowded = algorithm.score(session, item(session, passed, 300), piece, feed.id)
+        roomy = algorithm.score(session, item(session, liked, 300), piece, feed.id)
+        assert crowded is not None and crowded < 0.6 and roomy == 1.0
+        held = decide(item(session, passed, 301), routes[passed.id], None, account)
+        assert not held.accept and "room in this feed" in held.reason
+        assert decide(item(session, liked, 301), routes[liked.id], None, account).accept
+        assert algorithm.score(session, item(session, passed, 302), piece, None) is None
+        assert algorithm.words(piece, middle) == \
+            "holds back a source once it fills this feed past what you take in"
+
+
+def test_saturation_of_a_tag_leaves_untagged_items_alone(db):
+    with db.session_scope() as session:
+        liked, _ = two_sources(session)
+        piece = graph.add_piece(session, kind="aggregation")
+        algorithm.save(piece, {"aggregation_signal": "saturation", "aggregation_of": "tag",
+                               "aggregation_tag": "News"})
+        assert algorithm.settings(piece)["tag"] == "news"
+        account = get_settings(session)
+        account.algorithm_min = 2
+        for n in range(3):
+            algorithm.record(session, None, item(session, liked, n), account, seconds=60, reached=None,
+                             duration=None, pauses=0, clicked=True, skipped=False, finished=True)
+        feed = playlist_service.create_generic(session, "Feed")
+        untagged = item(session, liked, 50)
+        assert algorithm.score(session, untagged, piece, feed.id) == 1.0
+        # Tagged on the way here, by a Tag box: crowding, as none of what you open is.
+        assert algorithm.score(session, item(session, liked, 51), piece, feed.id, ["news"]) < 1.0
+        with pytest.raises(ValueError, match="which tag"):
+            algorithm.save(piece, {"aggregation_tag": ""})

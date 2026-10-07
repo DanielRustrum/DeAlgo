@@ -13,7 +13,7 @@ from ....services import channels as channel_service
 from ....db import get_settings
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
-from ....services import algorithm, writing
+from ....services import algorithm, tagging, writing
 from ....services.scope import OwnerId
 from ...templates import Context
 from .facts import (
@@ -157,6 +157,7 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         drawn["aggregation"] = {
             "settings": said,
             "signals": [{"name": n, "label": l} for n, l in algorithm.SIGNALS],
+            "of": [{"name": n, "label": l} for n, l in algorithm.SATURATION_OF],
             "state": canvas.learning.get(str(said["signal"]), ""),
         }
     elif node.kind == "text":
@@ -264,7 +265,11 @@ def _drawn(node: GraphNode, canvas: _Canvas) -> Context:
         "asks": canvas.asking.get(node.id) if node.kind == "source" else None,
         "store": canvas.stores.get(node.id),
         "stamp": (
-            {"marks": graph_service.tag_name(node.marks)}
+            {
+                "marks": graph_service.tag_name(node.marks),
+                # A Tag box that chooses its tags by item, and how.
+                "choosing": _choosing(node, canvas) if node.kind == "tag" else None,
+            }
             if node.kind in graph_service.STAMPS
             else None
         ),
@@ -372,7 +377,14 @@ def _learning(session: Session, owner: OwnerId) -> dict[str, str]:
         return {name: "Your algorithm is off, under Settings → AI model: it does nothing."
                 for name, _ in algorithm.SIGNALS}
     said: dict[str, str] = {}
-    for name, _ in algorithm.SIGNALS:
+    seen = algorithm.counts(session, owner)
+    said["saturation"] = (
+        "Worked out as it goes, from this feed and what you open in Focus mode."
+        if seen >= account.algorithm_min else
+        f"Still learning what you like: it needs {account.algorithm_min} items opened in Focus "
+        "mode, and does nothing until then."
+    )
+    for name in algorithm.LEARNED:
         model = algorithm.learned(session, owner, name)
         if model is None:
             said[name] = (
@@ -387,3 +399,26 @@ def _learning(session: Session, owner: OwnerId) -> dict[str, str]:
             )
             said[name] = f"Learned from {model.examples} items{how}."
     return said
+
+
+def _choosing(node: GraphNode, canvas: _Canvas) -> Context:
+    """A Tag box's choosing: its settings, and what it chooses with."""
+    said = tagging.settings(node)
+    lines = "\n".join(
+        f"{one.name} — {one.about}" if one.about else one.name for one in tagging.choices(node)
+    )
+    by_model = said["engine"] == "auto" and canvas.model is not None
+    return {
+        "mode": said["mode"],
+        "modes": [{"name": n, "label": l} for n, l in tagging.MODES],
+        "tags": lines,
+        "most": said["most"],
+        "engine": said["engine"],
+        "engines": [{"name": n, "label": l} for n, l in tagging.ENGINES],
+        "how": (
+            f"Chooses with {canvas.model.named}, a batch at a time, before each run fills its feeds."
+            if by_model and canvas.model is not None else
+            "Chooses on this machine: by the words of each tag and what it means, and — once "
+            "five or more items carry a tag already — by what it learned from them."
+        ),
+    }

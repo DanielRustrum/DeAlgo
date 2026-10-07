@@ -71,6 +71,9 @@ class Video(Base):
     # property of the item rather than of one path: an item that came down
     # two paths carries what both of them said.
     tags: Mapped[Optional[str]] = mapped_column(Text)
+    # What each choosing Tag box chose for it, by box, as JSON: chosen once,
+    # before it is judged, and read again wherever its tags are asked about.
+    classified: Mapped[Optional[str]] = mapped_column(Text)
     # How long you get with it in Focus, in seconds, when a Decay box said
     # so. None means the account's own setting, which is what everything
     # that never met one uses.

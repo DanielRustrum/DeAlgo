@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ...models import (
     Video,
 )
-from .. import graph
+from .. import graph, tagging
 from ..scope import OwnerId
 
 
@@ -29,7 +29,7 @@ def apply_stamps(
         return
 
     known = graph.pieces_of(session, owner)
-    named = graph.stamped_tags(marks)
+    named = tagging.tags_for(session, video, marks)
     if named:
         already = video.tag_list
         video.tags = ", ".join(already + [one for one in named if one not in already])[:400]

@@ -171,6 +171,9 @@ class GraphNode(Base):
     # Aggregation pieces only: which signal, and the threshold, as JSON
     # (services/algorithm.py).
     aggregation: Mapped[Optional[str]] = mapped_column(Text)
+    # Tag boxes that choose: from which tags, how many, and how, as JSON
+    # (services/tagging.py). Empty for one that marks everything with one.
+    tag_choices: Mapped[Optional[str]] = mapped_column(Text)
     written: Mapped[Optional[str]] = mapped_column(Text)
     written_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
 
@@ -259,6 +262,8 @@ class GraphNode(Base):
             # Named after the tag it puts on, for the same reason a Deposit
             # box is named after its repository: on a canvas with three of
             # them, which one this is, is the useful half.
+            if '"choose"' in (self.tag_choices or ""):
+                return "Tag: by what it is"
             named = (self.marks or "").strip()
             return f"Tag: {named}" if named else "Tag"
         if self.kind == "decay":

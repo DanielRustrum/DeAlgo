@@ -56,7 +56,7 @@ def stamp_expiry(
             continue
         minutes = graph.stamped_life(path.stamps, known)
         if minutes is not None and placement.expires_at is None:
-            life = minutes * life_share(session, video, path.stamps, known)
+            life = minutes * life_share(session, video, path.stamps, known, path.playlist.id)
             placement.expires_at = to_naive_utc(
                 dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=life)
             )
@@ -124,7 +124,7 @@ def stamp_what_is_already_here(
         for placement in waiting:
             began = placement.added_at or utcnow()
             share = (
-                life_share(session, placement.video, path.stamps, known)
+                life_share(session, placement.video, path.stamps, known, path.playlist.id)
                 if placement.video is not None else 1.0
             )
             placement.expires_at = began + dt.timedelta(minutes=minutes * share)
@@ -215,7 +215,10 @@ def watched_end(placement: Placement) -> dt.datetime | None:
     return watched + dt.timedelta(minutes=minutes)
 
 
-def life_share(session: Session, video: Video, stamps: list[GraphNode], pieces_for: Any) -> float:
+def life_share(
+    session: Session, video: Video, stamps: list[GraphNode], pieces_for: Any,
+    playlist_pk: int | None = None,
+) -> float:
     """How much of its Timer an item gets, as the algorithm under an Expire
     box on its path says: all of it, unless it predicts the item under the
     threshold — then less, the further under. The least of them, if several."""
@@ -229,6 +232,9 @@ def life_share(session: Session, video: Video, stamps: list[GraphNode], pieces_f
             said = algorithm.settings(piece)
             share = min(
                 share,
-                algorithm.expiry_share(algorithm.score(session, video, piece), int(said["threshold"])),
+                algorithm.expiry_share(
+                    algorithm.score(session, video, piece, playlist_pk, video.tag_list),
+                    int(said["threshold"]),
+                ),
             )
     return share

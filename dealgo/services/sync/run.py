@@ -19,7 +19,7 @@ from ...models import (
     utcnow,
 )
 from ...plugins.publisher import Publisher, cost_of, names
-from .. import algorithm, graph, quota, runlog, writing
+from .. import algorithm, graph, quota, runlog, tagging, writing
 from ..connections import build_client
 from ..scope import OwnerId, owned
 from .details import fill_missing_details
@@ -182,6 +182,12 @@ def _run(
             for signal, model in learned.items()
         ) + ".")
         session.commit()
+    # Tag boxes that choose do so for what is waiting, before it is judged:
+    # a model is asked a batch at a time, not an item at a time.
+    tagged = tagging.choose_before_filling(session, owner, settings, graph.routes(session, owner))
+    if tagged:
+        pen.write(f"Tag boxes that choose looked at {tagged} item{'s' if tagged != 1 else ''}.")
+    session.commit()
     note(stage="filling")
     pen.at("filling")
     _fill(session, client, settings, result, owner, pen, sources)

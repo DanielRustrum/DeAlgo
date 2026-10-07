@@ -15,7 +15,7 @@ from ...models import (
 from ...plugins import registry
 from ...plugins.capabilities import acting_for
 from ...plugins.publisher import VideoDetails
-from .. import algorithm, filters, graph
+from .. import algorithm, filters, graph, tagging
 from .progress import note_filtered
 from .reasons import WRONG_KIND_OF_FEED
 from .result import SyncResult
@@ -112,7 +112,10 @@ def decide(
     wanted = graph.tag_names(str(rules.get("tagged") or ""))
     unwanted = graph.tag_names(str(rules.get("untagged") or ""))
     if wanted or unwanted:
-        carried = set(video.tag_list) | set(graph.stamped_tags(path.stamps))
+        session = object_session(video)
+        on_way = tagging.tags_for(session, video, path.stamps) if session is not None \
+            else graph.stamped_tags(path.stamps)
+        carried = set(video.tag_list) | set(on_way)
         if wanted and carried.isdisjoint(wanted):
             return filters.Decision(False, "not tagged " + " or ".join(f"“{w}”" for w in wanted))
         held = [name for name in unwanted if name in carried]
@@ -127,11 +130,17 @@ def decide(
             if piece.kind != "aggregation" or not piece.enabled:
                 continue
             session = object_session(video)
-            predicted = algorithm.score(session, video, piece) if session is not None else None
+            predicted = algorithm.score(
+                session, video, piece,
+                path.playlist.id if path.playlist is not None else None,
+                tagging.tags_for(session, video, path.stamps),
+            ) if session is not None else None
             said = algorithm.settings(piece)
             if predicted is not None and predicted * 100 < int(said["threshold"]):
                 return filters.Decision(
                     False,
+                    f"the algorithm gives it {predicted:.0%} room in this feed, "
+                    f"under {said['threshold']}%" if said["signal"] == "saturation" else
                     f"the algorithm predicts {predicted:.0%} {said['signal']}, "
                     f"under {said['threshold']}%",
                 )

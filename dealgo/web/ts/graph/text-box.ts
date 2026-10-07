@@ -91,6 +91,8 @@ async function writeGraphText(state: GraphState, button: HTMLElement, nodeId: st
 interface GraphAggregation {
   settings: Record<string, string | number>;
   signals: GraphChoice[];
+  /** What saturation is measured by: its source, or a tag. */
+  of: GraphChoice[];
   state: string;
 }
 
@@ -107,6 +109,7 @@ function asGraphAggregation(value: unknown): GraphAggregation | null {
   return {
     settings,
     signals: asGraphChoices(raw["signals"]),
+    of: asGraphChoices(raw["of"]),
     state: typeof raw["state"] === "string" ? raw["state"] : "",
   };
 }
@@ -116,9 +119,24 @@ function graphAggregationFields(form: HTMLElement, node: GraphNodeView): void {
   const said = node.aggregation;
   if (said === null) return;
   const value = (key: string): string => String(said.settings[key] ?? "");
-  form.appendChild(
-    graphLabelled("Predicts", graphLeafletSelect("aggregation_signal", said.signals, value("signal"))),
-  );
+  const signal = graphLeafletSelect("aggregation_signal", said.signals, value("signal"));
+  form.appendChild(graphLabelled("Predicts", signal));
+  // Saturation is of a source, or of a tag named here.
+  const crowd = graphElement("div", "graph-format");
+  const of = graphLeafletSelect("aggregation_of", said.of, value("of"));
+  crowd.appendChild(graphLabelled("Saturation of", of));
+  const tag = graphLeafletText("aggregation_tag", value("tag"), "news");
+  const tagRow = graphLabelled("The tag", tag);
+  crowd.appendChild(tagRow);
+  crowd.appendChild(graphElement("p", "hint", "How much room this feed has for more like it: what share of what you open is like it, against what share of what waits in the feed is. 100% is plenty."));
+  form.appendChild(crowd);
+  const show = (): void => {
+    crowd.hidden = signal.value !== "saturation";
+    tagRow.hidden = of.value !== "tag";
+  };
+  signal.addEventListener("change", show);
+  of.addEventListener("change", show);
+  show();
   form.appendChild(graphLabelled("Threshold, %", graphLeafletNumber("aggregation_threshold", value("threshold"), 0, 100)));
   const under = node.piece?.under == null ? "" : node.note;
   form.appendChild(

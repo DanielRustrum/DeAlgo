@@ -178,7 +178,10 @@ def _trim(row: Any) -> Any:
 # -- asking the model --------------------------------------------------------------
 
 
-def write(model: Model, instructions: str, material_json: str, *, counted: tuple[int, int]) -> str:
+def write(
+    model: Model, instructions: str, material_json: str, *, counted: tuple[int, int],
+    system: str = SYSTEM,
+) -> str:
     """What the model writes from the material, told what to write."""
     total, sent = counted
     note = (
@@ -189,11 +192,11 @@ def write(model: Model, instructions: str, material_json: str, *, counted: tuple
         f"{instructions.strip()}\n\n{note}\n\n<material>\n{material_json}\n</material>"
     )
     if model.provider == "anthropic":
-        return _claude(model, asked)
-    return _chat(model, asked)
+        return _claude(model, asked, system)
+    return _chat(model, asked, system=system)
 
 
-def _claude(model: Model, asked: str) -> str:
+def _claude(model: Model, asked: str, system: str = SYSTEM) -> str:
     """Claude, through Anthropic's SDK."""
     client = anthropic.Anthropic(
         api_key=model.key or None,
@@ -211,7 +214,7 @@ def _claude(model: Model, asked: str) -> str:
         response = client.beta.messages.create(
             model=model.model,
             max_tokens=16000,
-            system=SYSTEM,
+            system=system,
             messages=[{"role": "user", "content": asked}],
             output_config={"effort": "medium"},
             **extra,
@@ -240,7 +243,9 @@ def _claude(model: Model, asked: str) -> str:
     return text
 
 
-def _chat(model: Model, asked: str, client: httpx.Client | None = None) -> str:
+def _chat(
+    model: Model, asked: str, client: httpx.Client | None = None, *, system: str = SYSTEM,
+) -> str:
     """OpenAI, or a server of one's own speaking the same chat API."""
     base = (model.base_url or (OPENAI_URL if model.provider == "openai" else "")).rstrip("/")
     if not base:
@@ -251,7 +256,7 @@ def _chat(model: Model, asked: str, client: httpx.Client | None = None) -> str:
     body = {
         "model": model.model,
         "messages": [
-            {"role": "system", "content": SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": asked},
         ],
     }

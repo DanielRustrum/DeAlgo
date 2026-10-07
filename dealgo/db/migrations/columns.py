@@ -128,6 +128,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # A Text box: what it is told, and what it last wrote.
     ("graph_node", "writing", "TEXT"),
     ("graph_node", "aggregation", "TEXT"),
+    ("graph_node", "tag_choices", "TEXT"),
+    ("video", "classified", "TEXT"),
     # The algorithm of one's own.
     ("settings", "algorithm_on", "BOOLEAN NOT NULL DEFAULT 1"),
     ("settings", "algorithm_days", "INTEGER NOT NULL DEFAULT 90"),

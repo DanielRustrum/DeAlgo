@@ -159,7 +159,19 @@ function asGraphCondition(value: unknown): GraphCondition | null {
 function asGraphStamp(value: unknown): GraphStamp | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
-  return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
+  const choosing = asGraphRecord(raw["choosing"]);
+  return {
+    marks: typeof raw["marks"] === "string" ? raw["marks"] : "",
+    choosing: choosing === null ? null : {
+      mode: typeof choosing["mode"] === "string" ? choosing["mode"] : "fixed",
+      modes: asGraphChoices(choosing["modes"]),
+      tags: typeof choosing["tags"] === "string" ? choosing["tags"] : "",
+      most: typeof choosing["most"] === "number" ? choosing["most"] : 2,
+      engine: typeof choosing["engine"] === "string" ? choosing["engine"] : "auto",
+      engines: asGraphChoices(choosing["engines"]),
+      how: typeof choosing["how"] === "string" ? choosing["how"] : "",
+    },
+  };
 }
 
 /** A repository end's name, how much it holds, and how much it takes. */

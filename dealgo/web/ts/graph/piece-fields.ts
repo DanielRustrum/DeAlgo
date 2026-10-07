@@ -4,6 +4,10 @@
 
 /** A box that marks what passes through it rather than narrowing it. */
 function graphStampFields(form: HTMLElement, node: GraphNodeView): void {
+  if (node.kind === "tag" && node.stamp?.choosing != null) {
+    graphTagChoosingFields(form, node, node.stamp.choosing);
+    return;
+  }
   if (node.kind === "tag") {
     const named = document.createElement("input");
     named.type = "text";
@@ -285,4 +289,41 @@ function graphStoreFields(form: HTMLElement, store: GraphStore): void {
         : "Everything wired in ends here and waits. Nothing reaches a feed through this box — a Withdraw box with the same name is what lets it out.",
     ),
   );
+}
+
+/** A Tag box's panel: one tag on everything, or a choice of tags by item.
+ *  Both sets of fields are there; the mode shows the one it uses. */
+function graphTagChoosingFields(form: HTMLElement, node: GraphNodeView, said: GraphTagChoosing): void {
+  const mode = graphLeafletSelect("tagging_mode", said.modes, said.mode);
+  form.appendChild(graphLabelled("It", mode));
+
+  const fixed = graphElement("div", "graph-format");
+  const named = document.createElement("input");
+  named.type = "text";
+  named.name = "marks";
+  named.value = node.stamp?.marks ?? "";
+  named.placeholder = "long reads";
+  fixed.appendChild(graphLabelled("Marks it", named));
+  fixed.appendChild(graphElement("p", "hint", "Everything through this box carries the tag from here on."));
+
+  const choose = graphElement("div", "graph-format");
+  const tags = document.createElement("textarea");
+  tags.name = "tagging_tags";
+  tags.rows = 5;
+  tags.value = said.tags;
+  tags.placeholder = "reviews — a verdict on one thing\nnews — what happened this week\ntutorial — how to do something";
+  choose.appendChild(graphLabelled("Tags, one per line, with what each means", tags));
+  choose.appendChild(graphLabelled("At most, per item", graphLeafletNumber("tagging_most", String(said.most), 1, 10)));
+  choose.appendChild(graphLabelled("Chooses with", graphLeafletSelect("tagging_engine", said.engines, said.engine)));
+  choose.appendChild(graphElement("p", "hint", said.how));
+  choose.appendChild(graphElement("p", "hint", "It puts on only the tags that fit — possibly none — so a source that sends more than one kind of thing has each kind told apart."));
+
+  const show = (): void => {
+    fixed.hidden = mode.value === "choose";
+    choose.hidden = mode.value !== "choose";
+  };
+  mode.addEventListener("change", show);
+  show();
+  form.appendChild(fixed);
+  form.appendChild(choose);
 }

@@ -33,6 +33,8 @@ def ai_page(request: Request) -> HTMLResponse:
         }
         signals = []
         for name, label in algorithm.SIGNALS:
+            if name not in algorithm.LEARNED:
+                continue
             model = algorithm.learned(session, owner, name)
             toward, away = algorithm.leanings(model, names) if model is not None else ([], [])
             signals.append({"name": name, "label": label, "model": model,

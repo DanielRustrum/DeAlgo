@@ -105,7 +105,7 @@ def stamped_tags(stamps: list[GraphNode]) -> list[str]:
     """Every tag the boxes on this path put on what passes."""
     found: list[str] = []
     for node in stamps:
-        if node.kind != "tag" or not node.enabled:
+        if node.kind != "tag" or not node.enabled or chooses(node):
             continue
         named = tag_name(node.marks)
         if named and named not in found:
@@ -124,3 +124,15 @@ def timer_minutes(pieces: list[GraphNode]) -> int | None:
         if piece.kind == "timer" and piece.enabled:
             return max(1, piece.duration_minutes or DEFAULT_DURATION_MINUTES)
     return None
+
+
+def chooses(node: GraphNode) -> bool:
+    """A Tag box that chooses its tags by item puts none on everything:
+    what it puts on is asked of it per item (services/tagging.py)."""
+    import json
+
+    try:
+        said = json.loads(node.tag_choices or "{}")
+    except ValueError:
+        return False
+    return isinstance(said, dict) and said.get("mode") == "choose"

@@ -12,11 +12,11 @@ from ...plugins import registry
 from ...plugins.capabilities import acting_for
 from sqlalchemy.orm import object_session
 
-from .. import algorithm, graph
+from .. import algorithm, graph, tagging
 from .deciding import as_item, plugin_settings
 
 
-def ordering_value(video: Video, piece: GraphNode) -> float:
+def ordering_value(video: Video, piece: GraphNode, path: "graph.Route | None" = None) -> float:
     """Where this item goes in a batch, by whatever is slotted under the Sort.
 
     Two kinds of ordering answer the same question. The app's own Order piece
@@ -33,7 +33,11 @@ def ordering_value(video: Video, piece: GraphNode) -> float:
         # everything at or over it. Nothing to say: everything level, so the
         # batch keeps the order it came in.
         session = object_session(video)
-        predicted = algorithm.score(session, video, piece) if session is not None else None
+        predicted = algorithm.score(
+            session, video, piece,
+            path.playlist.id if path is not None and path.playlist is not None else None,
+            tagging.tags_for(session, video, path.stamps) if path is not None else (),
+        ) if session is not None else None
         if predicted is None:
             return 0.0
         edge = int(algorithm.settings(piece)["threshold"]) / 100.0
@@ -89,7 +93,7 @@ def _sorter(video: Video, paths: Sequence["graph.Route"]) -> tuple[int, float] |
         box = path.order
         if box is None:
             continue
-        rank = ordering_value(video, box)
+        rank = ordering_value(video, box, path)
         return (box.id, -rank if (box.sort_dir or "desc") == "desc" else rank)
     return None
 

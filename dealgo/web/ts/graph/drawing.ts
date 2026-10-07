@@ -110,6 +110,21 @@ interface GraphCondition {
 interface GraphStamp {
   /** Tag boxes: what it marks whatever passes with. */
   marks: string;
+  /** Tag boxes: choosing its tags by item, and how. Null on other boxes. */
+  choosing: GraphTagChoosing | null;
+}
+
+/** A Tag box's choosing: which tags, how many, and with what. */
+interface GraphTagChoosing {
+  mode: string;
+  modes: GraphChoice[];
+  /** One per line: `name — what it means`. */
+  tags: string;
+  most: number;
+  engine: string;
+  engines: GraphChoice[];
+  /** What it chooses with, in a sentence. */
+  how: string;
 }
 
 /** What a Deposit or Withdraw box is about. */

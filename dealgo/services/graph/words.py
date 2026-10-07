@@ -7,7 +7,7 @@ from ...models import (
 )
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, condition, sort_words
 from .names import tag_name, tag_names
-from .stamps import timer_minutes
+from .stamps import chooses, timer_minutes
 from .units import (
     DEFAULT_CRON,
     DEFAULT_DURATION_MINUTES,
@@ -83,6 +83,10 @@ def stamp_words(node: GraphNode, pieces: list[GraphNode]) -> str:
     A Timer slotted under one says an amount and nothing about what it is an
     amount of; the box it is slotted into is what turns it into a sentence.
     """
+    if node.kind == "tag" and chooses(node):
+        from .. import tagging
+
+        return tagging.words(node)
     if node.kind == "tag":
         named = tag_name(node.marks)
         return f"marks it “{named}”" if named else "open it and give it a tag"

@@ -3364,13 +3364,17 @@ function graphFormValues(form) {
 // Part of the Configuration canvas; see main.ts.
 /** A box that marks what passes through it rather than narrowing it. */
 function graphStampFields(form, node) {
-    var _a;
-    var _b;
+    var _a, _b;
+    var _c;
+    if (node.kind === "tag" && ((_a = node.stamp) === null || _a === void 0 ? void 0 : _a.choosing) != null) {
+        graphTagChoosingFields(form, node, node.stamp.choosing);
+        return;
+    }
     if (node.kind === "tag") {
         const named = document.createElement("input");
         named.type = "text";
         named.name = "marks";
-        named.value = (_b = (_a = node.stamp) === null || _a === void 0 ? void 0 : _a.marks) !== null && _b !== void 0 ? _b : "";
+        named.value = (_c = (_b = node.stamp) === null || _b === void 0 ? void 0 : _b.marks) !== null && _c !== void 0 ? _c : "";
         named.placeholder = "long reads";
         form.appendChild(graphLabelled("Marks it", named));
         form.appendChild(graphElement("p", "hint", "Everything through this box carries the tag from here on. A Filter box later in the path can ask for it."));
@@ -3580,6 +3584,41 @@ function graphStoreFields(form, store) {
         ? "Wire a trigger to this box to say when to pull. What comes out goes down whatever is wired on, oldest first, and is taken out of the repository."
         : "Everything wired in ends here and waits. Nothing reaches a feed through this box — a Withdraw box with the same name is what lets it out."));
 }
+/** A Tag box's panel: one tag on everything, or a choice of tags by item.
+ *  Both sets of fields are there; the mode shows the one it uses. */
+function graphTagChoosingFields(form, node, said) {
+    var _a;
+    var _b;
+    const mode = graphLeafletSelect("tagging_mode", said.modes, said.mode);
+    form.appendChild(graphLabelled("It", mode));
+    const fixed = graphElement("div", "graph-format");
+    const named = document.createElement("input");
+    named.type = "text";
+    named.name = "marks";
+    named.value = (_b = (_a = node.stamp) === null || _a === void 0 ? void 0 : _a.marks) !== null && _b !== void 0 ? _b : "";
+    named.placeholder = "long reads";
+    fixed.appendChild(graphLabelled("Marks it", named));
+    fixed.appendChild(graphElement("p", "hint", "Everything through this box carries the tag from here on."));
+    const choose = graphElement("div", "graph-format");
+    const tags = document.createElement("textarea");
+    tags.name = "tagging_tags";
+    tags.rows = 5;
+    tags.value = said.tags;
+    tags.placeholder = "reviews — a verdict on one thing\nnews — what happened this week\ntutorial — how to do something";
+    choose.appendChild(graphLabelled("Tags, one per line, with what each means", tags));
+    choose.appendChild(graphLabelled("At most, per item", graphLeafletNumber("tagging_most", String(said.most), 1, 10)));
+    choose.appendChild(graphLabelled("Chooses with", graphLeafletSelect("tagging_engine", said.engines, said.engine)));
+    choose.appendChild(graphElement("p", "hint", said.how));
+    choose.appendChild(graphElement("p", "hint", "It puts on only the tags that fit — possibly none — so a source that sends more than one kind of thing has each kind told apart."));
+    const show = () => {
+        fixed.hidden = mode.value === "choose";
+        choose.hidden = mode.value !== "choose";
+    };
+    mode.addEventListener("change", show);
+    show();
+    form.appendChild(fixed);
+    form.appendChild(choose);
+}
 
 "use strict";
 // Reading what the server said: a checked shape for everything the canvas draws.
@@ -3739,7 +3778,19 @@ function asGraphStamp(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
         return null;
-    return { marks: typeof raw["marks"] === "string" ? raw["marks"] : "" };
+    const choosing = asGraphRecord(raw["choosing"]);
+    return {
+        marks: typeof raw["marks"] === "string" ? raw["marks"] : "",
+        choosing: choosing === null ? null : {
+            mode: typeof choosing["mode"] === "string" ? choosing["mode"] : "fixed",
+            modes: asGraphChoices(choosing["modes"]),
+            tags: typeof choosing["tags"] === "string" ? choosing["tags"] : "",
+            most: typeof choosing["most"] === "number" ? choosing["most"] : 2,
+            engine: typeof choosing["engine"] === "string" ? choosing["engine"] : "auto",
+            engines: asGraphChoices(choosing["engines"]),
+            how: typeof choosing["how"] === "string" ? choosing["how"] : "",
+        },
+    };
 }
 /** A repository end's name, how much it holds, and how much it takes. */
 function asGraphStore(value) {
@@ -4644,6 +4695,7 @@ function asGraphAggregation(value) {
     return {
         settings,
         signals: asGraphChoices(raw["signals"]),
+        of: asGraphChoices(raw["of"]),
         state: typeof raw["state"] === "string" ? raw["state"] : "",
     };
 }
@@ -4654,7 +4706,24 @@ function graphAggregationFields(form, node) {
     if (said === null)
         return;
     const value = (key) => { var _a; return String((_a = said.settings[key]) !== null && _a !== void 0 ? _a : ""); };
-    form.appendChild(graphLabelled("Predicts", graphLeafletSelect("aggregation_signal", said.signals, value("signal"))));
+    const signal = graphLeafletSelect("aggregation_signal", said.signals, value("signal"));
+    form.appendChild(graphLabelled("Predicts", signal));
+    // Saturation is of a source, or of a tag named here.
+    const crowd = graphElement("div", "graph-format");
+    const of = graphLeafletSelect("aggregation_of", said.of, value("of"));
+    crowd.appendChild(graphLabelled("Saturation of", of));
+    const tag = graphLeafletText("aggregation_tag", value("tag"), "news");
+    const tagRow = graphLabelled("The tag", tag);
+    crowd.appendChild(tagRow);
+    crowd.appendChild(graphElement("p", "hint", "How much room this feed has for more like it: what share of what you open is like it, against what share of what waits in the feed is. 100% is plenty."));
+    form.appendChild(crowd);
+    const show = () => {
+        crowd.hidden = signal.value !== "saturation";
+        tagRow.hidden = of.value !== "tag";
+    };
+    signal.addEventListener("change", show);
+    of.addEventListener("change", show);
+    show();
     form.appendChild(graphLabelled("Threshold, %", graphLeafletNumber("aggregation_threshold", value("threshold"), 0, 100)));
     const under = ((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null ? "" : node.note;
     form.appendChild(graphElement("p", "hint", ((_b = node.piece) === null || _b === void 0 ? void 0 : _b.under) == null

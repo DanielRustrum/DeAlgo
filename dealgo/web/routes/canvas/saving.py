@@ -24,7 +24,7 @@ from ....plugins import registry
 from ....services import channels as channel_service
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
-from ....services import algorithm, writing
+from ....services import algorithm, tagging, writing
 from ....services.scope import OwnerId, owned
 from ...responses import owner_of
 
@@ -104,6 +104,17 @@ async def graph_save_node(
             return answer
 
         graph_service.rename(session, node.id, label, owner)
+
+        if node.kind == "tag":
+            given = await request.form()
+            if any(key.startswith("tagging_") for key in given):
+                try:
+                    tagging.save(
+                        node,
+                        {key: str(value) for key, value in given.items() if key.startswith("tagging_")},
+                    )
+                except ValueError as exc:
+                    return JSONResponse({"error": str(exc)}, status_code=400)
 
         if node.kind == "aggregation":
             given = await request.form()

@@ -147,6 +147,10 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             entry["alive_to"] = node.alive_to or ""
         elif node.kind == "tag":
             entry["marks"] = node.marks or ""
+            if node.tag_choices:
+                entry["tag_choices"] = node.tag_choices
+        elif node.kind == "aggregation":
+            entry["aggregation"] = node.aggregation or ""
         elif node.kind in ("deposit", "withdraw"):
             entry["repository"] = node.repository or ""
             entry["takes"] = node.takes
@@ -358,6 +362,10 @@ def _apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owne
         node.alive_to = str(entry.get("alive_to") or "") or None
     elif kind in STAMPS:
         node.marks = str(entry.get("marks") or "")
+        if kind == "tag" and isinstance(entry.get("tag_choices"), str):
+            node.tag_choices = entry["tag_choices"] or None
+    elif kind == "aggregation" and isinstance(entry.get("aggregation"), str):
+        node.aggregation = entry["aggregation"] or None
     elif kind == "format" and isinstance(entry.get("format"), dict):
         try:
             formatting.save(node, {f"format_{k}": str(v) for k, v in entry["format"].items()})
