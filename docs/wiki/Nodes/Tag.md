@@ -13,6 +13,8 @@ tidied, so `Long  Reads` and `long reads` are the same tag.
 - Tags appear as pills on the item's card on [The Feed Page](../The%20Feed%20Page.md).
 
 A tag belongs to the item, not to one feed: an item tagged on one path shows the tag everywhere.
+Only paths that actually take the item tag it.
+
 
 ## Choosing tags by what each item is
 
@@ -39,6 +41,5 @@ with**:
 
 What it chose is kept on the item and asked once. A Filter's **Has tag** / **Lacks tag** and an
 Aggregation's saturation see the tags a box will put on, as well as the ones an item carries.
-Only paths that actually take the item tag it.
 
 **Related:** [Filter](Filter.md) · [Decay](Decay.md) · [Expire](Expire.md)
