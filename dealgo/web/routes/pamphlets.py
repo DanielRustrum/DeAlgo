@@ -138,10 +138,10 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             shown["videos"] = section["videos"][: int(said["count"])]
     elif node.kind == "leaflet-chart" and (shaping := _shaping(session, owner, node)) is not None:
         # A Format box wired in: its bars, from the JSON wired into it.
-        box, source = shaping
+        box = shaping
         spec = graph_service.formatting.settings(box)
         shaped = graph_service.formatting.shape(
-            graph_service.formatting.data_for(session, source) if source is not None else None, spec
+            graph_service.formatting.data_into(session, box, owner), spec
         )
         shown["chart_label"] = box.title if box.label else graph_service.formatting.words(box)
         shown["bars"] = shaped.bars
@@ -170,24 +170,13 @@ def _feed(session: Session, owner: OwnerId, pk: Any) -> Playlist | None:
     return next((one for one in playlist_service.list_playlists(session, owner) if one.id == pk), None)
 
 
-def _shaping(
-    session: Session, owner: OwnerId, chart: GraphNode
-) -> tuple[GraphNode, GraphNode | None] | None:
-    """The Format box wired into a chart, and the source wired into that."""
-    wired = graph_service.edges(session, owner)
+def _shaping(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | None:
+    """The Format box wired into a chart, if any."""
+    wired = graph_service.edges(session, owner, every=True)
     by_id = {node.id: node for node in graph_service.nodes(session, owner)}
-    box = next(
+    return next(
         (by_id[edge.source_pk] for edge in wired
-         if edge.target_pk == chart.id and by_id.get(edge.source_pk) is not None
-         and by_id[edge.source_pk].kind == "format"),
+         if edge.target_pk == chart.id and edge.carries == "data"
+         and by_id.get(edge.source_pk) is not None and by_id[edge.source_pk].kind == "format"),
         None,
     )
-    if box is None:
-        return None
-    source = next(
-        (by_id[edge.source_pk] for edge in wired
-         if edge.target_pk == box.id and by_id.get(edge.source_pk) is not None
-         and by_id[edge.source_pk].kind == "source"),
-        None,
-    )
-    return box, source

@@ -35,8 +35,15 @@ def nodes(session: Session, owner: OwnerId = None) -> list[GraphNode]:
     )
 
 
-def edges(session: Session, owner: OwnerId = None) -> list[GraphEdge]:
-    """Every wire on the account's canvas."""
-    return list(
-        session.scalars(owned(select(GraphEdge), GraphEdge, owner).order_by(GraphEdge.id))
-    )
+#: The wires that are paths: items, and the signals that start them. Data
+#: and page wires are drawn and kept, but nothing is routed down them.
+FLOW = ("content", "signal")
+
+
+def edges(session: Session, owner: OwnerId = None, *, every: bool = False) -> list[GraphEdge]:
+    """The wires on the account's canvas that are paths — or, with `every`,
+    every wire, data and page wires among them."""
+    statement = owned(select(GraphEdge), GraphEdge, owner).order_by(GraphEdge.id)
+    if not every:
+        statement = statement.where(GraphEdge.carries.in_(FLOW))
+    return list(session.scalars(statement))

@@ -120,7 +120,7 @@ class _Canvas:
             },
             default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
             shaped={
-                edge.target_pk for edge in graph_service.edges(session, owner)
+                edge.target_pk for edge in graph_service.edges(session, owner, every=True)
                 if any(one.id == edge.source_pk and one.kind == "format" for one in nodes)
             },
         )

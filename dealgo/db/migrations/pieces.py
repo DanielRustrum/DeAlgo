@@ -358,6 +358,8 @@ def leaflets_are_wired_to_their_feeds() -> None:
     columns = {column["name"] for column in inspect(engine).get_columns("graph_node")}
     if "leaflet" not in columns:
         return
+    # The wire says what it carries, where wires can say.
+    says = "carries" in {c["name"] for c in inspect(engine).get_columns("graph_edge")}
     drawn = 0
     with engine.begin() as connection:
         leaflets = connection.execute(text(
@@ -383,6 +385,8 @@ def leaflets_are_wired_to_their_feeds() -> None:
             if box is None:
                 continue
             connection.execute(text(
+                "INSERT INTO graph_edge (owner_pk, source_pk, target_pk, carries) "
+                "VALUES (:owner, :box, :pk, 'page')" if says else
                 "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) VALUES (:owner, :box, :pk)"
             ), {"owner": owner_pk, "box": box, "pk": pk})
             drawn += 1

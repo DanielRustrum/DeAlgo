@@ -122,6 +122,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("settings", "default_pamphlet_pk", "INTEGER"),
     # A Format box's shaping, and the REST answers it reshapes.
     ("graph_node", "format_spec", "TEXT"),
+    ("graph_edge", "carries", "VARCHAR(8) NOT NULL DEFAULT 'content'"),
     ("channel", "raw_snapshot", "TEXT"),
     ("channel", "raw_snapshot_at", "DATETIME"),
     # What a Tag box marks whatever comes through it with.

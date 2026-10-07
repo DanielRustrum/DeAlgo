@@ -63,7 +63,7 @@ def graph_move(
 
 @router.post("/graph/connect")
 def graph_connect(
-    request: Request, source: int = Form(...), target: int = Form(...)
+    request: Request, source: int = Form(...), target: int = Form(...), carries: str = Form(""),
 ) -> JSONResponse:
     """Draw a wire from one box to another, if it is allowed."""
     owner = owner_of(request)
@@ -73,7 +73,7 @@ def graph_connect(
         if first is None or second is None:
             return JSONResponse({"error": "That node is no longer there."}, status_code=404)
         try:
-            graph_service.connect(session, first, second, owner)
+            graph_service.connect(session, first, second, owner, carries=carries or None)
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(graph_payload(session, owner))

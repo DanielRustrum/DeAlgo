@@ -11,6 +11,7 @@ from __future__ import annotations
 from .columns import add_missing_columns, drop_removed_columns
 from .connections import youtube_becomes_a_plugin, youtube_takes_become_declared
 from .feeds import migrate_single_playlist, rename_local_feed_prefix
+from .edges import rebuild_edge_uniqueness, wires_say_what_they_carry
 from .pieces import (
     after_watching_is_its_own_condition,
     feed_windows_become_pieces,
@@ -22,6 +23,8 @@ from .uniqueness import rebuild_video_uniqueness, scope_uniqueness_to_owners
 from .wires import retire_tag_nodes, wires_belong_to_boxes
 
 __all__ = [
+    "rebuild_edge_uniqueness",
+    "wires_say_what_they_carry",
     "after_watching_is_its_own_condition",
     "leaflets_are_wired_to_their_feeds",
     "add_missing_columns",

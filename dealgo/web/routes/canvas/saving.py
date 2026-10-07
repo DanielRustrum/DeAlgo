@@ -641,11 +641,11 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
         )
         if node is None or node.kind != "format":
             return JSONResponse({"error": "That is not a Format box."}, status_code=404)
-        source = _format_source(session, node, owner)
-        if source is None or source.channel is None:
+        source = graph_service.formatting.data_source(session, node, owner)
+        if source is None:
             return JSONResponse({"error": "Wire a source box into it first."}, status_code=400)
-        channel = source.channel
-        if channel.source_kind == "rest" and not channel.raw_snapshot:
+        channel = source.channel if source.kind == "source" else None
+        if channel is not None and channel.source_kind == "rest" and not channel.raw_snapshot:
             try:
                 with outgoing.client() as http:
                     found = rest.read(
@@ -657,7 +657,7 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
 
             keep_snapshot(channel, found.data)
         shaped = graph_service.formatting.shape(
-            graph_service.formatting.data_for(session, source), spec
+            graph_service.formatting.data_into(session, node, owner), spec
         )
         return JSONResponse({
             "rows": shaped.rows,
@@ -667,13 +667,3 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
             "more": max(0, len(shaped.bars) - 12),
             "error": shaped.error,
         })
-
-
-def _format_source(session: Session, node: GraphNode, owner: OwnerId) -> GraphNode | None:
-    """The source box wired into a Format box, if any."""
-    for edge in graph_service.edges(session, owner):
-        if edge.target_pk == node.id:
-            start = session.get(GraphNode, edge.source_pk)
-            if start is not None and start.kind == "source":
-                return start
-    return None

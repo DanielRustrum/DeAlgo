@@ -3,8 +3,32 @@
 A **Format** box reshapes raw JSON into the bars a [Chart leaflet](Pamphlets.md#leaflets) draws. It
 sits on no path and changes nothing about what is collected.
 
-Wire it **from** a source box and **into** a Chart leaflet. Its ports, and the dotted ochre wires
-between them, are marked with braces `{ }`: they carry JSON, not items.
+Wire it **from** a source box — straight, or through operation boxes — and **into** a Chart
+leaflet. Its ports, and the dotted ochre wires between them, are marked with braces `{ }`: they
+carry JSON, not items.
+
+## Through the operations
+
+Every operation box has a `{ }` input and output beside its ▶ ones, and does to data what it does to
+items:
+
+| Box | Does to the rows |
+| --- | --- |
+| **Filter** | Keeps the rows its conditions let through: title has/lacks (on `title`), longer/shorter than (on `duration`, in seconds), has/lacks tag (on `tags`), at most. |
+| **Sort** | Orders them by its Order: `published`, `duration`, `views`, `likes` or `title`. Rows without that field go last. |
+| **Tag** | Adds its tag to each row's `tags`. |
+| **Expire** | Drops rows published longer ago than its Timer. |
+| **Decay** | Passes them on as they are. |
+
+A REST answer that is not itself a list becomes the list of rows found in it, so a Format box after
+an operation finds its rows at the top. Fields are found where APIs usually put them, as a REST
+source finds them: `name` for a title, `data.title` inside a wrapper, and so on. A box that is
+switched off passes no data on.
+
+**Deposit** and **Withdraw** boxes have a `{ }` output too: what is waiting in their repository, as
+the same rows a media source gives.
+
+Each box takes one data wire in; a second replaces it.
 
 ## What comes in
 

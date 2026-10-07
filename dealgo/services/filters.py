@@ -28,6 +28,11 @@ def validate_pattern(pattern: str | None, label: str) -> None:
         raise ValueError(f"{label} is not a valid regular expression: {exc}") from exc
 
 
+def matches(pattern: str, text: str) -> bool:
+    """Whether a pattern — words, or /a regex/ — matches, ignoring case."""
+    return _matches(pattern, text)
+
+
 def _matches(pattern: str, text: str) -> bool:
     """Whether a pattern matches, ignoring case; False for a broken pattern."""
     try:

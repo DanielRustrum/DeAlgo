@@ -226,3 +226,147 @@ def test_a_format_box_travels_in_a_group(db):
         copy = next(node for node in graph.inside(session, loaded) if node.kind == "format")
         assert formatting.settings(copy)["label"] == "data.author"
         assert session.scalars(select(GraphNode).where(GraphNode.kind == "format")).all()
+
+
+# -- data through the operations ---------------------------------------------------
+
+
+def media_source(session, titles):
+    channel = Channel(channel_id="UCmedia", title="Media")
+    session.add(channel)
+    session.flush()
+    for n, (title, minutes, days_ago) in enumerate(titles):
+        session.add(Video(video_id=f"m{n}", channel_pk=channel.id, title=title, status="added",
+                          duration_sec=minutes * 60,
+                          published_at=utcnow() - dt.timedelta(days=days_ago)))
+    session.flush()
+    return graph.add_source(session, channel=channel)
+
+
+TITLES = [("Cats one", 3, 0), ("Dogs two", 30, 1), ("Cats three", 12, 9), ("Birds four", 50, 2)]
+
+
+def test_items_and_data_both_run_through_one_filter(db):
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        middle = graph.add_filter(session, label="Long ones")
+        graph.add_piece(session, kind="longer-than", host=middle).min_duration_sec = 600
+        feed = graph.add_feed(session, playlist_service.create_generic(session, "Feed"))
+        box = graph.add_format(session)
+        graph.connect(session, source, middle)                     # items
+        graph.connect(session, source, middle, carries="data")     # and data, the same two boxes
+        graph.connect(session, middle, feed)
+        graph.connect(session, middle, box, carries="data")
+
+        kinds = sorted((w["from"] == source.id, w["kind"]) for w in graph.wires(session))
+        assert kinds.count((True, "edge")) == 1 and kinds.count((True, "data")) == 1
+        # Only the item wires are paths.
+        assert [route.playlist.title for route in graph.routes(session)] == ["Feed"]
+
+        rows = formatting.data_into(session, box, None)
+        assert sorted(row["title"] for row in rows) == ["Birds four", "Cats three", "Dogs two"]
+
+
+def test_each_operation_does_to_data_what_it_does_to_items(db):
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        sort = graph.add_sort(session)
+        graph.add_piece(session, kind="order", host=sort, sort_by="duration", newest_first=True)
+        tag = graph.add_stamp(session, kind="tag", marks="Pets")
+        expire = graph.add_stamp(session, kind="expire")
+        graph.add_piece(session, kind="timer", host=expire, duration_minutes=3 * 1440)
+        decay = graph.add_stamp(session, kind="decay")
+        box = graph.add_format(session)
+        chain = [source, sort, tag, expire, decay, box]
+        for start, end in zip(chain, chain[1:]):
+            graph.connect(session, start, end, carries="data")
+
+        rows = formatting.data_into(session, box, None)
+        # Longest first, tagged, and nothing older than three days.
+        assert [row["title"] for row in rows] == ["Birds four", "Dogs two", "Cats one"]
+        assert all(row["tags"] == ["pets"] for row in rows)
+
+        # A box switched off passes nothing on.
+        tag.enabled = False
+        assert formatting.data_into(session, box, None) is None
+
+
+def test_a_rest_answer_becomes_its_rows_on_the_way_through(db):
+    with db.session_scope() as session:
+        source = a_rest_source(session, {"data": {"children": [
+            {"data": {"title": "Short cats", "duration": 30}},
+            {"data": {"title": "Long dogs", "duration": 900}},
+        ]}})
+        middle = graph.add_filter(session)
+        graph.add_piece(session, kind="has-words", host=middle).title_include = "dogs"
+        box = graph.add_format(session)
+        graph.connect(session, source, middle, carries="data")
+        graph.connect(session, middle, box, carries="data")
+        rows = formatting.data_into(session, box, None)
+        assert rows == [{"data": {"title": "Long dogs", "duration": 900}}]
+        # Its Format box then finds the rows by itself, at the top.
+        assert formatting.shape(rows, spec(label="data.title")).bars[0].label == "Long dogs"
+
+
+def test_a_repository_gives_what_is_waiting_in_it_as_data(db):
+    from dealgo.models import RepositoryItem
+
+    with db.session_scope() as session:
+        media_source(session, TITLES[:2])
+        withdraw = graph.add_store(session, kind="withdraw", repository="Later")
+        for video in session.scalars(select(Video)):
+            session.add(RepositoryItem(name="later", video_pk=video.id))
+        box = graph.add_format(session)
+        graph.connect(session, withdraw, box, carries="data")
+        rows = formatting.data_into(session, box, None)
+        assert sorted(row["title"] for row in rows) == ["Cats one", "Dogs two"]
+
+
+def test_data_goes_only_where_it_means_something(db):
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        feed = graph.add_feed(session, playlist_service.create_generic(session, "F"))
+        with pytest.raises(graph.GraphError, match="give data"):
+            graph.connect(session, source, feed, carries="data")
+        trigger = graph.add_trigger(session, trigger_kind="pulse", every_minutes=60)
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, trigger, graph.add_format(session), carries="data")
+
+
+def test_wires_from_before_say_what_they_carry(db):
+    from sqlalchemy import text
+
+    from dealgo.db.migrations import wires_say_what_they_carry
+
+    with db.session_scope() as session:
+        source = a_rest_source(session, ANSWER)
+        box = graph.add_format(session)
+        trigger = graph.add_trigger(session, trigger_kind="pulse", every_minutes=60)
+        graph.connect(session, source, box, carries="data")
+        graph.connect(session, trigger, source)
+    engine = db.get_engine()
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE graph_edge SET carries = 'content'"))
+
+    wires_say_what_they_carry()
+    wires_say_what_they_carry()
+    with engine.begin() as connection:
+        said = sorted(row[0] for row in connection.execute(text("SELECT carries FROM graph_edge")))
+    assert said == ["data", "signal"]
+
+
+def test_a_group_keeps_what_each_wire_carries(db):
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        middle = graph.add_filter(session, x=300, y=100)
+        source.x, source.y = 100, 100
+        graph.connect(session, source, middle)
+        graph.connect(session, source, middle, carries="data")
+        group = graph.add_group(session, label="G", x=0, y=0, width=700, height=400)
+        packed = graph.export_group(session, group.id)
+        assert sorted(len(pair) for pair in packed["wires"]) == [2, 3]
+        loaded = graph.import_group(session, json.loads(json.dumps(packed)), x=3000, y=0,
+                                    file_name="g.json")
+        inside = {node.id for node in graph.inside(session, loaded)}
+        kinds = sorted(w["kind"] for w in graph.wires(session) if w["from"] in inside)
+        assert kinds == ["data", "edge"]

@@ -868,12 +868,17 @@ function onGraphPointerUp(state, event) {
     const target = graphDropTarget(event);
     if (target === null || target === drag.nodeId)
         return;
-    void wireGraphNodes(state, drag.nodeId, target);
+    void wireGraphNodes(state, drag.nodeId, target, drag.carries);
 }
 /** Wire one node to another, and remember how to take it out again. */
-async function wireGraphNodes(state, from, to) {
+async function wireGraphNodes(state, from, to, carries) {
     const before = state.wires;
-    const made = await applyGraph(state, "/graph/connect", new URLSearchParams({ source: String(from), target: String(to) }));
+    const asking = new URLSearchParams({ source: String(from), target: String(to) });
+    // Which port it was drawn from says what it carries: from a Filter's ▶ it
+    // is items, from its { } data.
+    if (carries !== undefined)
+        asking.set("carries", carries);
+    const made = await applyGraph(state, "/graph/connect", asking);
     if (!made)
         return;
     const fresh = graphWireAdded(before, state.wires);
@@ -1200,39 +1205,65 @@ function drawGraphNode(state, node) {
             drawGraphLeafletParts(box, node);
         return box;
     }
-    // A pamphlet is on no path: nothing runs into or out of one.
-    const wired = node.kind !== "pamphlet";
-    if (node.kind !== "trigger" && wired) {
-        // A channel and a withdraw are set off by a signal; a Format box takes
-        // JSON; everything else is fed content.
-        const takes = node.kind === "source" || node.kind === "withdraw" ? "signal"
-            : node.kind === "format" ? "data" : "content";
-        box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
+    const ports = graphPortKinds(node.kind);
+    for (const takes of ports.in) {
+        box.appendChild(graphPort("in", takes, graphPortSays(node.kind, "in", takes)));
     }
     box.appendChild(graphElement("span", "graph-node-kind", graphTriggerLabel(node)));
     box.appendChild(graphElement("strong", "graph-node-title", node.title));
     box.appendChild(graphElement("span", "graph-node-note", node.note));
     if (node.trigger !== null)
         box.appendChild(graphFireButton(node));
-    // A feed and a deposit are both ends of a path: nothing leaves either.
-    if (node.kind === "feed") {
-        // What a feed holds can go onto a pamphlet's page, down a wire of its own.
-        box.appendChild(graphPort("out", "page", "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet."));
-    }
-    else if (node.kind === "format") {
-        box.appendChild(graphPort("out", "data", "Gives out bars to draw: wire it to a Chart leaflet."));
-    }
-    else if (node.kind !== "deposit" && wired) {
-        const gives = node.kind === "trigger" ? "signal" : "content";
-        box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
-    }
-    // A source gives two different things, and each has its own port: what
-    // it collects, down a path, and its JSON, to a Format box.
-    if (node.kind === "source") {
-        box.appendChild(graphPort("out", "data", "Gives out its JSON — an API's answer, or its items — to a Format box."));
+    for (const gives of ports.out) {
+        box.appendChild(graphPort("out", gives, graphPortSays(node.kind, "out", gives)));
     }
     graphSpreadPorts(box);
     return box;
+}
+/** The boxes data runs through on its way to a Format box, changed by each
+ *  the way items are: a Filter keeps rows, a Sort orders them. */
+function graphDataOps() {
+    return ["filter", "sort", "tag", "decay", "expire"];
+}
+/** Which kinds of wire a box takes in, and gives out — a port for each.
+ *  The same answer the server's wiring table gives, side by side: an
+ *  operation box passes items and data, separately, at the same time. */
+function graphPortKinds(kind) {
+    if (kind === "trigger")
+        return { in: [], out: ["signal"] };
+    if (kind === "source" || kind === "withdraw")
+        return { in: ["signal"], out: ["content", "data"] };
+    // A feed and a deposit are both ends of a path. What a feed holds can go
+    // onto a page; what a repository holds can go on as data.
+    if (kind === "feed")
+        return { in: ["content"], out: ["page"] };
+    if (kind === "deposit")
+        return { in: ["content"], out: ["data"] };
+    if (kind === "format")
+        return { in: ["data"], out: ["data"] };
+    if (graphDataOps().indexOf(kind) >= 0)
+        return { in: ["content", "data"], out: ["content", "data"] };
+    // A pamphlet is on no path: nothing runs into or out of one.
+    return { in: [], out: [] };
+}
+/** What one port takes in or gives out, in a sentence. */
+function graphPortSays(kind, where, carries) {
+    if (carries === "page")
+        return "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet.";
+    if (carries !== "data")
+        return graphPortWords(kind, where);
+    if (kind === "format") {
+        return where === "in"
+            ? "Takes JSON: a source's, or what an operation passed on."
+            : "Gives out bars to draw: wire it to a Chart leaflet.";
+    }
+    if (kind === "source")
+        return "Gives out its JSON — an API's answer, or its items — to an operation or a Format box.";
+    if (kind === "deposit" || kind === "withdraw")
+        return "Gives out what is waiting in the repository, as JSON.";
+    return where === "in"
+        ? "Takes JSON, and changes it the way this box changes items."
+        : "Gives out the JSON as this box left it, for another operation or a Format box.";
 }
 /** Ports on one side, spaced evenly down it: one in the middle, two at a
  *  third and two thirds, so each kind of wire has a place of its own. */

@@ -57,11 +57,15 @@ Each kind of wire has its own port, marked inside the dot:
 | ⚡ bolt | A signal to run | Trigger → source or Withdraw |
 | ▶ play | Items, down a path | Source → filter, sort, feed… |
 | Sheet of print | A feed, onto a page | Feed → Feed or Link leaflet |
-| `{ }` braces | JSON, to be drawn | Source → [Format](Nodes/Format.md) → Chart leaflet |
+| `{ }` braces | JSON, to be drawn | Source → operations → [Format](Nodes/Format.md) → Chart leaflet |
 
-A box that can connect more than one way shows a port for each — a source has one for its path and
-one for a Format box. Once one of them is wired, the others on that side fade; they still take a
-wire if you want both.
+A box that can connect more than one way shows a port for each. Sources, the operation boxes
+(Filter, Sort, Tag, Decay, Expire) and Withdraw have a ▶ port and a `{ }` port on each side they
+use: items and data can run through the same box at once, down separate wires — even between the
+same two boxes. Drag from the port of the kind you want. Once one port on a side is wired, the
+others there fade; they still take a wire.
+
+Only ▶ and ⚡ wires are paths. Data wires never change what is collected or where it goes.
 
 Click a wire to select it, then press the **✕** that appears on it to remove it.
 

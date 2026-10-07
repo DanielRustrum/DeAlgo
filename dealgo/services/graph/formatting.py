@@ -32,9 +32,16 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models import Channel, GraphNode, Video
+from ...models import Channel, GraphEdge, GraphNode, RepositoryItem, Video
 from ...sources import rest
+from .. import filters
+from ..scope import OwnerId, owned
+from .conditions import filter_rules
 from .errors import GraphError
+from .names import store_name, tag_name, tag_names
+from .pieces import pieces_of, pieces_under
+from .reading import nodes
+from .stamps import stamped_life
 
 GROUPS: tuple[tuple[str, str], ...] = (
     ("none", "As it is"),
@@ -137,29 +144,32 @@ def media_rows(session: Session, channel: Channel) -> list[dict[str, Any]]:
         .order_by(Video.published_at.desc(), Video.id.desc())
         .limit(MEDIA_ITEMS)
     )
+    return [_row(video) for video in videos]
+
+
+def _row(video: Video) -> dict[str, Any]:
+    """One item, as a row of JSON."""
 
     def stamp(value: dt.datetime | None) -> str | None:
         return value.isoformat() + "Z" if value is not None else None
 
-    return [
-        {
-            "id": video.video_id,
-            "title": video.title,
-            "link": video.url,
-            "kind": video.kind,
-            "source": channel.title or channel.channel_id,
-            "published": stamp(video.published_at),
-            "arrived": stamp(video.discovered_at),
-            "duration": video.duration_sec,
-            "views": video.view_count,
-            "likes": video.like_count,
-            "tags": video.tag_list,
-            "status": video.status,
-            "watched": video.watched_at is not None,
-            "watched_at": stamp(video.watched_at),
-        }
-        for video in videos
-    ]
+    channel = video.channel
+    return {
+        "id": video.video_id,
+        "title": video.title,
+        "link": video.url,
+        "kind": video.kind,
+        "source": (channel.title or channel.channel_id) if channel is not None else "",
+        "published": stamp(video.published_at),
+        "arrived": stamp(video.discovered_at),
+        "duration": video.duration_sec,
+        "views": video.view_count,
+        "likes": video.like_count,
+        "tags": video.tag_list,
+        "status": video.status,
+        "watched": video.watched_at is not None,
+        "watched_at": stamp(video.watched_at),
+    }
 
 
 def data_for(session: Session, source: GraphNode) -> Any:
@@ -175,6 +185,192 @@ def data_for(session: Session, source: GraphNode) -> Any:
         except ValueError:
             return None
     return media_rows(session, channel)
+
+
+def repository_rows(session: Session, box: GraphNode, owner: OwnerId) -> list[dict[str, Any]]:
+    """What is waiting in a Deposit or Withdraw box's repository, as rows."""
+    named = store_name(box.repository)
+    if not named:
+        return []
+    videos = session.scalars(
+        owned(select(Video), Video, owner)
+        .join(RepositoryItem, RepositoryItem.video_pk == Video.id)
+        .where(RepositoryItem.name == named)
+        .order_by(Video.published_at.desc(), Video.id.desc())
+        .limit(MEDIA_ITEMS)
+    )
+    return [_row(video) for video in videos]
+
+
+# -- through the operations --------------------------------------------------------
+
+
+def data_into(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> Any:
+    """The JSON wired into a box down its data wire, as it arrives: after
+    whatever the boxes on the way did to it. None if nothing is wired in."""
+    if depth > 40:
+        return None  # a ring built before they were refused
+    wire = session.scalar(
+        owned(select(GraphEdge), GraphEdge, owner)
+        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "data")
+        .order_by(GraphEdge.id.desc())
+    )
+    start = session.get(GraphNode, wire.source_pk) if wire is not None else None
+    if start is None:
+        return None
+    return data_out(session, start, owner, depth + 1)
+
+
+def data_source(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> GraphNode | None:
+    """The box at the start of the data wired into this one: a source or a repository."""
+    if depth > 40:
+        return None
+    wire = session.scalar(
+        owned(select(GraphEdge), GraphEdge, owner)
+        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "data")
+        .order_by(GraphEdge.id.desc())
+    )
+    start = session.get(GraphNode, wire.source_pk) if wire is not None else None
+    if start is None or start.kind in ("source", "deposit", "withdraw"):
+        return start
+    return data_source(session, start, owner, depth + 1)
+
+
+def data_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> Any:
+    """What a box gives out down a data wire."""
+    if box.kind == "source":
+        return data_for(session, box)
+    if box.kind in ("deposit", "withdraw"):
+        return repository_rows(session, box, owner)
+    if not box.enabled:
+        return None  # a box that is off passes nothing, data or items
+    arriving = data_into(session, box, owner, depth)
+    if arriving is None or box.kind == "decay":
+        # A Decay is about time with an item, which rows do not have.
+        return arriving
+    rows = rows_of(arriving)
+    if box.kind == "filter":
+        return _filtered(rows, box, session, owner)
+    if box.kind == "sort":
+        return _sorted(rows, box, session, owner)
+    if box.kind == "tag":
+        named = tag_name(box.marks)
+        return [_tagged(row, named) for row in rows] if named else rows
+    if box.kind == "expire":
+        return _unexpired(rows, box, session, owner)
+    return arriving
+
+
+def rows_of(data: Any) -> list[Any]:
+    """The rows in some JSON: itself if it is a list, else the list found in it."""
+    if isinstance(data, list):
+        return data
+    try:
+        return rest.locate(data, "")[0]
+    except rest.RestError:
+        return []
+
+
+def _field(row: Any, name: str) -> Any:
+    """A field of a row, where APIs usually put it, as a REST source finds it."""
+    if not isinstance(row, dict):
+        return None
+    if name in row:
+        return row[name]
+    for place in [row] + [row[w] for w in rest.WRAPPERS if isinstance(row.get(w), dict)]:
+        for candidate in rest.GUESSES.get(name, ()):
+            if place.get(candidate) not in (None, ""):
+                return place[candidate]
+    return None
+
+
+def _row_tags(row: Any) -> list[str]:
+    said = _field(row, "tags")
+    if isinstance(said, list):
+        return [tag_name(str(one)) for one in said]
+    if isinstance(said, str):
+        return tag_names(said)
+    return []
+
+
+def _filtered(rows: list[Any], box: GraphNode, session: Session, owner: OwnerId) -> list[Any]:
+    """The rows a Filter box's conditions let through, judged as items are."""
+    rules = filter_rules(pieces_under(nodes(session, owner), box.id))
+    wanted = tag_names(str(rules.get("tagged") or ""))
+    unwanted = tag_names(str(rules.get("untagged") or ""))
+    kept: list[Any] = []
+    for row in rows:
+        title = str(_field(row, "title") or "")
+        if rules.get("title_include") and not filters.matches(str(rules["title_include"]), title):
+            continue
+        if rules.get("title_exclude") and filters.matches(str(rules["title_exclude"]), title):
+            continue
+        length = _number(_field(row, "duration"))
+        if length is not None:
+            if rules.get("min_duration_sec") and length < float(rules["min_duration_sec"]):
+                continue
+            if rules.get("max_duration_sec") and length > float(rules["max_duration_sec"]):
+                continue
+        tags = set(_row_tags(row))
+        if wanted and tags.isdisjoint(wanted):
+            continue
+        if unwanted and not tags.isdisjoint(unwanted):
+            continue
+        kept.append(row)
+    most = rules.get("max_per_run")
+    return kept[: int(most)] if most else kept
+
+
+_SORT_FIELDS = {"published": "published", "duration": "duration", "views": "views",
+                "likes": "likes", "title": "title"}
+
+
+def _sorted(rows: list[Any], box: GraphNode, session: Session, owner: OwnerId) -> list[Any]:
+    """The rows in the order a Sort box's Order piece says."""
+    order = next(
+        (piece for piece in pieces_under(nodes(session, owner), box.id)
+         if piece.kind == "order" and piece.enabled),
+        None,
+    )
+    if order is None:
+        return rows
+    key = _SORT_FIELDS.get(order.sort_by or "published", "published")
+    falling = (order.sort_dir or "desc") == "desc"
+
+    def value(row: Any) -> tuple[int, Any]:
+        said = _field(row, key)
+        if key == "published":
+            when = rest.when(said)
+            return (0, when.timestamp()) if when is not None else (1, 0)
+        if key == "title":
+            return (0, str(said or "").lower())
+        number = _number(said)
+        return (0, number) if number is not None else (1, 0)
+
+    present = [row for row in rows if value(row)[0] == 0]
+    missing = [row for row in rows if value(row)[0] == 1]
+    return sorted(present, key=lambda row: value(row)[1], reverse=falling) + missing
+
+
+def _tagged(row: Any, named: str) -> Any:
+    if not isinstance(row, dict):
+        return row
+    tags = _row_tags(row)
+    return {**row, "tags": tags if named in tags else tags + [named]}
+
+
+def _unexpired(rows: list[Any], box: GraphNode, session: Session, owner: OwnerId) -> list[Any]:
+    """The rows younger than an Expire box's Timer, counted from when each was published."""
+    minutes = stamped_life([box], pieces_of(session, owner))
+    if minutes is None:
+        return rows
+    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=minutes)
+    kept = []
+    for row in rows:
+        when = rest.when(_field(row, "published"))
+        if when is None or when >= since:
+            kept.append(row)
+    return kept
 
 
 # -- reshaping it ------------------------------------------------------------------

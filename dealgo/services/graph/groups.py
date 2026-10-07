@@ -35,9 +35,9 @@ from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, condition, condi
 from .errors import GraphError
 from .leaflets import LEAFLET_KINDS
 from .pieces import attach
-from .reading import nodes
+from .reading import edges, nodes
 from .vocabulary import AUGMENTATIONS, GROUP_LEAST, GROUP_SIZE, STAMPS
-from .wiring import connect, refresh_membership, wires
+from .wiring import connect, refresh_membership
 
 # Bumped if the shape changes in a way a reader would need to know about.
 # 2 carries augmentations, each with an `under` naming what it is slotted
@@ -163,9 +163,10 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
         "width": group.width or GROUP_SIZE[0],
         "height": group.height or GROUP_SIZE[1],
         "nodes": packed,
+        # A path wire is a pair; any other kind says what it carries.
         "wires": [
-            [refs[start], refs[end]]
-            for start, end in _wires_within(session, carried, owner)
+            [refs[start], refs[end]] if carries == "content" else [refs[start], refs[end], carries]
+            for start, end, carries in _wires_within(session, carried, owner)
             if start in refs and end in refs
         ],
     }
@@ -173,16 +174,15 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
 
 def _wires_within(
     session: Session, carried: list[GraphNode], owner: OwnerId
-) -> list[tuple[int, int]]:
-    """Every wire with both ends inside the group. A wire out of it is not
-    the group's to give away."""
+) -> list[tuple[int, int, str]]:
+    """Every wire with both ends inside the group, and what it carries. A
+    wire out of it is not the group's to give away."""
     held = {node.id for node in carried}
-    drawn: list[tuple[int, int]] = []
-    for wire in wires(session, owner):
-        start, end = int(wire["from"]), int(wire["to"])
-        if start in held and end in held:
-            drawn.append((start, end))
-    return drawn
+    return [
+        (edge.source_pk, edge.target_pk, edge.carries)
+        for edge in edges(session, owner, every=True)
+        if edge.source_pk in held and edge.target_pk in held
+    ]
 
 
 def _check_file(payload: Any) -> dict[str, Any]:
@@ -302,13 +302,14 @@ def _slot_and_wire(
                 _slot(session, entry, made, owner)
         session.flush()
     for pair in payload.get("wires") or []:
-        if not isinstance(pair, list) or len(pair) != 2:
+        if not isinstance(pair, list) or len(pair) not in (2, 3):
             continue
         start, end = made.get(pair[0]), made.get(pair[1])
         if start is None or end is None:
             continue
+        carries = str(pair[2]) if len(pair) == 3 else None
         try:
-            connect(session, start, end, owner)
+            connect(session, start, end, owner, carries=carries)
         except GraphError:
             continue
 

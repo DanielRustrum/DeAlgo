@@ -309,7 +309,11 @@ class GraphEdge(Base):
     """
 
     __tablename__ = "graph_edge"
-    __table_args__ = (UniqueConstraint("source_pk", "target_pk", name="uq_edge_source_target"),)
+    # One wire of each kind between two boxes: a Filter can pass items and
+    # data to the same next box, down two wires.
+    __table_args__ = (
+        UniqueConstraint("source_pk", "target_pk", "carries", name="uq_edge_source_target_carries"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_pk: Mapped[Optional[int]] = owner_column()
@@ -318,6 +322,12 @@ class GraphEdge(Base):
     )
     target_pk: Mapped[int] = mapped_column(
         ForeignKey("graph_node.id", ondelete="CASCADE"), index=True
+    )
+    # What travels down it: "content" — items, down a path — "signal" from a
+    # trigger, "page" from a feed onto a leaflet, or "data", JSON on its way
+    # to be drawn. Only content and signal wires are paths.
+    carries: Mapped[str] = mapped_column(
+        String(8), default="content", server_default=text("'content'")
     )
 
     source: Mapped[GraphNode] = relationship(foreign_keys=[source_pk])

@@ -44,13 +44,17 @@ TRIGGER_COLUMN = 40
 TRIGGER_GAP = 260
 
 
-def load(session: Session, owner: OwnerId = None) -> tuple[list[GraphNode], list[GraphEdge]]:
-    """The whole graph, built from the existing setup if it has none yet."""
+def load(
+    session: Session, owner: OwnerId = None, *, every: bool = False
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """The whole graph, built from the existing setup if it has none yet.
+
+    Its paths only, unless `every`: see `reading.edges`."""
     existing = nodes(session, owner)
     if not existing:
         existing = _lay_out_existing(session, owner)
     _add_missing(session, existing, owner)
-    return nodes(session, owner), edges(session, owner)
+    return nodes(session, owner), edges(session, owner, every=every)
 
 
 def _lay_out_existing(session: Session, owner: OwnerId) -> list[GraphNode]:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from ..models import Base
 from .engine import get_engine, session_scope
 from .migrations import (
+    rebuild_edge_uniqueness,
+    wires_say_what_they_carry,
     after_watching_is_its_own_condition,
     leaflets_are_wired_to_their_feeds,
     add_missing_columns,
@@ -32,6 +34,7 @@ def init_db() -> None:
     Base.metadata.create_all(get_engine())
     add_missing_columns()
     rebuild_video_uniqueness()
+    rebuild_edge_uniqueness()
     scope_uniqueness_to_owners()
     rename_local_feed_prefix()
     migrate_single_playlist()
@@ -44,6 +47,7 @@ def init_db() -> None:
     youtube_takes_become_declared()
     after_watching_is_its_own_condition()
     leaflets_are_wired_to_their_feeds()
+    wires_say_what_they_carry()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     drop_removed_columns()

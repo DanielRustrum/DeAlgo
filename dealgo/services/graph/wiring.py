@@ -20,11 +20,12 @@ from .canvas import load
 from .errors import GraphError
 from .reading import edges, nodes
 from . import leaflets
-from .vocabulary import ALLOWED, ONE_INPUT, WIRED_LEAFLETS
+from .vocabulary import DATA_TAKERS, WIRED_LEAFLETS, WIRING, carries_between
 
 
 def connect(
-    session: Session, source: GraphNode, target: GraphNode, owner: OwnerId = None
+    session: Session, source: GraphNode, target: GraphNode, owner: OwnerId = None,
+    carries: str | None = None,
 ) -> GraphEdge | None:
     """Wire one box to another, refusing what would not make sense.
 
@@ -36,10 +37,14 @@ def connect(
     """
     if source.id == target.id:
         raise GraphError("A node cannot feed itself.")
-    if target.kind not in ALLOWED.get(source.kind, ()):
+    said = carries in WIRING
+    carries = carries if carries is not None and said else carries_between(source.kind, target.kind)
+    if target.kind not in WIRING[carries].get(source.kind, ()):
+        if said and carries == "data":
+            raise GraphError(f"A {source.kind} cannot give data to a {target.kind}.")
         raise GraphError(f"A {source.kind} cannot feed a {target.kind}.")
 
-    fresh = source.kind == "source" and target.kind == "feed"
+    fresh = carries == "content" and source.kind == "source" and target.kind == "feed"
     if fresh:
         if source.channel is None or target.playlist is None:
             raise GraphError("That node no longer has anything behind it.")
@@ -53,27 +58,30 @@ def connect(
                 "make a new feed and keep it generic."
             )
 
-    if _reaches(session, target, source, owner):
+    if _reaches(session, target, source, owner, carries):
         raise GraphError("That would make a loop, and nothing would ever come out of it.")
 
     existing = session.scalar(
         select(GraphEdge).where(
-            GraphEdge.source_pk == source.id, GraphEdge.target_pk == target.id
+            GraphEdge.source_pk == source.id, GraphEdge.target_pk == target.id,
+            GraphEdge.carries == carries,
         )
     )
     if existing is not None:
         return existing
 
-    if target.kind in ONE_INPUT:
-        # One thing in: a second wired in takes the first's place.
-        for older in session.scalars(select(GraphEdge).where(GraphEdge.target_pk == target.id)):
+    if (carries == "data" and target.kind in DATA_TAKERS) or carries == "page":
+        # One thing in of this kind: a second wired in takes the first's place.
+        for older in session.scalars(select(GraphEdge).where(
+            GraphEdge.target_pk == target.id, GraphEdge.carries == carries,
+        )):
             session.delete(older)
         session.flush()
 
-    edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id)
+    edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id, carries=carries)
     session.add(edge)
     session.flush()
-    if target.kind in WIRED_LEAFLETS and source.playlist_pk is not None:
+    if carries == "page" and target.kind in WIRED_LEAFLETS and source.playlist_pk is not None:
         leaflets.point_at(target, source.playlist_pk)
     if fresh and source.channel is not None and target.playlist is not None:
         refresh_membership(session, source.channel, owner)
@@ -166,16 +174,12 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
     One kind now. A source's wire used to be synthesised from its channel's
     feeds, which is why two boxes for one channel showed the same wires.
     """
-    all_nodes, all_edges = load(session, owner)
-    # A wire into a leaflet carries a feed onto a page, not items down a path;
-    # one into or out of a Format box carries JSON to be drawn.
-    shown = {node.id for node in all_nodes if node.kind in WIRED_LEAFLETS}
-    shaping = {node.id for node in all_nodes if node.kind == "format"}
+    _, all_edges = load(session, owner, every=True)
 
     def kind_of(edge: GraphEdge) -> str:
-        if edge.source_pk in shaping or edge.target_pk in shaping:
-            return "data"
-        return "page" if edge.target_pk in shown else "edge"
+        # The canvas draws paths alike, signal or items; page and data
+        # wires each their own way.
+        return edge.carries if edge.carries in ("page", "data") else "edge"
 
     return [
         {
@@ -198,9 +202,10 @@ def disconnect(session: Session, edge_pk: int, owner: OwnerId = None) -> bool:
     start = session.get(GraphNode, edge.source_pk)
     channel = start.channel if start is not None and start.kind == "source" else None
     end = session.get(GraphNode, edge.target_pk)
+    was_page = edge.carries == "page"
     session.delete(edge)
     session.flush()
-    if end is not None and end.kind in WIRED_LEAFLETS:
+    if was_page and end is not None and end.kind in WIRED_LEAFLETS:
         leaflets.point_at(end, None)
     if channel is not None:
         refresh_membership(session, channel, owner)
@@ -213,12 +218,18 @@ def still_drawn(session: Session, pk: int, what: str) -> bool:
     return session.scalar(select(GraphNode.id).where(column == pk).limit(1)) is not None
 
 
-def _reaches(session: Session, start: GraphNode, goal: GraphNode, owner: OwnerId) -> bool:
-    """Whether `goal` is already downstream of `start` — a loop in waiting."""
+def _reaches(
+    session: Session, start: GraphNode, goal: GraphNode, owner: OwnerId, carries: str = "content"
+) -> bool:
+    """Whether `goal` is already downstream of `start` — a loop in waiting.
+
+    Along wires of the same kind: items and data are separate flows, and a
+    data wire back up a path makes no loop in it."""
     # Depth-first along the wires from `start`, looking for `goal`.
     out: dict[int, list[int]] = {}
-    for edge in edges(session, owner):
-        out.setdefault(edge.source_pk, []).append(edge.target_pk)
+    for edge in edges(session, owner, every=True):
+        if edge.carries == carries:
+            out.setdefault(edge.source_pk, []).append(edge.target_pk)
 
     seen: set[int] = set()
     stack = [start.id]

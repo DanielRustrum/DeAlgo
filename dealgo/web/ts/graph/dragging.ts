@@ -478,17 +478,19 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
   }
   const target = graphDropTarget(event);
   if (target === null || target === drag.nodeId) return;
-  void wireGraphNodes(state, drag.nodeId, target);
+  void wireGraphNodes(state, drag.nodeId, target, drag.carries);
 }
 
 /** Wire one node to another, and remember how to take it out again. */
-async function wireGraphNodes(state: GraphState, from: number, to: number): Promise<void> {
+async function wireGraphNodes(
+  state: GraphState, from: number, to: number, carries?: GraphCarries,
+): Promise<void> {
   const before = state.wires;
-  const made = await applyGraph(
-    state,
-    "/graph/connect",
-    new URLSearchParams({ source: String(from), target: String(to) }),
-  );
+  const asking = new URLSearchParams({ source: String(from), target: String(to) });
+  // Which port it was drawn from says what it carries: from a Filter's ▶ it
+  // is items, from its { } data.
+  if (carries !== undefined) asking.set("carries", carries);
+  const made = await applyGraph(state, "/graph/connect", asking);
   if (!made) return;
 
   const fresh = graphWireAdded(before, state.wires);

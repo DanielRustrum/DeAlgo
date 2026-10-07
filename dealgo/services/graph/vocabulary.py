@@ -85,20 +85,15 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # be read. That is a Timer and a Reset slotted under it now: it is a
     # property of the feed rather than something arriving along a wire.
     "trigger": ("source", "withdraw"),
-    # A source's JSON can also go to a Format box, to be drawn as a chart;
-    # that is a wire of its own kind, and no path runs through it.
-    "source": MIDDLE + ENDS + ("format",),
-    # A Format box gives its bars to a Chart leaflet, and nothing else.
-    "format": ("leaflet-chart",),
+    "source": MIDDLE + ENDS,
+    "format": (),
     "filter": MIDDLE + ENDS,
     "sort": MIDDLE + ENDS,
     # A withdraw stands where a source stands: it starts a path, and what
     # comes out of it has already been through whatever filtered it on the
     # way in.
     "withdraw": MIDDLE + ENDS,
-    # A feed is where a path ends — but what is in it can be shown on a
-    # pamphlet's page, down a wire of its own kind into a leaflet.
-    "feed": WIRED_LEAFLETS,
+    "feed": (),
     # The end of the line. What is in it comes out through a Withdraw box,
     # which is a path of its own rather than a continuation of this one.
     "deposit": (),
@@ -122,3 +117,44 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "expire": MIDDLE + ENDS,
     "tag": MIDDLE + ENDS,
 }
+
+
+#: The boxes data passes through on its way to a Format box, each doing to
+#: it what it does to items: a Filter keeps rows, a Sort orders them…
+DATA_OPS = ("filter", "sort", "tag", "decay", "expire")
+
+#: Where data may go from each box: through the operations, into a Format
+#: box, and from a Format box into a Chart leaflet. A repository gives what
+#: is waiting in it.
+DATA_ALLOWED: dict[str, tuple[str, ...]] = {
+    "source": DATA_OPS + ("format",),
+    **{kind: DATA_OPS + ("format",) for kind in DATA_OPS},
+    "deposit": DATA_OPS + ("format",),
+    "withdraw": DATA_OPS + ("format",),
+    "format": ("leaflet-chart",),
+}
+
+#: What may be wired to what, by what the wire carries.
+WIRING: dict[str, dict[str, tuple[str, ...]]] = {
+    "signal": {"trigger": ALLOWED["trigger"]},
+    "content": {kind: targets for kind, targets in ALLOWED.items() if kind != "trigger"},
+    # A feed is where a path ends — but what is in it can be shown on a
+    # pamphlet's page, down a wire of its own kind into a leaflet.
+    "page": {"feed": WIRED_LEAFLETS},
+    "data": DATA_ALLOWED,
+}
+
+#: Boxes a data wire may come into. Each takes one: a second replaces it.
+DATA_TAKERS = DATA_OPS + ("format", "leaflet-chart")
+
+
+def carries_between(source_kind: str, target_kind: str) -> str:
+    """What a wire between two kinds of box carries, when nobody said: the
+    kind there is only one of between them, items before data."""
+    if source_kind == "trigger":
+        return "signal"
+    if source_kind == "feed" and target_kind in WIRED_LEAFLETS:
+        return "page"
+    if target_kind in WIRING["content"].get(source_kind, ()):
+        return "content"
+    return "data"
