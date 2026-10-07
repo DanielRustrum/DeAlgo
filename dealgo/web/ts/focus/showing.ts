@@ -82,6 +82,7 @@ function showFocusVideo(sitting: FocusSitting, item: FocusItem): void {
 function showFocusItem(sitting: FocusSitting, item: FocusItem, remaining: number): void {
   const elements = sitting.elements;
   sitting.current = item;
+  sitting.seen = freshFocusSeen(sitting.seen.pickedId);
   sitting.ready = true; // whatever it is, the page got us this far
 
   // Reloading has to come back to the item actually open, not the one the page

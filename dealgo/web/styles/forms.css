@@ -106,3 +106,8 @@ input:focus, select:focus, textarea:focus {
   input[type=text], input[type=password], input[type=number],
   input[type=search], select, textarea { font-size: calc(16px * var(--text-scale)); padding: 9px 12px; }
 }
+
+/* Settings → AI model: one signal the algorithm learns, and what it leans to. */
+.algorithm-signal { padding: 10px 0; border-top: 1px solid var(--line); }
+.algorithm-signal h4 { margin: 0 0 4px; font-size: calc(14px * var(--text-scale)); }
+.algorithm-leanings p { margin: 4px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

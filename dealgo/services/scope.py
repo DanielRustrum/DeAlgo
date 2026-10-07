@@ -18,6 +18,8 @@ from sqlalchemy import Select
 from sqlalchemy.sql.elements import ColumnElement
 
 from ..models import (
+    AlgorithmModel,
+    Consumption,
     Channel,
     OAuthToken,
     GraphEdge,
@@ -38,7 +40,7 @@ from ..models import (
 Owned = (
     Channel | Playlist | Video | Settings | SyncRun | GraphNode | GraphEdge
     | RunEvent | RepositoryItem | PluginUserSetting | OAuthToken | UserTheme
-    | UserImage
+    | UserImage | Consumption | AlgorithmModel
 )
 
 # A select of anything: one column, several, or a count. The rows it yields

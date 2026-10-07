@@ -32,6 +32,7 @@ Everything you can place on the [Configuration Canvas](../The%20Configuration%20
 | [Timer, Lock](Decay.md) | Decay | Time per item, and whether it can be paused |
 | [Timer](Expire.md) | Expire | How long an item stays |
 | [Count](Transform.md#pieces) | Transform | How many came in, as one number |
+| [Aggregation](Aggregation.md) | Filter, Sort, Expire | Your own algorithm, at work |
 | [Leaflets](Pamphlets.md#leaflets) | Pamphlet, or beside another leaflet | The blocks of a pamphlet's page |
 
 All pieces are covered in [Augmentations](Augmentations.md).

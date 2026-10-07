@@ -46,7 +46,7 @@ TRANSFORMS: tuple[str, ...] = ("count",)
 #: "piece" is what one looks like.
 AUGMENTATIONS: tuple[str, ...] = (
     ("timer", "reset", "alive", "lock", "after-watch") + CONDITION_KINDS + (RULE,)
-    + LEAFLET_KINDS + TRANSFORMS
+    + LEAFLET_KINDS + TRANSFORMS + ("aggregation",)
 )
 
 
@@ -102,6 +102,7 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # A Text box takes items or data and gives out words, onto a page.
     "text": (),
     **{kind: () for kind in TRANSFORMS},
+    "aggregation": (),
     "filter": MIDDLE + ENDS + INTO_TRANSFORM,
     "sort": MIDDLE + ENDS + INTO_TRANSFORM,
     # A withdraw stands where a source stands: it starts a path, and what

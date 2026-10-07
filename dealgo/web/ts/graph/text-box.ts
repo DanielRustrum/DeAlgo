@@ -85,3 +85,50 @@ async function writeGraphText(state: GraphState, button: HTMLElement, nodeId: st
   await applyGraph(state, `/graph/nodes/${nodeId}/write`, new URLSearchParams());
   // The panel is drawn afresh from the answer, with what it wrote or why not.
 }
+
+/** An Aggregation piece: which signal, the threshold, and where the
+ *  algorithm is — learned, still learning, or switched off. */
+interface GraphAggregation {
+  settings: Record<string, string | number>;
+  signals: GraphChoice[];
+  state: string;
+}
+
+function asGraphAggregation(value: unknown): GraphAggregation | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const settings: Record<string, string | number> = {};
+  const given = asGraphRecord(raw["settings"]);
+  if (given !== null) {
+    for (const [key, one] of Object.entries(given)) {
+      if (typeof one === "string" || typeof one === "number") settings[key] = one;
+    }
+  }
+  return {
+    settings,
+    signals: asGraphChoices(raw["signals"]),
+    state: typeof raw["state"] === "string" ? raw["state"] : "",
+  };
+}
+
+/** An Aggregation piece's panel: what it predicts, and how much is enough. */
+function graphAggregationFields(form: HTMLElement, node: GraphNodeView): void {
+  const said = node.aggregation;
+  if (said === null) return;
+  const value = (key: string): string => String(said.settings[key] ?? "");
+  form.appendChild(
+    graphLabelled("Predicts", graphLeafletSelect("aggregation_signal", said.signals, value("signal"))),
+  );
+  form.appendChild(graphLabelled("Threshold, %", graphLeafletNumber("aggregation_threshold", value("threshold"), 0, 100)));
+  const under = node.piece?.under == null ? "" : node.note;
+  form.appendChild(
+    graphElement(
+      "p",
+      "hint",
+      node.piece?.under == null
+        ? "Loose on the canvas. Drop it on a Filter, a Sort or an Expire box. Under a Filter it holds back what it predicts below the threshold; under a Sort it puts the most predicted first; under an Expire box, what it predicts below the threshold leaves sooner."
+        : `Under this box: ${under}.`,
+    ),
+  );
+  if (said.state !== "") form.appendChild(graphElement("p", "hint", said.state));
+}

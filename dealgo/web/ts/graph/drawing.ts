@@ -36,6 +36,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "transform") return "Transform";
   if (kind === "text") return "Text";
   if (kind === "count") return "Count";
+  if (kind === "aggregation") return "Aggregation";
   if (kind === "leaflet-feed") return "Feed leaflet";
   if (kind === "leaflet-chart") return "Chart leaflet";
   if (kind === "leaflet-text") return "Text leaflet";

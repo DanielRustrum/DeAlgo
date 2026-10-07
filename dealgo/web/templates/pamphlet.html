@@ -36,7 +36,7 @@
 {%- endmacro %}
 
 {% macro story(video, said, lead) -%}
-{% set href = '/focus?start=' ~ video.id ~ ('&playlist=' ~ said.playlist.id if said.playlist) %}
+{% set href = '/focus?start=' ~ video.id ~ '&picked=1' ~ ('&playlist=' ~ said.playlist.id if said.playlist) %}
 {% set picture = video.pictures | first %}
 <article class="story {{ 'is-lead' if lead }}">
   {% if picture and lead %}

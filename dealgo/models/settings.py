@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,5 +49,13 @@ class Settings(Base):
     ai_model: Mapped[Optional[str]] = mapped_column(String(120))
     ai_base_url: Mapped[Optional[str]] = mapped_column(Text)
     ai_key: Mapped[Optional[str]] = mapped_column(Text)
+
+    # The algorithm of one's own: whether Focus mode remembers how things are
+    # watched, so it can learn; how far back it learns from; how many
+    # examples it needs before it says anything; and how often it learns again.
+    algorithm_on: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    algorithm_days: Mapped[int] = mapped_column(Integer, default=90, server_default=text("90"))
+    algorithm_min: Mapped[int] = mapped_column(Integer, default=20, server_default=text("20"))
+    algorithm_every: Mapped[str] = mapped_column(String(8), default="daily", server_default=text("'daily'"))
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -15,6 +16,7 @@ from ...models import (
     Placement,
     Video,
 )
+from ...services import algorithm
 from ...services import playlists as playlist_service
 from ...services import watched as watched_service
 from ...services.filters import format_duration
@@ -149,6 +151,11 @@ def focus_finished(
     playlist: str = Form(""),
     watched: str = Form("1"),
     skipped: str = Form(""),
+    seconds: str = Form(""),
+    reached: str = Form(""),
+    duration: str = Form(""),
+    pauses: str = Form(""),
+    clicked: str = Form(""),
 ) -> JSONResponse:
     """Called by the player when a video ends, or when someone skips.
 
@@ -178,6 +185,9 @@ def focus_finished(
 
         if watched == "1":
             watched_service.mark_watched(session, [video_id], owner)
+        # How it went, for the algorithm of one's own to learn from.
+        _remember(session, owner, video, seconds, reached, duration, pauses, clicked,
+                  skipped=watched != "1", finished=watched == "1")
 
     return JSONResponse(
         {
@@ -187,4 +197,56 @@ def focus_finished(
             # item came from, so the two cannot drift apart.
             "upcoming": rest[1 : 1 + UPCOMING_SHOWN],
         }
+    )
+
+
+@router.post("/focus/{video_id}/seen")
+def focus_seen(
+    request: Request,
+    video_id: int,
+    seconds: str = Form(""),
+    reached: str = Form(""),
+    duration: str = Form(""),
+    pauses: str = Form(""),
+    clicked: str = Form(""),
+) -> Response:
+    """Sent as the page is left with something still open: how it went, so
+    far. Nothing moves on; there is nobody left to move on for."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        video = session.scalar(owned(select(Video), Video, owner).where(Video.id == video_id))
+        if video is not None:
+            _remember(session, owner, video, seconds, reached, duration, pauses, clicked,
+                      skipped=False, finished=False)
+    return Response(status_code=204)
+
+
+def _number(said: str) -> float | None:
+    try:
+        value = float(said)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) else None
+
+
+def _remember(
+    session: Session, owner: OwnerId, video: Video, seconds: str, reached: str,
+    duration: str, pauses: str, clicked: str, *, skipped: bool, finished: bool,
+) -> None:
+    if not seconds.strip():
+        return  # an older page that does not say how it went
+    reach, length = _number(reached), _number(duration)
+    if reach is not None and length:
+        # Done pressed half way through a video is done with it, not a video
+        # watched to the end.
+        finished = finished and reach >= 0.9 * length
+    algorithm.record(
+        session, owner, video, get_settings(session, owner),
+        seconds=_number(seconds) or 0.0,
+        reached=reach,
+        duration=length,
+        pauses=int(_number(pauses) or 0),
+        clicked=clicked == "1",
+        skipped=skipped,
+        finished=finished,
     )

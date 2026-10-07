@@ -18,6 +18,13 @@ function buildFocusPlayer(sitting: FocusSitting): void {
         if (focusIsRead(sitting.current) && sitting.player) sitting.player.pauseVideo();
       },
       onStateChange: (event: YouTubePlayerEvent): void => {
+        // Stopping and starting again is what engagement is counted from.
+        if (event.data === api.PlayerState.PLAYING) sitting.seen.playing = true;
+        if (event.data === api.PlayerState.PAUSED && sitting.seen.playing) {
+          sitting.seen.pauses += 1;
+          sitting.seen.playing = false;
+        }
+        noteFocusPosition(sitting);
         if (event.data === api.PlayerState.ENDED && !focusIsRead(sitting.current)) {
           advanceFocus(sitting, true);
         }

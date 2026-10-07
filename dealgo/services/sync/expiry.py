@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -11,12 +12,13 @@ from sqlalchemy.orm import Session, selectinload
 from ...models import (
     Placement,
     Playlist,
+    GraphNode,
     Video,
     to_naive_utc,
     utcnow,
 )
 from ...plugins.publisher import Publisher, PublishError, cost_of
-from .. import graph, quota, runlog
+from .. import algorithm, graph, quota, runlog
 from ..scope import OwnerId, belongs_to
 from .result import SyncResult
 
@@ -54,8 +56,9 @@ def stamp_expiry(
             continue
         minutes = graph.stamped_life(path.stamps, known)
         if minutes is not None and placement.expires_at is None:
+            life = minutes * life_share(session, video, path.stamps, known)
             placement.expires_at = to_naive_utc(
-                dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
+                dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=life)
             )
         # Gone once it is watched, which has not happened yet: said now, and
         # the sweep sees the watching when it comes. Beside any lifetime from
@@ -120,7 +123,11 @@ def stamp_what_is_already_here(
         )
         for placement in waiting:
             began = placement.added_at or utcnow()
-            placement.expires_at = began + dt.timedelta(minutes=minutes)
+            share = (
+                life_share(session, placement.video, path.stamps, known)
+                if placement.video is not None else 1.0
+            )
+            placement.expires_at = began + dt.timedelta(minutes=minutes * share)
             put += 1
     if put:
         session.flush()
@@ -206,3 +213,22 @@ def watched_end(placement: Placement) -> dt.datetime | None:
     if minutes is None or watched is None:
         return None
     return watched + dt.timedelta(minutes=minutes)
+
+
+def life_share(session: Session, video: Video, stamps: list[GraphNode], pieces_for: Any) -> float:
+    """How much of its Timer an item gets, as the algorithm under an Expire
+    box on its path says: all of it, unless it predicts the item under the
+    threshold — then less, the further under. The least of them, if several."""
+    share = 1.0
+    for box in stamps:
+        if box.kind != "expire" or not box.enabled:
+            continue
+        for piece in pieces_for(box):
+            if piece.kind != "aggregation" or not piece.enabled:
+                continue
+            said = algorithm.settings(piece)
+            share = min(
+                share,
+                algorithm.expiry_share(algorithm.score(session, video, piece), int(said["threshold"])),
+            )
+    return share

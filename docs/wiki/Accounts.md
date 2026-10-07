@@ -40,6 +40,13 @@ everyone, and its service's daily [quota](Quota.md), are shared by the whole ins
 The admin alone manages **accounts**, [plugins](Plugins.md) and
 [moving the instance](Moving%20an%20Instance.md). Plugins are shared: one install, one set of plugins.
 
+## Algorithms
+
+Under **Admin → Algorithms**, the admin can switch everyone's [algorithm](Nodes/Aggregation.md) off.
+Each account's algorithm learns and predicts on this machine's processor, on every run; on a small
+machine that can be more than it should carry. Switched off, Aggregation pieces do nothing and nothing
+is learned. What Focus mode remembers is kept, so switching back on picks up where it was.
+
 ## How it is secured
 
 - Passwords are stored as **scrypt** hashes with a per-password salt.

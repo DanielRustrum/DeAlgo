@@ -202,6 +202,7 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   // before the broad ones.
   else if (node.condition !== null) graphConditionFields(form, node, node.condition);
   else if (node.kind === "rule") graphPluginFields(form, node);
+  else if (node.kind === "aggregation") graphAggregationFields(form, node);
   else if (node.leaflet !== null) graphLeafletFields(form, node);
   else if (node.kind === "pamphlet") graphPamphletFields(form, node);
   else if (node.kind === "format") graphFormatFields(form, node);

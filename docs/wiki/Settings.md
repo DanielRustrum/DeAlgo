@@ -28,6 +28,16 @@ or tick **Forget the saved key** — and it is not in backups. **Ask it** asks t
 sentence, to know it answers. Claude and OpenAI charge your account with them for what is read and
 written.
 
+## Your algorithm
+
+Also on the AI model page: an algorithm of your own, which an [Aggregation](Nodes/Aggregation.md)
+piece puts to work. **Learn from how I watch in Focus mode** turns it on or off — off, Focus mode
+remembers nothing. Choose how many days back it learns from, how many items it needs before it says
+anything, and whether it learns again every run or once a day. For each of interest, retention and
+engagement, the page shows how many items it learned from, how well it did on items it was not
+shown, and what it leans towards and away from. **Learn now** and **Forget everything** do what they
+say.
+
 ## Plugins
 
 A folded block for each plugin that has something for you: a service to sign in to, or settings each

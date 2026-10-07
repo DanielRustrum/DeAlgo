@@ -19,7 +19,7 @@ from ...models import (
     utcnow,
 )
 from ...plugins.publisher import Publisher, cost_of, names
-from .. import graph, quota, runlog, writing
+from .. import algorithm, graph, quota, runlog, writing
 from ..connections import build_client
 from ..scope import OwnerId, owned
 from .details import fill_missing_details
@@ -172,6 +172,16 @@ def _run(
     pen.at("sorting")
     fill_missing_details(session, client, result, owner)
     session.commit()
+    # The algorithm of one's own learns again, when it is due, before what it
+    # predicts is asked about the batch being filled.
+    if algorithm.due(session, owner, settings):
+        learned = algorithm.train_all(session, owner, settings)
+        pen.write("Your algorithm learned again: " + ", ".join(
+            f"{signal} from {model.examples} items" if model is not None
+            else f"{signal} not yet (too few items)"
+            for signal, model in learned.items()
+        ) + ".")
+        session.commit()
     note(stage="filling")
     pen.at("filling")
     _fill(session, client, settings, result, owner, pen, sources)

@@ -15,7 +15,7 @@
 {% set back_to = '/feed/' ~ section.playlist.id if section is defined else '/feed' %}
 <article class="card {{ 'card-watched' if video.watched }} {{ 'card-post' if video.is_post }} {{ 'card-link' if video.is_link }}"
          id="feed-card-{{ video.id }}">
-  <a class="card-thumb" href="/focus?start={{ video.id }}{{ from_feed }}"
+  <a class="card-thumb" href="/focus?start={{ video.id }}&picked=1{{ from_feed }}"
      title="{{ video.title or video.video_id }} — {{ video.channel.title }}">
     {% set lead = video.pictures | first %}
     {% if lead %}

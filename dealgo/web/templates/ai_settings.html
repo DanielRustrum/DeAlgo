@@ -63,5 +63,74 @@
 </section>
 {% endif %}
 
+<section class="panel" id="algorithm">
+  <h2>Your algorithm</h2>
+  <p class="hint">
+    An algorithm of your own, like the one a video site runs on you — but yours, and only on this
+    machine. It learns from how you go through things in Focus mode, and an
+    <strong>Aggregation</strong> piece on the canvas puts what it predicts to work: under a Filter,
+    under a Sort, or under an Expire box. It learns three things:
+  </p>
+  <ul class="hint">
+    <li><strong>Interest</strong> — would you open it at all, rather than pass it over.</li>
+    <li><strong>Retention</strong> — how much of it you would take in: how far into a video, how long on a post.</li>
+    <li><strong>Engagement</strong> — how steadily you would stay with it, rather than stopping and starting.</li>
+  </ul>
+  {% if not site_allows %}
+  <p class="error-note">The admin has switched algorithms off for this install: nothing is learned, and Aggregation pieces do nothing.</p>
+  {% endif %}
+
+  <form class="stack-form" method="post" action="/settings/ai/algorithm">
+    <label class="check"><input type="checkbox" name="on" value="1" {{ 'checked' if algorithm_on }}>
+      Learn from how I watch in Focus mode</label>
+    <div class="field-row">
+      <label>Learn from the last
+        <input type="number" name="days" min="7" max="730" value="{{ algorithm_days }}"> days</label>
+      <label>Say nothing until it has
+        <input type="number" name="least" min="5" max="5000" value="{{ algorithm_min }}"> items</label>
+      <label>Learn again
+        <select name="every">
+          {% for name, label in every %}<option value="{{ name }}" {{ 'selected' if algorithm_every == name }}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+
+  <h3>What it has learned</h3>
+  <p class="hint">It has seen {{ seen }} time{{ 's' if seen != 1 }} something was open in Focus mode.</p>
+  {% for one in signals %}
+  <div class="algorithm-signal">
+    <h4>{{ one.label }}</h4>
+    {% if one.model %}
+      <p class="hint">
+        Learned {{ one.model.trained_at | ago }} from {{ one.model.examples }} items
+        {%- if one.model.quality is not none %};
+          {% if one.name == 'interest' %}right {{ '%.0f' | format(one.model.quality * 100) }}% of the time
+          {% else %}off by {{ '%.0f' | format((1 - one.model.quality) * 100) }}% on average{% endif %}
+          on items it was not shown{% endif %}.
+      </p>
+      {% if one.toward or one.away %}
+      <div class="algorithm-leanings">
+        {% if one.toward %}<p><strong>Leans towards</strong> {% for lean in one.toward %}<span class="pill">{{ lean.named }}</span>{% endfor %}</p>{% endif %}
+        {% if one.away %}<p><strong>Leans away from</strong> {% for lean in one.away %}<span class="pill">{{ lean.named }}</span>{% endfor %}</p>{% endif %}
+      </div>
+      {% endif %}
+    {% else %}
+      <p class="hint">Not learned yet.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="row-buttons">
+    <form method="post" action="/settings/ai/algorithm/learn"><button class="btn" type="submit">Learn now</button></form>
+    <form method="post" action="/settings/ai/algorithm/forget"
+          onsubmit="return confirm('Forget everything it saw and learned? It starts again from nothing.')">
+      <button class="btn btn-danger" type="submit">Forget everything</button>
+    </form>
+  </div>
+  <p class="hint">Nothing it sees or learns leaves this machine, and it is not in backups.</p>
+</section>
+
 <script src="/static/ai.js?v={{ asset_version }}" defer></script>
 {% endblock %}

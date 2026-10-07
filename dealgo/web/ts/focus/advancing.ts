@@ -25,6 +25,7 @@ function focusAdvanceBody(sitting: FocusSitting, markWatched: boolean): string {
   body.set("playlist", sitting.playlist);
   body.set("watched", markWatched ? "1" : "0");
   body.set("skipped", sitting.passedOver.join(","));
+  focusSeenFields(sitting, body);
   return body.toString();
 }
 

@@ -24,6 +24,13 @@ Add a **Lock** under the Decay box and the countdown cannot be held.
 
 Videos are never timed: they always play to the end.
 
+## What it remembers
+
+For [your algorithm](Nodes/Aggregation.md), Focus mode remembers how each item went: how long it was
+open, how far into a video you got, how often you paused and played again, and whether you opened it
+by clicking its card or skipped it. Nothing else, and nothing leaves this machine. Switch it off under
+Settings → AI model.
+
 ## Notes
 
 - Each step asks the server for the next item, so a tab left open overnight never shows something

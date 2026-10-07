@@ -18,6 +18,9 @@ interface YouTubePlayer {
   loadVideoById(videoId: string): void;
   pauseVideo(): void;
   stopVideo(): void;
+  /** How far into the video it is, and how long it is, in seconds. */
+  getCurrentTime(): number;
+  getDuration(): number;
 }
 
 /** What the player's events carry: its state. */
@@ -37,7 +40,7 @@ interface YouTubePlayerOptions {
 /** The part of YouTube's IFrame API De-Algo uses. */
 interface YouTubeApi {
   Player: new (elementId: string, options: YouTubePlayerOptions) => YouTubePlayer;
-  PlayerState: { ENDED: number };
+  PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };
 }
 
 /** What the page's scripts find on `window`: htmx, and YouTube's API. */

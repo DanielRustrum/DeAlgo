@@ -85,4 +85,19 @@ interface FocusSitting {
   msLeft: number;
   /** The reader has paused the timer. */
   held: boolean;
+  /** How the item open now is going, for the algorithm to learn from:
+   *  when it was shown, how often it was paused, how far a video got, and
+   *  whether it is the one whose card was clicked to start the sitting. */
+  seen: FocusSeen;
+}
+
+/** How one item went, while it was open. */
+interface FocusSeen {
+  shownAt: number;
+  pauses: number;
+  reached: number;
+  duration: number;
+  playing: boolean;
+  /** The item the sitting was opened on by clicking its card, if any. */
+  pickedId: number | null;
 }

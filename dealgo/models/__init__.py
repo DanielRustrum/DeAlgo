@@ -26,12 +26,15 @@ from .repository import RepositoryItem
 from .run import RunEvent, SyncRun
 from .settings import Settings
 from .source import Channel
+from .algorithm import AlgorithmModel, Consumption, SiteSetting
 from .theme import UserImage, UserTheme
 from .times import to_naive_utc, utcnow
 
 __all__ = [
+    "AlgorithmModel",
     "Base",
     "Channel",
+    "Consumption",
     "channel_playlist",
     "CONDITION_LABELS",
     "LEAFLET_LABELS",
@@ -51,6 +54,7 @@ __all__ = [
     "RepositoryItem",
     "RunEvent",
     "Settings",
+    "SiteSetting",
     "SyncRun",
     "to_naive_utc",
     "User",

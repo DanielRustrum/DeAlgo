@@ -65,7 +65,55 @@ function newFocusSitting(root: HTMLElement, opening: FocusItem): FocusSitting {
     timerId: null,
     msLeft: 0,
     held: false,
+    seen: freshFocusSeen(focusPickedId(opening)),
   };
+}
+
+/** The item a sitting was opened on by clicking its card — a feed card or a
+ *  pamphlet story says `picked=1` — rather than reached in turn or reloaded. */
+function focusPickedId(opening: FocusItem): number | null {
+  const asked = new URLSearchParams(window.location.search);
+  return asked.get("picked") === "1" ? opening.id : null;
+}
+
+/** A clean slate for the item just shown. */
+function freshFocusSeen(pickedId: number | null): FocusSeen {
+  return { shownAt: Date.now(), pauses: 0, reached: 0, duration: 0, playing: false, pickedId };
+}
+
+/** Read how far the player got, while it can still be asked. */
+function noteFocusPosition(sitting: FocusSitting): void {
+  const player = sitting.player;
+  if (player === null || focusIsRead(sitting.current)) return;
+  try {
+    sitting.seen.reached = Math.max(sitting.seen.reached, player.getCurrentTime() || 0);
+    sitting.seen.duration = player.getDuration() || sitting.seen.duration;
+  } catch {
+    // A player not ready yet has nothing to say.
+  }
+}
+
+/** How the open item went, as form fields. */
+function focusSeenFields(sitting: FocusSitting, body: URLSearchParams): void {
+  noteFocusPosition(sitting);
+  const seen = sitting.seen;
+  body.set("seconds", ((Date.now() - seen.shownAt) / 1000).toFixed(1));
+  body.set("pauses", String(seen.pauses));
+  body.set("clicked", seen.pickedId === sitting.current.id ? "1" : "0");
+  if (!focusIsRead(sitting.current)) {
+    body.set("reached", seen.reached.toFixed(1));
+    body.set("duration", seen.duration.toFixed(1));
+  }
+}
+
+/** Leaving the page with something open still says how it went. */
+function sayFocusSeenOnLeaving(sitting: FocusSitting): void {
+  window.addEventListener("pagehide", (): void => {
+    if (sitting.elements.root.classList.contains("focus-done")) return;
+    const body = new URLSearchParams();
+    focusSeenFields(sitting, body);
+    navigator.sendBeacon(`/focus/${sitting.current.id}/seen`, body);
+  }, { once: true });
 }
 
 /** Focus mode's entry point: start a sitting if this is the Focus page and there is a queue. */
@@ -78,6 +126,7 @@ function initFocusMode(): void {
 
   const sitting = newFocusSitting(root, opening);
   bindFocusControls(sitting);
+  sayFocusSeenOnLeaving(sitting);
   pointFrameAtFirstVideo(sitting);
   awaitYouTubeApi(sitting);
 

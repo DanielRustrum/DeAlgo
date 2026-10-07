@@ -41,6 +41,8 @@ PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     **{kind: ("pamphlet",) for kind in LEAFLET_KINDS},
     # What a Transform does with what comes in.
     "count": ("transform",),
+    # The algorithm of one's own: narrows, orders, or shortens a lifetime.
+    "aggregation": ("filter", "sort", "expire"),
 }
 
 

@@ -26,6 +26,10 @@ def piece_note(piece: GraphNode, host: GraphNode | None) -> str:
     one item, under an Expire box it is how long that item stays. The piece
     carries the number; the box it is in is what the number means.
     """
+    if piece.kind == "aggregation":
+        from .. import algorithm
+
+        return algorithm.words(piece, host)
     said = piece_words(piece)
     if piece.kind != "timer":
         return said
@@ -112,6 +116,8 @@ def piece_words(piece: GraphNode, window: int | None = None) -> str:
         return condition_words(piece)
     if piece.kind == "lock":
         return "cannot be paused"
+    if piece.kind == "aggregation":
+        return "the algorithm of your own"
     if piece.kind == "count":
         return "how many come in, as one number"
     if piece.kind == "after-watch":

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ...config import CONFIG
 from ...db import session_scope
 from ...plugins import registry
-from ...services import accounts, migration
+from ...services import accounts, algorithm, migration
 from ..responses import redirect, render
 from ..templates import Context
 
@@ -47,16 +47,33 @@ def admin_page(request: Request) -> HTMLResponse:
     """The Admin page, or what would turn accounts on when they are off."""
     # Reachable by address even with accounts switched off, where an empty
     # list of them would explain nothing. Say what would turn it on instead.
-    if not CONFIG.auth_enabled:
-        return render(
-            request,
-            "admin.html",
-            {"account_count": 0, "accounts_off": 0,
-             "min_passphrase": migration.MIN_PASSPHRASE, **_plugin_tally()},
-        )
     with session_scope() as session:
-        context = _admin_context(session)
+        allowed = algorithm.site_allows(session)
+        if not CONFIG.auth_enabled:
+            return render(
+                request,
+                "admin.html",
+                {"account_count": 0, "accounts_off": 0, "algorithms_allowed": allowed,
+                 "min_passphrase": migration.MIN_PASSPHRASE, **_plugin_tally()},
+            )
+        context = {**_admin_context(session), "algorithms_allowed": allowed}
     return render(request, "admin.html", context)
+
+
+@router.post("/admin/algorithms")
+def switch_algorithms(request: Request, allowed: str = Form("")) -> Response:
+    """Let accounts' own algorithms learn and predict on this install, or not.
+
+    They run here, on this machine's processor, every run for every account
+    that has one: on a small machine, that can be more than it should carry.
+    """
+    with session_scope() as session:
+        algorithm.set_site_allows(session, allowed == "1")
+    return redirect(
+        "/admin",
+        ok="Algorithms are allowed." if allowed == "1"
+        else "Algorithms are switched off: Aggregation pieces do nothing, and nothing is learned.",
+    )
 
 
 @router.post("/admin/backup")

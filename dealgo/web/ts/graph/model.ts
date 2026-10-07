@@ -16,6 +16,8 @@ type GraphNodeKind =
   | "text"
   // What a Transform does: counts what comes in.
   | "count"
+  // The algorithm of one's own, under a Filter, a Sort or an Expire box.
+  | "aggregation"
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
   // hang beside each other as well as below — beside is the next column.
   | "leaflet-feed"
@@ -65,7 +67,7 @@ function graphConditionKinds(): GraphNodeKind[] {
 function graphIsPiece(kind: GraphNodeKind): boolean {
   return (
     kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
-    kind === "after-watch" || kind === "count" || graphIsLeaflet(kind) ||
+    kind === "after-watch" || kind === "count" || kind === "aggregation" || graphIsLeaflet(kind) ||
     kind === "rule" || graphConditionKinds().indexOf(kind) >= 0
   );
 }
@@ -134,6 +136,8 @@ interface GraphNodeView {
   dataOnly: boolean;
   /** Text boxes: what it is told to write, and what it last wrote. */
   writing: GraphWriting | null;
+  /** Aggregation pieces: what it predicts, the threshold, and where it is. */
+  aggregation: GraphAggregation | null;
 }
 
 /** A feed box's reading windows and caps. */

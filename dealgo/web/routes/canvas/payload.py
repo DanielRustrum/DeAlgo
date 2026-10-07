@@ -13,7 +13,7 @@ from ....services import channels as channel_service
 from ....db import get_settings
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
-from ....services import writing
+from ....services import algorithm, writing
 from ....services.scope import OwnerId
 from ...templates import Context
 from .facts import (
@@ -87,6 +87,8 @@ class _Canvas:
     default_pamphlet: int | None
     #: The model Text boxes write with, if one is chosen.
     model: writing.Model | None
+    #: What the algorithm of one's own can do now, by signal, in words.
+    learning: dict[str, str]
     #: Chart leaflets with a Format or Transform box wired into them, and which.
     shaped: dict[int, str]
 
@@ -125,6 +127,7 @@ class _Canvas:
             },
             default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
             model=writing.model_for(get_settings(session, owner)),
+            learning=_learning(session, owner),
             shaped={
                 edge.target_pk: {"format": "Format", "transform": "Transform", "text": "Text"}[
                     by_id[edge.source_pk].kind
@@ -149,6 +152,13 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
                     else f"drawn by the {by} box wired in"
                 )
         drawn["leaflet"] = _leaflet(node, canvas)
+    elif node.kind == "aggregation":
+        said = algorithm.settings(node)
+        drawn["aggregation"] = {
+            "settings": said,
+            "signals": [{"name": n, "label": l} for n, l in algorithm.SIGNALS],
+            "state": canvas.learning.get(str(said["signal"]), ""),
+        }
     elif node.kind == "text":
         error = writing.last_error(node)
         drawn["note"] = (
@@ -350,3 +360,30 @@ def ago_words(when: dt.datetime) -> str:
     from ...templates import ago
 
     return ago(when)
+
+
+def _learning(session: Session, owner: OwnerId) -> dict[str, str]:
+    """Where the algorithm is, for each signal, said for an Aggregation's panel."""
+    account = get_settings(session, owner)
+    if not algorithm.site_allows(session):
+        return {name: "Algorithms are switched off for this install, by the admin: it does nothing."
+                for name, _ in algorithm.SIGNALS}
+    if not account.algorithm_on:
+        return {name: "Your algorithm is off, under Settings → AI model: it does nothing."
+                for name, _ in algorithm.SIGNALS}
+    said: dict[str, str] = {}
+    for name, _ in algorithm.SIGNALS:
+        model = algorithm.learned(session, owner, name)
+        if model is None:
+            said[name] = (
+                f"Still learning: it needs {account.algorithm_min} items you opened or passed "
+                "over in Focus mode, and does nothing until then."
+            )
+        else:
+            how = "" if model.quality is None else (
+                f", and was right {model.quality:.0%} of the time on items it was not shown"
+                if name == "interest" else
+                f", and was off by {1 - model.quality:.0%} on average on items it was not shown"
+            )
+            said[name] = f"Learned from {model.examples} items{how}."
+    return said

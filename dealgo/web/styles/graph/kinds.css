@@ -31,6 +31,7 @@
   &.kind-lock,
   &.kind-after-watch,
   &.kind-count,
+  &.kind-aggregation,
   &.kind-has-words,
   &.kind-lacks-words,
   &.kind-longer-than,

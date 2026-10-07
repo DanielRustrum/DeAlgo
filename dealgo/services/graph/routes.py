@@ -81,7 +81,7 @@ class Route:
         """
         for box in reversed(self.sorts):
             for piece in self.slots.get(box.id, []):
-                if piece.enabled and piece.kind in ("order", RULE):
+                if piece.enabled and piece.kind in ("order", RULE, "aggregation"):
                     return piece
         return None
 

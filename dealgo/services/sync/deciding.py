@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from sqlalchemy.orm import object_session
+
 from ...models import (
     GraphNode,
     Settings,
@@ -13,7 +15,7 @@ from ...models import (
 from ...plugins import registry
 from ...plugins.capabilities import acting_for
 from ...plugins.publisher import VideoDetails
-from .. import filters, graph
+from .. import algorithm, filters, graph
 from .progress import note_filtered
 from .reasons import WRONG_KIND_OF_FEED
 from .result import SyncResult
@@ -116,6 +118,23 @@ def decide(
         held = [name for name in unwanted if name in carried]
         if held:
             return filters.Decision(False, f"tagged “{held[0]}”")
+
+    # The algorithm of one's own, under a Filter: what it predicts below the
+    # threshold stays out. Saying nothing — switched off, or not learned
+    # yet — it holds nothing back.
+    for box in path.filters:
+        for piece in path.slots.get(box.id, []):
+            if piece.kind != "aggregation" or not piece.enabled:
+                continue
+            session = object_session(video)
+            predicted = algorithm.score(session, video, piece) if session is not None else None
+            said = algorithm.settings(piece)
+            if predicted is not None and predicted * 100 < int(said["threshold"]):
+                return filters.Decision(
+                    False,
+                    f"the algorithm predicts {predicted:.0%} {said['signal']}, "
+                    f"under {said['threshold']}%",
+                )
 
     # A published playlist holds only what its service does, so an item it
     # cannot hold can only go into a feed that lives inside De-Algo — said

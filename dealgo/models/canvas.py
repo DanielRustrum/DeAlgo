@@ -168,6 +168,9 @@ class GraphNode(Base):
     # Text boxes only: what it is told to write, as JSON (services/writing.py),
     # and what it last wrote — or why it could not — and when.
     writing: Mapped[Optional[str]] = mapped_column(Text)
+    # Aggregation pieces only: which signal, and the threshold, as JSON
+    # (services/algorithm.py).
+    aggregation: Mapped[Optional[str]] = mapped_column(Text)
     written: Mapped[Optional[str]] = mapped_column(Text)
     written_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
 
@@ -274,6 +277,8 @@ class GraphNode(Base):
             return "Text"
         if self.kind == "count":
             return "Count"
+        if self.kind == "aggregation":
+            return "Aggregation"
         if self.kind in LEAFLET_LABELS:
             return LEAFLET_LABELS[self.kind]
         if self.kind == "rule":

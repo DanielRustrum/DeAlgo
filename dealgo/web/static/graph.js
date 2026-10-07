@@ -1012,6 +1012,8 @@ function graphKindLabel(kind) {
         return "Text";
     if (kind === "count")
         return "Count";
+    if (kind === "aggregation")
+        return "Aggregation";
     if (kind === "leaflet-feed")
         return "Feed leaflet";
     if (kind === "leaflet-chart")
@@ -2433,7 +2435,7 @@ function graphConditionKinds() {
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
     return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
-        kind === "after-watch" || kind === "count" || graphIsLeaflet(kind) ||
+        kind === "after-watch" || kind === "count" || kind === "aggregation" || graphIsLeaflet(kind) ||
         kind === "rule" || graphConditionKinds().indexOf(kind) >= 0);
 }
 /** Which boxes have somewhere for a piece to go. */
@@ -2922,6 +2924,8 @@ function graphNodeForm(state, node) {
         graphConditionFields(form, node, node.condition);
     else if (node.kind === "rule")
         graphPluginFields(form, node);
+    else if (node.kind === "aggregation")
+        graphAggregationFields(form, node);
     else if (node.leaflet !== null)
         graphLeafletFields(form, node);
     else if (node.kind === "pamphlet")
@@ -3603,6 +3607,7 @@ function asGraphNodeKind(value) {
         value === "transform" ||
         value === "text" ||
         value === "count" ||
+        value === "aggregation" ||
         value === "leaflet-feed" ||
         value === "leaflet-chart" ||
         value === "leaflet-text" ||
@@ -3669,6 +3674,7 @@ function asGraphNode(value) {
         format: asGraphFormat(raw["format"]),
         dataOnly: raw["dataOnly"] === true,
         writing: asGraphWriting(raw["writing"]),
+        aggregation: asGraphAggregation(raw["aggregation"]),
     };
 }
 /** What an empty source box asks to be told. */
@@ -4622,6 +4628,40 @@ async function writeGraphText(state, button, nodeId) {
     button.setAttribute("disabled", "");
     await applyGraph(state, `/graph/nodes/${nodeId}/write`, new URLSearchParams());
     // The panel is drawn afresh from the answer, with what it wrote or why not.
+}
+function asGraphAggregation(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const settings = {};
+    const given = asGraphRecord(raw["settings"]);
+    if (given !== null) {
+        for (const [key, one] of Object.entries(given)) {
+            if (typeof one === "string" || typeof one === "number")
+                settings[key] = one;
+        }
+    }
+    return {
+        settings,
+        signals: asGraphChoices(raw["signals"]),
+        state: typeof raw["state"] === "string" ? raw["state"] : "",
+    };
+}
+/** An Aggregation piece's panel: what it predicts, and how much is enough. */
+function graphAggregationFields(form, node) {
+    var _a, _b;
+    const said = node.aggregation;
+    if (said === null)
+        return;
+    const value = (key) => { var _a; return String((_a = said.settings[key]) !== null && _a !== void 0 ? _a : ""); };
+    form.appendChild(graphLabelled("Predicts", graphLeafletSelect("aggregation_signal", said.signals, value("signal"))));
+    form.appendChild(graphLabelled("Threshold, %", graphLeafletNumber("aggregation_threshold", value("threshold"), 0, 100)));
+    const under = ((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null ? "" : node.note;
+    form.appendChild(graphElement("p", "hint", ((_b = node.piece) === null || _b === void 0 ? void 0 : _b.under) == null
+        ? "Loose on the canvas. Drop it on a Filter, a Sort or an Expire box. Under a Filter it holds back what it predicts below the threshold; under a Sort it puts the most predicted first; under an Expire box, what it predicts below the threshold leaves sooner."
+        : `Under this box: ${under}.`));
+    if (said.state !== "")
+        form.appendChild(graphElement("p", "hint", said.state));
 }
 
 "use strict";

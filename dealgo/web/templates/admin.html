@@ -36,6 +36,29 @@
   <a class="btn btn-quiet" href="/admin/plugins">Manage plugins →</a>
 </section>
 
+<section class="panel" id="algorithms">
+  <div class="panel-head">
+    <h2>Algorithms</h2>
+    <span class="pill {{ 'pill-added' if algorithms_allowed else 'pill-paused' }}">{{ 'allowed' if algorithms_allowed else 'switched off' }}</span>
+  </div>
+  <p>
+    Each account can have an algorithm of its own: it learns from how that account watches in
+    Focus mode, and an <strong>Aggregation</strong> piece on the canvas uses it to filter, sort or
+    expire. It learns and predicts here, on this machine's processor, on every run for every
+    account using it — which on a small machine can be more than it should carry.
+  </p>
+  <form method="post" action="/admin/algorithms">
+    <input type="hidden" name="allowed" value="{{ '0' if algorithms_allowed else '1' }}">
+    <button class="btn {{ 'btn-danger' if algorithms_allowed else 'btn-primary' }}" type="submit">
+      {{ 'Switch algorithms off for everyone' if algorithms_allowed else 'Allow algorithms' }}
+    </button>
+  </form>
+  <p class="hint">
+    Switched off, Aggregation pieces do nothing and nothing is learned. What Focus mode remembers
+    is kept, so switching back on picks up where it was.
+  </p>
+</section>
+
 {% if auth_enabled %}
 <section class="panel">
   <h2>Move this instance</h2>

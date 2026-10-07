@@ -26,6 +26,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "transform" ||
     value === "text" ||
     value === "count" ||
+    value === "aggregation" ||
     value === "leaflet-feed" ||
     value === "leaflet-chart" ||
     value === "leaflet-text" ||
@@ -92,6 +93,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     format: asGraphFormat(raw["format"]),
     dataOnly: raw["dataOnly"] === true,
     writing: asGraphWriting(raw["writing"]),
+    aggregation: asGraphAggregation(raw["aggregation"]),
   };
 }
 

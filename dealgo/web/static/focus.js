@@ -25,6 +25,7 @@ function focusAdvanceBody(sitting, markWatched) {
     body.set("playlist", sitting.playlist);
     body.set("watched", markWatched ? "1" : "0");
     body.set("skipped", sitting.passedOver.join(","));
+    focusSeenFields(sitting, body);
     return body.toString();
 }
 /** markWatched=false means "skip": it stays unwatched but sits out this
@@ -151,6 +152,14 @@ function buildFocusPlayer(sitting) {
                     sitting.player.pauseVideo();
             },
             onStateChange: (event) => {
+                // Stopping and starting again is what engagement is counted from.
+                if (event.data === api.PlayerState.PLAYING)
+                    sitting.seen.playing = true;
+                if (event.data === api.PlayerState.PAUSED && sitting.seen.playing) {
+                    sitting.seen.pauses += 1;
+                    sitting.seen.playing = false;
+                }
+                noteFocusPosition(sitting);
                 if (event.data === api.PlayerState.ENDED && !focusIsRead(sitting.current)) {
                     advanceFocus(sitting, true);
                 }
@@ -339,6 +348,7 @@ function showFocusVideo(sitting, item) {
 function showFocusItem(sitting, item, remaining) {
     const elements = sitting.elements;
     sitting.current = item;
+    sitting.seen = freshFocusSeen(sitting.seen.pickedId);
     sitting.ready = true; // whatever it is, the page got us this far
     // Reloading has to come back to the item actually open, not the one the page
     // was opened on.
@@ -481,7 +491,53 @@ function newFocusSitting(root, opening) {
         timerId: null,
         msLeft: 0,
         held: false,
+        seen: freshFocusSeen(focusPickedId(opening)),
     };
+}
+/** The item a sitting was opened on by clicking its card — a feed card or a
+ *  pamphlet story says `picked=1` — rather than reached in turn or reloaded. */
+function focusPickedId(opening) {
+    const asked = new URLSearchParams(window.location.search);
+    return asked.get("picked") === "1" ? opening.id : null;
+}
+/** A clean slate for the item just shown. */
+function freshFocusSeen(pickedId) {
+    return { shownAt: Date.now(), pauses: 0, reached: 0, duration: 0, playing: false, pickedId };
+}
+/** Read how far the player got, while it can still be asked. */
+function noteFocusPosition(sitting) {
+    const player = sitting.player;
+    if (player === null || focusIsRead(sitting.current))
+        return;
+    try {
+        sitting.seen.reached = Math.max(sitting.seen.reached, player.getCurrentTime() || 0);
+        sitting.seen.duration = player.getDuration() || sitting.seen.duration;
+    }
+    catch (_a) {
+        // A player not ready yet has nothing to say.
+    }
+}
+/** How the open item went, as form fields. */
+function focusSeenFields(sitting, body) {
+    noteFocusPosition(sitting);
+    const seen = sitting.seen;
+    body.set("seconds", ((Date.now() - seen.shownAt) / 1000).toFixed(1));
+    body.set("pauses", String(seen.pauses));
+    body.set("clicked", seen.pickedId === sitting.current.id ? "1" : "0");
+    if (!focusIsRead(sitting.current)) {
+        body.set("reached", seen.reached.toFixed(1));
+        body.set("duration", seen.duration.toFixed(1));
+    }
+}
+/** Leaving the page with something open still says how it went. */
+function sayFocusSeenOnLeaving(sitting) {
+    window.addEventListener("pagehide", () => {
+        if (sitting.elements.root.classList.contains("focus-done"))
+            return;
+        const body = new URLSearchParams();
+        focusSeenFields(sitting, body);
+        navigator.sendBeacon(`/focus/${sitting.current.id}/seen`, body);
+    }, { once: true });
 }
 /** Focus mode's entry point: start a sitting if this is the Focus page and there is a queue. */
 function initFocusMode() {
@@ -493,6 +549,7 @@ function initFocusMode() {
         return; // nothing left to go through
     const sitting = newFocusSitting(root, opening);
     bindFocusControls(sitting);
+    sayFocusSeenOnLeaving(sitting);
     pointFrameAtFirstVideo(sitting);
     awaitYouTubeApi(sitting);
     if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
