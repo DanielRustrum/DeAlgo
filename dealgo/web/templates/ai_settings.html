@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_garden.html" import page_head with context %}
+{% block title %}De-Algo — AI model{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/settings">Settings</a> › AI model</p>
+{{ page_head('AI model', 'What a Text box writes with.') }}
+
+<section class="panel">
+  <h2>The model</h2>
+  <p class="hint">
+    A <strong>Text</strong> box on the canvas sends what comes into it to this model, with what you
+    tell it to write, and puts the answer on a pamphlet. It writes when you press Write now on the
+    box, or by itself hourly or daily — never when a page is opened. Using Claude or OpenAI costs
+    money on your account with them, per word read and written.
+  </p>
+
+  <form class="stack-form" method="post" action="/settings/ai">
+    <div class="field-row">
+      <label>Kind
+        <select name="provider" data-ai-provider>
+          <option value="" {{ 'selected' if not provider }}>None — Text boxes do not write</option>
+          {% for name, label in providers %}
+          <option value="{{ name }}" {{ 'selected' if provider == name }}
+                  data-default-model="{{ defaults[name] }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Model
+        <input type="text" name="model" value="{{ model }}" data-ai-model
+               placeholder="{{ defaults[provider] if provider and defaults[provider] else 'e.g. llama3.1 or gpt-5' }}">
+      </label>
+    </div>
+    <div class="field-row">
+      <label>Address
+        <input type="url" name="base_url" value="{{ base_url }}"
+               placeholder="leave blank for Anthropic or OpenAI · e.g. http://localhost:11434/v1 for Ollama">
+      </label>
+      <label>Key
+        <input type="password" name="key" value="" autocomplete="off"
+               placeholder="{{ 'a key is saved — leave blank to keep it' if has_key else 'paste a key; not needed by most servers of your own' }}">
+      </label>
+    </div>
+    {% if has_key %}
+    <label class="check"><input type="checkbox" name="forget_key" value="1"> Forget the saved key</label>
+    {% endif %}
+    <p class="hint">
+      Claude needs a key from <a href="https://console.anthropic.com/" rel="noopener noreferrer" target="_blank">the Anthropic Console</a>;
+      with no model named it uses <code>claude-opus-5-5</code>. For an open-weight model, run a
+      server that speaks the OpenAI chat API — Ollama, vLLM, LM Studio — give its address
+      ending in <code>/v1</code>, and the model's name as that server knows it. The key is kept
+      for this account only, is never shown again, and is not in backups.
+    </p>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</section>
+
+{% if chosen %}
+<section class="panel">
+  <h2>Try it</h2>
+  <p class="hint">Asks <strong>{{ chosen.named }}</strong> for one sentence, to know it answers.</p>
+  <button class="btn" type="button" data-ai-try>Ask it</button>
+  <p class="hint" data-ai-said aria-live="polite"></p>
+</section>
+{% endif %}
+
+<script src="/static/ai.js?v={{ asset_version }}" defer></script>
+{% endblock %}

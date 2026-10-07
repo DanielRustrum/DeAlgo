@@ -24,6 +24,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "pamphlet" ||
     value === "format" ||
     value === "transform" ||
+    value === "text" ||
     value === "count" ||
     value === "leaflet-feed" ||
     value === "leaflet-chart" ||
@@ -90,6 +91,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     pamphlet: asGraphPamphlet(raw["pamphlet"]),
     format: asGraphFormat(raw["format"]),
     dataOnly: raw["dataOnly"] === true,
+    writing: asGraphWriting(raw["writing"]),
   };
 }
 

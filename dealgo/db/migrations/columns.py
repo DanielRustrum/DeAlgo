@@ -120,6 +120,15 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "attached_side", "VARCHAR(8)"),
     ("graph_node", "leaflet", "TEXT"),
     ("settings", "default_pamphlet_pk", "INTEGER"),
+    # The model a Text box writes with.
+    ("settings", "ai_provider", "VARCHAR(16)"),
+    ("settings", "ai_model", "VARCHAR(120)"),
+    ("settings", "ai_base_url", "TEXT"),
+    ("settings", "ai_key", "TEXT"),
+    # A Text box: what it is told, and what it last wrote.
+    ("graph_node", "writing", "TEXT"),
+    ("graph_node", "written", "TEXT"),
+    ("graph_node", "written_at", "DATETIME"),
     # A Format box's shaping, and the REST answers it reshapes.
     ("graph_node", "format_spec", "TEXT"),
     ("graph_edge", "carries", "VARCHAR(8) NOT NULL DEFAULT 'content'"),

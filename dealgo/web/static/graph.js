@@ -1008,6 +1008,8 @@ function graphKindLabel(kind) {
         return "Format";
     if (kind === "transform")
         return "Transform";
+    if (kind === "text")
+        return "Text";
     if (kind === "count")
         return "Count";
     if (kind === "leaflet-feed")
@@ -1241,6 +1243,9 @@ function graphPortKinds(kind, dataOnly = false) {
     // Items or data in; data out, as the piece under it says.
     if (kind === "transform")
         return { in: ["content", "data"], out: ["data"] };
+    // Items or data in; words out, onto a page.
+    if (kind === "text")
+        return { in: ["content", "data"], out: ["page"] };
     if (kind === "source" || kind === "withdraw")
         return { in: ["signal"], out: ["content", "data"] };
     // A feed and a deposit are both ends of a path. What a feed holds can go
@@ -1258,8 +1263,15 @@ function graphPortKinds(kind, dataOnly = false) {
 }
 /** What one port takes in or gives out, in a sentence. */
 function graphPortSays(kind, where, carries) {
+    if (carries === "page" && kind === "text")
+        return "Gives out what it wrote, onto a page: wire it to a Text leaflet.";
     if (carries === "page")
         return "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet.";
+    if (kind === "text") {
+        return carries === "content"
+            ? "Takes items: what comes down a path, for the model to read."
+            : "Takes data: JSON, for the model to read.";
+    }
     if (carries === "content" && kind === "transform") {
         return "Takes items: what comes down a path, to be counted or changed into data.";
     }
@@ -2263,6 +2275,9 @@ function drawGraphLeafletParts(box, node) {
     if (node.kind === "leaflet-feed" || node.kind === "leaflet-link") {
         box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to show what it holds."));
     }
+    if (node.kind === "leaflet-text") {
+        box.appendChild(graphPort("in", "page", "Takes words: wire a Text box here to show what it wrote."));
+    }
     if (node.kind === "leaflet-chart") {
         box.appendChild(graphPort("in", "data", "Takes bars: wire a Format box here to draw what it shapes."));
     }
@@ -2913,6 +2928,8 @@ function graphNodeForm(state, node) {
         graphPamphletFields(form, node);
     else if (node.kind === "format")
         graphFormatFields(form, node);
+    else if (node.kind === "text")
+        graphTextBoxFields(form, node);
     else if (node.kind === "transform") {
         form.appendChild(graphElement("p", "hint", "Wire items (▶) or data ({ }) into this — one or the other — and slot a piece under it to say what it makes of them. Count gives how many came in, as one number. What it gives out is data: for a Chart leaflet, a Format box, or another operation."));
     }
@@ -3164,6 +3181,13 @@ function onGraphClick(state, event) {
     if (target.closest("[data-remove-picked]") !== null) {
         event.preventDefault();
         void removeGraphPicked(state);
+        return;
+    }
+    const write = target.closest("[data-write]");
+    const writeId = write === null || write === void 0 ? void 0 : write.dataset["write"];
+    if (write !== null && writeId !== undefined) {
+        event.preventDefault();
+        void writeGraphText(state, write, writeId);
         return;
     }
     const fire = target.closest("[data-fire]");
@@ -3577,6 +3601,7 @@ function asGraphNodeKind(value) {
         value === "pamphlet" ||
         value === "format" ||
         value === "transform" ||
+        value === "text" ||
         value === "count" ||
         value === "leaflet-feed" ||
         value === "leaflet-chart" ||
@@ -3643,6 +3668,7 @@ function asGraphNode(value) {
         pamphlet: asGraphPamphlet(raw["pamphlet"]),
         format: asGraphFormat(raw["format"]),
         dataOnly: raw["dataOnly"] === true,
+        writing: asGraphWriting(raw["writing"]),
     };
 }
 /** What an empty source box asks to be told. */
@@ -4533,6 +4559,69 @@ async function tryGraphRest(nodeId, group, inputs, said) {
         }
     }
     said.replaceChildren(graphElement("p", "hint", `Read ${count} item${count === 1 ? "" : "s"}. The first few, as they will arrive:`), list);
+}
+
+"use strict";
+// Text boxes: having a language model write from what comes in, for a Text
+// leaflet on a pamphlet.
+//
+// Part of the Configuration canvas; see main.ts.
+function asGraphWriting(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const settings = {};
+    const given = asGraphRecord(raw["settings"]);
+    if (given !== null) {
+        for (const [key, one] of Object.entries(given)) {
+            if (typeof one === "string" || typeof one === "number")
+                settings[key] = one;
+        }
+    }
+    return {
+        settings,
+        refreshes: asGraphChoices(raw["refreshes"]),
+        written: typeof raw["written"] === "string" ? raw["written"] : "",
+        at: typeof raw["at"] === "string" ? raw["at"] : null,
+        error: typeof raw["error"] === "string" ? raw["error"] : "",
+        model: typeof raw["model"] === "string" ? raw["model"] : "",
+    };
+}
+/** A Text box's panel: what to write, how often, and what it last wrote. */
+function graphTextBoxFields(form, node) {
+    const writing = node.writing;
+    if (writing === null)
+        return;
+    const said = (key) => { var _a; return String((_a = writing.settings[key]) !== null && _a !== void 0 ? _a : ""); };
+    form.appendChild(graphElement("p", "hint", writing.model !== ""
+        ? `Writes with ${writing.model}. Wire items (▶) or data ({ }) in, and its sheet port to a Text leaflet.`
+        : "No model is chosen yet: choose one under Settings → AI model."));
+    const told = document.createElement("textarea");
+    told.name = "writing_instructions";
+    told.rows = 5;
+    told.value = said("instructions");
+    form.appendChild(graphLabelled("What to write", told));
+    form.appendChild(graphLabelled("Items it reads", graphLeafletNumber("writing_items", said("items"), 1, 100)));
+    form.appendChild(graphLabelled("Writes again", graphLeafletSelect("writing_refresh", writing.refreshes, said("refresh"))));
+    form.appendChild(graphElement("p", "hint", "It reads the first items that come in, up to that many, each cut to its first 600 characters."));
+    const write = graphElement("button", "btn btn-quiet", "Write now");
+    write.setAttribute("type", "button");
+    write.dataset["write"] = String(node.id);
+    form.appendChild(write);
+    if (writing.error !== "")
+        form.appendChild(graphElement("p", "error-note", writing.error));
+    if (writing.written !== "") {
+        const when = writing.at !== null ? new Date(writing.at).toLocaleString() : "";
+        form.appendChild(graphElement("p", "hint", `Last written ${when}:`));
+        form.appendChild(graphElement("blockquote", "graph-written", writing.written));
+    }
+}
+/** Have a Text box write now. A model takes its time, so it says so. */
+async function writeGraphText(state, button, nodeId) {
+    button.textContent = "Writing…";
+    button.setAttribute("disabled", "");
+    await applyGraph(state, `/graph/nodes/${nodeId}/write`, new URLSearchParams());
+    // The panel is drawn afresh from the answer, with what it wrote or why not.
 }
 
 "use strict";

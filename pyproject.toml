@@ -16,6 +16,9 @@ dependencies = [
     # Fernet, for the encrypted site backup. Nothing else here needs a
     # cipher, and hand-rolling one to avoid a dependency would be worse.
     "cryptography>=42",
+    # Claude, for a Text box that writes. OpenAI and open-weight servers are
+    # spoken to over their shared chat API with httpx, already here.
+    "anthropic>=1.11,<2",
 ]
 
 [project.optional-dependencies]

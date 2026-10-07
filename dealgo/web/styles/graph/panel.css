@@ -250,3 +250,10 @@
 /* A Format box's fields, and what Try found. */
 .graph-format { display: flex; flex-direction: column; gap: 8px; }
 .graph-format-tried { display: flex; flex-direction: column; gap: 6px; }
+
+/* What a Text box last wrote, in its panel. */
+.graph-written {
+  margin: 0; padding: 8px 10px; max-height: 180px; overflow: auto;
+  border-left: 3px solid var(--leaf); background: var(--panel-2);
+  font-size: calc(12.5px * var(--text-scale)); white-space: pre-wrap;
+}

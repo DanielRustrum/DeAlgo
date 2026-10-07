@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .... import outgoing, sources
 from ....sources import rest
-from ....db import session_scope
+from ....db import get_settings, session_scope
 from ....models import (
     Channel,
     GraphNode,
@@ -24,6 +24,7 @@ from ....plugins import registry
 from ....services import channels as channel_service
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
+from ....services import writing
 from ....services.scope import OwnerId, owned
 from ...responses import owner_of
 
@@ -103,6 +104,16 @@ async def graph_save_node(
             return answer
 
         graph_service.rename(session, node.id, label, owner)
+
+        if node.kind == "text":
+            given = await request.form()
+            try:
+                writing.save(
+                    node,
+                    {key: str(value) for key, value in given.items() if key.startswith("writing_")},
+                )
+            except writing.WritingError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
 
         if node.kind == "format":
             given = await request.form()
@@ -666,3 +677,24 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
             "more": max(0, len(shaped.bars) - 12),
             "error": shaped.error,
         })
+
+
+@router.post("/graph/nodes/{node_pk}/write")
+def graph_write(request: Request, node_pk: int) -> JSONResponse:
+    """Have a Text box write now, with the model under Settings → AI model.
+
+    Slow — a model takes its time — so the canvas says it is writing while
+    this runs. What it wrote, or why it could not, comes back in the graph.
+    """
+    owner = owner_of(request)
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is None or node.kind != "text":
+            return JSONResponse({"error": "That is not a Text box."}, status_code=404)
+        done = writing.run(session, node, owner, get_settings(session, owner))
+        payload = graph_payload(session, owner)
+        if done.error:
+            payload["error"] = done.error
+        return JSONResponse(payload)

@@ -19,6 +19,7 @@ from ...models import GraphNode, Playlist, utcnow
 from ...services import graph as graph_service
 from ...services import pamphlet_charts as charts
 from ...services import playlists as playlist_service
+from ...services import writing
 from ...services.playlists import shelf as shelf_service
 from ...services.scope import OwnerId, owned
 from ..contexts import stats_context
@@ -124,6 +125,16 @@ def _fill(
 def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
     said: dict[str, Any] = graph_service.leaflets.settings(node)
     shown: Context = {"kind": node.kind, "on": node.enabled, **said}
+    if node.kind == "leaflet-text":
+        box = _writer(session, owner, node)
+        if box is not None:
+            # What a Text box last wrote, under the leaflet's own heading or
+            # the box's name. Never written here: a page does not wait on a model.
+            shown["heading"] = said.get("heading") or (box.title if box.label else "")
+            shown["blocks"] = writing.blocks(box.written or "")
+            shown["written_at"] = box.written_at
+            shown["writing_error"] = writing.last_error(box)
+        return shown
     if node.kind in ("leaflet-feed", "leaflet-link"):
         feed = _feed(session, owner, said.get("feed"))
         shown["playlist"] = feed
@@ -196,3 +207,13 @@ def _shaping(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | 
          and by_id[edge.source_pk].kind in ("format", "transform")),
         None,
     )
+
+
+def _writer(session: Session, owner: OwnerId, leaflet: GraphNode) -> GraphNode | None:
+    """The Text box wired into a Text leaflet, if any."""
+    for edge in graph_service.edges(session, owner, every=True):
+        if edge.target_pk == leaflet.id and edge.carries == "page":
+            box = session.get(GraphNode, edge.source_pk)
+            if box is not None and box.kind == "text":
+                return box
+    return None

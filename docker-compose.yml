@@ -32,6 +32,12 @@ services:
       DEALGO_SESSION_DAYS: ${DEALGO_SESSION_DAYS:-30}
       TZ: ${TZ:-UTC}
 
+    # So a Text box can reach a model served on this same machine — Ollama,
+    # vLLM, LM Studio — at http://host.docker.internal:<port>/v1. Docker on
+    # Mac and Windows has the name already; on Linux it has to be asked for.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     volumes:
       # Everything De-Algo remembers lives here. Keep it on local disk: this is
       # a SQLite database, and NFS/CIFS locking will corrupt it.

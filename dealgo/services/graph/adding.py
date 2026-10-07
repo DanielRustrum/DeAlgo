@@ -307,3 +307,13 @@ def add_transform(
     session.add(node)
     session.flush()
     return node
+
+
+def add_text_box(
+    session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
+) -> GraphNode:
+    """A Text box: has a language model write from what comes in, for a Text leaflet."""
+    node = GraphNode(owner_pk=owner, kind="text", label=label.strip()[:120], x=x, y=y)
+    session.add(node)
+    session.flush()
+    return node

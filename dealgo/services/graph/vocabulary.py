@@ -54,7 +54,7 @@ AUGMENTATIONS: tuple[str, ...] = (
 BOX_NAMES: dict[str, str] = {
     "feed": "Feed", "filter": "Filter", "sort": "Sort",
     "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet", "format": "Format",
-    "transform": "Transform",
+    "transform": "Transform", "text": "Text",
 }
 
 
@@ -74,7 +74,7 @@ MIDDLE = ("filter", "sort", "decay", "expire", "tag")
 
 #: Where items may also go, off the end of a path: a Transform box, which
 #: turns them into data. No path runs through one.
-INTO_TRANSFORM = ("transform",)
+INTO_TRANSFORM = ("transform", "text")
 
 
 #: Where a path may end: a feed, or a repository to be pulled from later.
@@ -99,6 +99,8 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "format": (),
     # A Transform takes items as well as data, and gives out data only.
     "transform": (),
+    # A Text box takes items or data and gives out words, onto a page.
+    "text": (),
     **{kind: () for kind in TRANSFORMS},
     "filter": MIDDLE + ENDS + INTO_TRANSFORM,
     "sort": MIDDLE + ENDS + INTO_TRANSFORM,
@@ -139,7 +141,7 @@ DATA_OPS = ("filter", "sort", "tag", "decay", "expire")
 #: Where data may go from each box: through the operations, into a Format
 #: box, and from a Format box into a Chart leaflet. A repository gives what
 #: is waiting in it.
-_ONWARD = DATA_OPS + ("format", "transform")
+_ONWARD = DATA_OPS + ("format", "transform", "text")
 
 DATA_ALLOWED: dict[str, tuple[str, ...]] = {
     "source": _ONWARD,
@@ -158,12 +160,12 @@ WIRING: dict[str, dict[str, tuple[str, ...]]] = {
     "content": {kind: targets for kind, targets in ALLOWED.items() if kind != "trigger"},
     # A feed is where a path ends — but what is in it can be shown on a
     # pamphlet's page, down a wire of its own kind into a leaflet.
-    "page": {"feed": WIRED_LEAFLETS},
+    "page": {"feed": WIRED_LEAFLETS, "text": ("leaflet-text",)},
     "data": DATA_ALLOWED,
 }
 
 #: Boxes a data wire may come into. Each takes one: a second replaces it.
-DATA_TAKERS = DATA_OPS + ("format", "leaflet-chart", "transform")
+DATA_TAKERS = DATA_OPS + ("format", "leaflet-chart", "transform", "text")
 
 
 def carries_between(source_kind: str, target_kind: str) -> str:
@@ -171,7 +173,7 @@ def carries_between(source_kind: str, target_kind: str) -> str:
     kind there is only one of between them, items before data."""
     if source_kind == "trigger":
         return "signal"
-    if source_kind == "feed" and target_kind in WIRED_LEAFLETS:
+    if target_kind in WIRING["page"].get(source_kind, ()):
         return "page"
     if target_kind in WIRING["content"].get(source_kind, ()):
         return "content"

@@ -38,7 +38,7 @@ beside.
 | --- | --- | --- |
 | **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order — or the feed as one tile: a small stack of papers, its newest item on the front page and a sheet behind for every few more waiting | Shows as (stories or a tile), how many (up to 60), a heading |
 | **Chart** | Watched each day, arrived each day, filtered out each day, what each feed holds, or the counts — or, with a [Format](Format.md) box wired in, whatever that box shapes from a source's JSON | Which chart, how many days (2–90), a heading |
-| **Text** | A heading and your own words. A blank line starts a new paragraph | Heading, words |
+| **Text** | A heading and your own words. A blank line starts a new paragraph — or, with a [Text](Text.md) box wired in, what its model wrote | Heading, words |
 | **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |
 
 ## Wiring a feed in

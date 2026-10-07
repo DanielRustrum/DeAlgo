@@ -34,6 +34,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "pamphlet") return "Pamphlet";
   if (kind === "format") return "Format";
   if (kind === "transform") return "Transform";
+  if (kind === "text") return "Text";
   if (kind === "count") return "Count";
   if (kind === "leaflet-feed") return "Feed leaflet";
   if (kind === "leaflet-chart") return "Chart leaflet";
@@ -340,6 +341,8 @@ function graphPortKinds(
   if (kind === "source" && dataOnly) return { in: ["signal"], out: ["data"] };
   // Items or data in; data out, as the piece under it says.
   if (kind === "transform") return { in: ["content", "data"], out: ["data"] };
+  // Items or data in; words out, onto a page.
+  if (kind === "text") return { in: ["content", "data"], out: ["page"] };
   if (kind === "source" || kind === "withdraw") return { in: ["signal"], out: ["content", "data"] };
   // A feed and a deposit are both ends of a path. What a feed holds can go
   // onto a page; what a repository holds can go on as data.
@@ -353,7 +356,13 @@ function graphPortKinds(
 
 /** What one port takes in or gives out, in a sentence. */
 function graphPortSays(kind: GraphNodeKind, where: "in" | "out", carries: GraphCarries): string {
+  if (carries === "page" && kind === "text") return "Gives out what it wrote, onto a page: wire it to a Text leaflet.";
   if (carries === "page") return "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet.";
+  if (kind === "text") {
+    return carries === "content"
+      ? "Takes items: what comes down a path, for the model to read."
+      : "Takes data: JSON, for the model to read.";
+  }
   if (carries === "content" && kind === "transform") {
     return "Takes items: what comes down a path, to be counted or changed into data.";
   }

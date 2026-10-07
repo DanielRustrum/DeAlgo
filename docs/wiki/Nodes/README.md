@@ -21,6 +21,7 @@ Everything you can place on the [Configuration Canvas](../The%20Configuration%20
 | [Pamphlet](Pamphlets.md) | A page of your own under the Pamphlets tab; on no path |
 | [Format](Format.md) | Reshapes a source's JSON into bars for a Chart leaflet; on no path |
 | [Transform](Transform.md) | Turns items or data into data — a count, to start with; on no path |
+| [Text](Text.md) | Has your AI model write from what comes in, for a Text leaflet; on no path |
 
 ## Pieces
 

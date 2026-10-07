@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from . import (
     activity,
+    ai_settings,
     admin,
     admin_accounts,
     canvas,
@@ -33,6 +34,7 @@ from . import (
 #: Every router, for the app to include.
 ROUTERS: tuple[APIRouter, ...] = (
     activity.router,
+    ai_settings.router,
     admin.router,
     admin_accounts.router,
     canvas.router,

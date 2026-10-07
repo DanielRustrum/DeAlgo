@@ -72,6 +72,14 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     return;
   }
 
+  const write = target.closest<HTMLElement>("[data-write]");
+  const writeId = write?.dataset["write"];
+  if (write !== null && writeId !== undefined) {
+    event.preventDefault();
+    void writeGraphText(state, write, writeId);
+    return;
+  }
+
   const fire = target.closest<HTMLElement>("[data-fire]");
   const fireId = fire?.dataset["fire"];
   if (fireId !== undefined) {

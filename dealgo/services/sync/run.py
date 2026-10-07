@@ -19,7 +19,7 @@ from ...models import (
     utcnow,
 )
 from ...plugins.publisher import Publisher, cost_of, names
-from .. import quota, runlog
+from .. import graph, quota, runlog, writing
 from ..connections import build_client
 from ..scope import OwnerId, owned
 from .details import fill_missing_details
@@ -178,6 +178,12 @@ def _run(
     _keep_feeds_current(session, client, result, owner, pen, withdrawals)
     session.commit()
 
+    # Text boxes that write by themselves, and are due. Only on a whole run:
+    # a run for one channel is somebody waiting on that channel.
+    if only is None and sources is None:
+        _write_due(session, settings, owner, pen)
+        session.commit()
+
     note(stage="done", finished=True, channel_pk=None)
     pen.at("done")
     pen.write(
@@ -301,3 +307,18 @@ def _record(run: SyncRun, result: SyncResult, *, quota_spent: int) -> None:
     result.quota_spent = run.quota_spent
     run.message = result.message or None
     result.ok = run.ok
+
+
+def _write_due(session: Session, settings: Settings, owner: OwnerId, pen: runlog.Pen) -> None:
+    """Have every Text box that is due write again."""
+    now = utcnow()
+    boxes = [
+        node for node in graph.nodes(session, owner)
+        if node.kind == "text" and writing.due(node, now)
+    ]
+    for box in boxes:
+        done = writing.run(session, box, owner, settings)
+        pen.write(
+            f"Text box “{box.title}”: "
+            + (f"could not write — {done.error}" if done.error else "wrote again")
+        )

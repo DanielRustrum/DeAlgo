@@ -205,6 +205,7 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.leaflet !== null) graphLeafletFields(form, node);
   else if (node.kind === "pamphlet") graphPamphletFields(form, node);
   else if (node.kind === "format") graphFormatFields(form, node);
+  else if (node.kind === "text") graphTextBoxFields(form, node);
   else if (node.kind === "transform") {
     form.appendChild(graphElement("p", "hint",
       "Wire items (▶) or data ({ }) into this — one or the other — and slot a piece under it to say what it makes of them. Count gives how many came in, as one number. What it gives out is data: for a Chart leaflet, a Format box, or another operation."));

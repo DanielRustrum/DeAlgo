@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +13,7 @@ from ....services import channels as channel_service
 from ....db import get_settings
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
+from ....services import writing
 from ....services.scope import OwnerId
 from ...templates import Context
 from .facts import (
@@ -83,6 +85,8 @@ class _Canvas:
     feeds: dict[int, str]
     #: The pamphlet the Pamphlets tab opens on, if one is chosen.
     default_pamphlet: int | None
+    #: The model Text boxes write with, if one is chosen.
+    model: writing.Model | None
     #: Chart leaflets with a Format or Transform box wired into them, and which.
     shaped: dict[int, str]
 
@@ -120,11 +124,14 @@ class _Canvas:
                 for playlist in playlist_service.list_playlists(session, owner)
             },
             default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
+            model=writing.model_for(get_settings(session, owner)),
             shaped={
-                edge.target_pk: "Format" if by_id[edge.source_pk].kind == "format" else "Transform"
+                edge.target_pk: {"format": "Format", "transform": "Transform", "text": "Text"}[
+                    by_id[edge.source_pk].kind
+                ]
                 for edge in graph_service.edges(session, owner, every=True)
-                if edge.carries == "data" and edge.source_pk in by_id
-                and by_id[edge.source_pk].kind in ("format", "transform")
+                if edge.carries in ("data", "page") and edge.source_pk in by_id
+                and by_id[edge.source_pk].kind in ("format", "transform", "text")
             },
         )
 
@@ -136,8 +143,27 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)
             if node.id in canvas.shaped:
-                drawn["note"] = f"drawn by the {canvas.shaped[node.id]} box wired in"
+                by = canvas.shaped[node.id]
+                drawn["note"] = (
+                    "written by the Text box wired in" if by == "Text"
+                    else f"drawn by the {by} box wired in"
+                )
         drawn["leaflet"] = _leaflet(node, canvas)
+    elif node.kind == "text":
+        error = writing.last_error(node)
+        drawn["note"] = (
+            f"could not write: {error}" if error and not node.written else
+            "wrote " + ago_words(node.written_at) if node.written_at else
+            "press Write now in its panel"
+        )
+        drawn["writing"] = {
+            "settings": writing.settings(node),
+            "refreshes": [{"name": n, "label": l} for n, l in writing.REFRESHES],
+            "written": (node.written or "")[:1200],
+            "at": node.written_at.isoformat() + "Z" if node.written_at else None,
+            "error": error,
+            "model": canvas.model.named if canvas.model is not None else "",
+        }
     elif node.kind == "transform":
         pieces = [one for one in canvas.slotted.get(node.id, []) if one.enabled]
         drawn["note"] = (
@@ -317,3 +343,10 @@ def _trigger(node: GraphNode, opening: set[int]) -> Context | None:
         "opens": node.id in opening,
         "last_fired": node.last_fired_at.isoformat() if node.last_fired_at else None,
     }
+
+
+def ago_words(when: dt.datetime) -> str:
+    """How long ago, in the words the rest of the app uses."""
+    from ...templates import ago
+
+    return ago(when)

@@ -65,7 +65,23 @@
 {% macro leaflet(node, said) -%}
 {% if said.on %}
 <section class="pamphlet-leaflet is-{{ node.kind[8:] }}">
-  {% if node.kind == 'leaflet-text' %}
+  {% if node.kind == 'leaflet-text' and said.blocks is defined %}
+    {#- What a Text box wrote, set as copy: paragraphs, subheads, lists. -#}
+    {% if said.heading %}<h2 class="paper-headline">{{ said.heading }}</h2>{% endif %}
+    {% if said.blocks %}
+      <div class="paper-copy is-written">
+        {% for kind, body in said.blocks %}
+          {% if kind == 'h' %}<h3 class="paper-subhead">{{ body }}</h3>
+          {% elif kind == 'ul' %}<ul class="paper-list">{% for one in body %}<li>{{ one }}</li>{% endfor %}</ul>
+          {% else %}<p class="leaflet-words">{{ body }}</p>{% endif %}
+        {% endfor %}
+      </div>
+      <p class="paper-byline">Written {{ said.written_at | ago }}{% if said.writing_error %} · the last try failed: {{ said.writing_error }}{% endif %}</p>
+    {% else %}
+      <p class="paper-note">{{ said.writing_error or 'Nothing written yet. On the canvas, open the Text box and press Write now.' }}</p>
+    {% endif %}
+
+  {% elif node.kind == 'leaflet-text' %}
     {% if said.heading %}<h2 class="paper-headline">{{ said.heading }}</h2>{% endif %}
     {% if said.body %}
       <div class="paper-copy">

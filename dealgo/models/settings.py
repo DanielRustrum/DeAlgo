@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Integer,
     String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,5 +40,13 @@ class Settings(Base):
     # The pamphlet the Pamphlets tab opens on, a Pamphlet box's id. Not a
     # foreign key: the box can go, and the tab then shows them all.
     default_pamphlet_pk: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # The model a Text box writes with: which kind of service, which model,
+    # where (for a server of one's own, or a proxy), and its key. The key is
+    # a secret: never sent back to a page, and never in a backup.
+    ai_provider: Mapped[Optional[str]] = mapped_column(String(16))
+    ai_model: Mapped[Optional[str]] = mapped_column(String(120))
+    ai_base_url: Mapped[Optional[str]] = mapped_column(Text)
+    ai_key: Mapped[Optional[str]] = mapped_column(Text)
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

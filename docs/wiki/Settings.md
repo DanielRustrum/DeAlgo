@@ -8,6 +8,26 @@ Each account has its own Settings.
 typefaces, text size, corners, spacing, shadows and the focus ring, with a live preview and a
 contrast check. Only you see your theme.
 
+## AI model
+
+**Choose a model** opens the page a [Text box](Nodes/Text.md) writes with. Each account chooses its
+own:
+
+| Kind | Model | Address | Key |
+| --- | --- | --- | --- |
+| **Claude, from Anthropic** | Blank for `claude-opus-5-5`, or another Claude model's name | Blank, unless you go through a proxy | From the [Anthropic Console](https://console.anthropic.com/) |
+| **OpenAI** | The model's name | Blank | Your OpenAI key |
+| **An open-weight model on a server of your own** | The name your server knows it by, e.g. `llama3.1` | The server's address ending in `/v1`, e.g. `http://localhost:11434/v1` for Ollama | Usually none |
+
+The third kind is any server that speaks the OpenAI chat API: Ollama, vLLM, LM Studio and others.
+From inside the Docker container, a server on the same machine is at `host.docker.internal` rather
+than `localhost`.
+
+The key is kept for your account only. It is never shown again — leave the field blank to keep it,
+or tick **Forget the saved key** — and it is not in backups. **Ask it** asks the saved model for one
+sentence, to know it answers. Claude and OpenAI charge your account with them for what is read and
+written.
+
 ## Plugins
 
 A folded block for each plugin that has something for you: a service to sign in to, or settings each

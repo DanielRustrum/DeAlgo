@@ -12,6 +12,8 @@ type GraphNodeKind =
   | "format"
   // Turns items or data into data, as the piece under it says.
   | "transform"
+  // Has a language model write from what comes in, for a Text leaflet.
+  | "text"
   // What a Transform does: counts what comes in.
   | "count"
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
@@ -130,6 +132,8 @@ interface GraphNodeView {
   format: GraphFormat | null;
   /** A box that gives data and no items: a REST API source. */
   dataOnly: boolean;
+  /** Text boxes: what it is told to write, and what it last wrote. */
+  writing: GraphWriting | null;
 }
 
 /** A feed box's reading windows and caps. */

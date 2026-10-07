@@ -79,8 +79,9 @@ def connect(
     if existing is not None:
         return existing
 
-    if target.kind == "transform":
-        # One thing in, items or data: what it turns into data is that.
+    if target.kind in ("transform", "text"):
+        # One thing in, items or data: what it turns into data, or writes
+        # about, is that.
         for older in session.scalars(select(GraphEdge).where(GraphEdge.target_pk == target.id)):
             session.delete(older)
         session.flush()

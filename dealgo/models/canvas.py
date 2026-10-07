@@ -165,6 +165,11 @@ class GraphNode(Base):
     # Format boxes only: how this one reshapes the JSON wired into it into
     # bars for a chart, as JSON — see services/graph/formatting.py.
     format_spec: Mapped[Optional[str]] = mapped_column(Text)
+    # Text boxes only: what it is told to write, as JSON (services/writing.py),
+    # and what it last wrote — or why it could not — and when.
+    writing: Mapped[Optional[str]] = mapped_column(Text)
+    written: Mapped[Optional[str]] = mapped_column(Text)
+    written_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
 
     # Deposit and Withdraw boxes only: which repository this one is about.
     # A label two boxes agree on rather than a row of its own, so typing the
@@ -265,6 +270,8 @@ class GraphNode(Base):
             return "Format"
         if self.kind == "transform":
             return "Transform"
+        if self.kind == "text":
+            return "Text"
         if self.kind == "count":
             return "Count"
         if self.kind in LEAFLET_LABELS:
