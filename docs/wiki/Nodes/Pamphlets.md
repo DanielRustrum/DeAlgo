@@ -36,7 +36,7 @@ beside.
 
 | Leaflet | Shows | Set in its panel |
 | --- | --- | --- |
-| **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order | How many (up to 60), a heading |
+| **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order — or the feed as one tile, the Feeds tab's own | Shows as (stories or a tile), how many (up to 60), a heading |
 | **Chart** | Watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | Which chart, how many days (2–90), a heading |
 | **Text** | A heading and your own words. A blank line starts a new paragraph | Heading, words |
 | **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |

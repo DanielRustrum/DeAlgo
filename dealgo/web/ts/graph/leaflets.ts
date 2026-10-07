@@ -21,6 +21,7 @@ interface GraphLeaflet {
   feeds: { id: number; title: string }[];
   charts: GraphChoice[];
   goes: GraphChoice[];
+  shapes: GraphChoice[];
 }
 
 /** A Pamphlet box: where its page is, and whether the tab opens on it. */
@@ -74,6 +75,7 @@ function asGraphLeaflet(value: unknown): GraphLeaflet | null {
     feeds,
     charts: asGraphChoices(raw["charts"]),
     goes: asGraphChoices(raw["goes"]),
+    shapes: asGraphChoices(raw["shapes"]),
   };
 }
 
@@ -356,8 +358,10 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
 
   if (node.kind === "leaflet-feed") {
     fromWire();
+    form.appendChild(graphLabelled("Shows as", graphLeafletSelect("leaflet_shape", leaflet.shapes, said("shape"))));
     form.appendChild(graphLabelled("How many", graphLeafletNumber("leaflet_count", said("count"), 1, 60)));
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
+    form.appendChild(graphElement("p", "hint", "As a tile, it is the feed's tile from the Feeds tab, one cell wide; How many and Heading are for stories."));
   } else if (node.kind === "leaflet-chart") {
     form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
     form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));

@@ -19,6 +19,7 @@ from ...models import GraphNode, Playlist, utcnow
 from ...services import graph as graph_service
 from ...services import pamphlet_charts as charts
 from ...services import playlists as playlist_service
+from ...services.playlists import shelf as shelf_service
 from ...services.scope import OwnerId, owned
 from ..contexts import stats_context
 from ..responses import owner_of, redirect, render
@@ -83,7 +84,8 @@ def pamphlet_page(request: Request, node_pk: int) -> Response:
             # The dateline, as a paper prints it.
             "today": utcnow().strftime("%A %-d %B %Y"),
             "waiting": sum(
-                len(one.get("videos") or []) for one in shown.values()
+                one["tile"].waiting if one.get("tile") else len(one.get("videos") or [])
+                for one in shown.values()
             ),
         })
 
@@ -125,7 +127,9 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
     if node.kind in ("leaflet-feed", "leaflet-link"):
         feed = _feed(session, owner, said.get("feed"))
         shown["playlist"] = feed
-        if node.kind == "leaflet-feed" and feed is not None:
+        if node.kind == "leaflet-feed" and feed is not None and said.get("shape") == "tile":
+            shown["tile"] = shelf_service.tile_for(session, feed, owner)
+        elif node.kind == "leaflet-feed" and feed is not None:
             windows = graph_service.consumption(session, owner)
             section = _section(
                 session, feed, owner, windows.get(feed.id, []), now=utcnow(), sitting=False

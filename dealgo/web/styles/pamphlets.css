@@ -215,3 +215,6 @@
     border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px;
   }
 }
+
+/* A feed as a tile: the Feeds tab's own, one cell of a grid wide. */
+.pamphlet-tile-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 260px)); }

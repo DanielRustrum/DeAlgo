@@ -73,6 +73,12 @@
       </div>
     {% endif %}
 
+  {% elif node.kind == 'leaflet-feed' and said.tile %}
+    {#- One tile, the Feeds tab's own, in one cell of a grid. -#}
+    <ul class="shelf-grid pamphlet-tile-grid">
+      {% with tile=said.tile %}{% include "_feed_tile.html" %}{% endwith %}
+    </ul>
+
   {% elif node.kind == 'leaflet-feed' %}
     {% if said.playlist %}
       <h2 class="paper-section">

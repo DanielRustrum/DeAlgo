@@ -47,12 +47,18 @@ GOES: tuple[tuple[str, str], ...] = (
     ("url", "An address"),
 )
 
+#: How a Feed leaflet shows its feed: as stories, or as one tile like the shelf's.
+SHAPES: tuple[tuple[str, str], ...] = (
+    ("stories", "Stories"),
+    ("tile", "A tile"),
+)
+
 #: The most a Feed leaflet shows, and the most days a chart covers.
 MOST_ITEMS = 60
 MOST_DAYS = 90
 
 DEFAULTS: dict[str, dict[str, Any]] = {
-    "leaflet-feed": {"title": "", "feed": None, "count": 8},
+    "leaflet-feed": {"title": "", "feed": None, "count": 8, "shape": "stories"},
     "leaflet-chart": {"title": "", "chart": "watched-daily", "days": 14},
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
@@ -121,6 +127,11 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
         title()
         feed()
         number("count", 1, MOST_ITEMS)
+        shape = given("shape")
+        if shape is not None:
+            if shape not in dict(SHAPES):
+                raise GraphError("A feed shows as stories or as a tile.")
+            said["shape"] = shape
     elif node.kind == "leaflet-chart":
         title()
         chart = given("chart")
@@ -171,7 +182,9 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
 
     if node.kind == "leaflet-feed":
         named = feed_named()
-        return f"{said['count']} from “{named}”" if named else "wire a feed into it"
+        if not named:
+            return "wire a feed into it"
+        return f"“{named}” as a tile" if said["shape"] == "tile" else f"{said['count']} from “{named}”"
     if node.kind == "leaflet-chart":
         chart = dict(CHARTS).get(str(said["chart"]), "a chart")
         daily = str(said["chart"]).endswith("-daily")

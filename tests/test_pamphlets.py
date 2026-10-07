@@ -402,3 +402,21 @@ def test_a_leaflet_goes_in_between_anywhere_on_a_page(db):
         assert page_of(session, pamphlet) == [
             ("first", [("top", [("under top", ["leftmost", "right", "left", "middle"])])])
         ]
+
+
+def test_a_feed_leaflet_can_show_its_feed_as_a_tile(client, db):
+    with db.session_scope() as session:
+        feed = a_feed_with_one_item(session)
+        box = graph.add_feed(session, feed)
+        pamphlet = graph.add_pamphlet(session, label="Tiles")
+        cards = leaflet(session, "feed", pamphlet)
+        graph.connect(session, box, cards)
+        leaflets.save(cards, {"leaflet_shape": "tile"}, set())
+        assert leaflets.words(cards, {feed.id: "Science"}) == "“Science” as a tile"
+        with pytest.raises(graph.GraphError, match="stories or as a tile"):
+            leaflets.save(cards, {"leaflet_shape": "poster"}, set())
+        pamphlet_pk, feed_pk = pamphlet.id, feed.id
+
+    page = client.get(f"/pamphlets/{pamphlet_pk}").text
+    assert "pamphlet-tile-grid" in page and 'class="feed-tile' in page
+    assert f'href="/feed/{feed_pk}"' in page and 'class="story' not in page

@@ -133,26 +133,45 @@ def shelf(
     windows = consumption(session, owner)
     now = utcnow()
 
-    tiles = []
-    for playlist in playlists:
-        tile = Tile(
-            playlist=playlist,
-            waiting=waiting.get(playlist.id, 0),
-            total=totals.get(playlist.id, 0),
-            latest=latest.get(playlist.id),
-            previews=_previews(session, playlist),
-        )
-        pieces = windows.get(playlist.id, [])
-        if pieces:
-            state = window_state(pieces, now)
-            tile.shut = not state.open
-            tile.opens_at = state.opens_at
-        tiles.append(tile)
+    tiles = [
+        _tile(session, playlist, totals, waiting, latest, windows.get(playlist.id, []), now)
+        for playlist in playlists
+    ]
 
     tiles.sort(key=_sort_key(sort))
     favourites = [t for t in tiles if t.playlist.favorite]
     rest = [t for t in tiles if not t.playlist.favorite]
     return favourites, rest
+
+
+def tile_for(session: Session, playlist: Playlist, owner: OwnerId = None) -> Tile:
+    """One feed's tile, as the shelf would show it — for a pamphlet to show."""
+    totals, waiting, latest = _counts(session, [playlist.id])
+    windows = consumption(session, owner)
+    return _tile(session, playlist, totals, waiting, latest, windows.get(playlist.id, []), utcnow())
+
+
+def _tile(
+    session: Session,
+    playlist: Playlist,
+    totals: dict[int, int],
+    waiting: dict[int, int],
+    latest: dict[int, dt.datetime],
+    pieces: list[Any],
+    now: dt.datetime,
+) -> Tile:
+    tile = Tile(
+        playlist=playlist,
+        waiting=waiting.get(playlist.id, 0),
+        total=totals.get(playlist.id, 0),
+        latest=latest.get(playlist.id),
+        previews=_previews(session, playlist),
+    )
+    if pieces:
+        state = window_state(pieces, now)
+        tile.shut = not state.open
+        tile.opens_at = state.opens_at
+    return tile
 
 
 def _sort_key(sort: str) -> Callable[[Tile], tuple[Any, ...]]:

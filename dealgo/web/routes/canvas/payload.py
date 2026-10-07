@@ -145,6 +145,7 @@ def _leaflet(node: GraphNode, canvas: _Canvas) -> Context:
         "feeds": [{"id": pk, "title": title} for pk, title in canvas.feeds.items()],
         "charts": [{"name": name, "label": label} for name, label in leaflets.CHARTS],
         "goes": [{"name": name, "label": label} for name, label in leaflets.GOES],
+        "shapes": [{"name": name, "label": label} for name, label in leaflets.SHAPES],
     }
 
 
