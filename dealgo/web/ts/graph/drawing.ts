@@ -484,6 +484,8 @@ function drawGraphWires(state: GraphState): void {
   // The ✕ belongs to a wire but lives among the boxes, so it is cleared here
   // rather than with them — a drag redraws the wires many times over.
   state.parts.layer.querySelectorAll(".graph-cut").forEach((button): void => button.remove());
+  const over = graphPageWireLayer(state);
+  over.textContent = "";
   for (const wire of state.wires) {
     const from = graphPortPoint(state, wire.from, "out");
     const to = graphPortPoint(state, wire.to, "in");
@@ -505,6 +507,7 @@ function drawGraphWires(state: GraphState): void {
     // working the day something else is appended between them.
     line.setAttribute("data-line", wire.id);
     state.parts.wires.appendChild(line);
+    if (wire.kind === "page") drawGraphWireIntoPage(state, over, wire, d, classes);
 
     if (wire.id === state.selectedWire) {
       state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));

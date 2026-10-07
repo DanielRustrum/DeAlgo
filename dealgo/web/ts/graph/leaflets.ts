@@ -353,3 +353,47 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphElement("p", "hint", "Focus with no feed wired in goes through everything."));
   }
 }
+
+/** Where the part of a page wire inside its pamphlet is drawn: among the
+ *  boxes, over the pamphlet's frame and under its leaflets. Made once. */
+function graphPageWireLayer(state: GraphState): SVGSVGElement {
+  const found = state.parts.layer.querySelector<SVGSVGElement>(":scope > .graph-page-wires");
+  if (found !== null) return found;
+  const made = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  made.setAttribute("class", "graph-page-wires");
+  made.setAttribute("aria-hidden", "true");
+  state.parts.layer.appendChild(made);
+  return made;
+}
+
+/** A wire into a leaflet runs under every box, as every wire does — so the
+ *  last of it, across its own pamphlet's frame, is drawn again over the
+ *  frame, clipped to it, so the frame does not hide where it goes in. */
+function drawGraphWireIntoPage(
+  state: GraphState, over: SVGSVGElement, wire: GraphWireView, d: string, classes: string,
+): void {
+  let walk = state.nodes.find((one): boolean => one.id === wire.to);
+  for (let depth = 0; walk !== undefined && walk.kind !== "pamphlet" && depth < 60; depth += 1) {
+    const above: number | null | undefined = walk.piece?.under;
+    walk = above == null ? undefined : state.nodes.find((one): boolean => one.id === above);
+  }
+  if (walk === undefined) return;
+  const frame = state.boxes.get(walk.id);
+  if (frame === undefined) return;
+
+  const svg = "http://www.w3.org/2000/svg";
+  const clip = document.createElementNS(svg, "clipPath");
+  const named = `graph-page-clip-${wire.id.replace(/[^a-z0-9-]/gi, "-")}`;
+  clip.setAttribute("id", named);
+  const rect = document.createElementNS(svg, "rect");
+  rect.setAttribute("x", String(walk.x));
+  rect.setAttribute("y", String(walk.y));
+  rect.setAttribute("width", String(frame.offsetWidth));
+  rect.setAttribute("height", String(frame.offsetHeight));
+  clip.appendChild(rect);
+  over.appendChild(clip);
+
+  const line = graphSvgPath(classes, d);
+  line.setAttribute("clip-path", `url(#${named})`);
+  over.appendChild(line);
+}
