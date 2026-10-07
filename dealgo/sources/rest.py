@@ -123,6 +123,8 @@ class Found:
 
     feed: Feed
     paths: dict[str, str]
+    #: The answer as it came, for a Format box to reshape.
+    data: Any = None
 
 
 def fetch(url: str, mapping: Mapping, client: httpx.Client) -> Feed:
@@ -195,6 +197,7 @@ def parse(data: Any, mapping: Mapping, *, base: str = "") -> Found:
         feed=Feed(title=title or (urlparse(base).hostname or "REST API"),
                   items=read_items[:MOST_ITEMS]),
         paths=paths,
+        data=data,
     )
 
 
@@ -212,6 +215,16 @@ def walk(data: Any, path: str) -> Any:
         if here is None:
             return None
     return here
+
+
+def locate(data: Any, path: str) -> tuple[list[Any], str]:
+    """The list of items, at the path given or wherever it most likely is."""
+    return _locate(data, path)
+
+
+def when(value: Any) -> dt.datetime | None:
+    """A date as APIs give one, or None."""
+    return _when(value)
 
 
 def _locate(data: Any, path: str) -> tuple[list[Any], str]:

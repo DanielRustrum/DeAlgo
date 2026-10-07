@@ -287,3 +287,13 @@ def add_pamphlet(
     session.add(node)
     session.flush()
     return node
+
+
+def add_format(
+    session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
+) -> GraphNode:
+    """A Format box: reshapes the JSON wired into it into bars for a chart."""
+    node = GraphNode(owner_pk=owner, kind="format", label=label.strip()[:120], x=x, y=y)
+    session.add(node)
+    session.flush()
+    return node

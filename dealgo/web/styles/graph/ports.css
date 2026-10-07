@@ -37,3 +37,9 @@
   color: var(--leaf);
 }
 .graph-node.is-piece .graph-port.port-in.carries-page { top: 50%; }
+
+/* JSON going to be reshaped, and bars going to be drawn: braces, in ochre. */
+.graph-port.carries-data {
+  border-color: var(--ochre);
+  color: var(--ochre);
+}

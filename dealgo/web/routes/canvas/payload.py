@@ -83,6 +83,8 @@ class _Canvas:
     feeds: dict[int, str]
     #: The pamphlet the Pamphlets tab opens on, if one is chosen.
     default_pamphlet: int | None
+    #: Chart leaflets with a Format box wired into them.
+    shaped: set[int]
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
@@ -117,6 +119,10 @@ class _Canvas:
                 for playlist in playlist_service.list_playlists(session, owner)
             },
             default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
+            shaped={
+                edge.target_pk for edge in graph_service.edges(session, owner)
+                if any(one.id == edge.source_pk and one.kind == "format" for one in nodes)
+            },
         )
 
 
@@ -126,7 +132,19 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
     if node.kind in graph_service.LEAFLET_KINDS:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)
+            if node.id in canvas.shaped:
+                drawn["note"] = "drawn by the Format box wired in"
         drawn["leaflet"] = _leaflet(node, canvas)
+    elif node.kind == "format":
+        drawn["note"] = graph_service.formatting.words(node)
+        formatting = graph_service.formatting
+        drawn["format"] = {
+            "settings": formatting.settings(node),
+            "groups": [{"name": n, "label": l} for n, l in formatting.GROUPS],
+            "combines": [{"name": n, "label": l} for n, l in formatting.COMBINES],
+            "sorts": [{"name": n, "label": l} for n, l in formatting.SORTS],
+            "draws": [{"name": n, "label": l} for n, l in formatting.DRAWS],
+        }
     elif node.kind == "pamphlet":
         drawn["note"] = _pamphlet_note(canvas.slotted.get(node.id, []))
         drawn["detail"] = f"/pamphlets/{node.id}"

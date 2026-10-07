@@ -20,6 +20,7 @@
   &.kind-group { --kind-colour: var(--line); }
   /* A page, and the blocks of it: a colour of their own, apart from the flow. */
   &.kind-pamphlet { --kind-colour: var(--leaf); }
+  &.kind-format { --kind-colour: var(--ochre); }
 
   /* The augmentations, a plugin's conditions among them. */
   &.kind-timer,

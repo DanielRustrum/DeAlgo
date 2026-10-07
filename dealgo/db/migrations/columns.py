@@ -120,6 +120,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "attached_side", "VARCHAR(8)"),
     ("graph_node", "leaflet", "TEXT"),
     ("settings", "default_pamphlet_pk", "INTEGER"),
+    # A Format box's shaping, and the REST answers it reshapes.
+    ("graph_node", "format_spec", "TEXT"),
+    ("channel", "raw_snapshot", "TEXT"),
+    ("channel", "raw_snapshot_at", "DATETIME"),
     # What a Tag box marks whatever comes through it with.
     ("graph_node", "marks", "VARCHAR(40)"),
     # What a person granted each plugin. plugin_state may already exist from

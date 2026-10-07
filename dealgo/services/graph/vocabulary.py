@@ -24,6 +24,11 @@ STAMPS = ("decay", "expire", "tag")
 #: The leaflets a feed can be wired into: what they show is that feed's.
 WIRED_LEAFLETS = ("leaflet-feed", "leaflet-link")
 
+#: What takes one wire in only — a second wired in replaces the first: a
+#: leaflet shows one feed, a Format box reshapes one source, a chart draws
+#: one Format box's bars.
+ONE_INPUT = WIRED_LEAFLETS + ("format", "leaflet-chart")
+
 
 #: The augmentations, as against the boxes. An augmentation is not on any
 #: path and has no wires: it is slotted under a box and changes what that box
@@ -43,7 +48,7 @@ AUGMENTATIONS: tuple[str, ...] = (
 #: What each box is called where one is named out loud.
 BOX_NAMES: dict[str, str] = {
     "feed": "Feed", "filter": "Filter", "sort": "Sort",
-    "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet",
+    "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet", "format": "Format",
 }
 
 
@@ -80,7 +85,11 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # be read. That is a Timer and a Reset slotted under it now: it is a
     # property of the feed rather than something arriving along a wire.
     "trigger": ("source", "withdraw"),
-    "source": MIDDLE + ENDS,
+    # A source's JSON can also go to a Format box, to be drawn as a chart;
+    # that is a wire of its own kind, and no path runs through it.
+    "source": MIDDLE + ENDS + ("format",),
+    # A Format box gives its bars to a Chart leaflet, and nothing else.
+    "format": ("leaflet-chart",),
     "filter": MIDDLE + ENDS,
     "sort": MIDDLE + ENDS,
     # A withdraw stands where a source stands: it starts a path, and what

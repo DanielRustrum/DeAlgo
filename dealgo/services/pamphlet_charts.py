@@ -26,6 +26,10 @@ class Bar:
     long: str
     value: int
 
+    @property
+    def shown(self) -> str:
+        return f"{self.value:,}"
+
 
 def daily(session: Session, owner: OwnerId, chart: str, days: int) -> list[Bar]:
     """One bar per day, the last `days` of them ending today."""

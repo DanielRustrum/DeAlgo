@@ -19,6 +19,7 @@ from ...models import (
 from .. import ordering
 from ..scope import OwnerId, owned
 from .adding import (
+    add_format,
     add_pamphlet,
     add_feed,
     add_filter,
@@ -29,7 +30,7 @@ from .adding import (
     add_store,
     add_trigger,
 )
-from . import leaflets
+from . import formatting, leaflets
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, condition, conditions_for
 from .errors import GraphError
 from .leaflets import LEAFLET_KINDS
@@ -113,6 +114,8 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             # A piece travels as what it is slotted under, not as where it
             # happens to lie: the assembly is the thing being handed over.
             entry["under"] = refs[node.attached_to]
+        if node.kind == "format":
+            entry["format"] = formatting.settings(node)
         if node.kind in LEAFLET_KINDS:
             entry["side"] = leaflets.side_of(node)
             shown = leaflets.settings(node)
@@ -354,6 +357,11 @@ def _apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owne
         node.alive_to = str(entry.get("alive_to") or "") or None
     elif kind in STAMPS:
         node.marks = str(entry.get("marks") or "")
+    elif kind == "format" and isinstance(entry.get("format"), dict):
+        try:
+            formatting.save(node, {f"format_{k}": str(v) for k, v in entry["format"].items()})
+        except GraphError:
+            pass  # a file saying something this box cannot do: left as it was
     elif kind in LEAFLET_KINDS and isinstance(entry.get("leaflet"), dict):
         # What it shows, but its feed: that is put back once the feed's box
         # exists, by `_slot`.
@@ -568,6 +576,9 @@ def _unpack(
 
     if kind == "pamphlet":
         return add_pamphlet(session, owner, label=label, x=x, y=y)
+
+    if kind == "format":
+        return add_format(session, owner, label=label, x=x, y=y)
 
     if kind in AUGMENTATIONS:
         return add_piece(

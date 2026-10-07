@@ -8,6 +8,8 @@ type GraphNodeKind =
   // A page under the Pamphlets tab, laid out by the leaflets slotted under
   // it. On no path: nothing is wired into or out of one.
   | "pamphlet"
+  // Reshapes a source's JSON into bars for a Chart leaflet. On no path.
+  | "format"
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
   // hang beside each other as well as below — beside is the next column.
   | "leaflet-feed"
@@ -73,7 +75,7 @@ function graphTakesPieces(kind: GraphNodeKind): boolean {
 /** There used to be two: a source's wire was stored against its channel and
  *  drawn from that, which is why two boxes for one channel showed the same
  *  wires. Every wire is an edge now. */
-type GraphWireKind = "edge" | "page";
+type GraphWireKind = "edge" | "page" | "data";
 
 /** One box or piece as the server sent it. */
 interface GraphNodeView {
@@ -120,6 +122,8 @@ interface GraphNodeView {
   leaflet: GraphLeaflet | null;
   /** Pamphlet boxes: where its page is, and whether the tab opens on it. */
   pamphlet: GraphPamphlet | null;
+  /** Format boxes: how it reshapes what is wired in. */
+  format: GraphFormat | null;
 }
 
 /** A feed box's reading windows and caps. */

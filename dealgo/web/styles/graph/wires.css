@@ -11,6 +11,9 @@
    pamphlet's colour, so it is never read as part of the flow. */
 .graph-wire.wire-page { stroke: var(--leaf); stroke-dasharray: 6 5; }
 .graph-wire.wire-page.is-picked { stroke: var(--accent); }
+/* JSON on its way to be drawn: dotted, in the Format box's colour. */
+.graph-wire.wire-data { stroke: var(--ochre); stroke-dasharray: 2 4; }
+.graph-wire.wire-data.is-picked { stroke: var(--accent); }
 .graph-wire.is-through { stroke: var(--ok); stroke-width: 3; }
 .graph-wire.is-stopped { stroke: var(--bad); stroke-dasharray: 5 5; }
 .wire-ghost { stroke: var(--accent); stroke-dasharray: 6 5; }

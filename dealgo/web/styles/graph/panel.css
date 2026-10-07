@@ -246,3 +246,7 @@
 .graph-rest-items li { margin-bottom: 4px; overflow-wrap: anywhere; }
 .graph-rest-items strong { display: block; font-weight: 600; }
 .graph-rest-meta { color: var(--muted); font-size: calc(11.5px * var(--text-scale)); }
+
+/* A Format box's fields, and what Try found. */
+.graph-format { display: flex; flex-direction: column; gap: 8px; }
+.graph-format-tried { display: flex; flex-direction: column; gap: 6px; }

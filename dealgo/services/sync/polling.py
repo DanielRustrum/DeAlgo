@@ -101,7 +101,9 @@ def _read_feed(channel: Channel, http: httpx.Client) -> syndication.Feed:
     if channel.source_kind == "rest":
         # A JSON API, read by the mapping set on its box. No mirror: nobody
         # keeps a copy of somebody's API.
-        return rest.fetch(channel.feed_url, rest.Mapping.loads(channel.source_options), http)
+        found = rest.read(channel.feed_url, rest.Mapping.loads(channel.source_options), http)
+        keep_snapshot(channel, found.data)
+        return found.feed
     try:
         return syndication.fetch(channel.feed_url, http)
     except (patience.RateLimited, httpx.HTTPStatusError) as refused:
@@ -462,3 +464,15 @@ def _unignore(
         video.processed_at = None
     session.flush()
     return len(stranded)
+
+
+#: The most of a REST answer kept for a Format box to reshape.
+MOST_SNAPSHOT = 2 * 1024 * 1024
+
+
+def keep_snapshot(channel: Channel, data: object) -> None:
+    """Keep a REST source's whole answer, if it is not too big to keep."""
+    said = json.dumps(data, separators=(",", ":"))
+    if len(said) <= MOST_SNAPSHOT:
+        channel.raw_snapshot = said
+        channel.raw_snapshot_at = utcnow()

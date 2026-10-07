@@ -19,6 +19,7 @@ Everything you can place on the [Configuration Canvas](../The%20Configuration%20
 | [Deposit and Withdraw](Repositories.md) | Hold items now, release them later |
 | [Group](Groups.md) | A background for arranging and sharing boxes |
 | [Pamphlet](Pamphlets.md) | A page of your own under the Pamphlets tab; on no path |
+| [Format](Format.md) | Reshapes a source's JSON into bars for a Chart leaflet; on no path |
 
 ## Pieces
 

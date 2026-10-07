@@ -136,6 +136,18 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             )
             shown["section"] = section
             shown["videos"] = section["videos"][: int(said["count"])]
+    elif node.kind == "leaflet-chart" and (shaping := _shaping(session, owner, node)) is not None:
+        # A Format box wired in: its bars, from the JSON wired into it.
+        box, source = shaping
+        spec = graph_service.formatting.settings(box)
+        shaped = graph_service.formatting.shape(
+            graph_service.formatting.data_for(session, source) if source is not None else None, spec
+        )
+        shown["chart_label"] = box.title if box.label else graph_service.formatting.words(box)
+        shown["bars"] = shaped.bars
+        shown["top"] = graph_service.formatting.scale(shaped.bars)
+        shown["across"] = shaped.across
+        shown["format_error"] = shaped.error
     elif node.kind == "leaflet-chart":
         chart = str(said["chart"])
         shown["chart_label"] = dict(graph_service.leaflets.CHARTS).get(chart, "")
@@ -156,3 +168,26 @@ def _feed(session: Session, owner: OwnerId, pk: Any) -> Playlist | None:
     if not isinstance(pk, int):
         return None
     return next((one for one in playlist_service.list_playlists(session, owner) if one.id == pk), None)
+
+
+def _shaping(
+    session: Session, owner: OwnerId, chart: GraphNode
+) -> tuple[GraphNode, GraphNode | None] | None:
+    """The Format box wired into a chart, and the source wired into that."""
+    wired = graph_service.edges(session, owner)
+    by_id = {node.id: node for node in graph_service.nodes(session, owner)}
+    box = next(
+        (by_id[edge.source_pk] for edge in wired
+         if edge.target_pk == chart.id and by_id.get(edge.source_pk) is not None
+         and by_id[edge.source_pk].kind == "format"),
+        None,
+    )
+    if box is None:
+        return None
+    source = next(
+        (by_id[edge.source_pk] for edge in wired
+         if edge.target_pk == box.id and by_id.get(edge.source_pk) is not None
+         and by_id[edge.source_pk].kind == "source"),
+        None,
+    )
+    return box, source

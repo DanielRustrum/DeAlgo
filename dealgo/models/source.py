@@ -100,6 +100,11 @@ class Channel(Base):
     # field of each is what, and the header it sends for a key, as JSON
     # (sources/rest.py's Mapping). Nothing for every other kind.
     source_options: Mapped[Optional[str]] = mapped_column(Text)
+    # A REST API source: its endpoint's last whole answer, as JSON, kept when
+    # it is polled so a Format box can reshape it without asking the API
+    # again every time a page is opened. Not kept past MOST_SNAPSHOT bytes.
+    raw_snapshot: Mapped[Optional[str]] = mapped_column(Text)
+    raw_snapshot_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime)
     max_per_run: Mapped[int] = mapped_column(Integer, default=5)
 
     videos: Mapped[list["Video"]] = relationship(back_populates="channel", cascade="all, delete-orphan")

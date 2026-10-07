@@ -32,6 +32,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "longer-than") return "Longer than";
   if (kind === "shorter-than") return "Shorter than";
   if (kind === "pamphlet") return "Pamphlet";
+  if (kind === "format") return "Format";
   if (kind === "leaflet-feed") return "Feed leaflet";
   if (kind === "leaflet-chart") return "Chart leaflet";
   if (kind === "leaflet-text") return "Text leaflet";
@@ -120,7 +121,7 @@ interface GraphStore {
 }
 
 /** What travels down a wire: a nudge to run, or the things being collected. */
-type GraphCarries = "signal" | "content" | "page";
+type GraphCarries = "signal" | "content" | "page" | "data";
 
 /** A port dot on a box's edge: where wires leave or arrive. */
 function graphPort(where: "in" | "out", carries: GraphCarries, says: string): HTMLElement {
@@ -152,6 +153,18 @@ function graphPortIcon(carries: GraphCarries): SVGSVGElement {
         : "M2.6 1.2 L8.2 5 L2.6 8.8 Z",
   );
   if (carries === "page") mark.setAttribute("fill-rule", "evenodd");
+  if (carries === "data") {
+    // Braces: raw JSON, before it is anything to look at.
+    mark.setAttribute(
+      "d",
+      "M3.6 1.2 C2.2 1.2 2.6 3.6 2.4 4.3 C2.2 4.9 1.6 5 1.6 5 C1.6 5 2.2 5.1 2.4 5.7 C2.6 6.4 2.2 8.8 3.6 8.8 " +
+        "M6.4 1.2 C7.8 1.2 7.4 3.6 7.6 4.3 C7.8 4.9 8.4 5 8.4 5 C8.4 5 7.8 5.1 7.6 5.7 C7.4 6.4 7.8 8.8 6.4 8.8",
+    );
+    mark.setAttribute("fill", "none");
+    mark.setAttribute("stroke", "currentColor");
+    mark.setAttribute("stroke-width", "1.3");
+    mark.setAttribute("stroke-linecap", "round");
+  }
   svg.appendChild(mark);
   return svg;
 }
@@ -188,6 +201,9 @@ function graphPortWords(kind: GraphNodeKind, where: "in" | "out"): string {
     return where === "in"
       ? "Takes what arrives, and judges it."
       : "Gives out only what got through.";
+  }
+  if (kind === "format") {
+    return "Takes JSON: wire a source box here — a REST API's answer, or any source's items.";
   }
   if (kind === "deposit") {
     return "Takes what is wired in and holds it. Nothing comes out until a Withdraw pulls.";
@@ -293,10 +309,11 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   // A pamphlet is on no path: nothing runs into or out of one.
   const wired = node.kind !== "pamphlet";
   if (node.kind !== "trigger" && wired) {
-    // A channel and a withdraw are set off by a signal; everything else is
-    // fed content.
+    // A channel and a withdraw are set off by a signal; a Format box takes
+    // JSON; everything else is fed content.
     const takes: GraphCarries =
-      node.kind === "source" || node.kind === "withdraw" ? "signal" : "content";
+      node.kind === "source" || node.kind === "withdraw" ? "signal"
+        : node.kind === "format" ? "data" : "content";
     box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
   }
   box.appendChild(graphElement("span", "graph-node-kind", graphTriggerLabel(node)));
@@ -307,6 +324,8 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   if (node.kind === "feed") {
     // What a feed holds can go onto a pamphlet's page, down a wire of its own.
     box.appendChild(graphPort("out", "page", "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet."));
+  } else if (node.kind === "format") {
+    box.appendChild(graphPort("out", "data", "Gives out bars to draw: wire it to a Chart leaflet."));
   } else if (node.kind !== "deposit" && wired) {
     const gives: GraphCarries = node.kind === "trigger" ? "signal" : "content";
     box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
@@ -507,7 +526,7 @@ function drawGraphWires(state: GraphState): void {
     // working the day something else is appended between them.
     line.setAttribute("data-line", wire.id);
     state.parts.wires.appendChild(line);
-    if (wire.kind === "page") drawGraphWireIntoPage(state, over, wire, d, classes);
+    if (wire.kind !== "edge") drawGraphWireIntoPage(state, over, wire, d, classes);
 
     if (wire.id === state.selectedWire) {
       state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));

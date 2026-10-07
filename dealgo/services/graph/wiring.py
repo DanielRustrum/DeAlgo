@@ -20,7 +20,7 @@ from .canvas import load
 from .errors import GraphError
 from .reading import edges, nodes
 from . import leaflets
-from .vocabulary import ALLOWED, WIRED_LEAFLETS
+from .vocabulary import ALLOWED, ONE_INPUT, WIRED_LEAFLETS
 
 
 def connect(
@@ -64,8 +64,8 @@ def connect(
     if existing is not None:
         return existing
 
-    if target.kind in WIRED_LEAFLETS:
-        # A leaflet shows one feed: a second wired in takes the first's place.
+    if target.kind in ONE_INPUT:
+        # One thing in: a second wired in takes the first's place.
         for older in session.scalars(select(GraphEdge).where(GraphEdge.target_pk == target.id)):
             session.delete(older)
         session.flush()
@@ -167,15 +167,22 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
     feeds, which is why two boxes for one channel showed the same wires.
     """
     all_nodes, all_edges = load(session, owner)
-    # A wire into a leaflet carries a feed onto a page, not items down a path.
+    # A wire into a leaflet carries a feed onto a page, not items down a path;
+    # one into or out of a Format box carries JSON to be drawn.
     shown = {node.id for node in all_nodes if node.kind in WIRED_LEAFLETS}
+    shaping = {node.id for node in all_nodes if node.kind == "format"}
+
+    def kind_of(edge: GraphEdge) -> str:
+        if edge.source_pk in shaping or edge.target_pk in shaping:
+            return "data"
+        return "page" if edge.target_pk in shown else "edge"
 
     return [
         {
             "id": f"edge:{edge.id}",
             "from": edge.source_pk,
             "to": edge.target_pk,
-            "kind": "page" if edge.target_pk in shown else "edge",
+            "kind": kind_of(edge),
         }
         for edge in all_edges
     ]

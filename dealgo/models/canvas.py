@@ -162,6 +162,9 @@ class GraphNode(Base):
     # for four kinds of leaflet, each with its own few settings: see
     # services/graph/leaflets.py, which is the only thing that reads it.
     leaflet: Mapped[Optional[str]] = mapped_column(Text)
+    # Format boxes only: how this one reshapes the JSON wired into it into
+    # bars for a chart, as JSON — see services/graph/formatting.py.
+    format_spec: Mapped[Optional[str]] = mapped_column(Text)
 
     # Deposit and Withdraw boxes only: which repository this one is about.
     # A label two boxes agree on rather than a row of its own, so typing the
@@ -258,6 +261,8 @@ class GraphNode(Base):
             return "Group"
         if self.kind == "pamphlet":
             return "Pamphlet"
+        if self.kind == "format":
+            return "Format"
         if self.kind in LEAFLET_LABELS:
             return LEAFLET_LABELS[self.kind]
         if self.kind == "rule":

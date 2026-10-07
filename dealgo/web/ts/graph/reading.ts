@@ -22,6 +22,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "feed" ||
     value === "group" ||
     value === "pamphlet" ||
+    value === "format" ||
     value === "leaflet-feed" ||
     value === "leaflet-chart" ||
     value === "leaflet-text" ||
@@ -85,6 +86,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     feed: asGraphFeed(raw["feed"]),
     leaflet: asGraphLeaflet(raw["leaflet"]),
     pamphlet: asGraphPamphlet(raw["pamphlet"]),
+    format: asGraphFormat(raw["format"]),
   };
 }
 
@@ -356,7 +358,8 @@ function asGraphWire(value: unknown): GraphWireView | null {
   const from = raw["from"];
   const to = raw["to"];
   if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number") return null;
-  return { id, from, to, kind: raw["kind"] === "page" ? "page" : "edge" };
+  const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
+  return { id, from, to, kind };
 }
 
 /** The graph, or null if this is not one — an error body, say. */

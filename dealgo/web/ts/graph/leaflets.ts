@@ -271,6 +271,9 @@ function drawGraphLeafletParts(box: HTMLElement, node: GraphNodeView): void {
   if (node.kind === "leaflet-feed" || node.kind === "leaflet-link") {
     box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to show what it holds."));
   }
+  if (node.kind === "leaflet-chart") {
+    box.appendChild(graphPort("in", "data", "Takes bars: wire a Format box here to draw what it shapes."));
+  }
   box.appendChild(graphElement("span", "leaflet-notch is-below"));
   box.appendChild(graphElement("span", "leaflet-notch is-beside"));
 }

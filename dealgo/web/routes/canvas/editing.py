@@ -136,6 +136,8 @@ def graph_add_node(
             graph_service.add_group(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "pamphlet":
             graph_service.add_pamphlet(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "format":
+            graph_service.add_format(session, owner, label=title.strip(), x=x, y=y)
         elif kind in graph_service.TRIGGER_KINDS:
             graph_service.add_trigger(
                 session, owner, trigger_kind=kind, label=title.strip(), x=x, y=y

@@ -162,18 +162,20 @@
     on focus; the same numbers are in a table under it. -#}
 {% macro chart(said) -%}
 {% set bars = said.bars %}
-{% if not bars or (bars | sum(attribute='value')) == 0 %}
+{% if said.format_error and not bars %}
+  <p class="paper-note">{{ said.format_error }}</p>
+{% elif not bars or (bars | sum(attribute='value')) == 0 %}
   <p class="paper-note">Nothing to count yet.</p>
 {% else %}
   {% if said.across %}
   {% set every = ((bars | length) / 7) | round(0, 'ceil') | int %}
   <div class="leaflet-chart" role="img"
-       aria-label="{{ said.chart_label }}: {{ bars | sum(attribute='value') }} over {{ bars | length }} days">
-    <span class="chart-top" aria-hidden="true">{{ said.top }}</span>
+       aria-label="{{ said.chart_label }}: {{ bars | length }} bars">
+    <span class="chart-top" aria-hidden="true">{{ '%g' | format(said.top) }}</span>
     <div class="chart-bars" aria-hidden="true">
       {% for bar in bars %}
       <span class="chart-bar" tabindex="0" style="--share: {{ (100 * bar.value / said.top) | round(1) }}%"
-            data-tip="{{ bar.long }} · {{ bar.value }}">
+            data-tip="{{ bar.long }} · {{ bar.shown }}">
         <span class="chart-fill"></span>
       </span>
       {% endfor %}
@@ -185,10 +187,10 @@
   {% else %}
   <ul class="leaflet-chart-rows">
     {% for bar in bars %}
-    <li class="chart-row" tabindex="0" data-tip="{{ bar.long }} · {{ bar.value }} waiting">
+    <li class="chart-row" tabindex="0" data-tip="{{ bar.long }} · {{ bar.shown }}{{ ' waiting' if not said.format_error is defined }}">
       <span class="chart-row-name">{{ bar.label }}</span>
       <span class="chart-row-track"><span class="chart-row-fill" style="--share: {{ (100 * bar.value / said.top) | round(1) }}%"></span></span>
-      <span class="chart-row-value">{{ bar.value }}</span>
+      <span class="chart-row-value">{{ bar.shown }}</span>
     </li>
     {% endfor %}
   </ul>
@@ -196,9 +198,9 @@
   <details class="chart-table">
     <summary>As a table</summary>
     <table>
-      <thead><tr><th scope="col">{{ 'Day' if said.across else 'Feed' }}</th><th scope="col">{{ 'Count' if said.across else 'Waiting' }}</th></tr></thead>
+      <thead><tr><th scope="col">{{ 'Label' if said.format_error is defined else ('Day' if said.across else 'Feed') }}</th><th scope="col">{{ 'Value' if said.format_error is defined else ('Count' if said.across else 'Waiting') }}</th></tr></thead>
       <tbody>
-        {% for bar in bars %}<tr><td>{{ bar.long }}</td><td>{{ bar.value }}</td></tr>{% endfor %}
+        {% for bar in bars %}<tr><td>{{ bar.long }}</td><td>{{ bar.shown }}</td></tr>{% endfor %}
       </tbody>
     </table>
   </details>

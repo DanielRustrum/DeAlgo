@@ -989,6 +989,8 @@ function graphKindLabel(kind) {
         return "Shorter than";
     if (kind === "pamphlet")
         return "Pamphlet";
+    if (kind === "format")
+        return "Format";
     if (kind === "leaflet-feed")
         return "Feed leaflet";
     if (kind === "leaflet-chart")
@@ -1033,6 +1035,15 @@ function graphPortIcon(carries) {
             : "M2.6 1.2 L8.2 5 L2.6 8.8 Z");
     if (carries === "page")
         mark.setAttribute("fill-rule", "evenodd");
+    if (carries === "data") {
+        // Braces: raw JSON, before it is anything to look at.
+        mark.setAttribute("d", "M3.6 1.2 C2.2 1.2 2.6 3.6 2.4 4.3 C2.2 4.9 1.6 5 1.6 5 C1.6 5 2.2 5.1 2.4 5.7 C2.6 6.4 2.2 8.8 3.6 8.8 " +
+            "M6.4 1.2 C7.8 1.2 7.4 3.6 7.6 4.3 C7.8 4.9 8.4 5 8.4 5 C8.4 5 7.8 5.1 7.6 5.7 C7.4 6.4 7.8 8.8 6.4 8.8");
+        mark.setAttribute("fill", "none");
+        mark.setAttribute("stroke", "currentColor");
+        mark.setAttribute("stroke-width", "1.3");
+        mark.setAttribute("stroke-linecap", "round");
+    }
     svg.appendChild(mark);
     return svg;
 }
@@ -1069,6 +1080,9 @@ function graphPortWords(kind, where) {
         return where === "in"
             ? "Takes what arrives, and judges it."
             : "Gives out only what got through.";
+    }
+    if (kind === "format") {
+        return "Takes JSON: wire a source box here — a REST API's answer, or any source's items.";
     }
     if (kind === "deposit") {
         return "Takes what is wired in and holds it. Nothing comes out until a Withdraw pulls.";
@@ -1179,9 +1193,10 @@ function drawGraphNode(state, node) {
     // A pamphlet is on no path: nothing runs into or out of one.
     const wired = node.kind !== "pamphlet";
     if (node.kind !== "trigger" && wired) {
-        // A channel and a withdraw are set off by a signal; everything else is
-        // fed content.
-        const takes = node.kind === "source" || node.kind === "withdraw" ? "signal" : "content";
+        // A channel and a withdraw are set off by a signal; a Format box takes
+        // JSON; everything else is fed content.
+        const takes = node.kind === "source" || node.kind === "withdraw" ? "signal"
+            : node.kind === "format" ? "data" : "content";
         box.appendChild(graphPort("in", takes, graphPortWords(node.kind, "in")));
     }
     box.appendChild(graphElement("span", "graph-node-kind", graphTriggerLabel(node)));
@@ -1193,6 +1208,9 @@ function drawGraphNode(state, node) {
     if (node.kind === "feed") {
         // What a feed holds can go onto a pamphlet's page, down a wire of its own.
         box.appendChild(graphPort("out", "page", "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet."));
+    }
+    else if (node.kind === "format") {
+        box.appendChild(graphPort("out", "data", "Gives out bars to draw: wire it to a Chart leaflet."));
     }
     else if (node.kind !== "deposit" && wired) {
         const gives = node.kind === "trigger" ? "signal" : "content";
@@ -1391,7 +1409,7 @@ function drawGraphWires(state) {
         // working the day something else is appended between them.
         line.setAttribute("data-line", wire.id);
         state.parts.wires.appendChild(line);
-        if (wire.kind === "page")
+        if (wire.kind !== "edge")
             drawGraphWireIntoPage(state, over, wire, d, classes);
         if (wire.id === state.selectedWire) {
             state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));
@@ -1744,6 +1762,141 @@ function listenForGraphFinder(state, panel) {
 }
 
 "use strict";
+// Format boxes: reshaping a source's JSON into bars for a Chart leaflet.
+//
+// Part of the Configuration canvas; see main.ts.
+function asGraphFormat(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const settings = {};
+    const given = asGraphRecord(raw["settings"]);
+    if (given !== null) {
+        for (const [key, one] of Object.entries(given)) {
+            if (typeof one === "string" || typeof one === "number")
+                settings[key] = one;
+        }
+    }
+    return {
+        settings,
+        groups: asGraphChoices(raw["groups"]),
+        combines: asGraphChoices(raw["combines"]),
+        sorts: asGraphChoices(raw["sorts"]),
+        draws: asGraphChoices(raw["draws"]),
+    };
+}
+/** A Format box's panel: which list, what labels a bar, what it measures,
+ *  and a Try that shows the fields there are and the bars it would give. */
+function graphFormatFields(form, node) {
+    var _a;
+    const format = node.format;
+    if (format === null)
+        return;
+    const said = (key) => { var _a; return String((_a = format.settings[key]) !== null && _a !== void 0 ? _a : ""); };
+    form.appendChild(graphElement("p", "hint", "Wire a source box into this, and this into a Chart leaflet. A REST API source gives its last whole answer; any other source gives its items as JSON."));
+    const group = graphElement("div", "graph-format");
+    const inputs = new Map();
+    const text = (name, label, placeholder) => {
+        const field = graphLeafletText(`format_${name}`, said(name), placeholder);
+        inputs.set(name, field);
+        group.appendChild(graphLabelled(label, field));
+    };
+    text("rows", "Rows", "found by itself — or a path like data.children");
+    text("label", "Label each bar by", "a path in each row, like published or data.author");
+    group.appendChild(graphLabelled("Group it", graphLeafletSelect("format_group", format.groups, said("group"))));
+    group.appendChild(graphLabelled("Combine rows", graphLeafletSelect("format_combine", format.combines, said("combine"))));
+    text("value", "The number", "a path, like duration — not needed to count");
+    group.appendChild(graphLabelled("Order", graphLeafletSelect("format_sort", format.sorts, said("sort"))));
+    group.appendChild(graphLabelled("How many bars", graphLeafletNumber("format_limit", said("limit"), 1, 60)));
+    group.appendChild(graphLabelled("Draw as", graphLeafletSelect("format_draw", format.draws, said("draw"))));
+    form.appendChild(group);
+    // Which path field a chip from Try goes into: the one last in focus.
+    for (const name of ["label", "value"]) {
+        (_a = inputs.get(name)) === null || _a === void 0 ? void 0 : _a.addEventListener("focus", () => {
+            group.dataset["aim"] = name;
+        });
+    }
+    const tried = graphElement("div", "graph-format-tried");
+    const button = graphElement("button", "btn btn-quiet", "Try");
+    button.setAttribute("type", "button");
+    button.addEventListener("click", () => {
+        void tryGraphFormat(node.id, group, inputs, tried);
+    });
+    form.appendChild(button);
+    form.appendChild(tried);
+}
+/** Ask what the box would make of what is wired into it, unsaved. */
+async function tryGraphFormat(nodeId, group, inputs, said) {
+    var _a, _b;
+    const body = new URLSearchParams();
+    group.querySelectorAll("[name^='format_']").forEach((field) => {
+        body.append(field.name, field.value);
+    });
+    said.replaceChildren(graphElement("p", "hint", "Reading…"));
+    let answer;
+    try {
+        answer = await askGraph(`/graph/nodes/${nodeId}/format/try`, body);
+    }
+    catch (_c) {
+        said.replaceChildren(graphElement("p", "error-note", "No connection, so it could not be tried."));
+        return;
+    }
+    const raw = asGraphRecord(answer);
+    if (raw === null) {
+        said.replaceChildren(graphElement("p", "error-note", "That did not work."));
+        return;
+    }
+    const shown = [];
+    const rows = typeof raw["rows"] === "number" ? raw["rows"] : 0;
+    const where = typeof raw["rows_path"] === "string" && raw["rows_path"] !== "" ? raw["rows_path"] : "the top";
+    if (rows > 0) {
+        shown.push(graphElement("p", "hint", `${rows} rows, at “${where}”.`));
+        const rowsField = inputs.get("rows");
+        if (rowsField !== undefined && rowsField.value === "" && where !== "the top")
+            rowsField.placeholder = where;
+    }
+    if (Array.isArray(raw["fields"]) && raw["fields"].length > 0) {
+        // The fields there are, as chips: pressed, one goes into whichever of
+        // the two path fields was last in focus — the label by default.
+        const chips = graphElement("div", "graph-tag-choices");
+        for (const one of raw["fields"]) {
+            if (typeof one !== "string")
+                continue;
+            const chip = graphElement("button", "graph-tag-choice", one);
+            chip.setAttribute("type", "button");
+            chip.addEventListener("click", () => {
+                const aim = group.dataset["aim"] === "value" ? inputs.get("value") : inputs.get("label");
+                if (aim !== undefined)
+                    aim.value = one;
+            });
+            chips.appendChild(chip);
+        }
+        shown.push(graphElement("p", "hint", "Fields in its rows — press one to use it:"));
+        shown.push(chips);
+    }
+    if (typeof raw["error"] === "string" && raw["error"] !== "") {
+        shown.push(graphElement("p", "error-note", raw["error"]));
+    }
+    if (Array.isArray(raw["bars"]) && raw["bars"].length > 0) {
+        const list = graphElement("ol", "graph-rest-items");
+        for (const one of raw["bars"]) {
+            const bar = asGraphRecord(one);
+            if (bar === null)
+                continue;
+            const row = graphElement("li", "");
+            row.appendChild(graphElement("strong", "", String((_a = bar["label"]) !== null && _a !== void 0 ? _a : "")));
+            row.appendChild(graphElement("span", "graph-rest-meta", String((_b = bar["value"]) !== null && _b !== void 0 ? _b : "")));
+            list.appendChild(row);
+        }
+        shown.push(list);
+        const more = typeof raw["more"] === "number" ? raw["more"] : 0;
+        if (more > 0)
+            shown.push(graphElement("p", "hint", `and ${more} more.`));
+    }
+    said.replaceChildren(...shown);
+}
+
+"use strict";
 // Pamphlets and their leaflets: laying a page out on the canvas.
 //
 // A leaflet is a piece, slotted under a Pamphlet box, but it hangs from
@@ -1996,6 +2149,9 @@ function graphLeafletSlots(state, moving = -1) {
 function drawGraphLeafletParts(box, node) {
     if (node.kind === "leaflet-feed" || node.kind === "leaflet-link") {
         box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to show what it holds."));
+    }
+    if (node.kind === "leaflet-chart") {
+        box.appendChild(graphPort("in", "data", "Takes bars: wire a Format box here to draw what it shapes."));
     }
     box.appendChild(graphElement("span", "leaflet-notch is-below"));
     box.appendChild(graphElement("span", "leaflet-notch is-beside"));
@@ -2641,6 +2797,8 @@ function graphNodeForm(state, node) {
         graphLeafletFields(form, node);
     else if (node.kind === "pamphlet")
         graphPamphletFields(form, node);
+    else if (node.kind === "format")
+        graphFormatFields(form, node);
     else if (node.stamp !== null)
         graphStampFields(form, node);
     else if (node.piece !== null)
@@ -3294,6 +3452,7 @@ function asGraphNodeKind(value) {
         value === "feed" ||
         value === "group" ||
         value === "pamphlet" ||
+        value === "format" ||
         value === "leaflet-feed" ||
         value === "leaflet-chart" ||
         value === "leaflet-text" ||
@@ -3357,6 +3516,7 @@ function asGraphNode(value) {
         feed: asGraphFeed(raw["feed"]),
         leaflet: asGraphLeaflet(raw["leaflet"]),
         pamphlet: asGraphPamphlet(raw["pamphlet"]),
+        format: asGraphFormat(raw["format"]),
     };
 }
 /** What an empty source box asks to be told. */
@@ -3628,7 +3788,8 @@ function asGraphWire(value) {
     const to = raw["to"];
     if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number")
         return null;
-    return { id, from, to, kind: raw["kind"] === "page" ? "page" : "edge" };
+    const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
+    return { id, from, to, kind };
 }
 /** The graph, or null if this is not one — an error body, say. */
 function asGraph(value) {

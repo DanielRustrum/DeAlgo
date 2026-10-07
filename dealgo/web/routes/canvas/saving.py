@@ -104,6 +104,16 @@ async def graph_save_node(
 
         graph_service.rename(session, node.id, label, owner)
 
+        if node.kind == "format":
+            given = await request.form()
+            try:
+                graph_service.formatting.save(
+                    node,
+                    {key: str(value) for key, value in given.items() if key.startswith("format_")},
+                )
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+
         if node.kind in graph_service.LEAFLET_KINDS:
             # Each kind of leaflet has its own few fields, all `leaflet_…`,
             # read off the form rather than named one parameter each.
@@ -606,3 +616,64 @@ def graph_try_rest(
             for item in found.feed.items[:5]
         ],
     })
+
+
+@router.post("/graph/nodes/{node_pk}/format/try")
+async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
+    """Reshape what is wired into a Format box with what its fields say now,
+    saved or not: the fields its rows have, and the bars it would give.
+
+    A REST source that has not been polled since its answer started being
+    kept is read once here, and the answer kept, so there is something to
+    shape straight away.
+    """
+    owner = owner_of(request)
+    given = await request.form()
+    spec = graph_service.formatting.settings(GraphNode(kind="format"))
+    for key, value in given.items():
+        if key.startswith("format_") and key[7:] in spec:
+            spec[key[7:]] = str(value).strip()
+    if not str(spec.get("limit", "")).isdigit():
+        spec["limit"] = graph_service.formatting.DEFAULTS["limit"]
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is None or node.kind != "format":
+            return JSONResponse({"error": "That is not a Format box."}, status_code=404)
+        source = _format_source(session, node, owner)
+        if source is None or source.channel is None:
+            return JSONResponse({"error": "Wire a source box into it first."}, status_code=400)
+        channel = source.channel
+        if channel.source_kind == "rest" and not channel.raw_snapshot:
+            try:
+                with outgoing.client() as http:
+                    found = rest.read(
+                        channel.feed_url, rest.Mapping.loads(channel.source_options), http
+                    )
+            except Exception as exc:  # refused, unreachable, not JSON
+                return JSONResponse({"error": f"Could not read it: {exc}"}, status_code=400)
+            from ....services.sync.polling import keep_snapshot
+
+            keep_snapshot(channel, found.data)
+        shaped = graph_service.formatting.shape(
+            graph_service.formatting.data_for(session, source), spec
+        )
+        return JSONResponse({
+            "rows": shaped.rows,
+            "rows_path": shaped.rows_path,
+            "fields": shaped.fields,
+            "bars": [{"label": bar.long, "value": bar.shown} for bar in shaped.bars[:12]],
+            "more": max(0, len(shaped.bars) - 12),
+            "error": shaped.error,
+        })
+
+
+def _format_source(session: Session, node: GraphNode, owner: OwnerId) -> GraphNode | None:
+    """The source box wired into a Format box, if any."""
+    for edge in graph_service.edges(session, owner):
+        if edge.target_pk == node.id:
+            start = session.get(GraphNode, edge.source_pk)
+            if start is not None and start.kind == "source":
+                return start
+    return None
