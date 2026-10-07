@@ -52,7 +52,14 @@
    a row of one is just that column. Columns stack again on a phone. */
 .pamphlet-row { display: flex; flex-direction: column; }
 .pamphlet-row.is-columns { flex-direction: row; align-items: stretch; }
-.pamphlet-column { flex: 1 1 0; min-width: 0; }
+/* A column is its leaflet with whatever is stacked under it, and every
+   leaflet fills the room it is given: columns side by side are as tall as
+   the tallest, and the last thing in each takes whatever height is left, so
+   no column ends early in white space. */
+.pamphlet-column { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.pamphlet-row:not(.is-columns) > .pamphlet-column { flex: 1 1 auto; }
+.pamphlet-column > .pamphlet-leaflet:last-child,
+.pamphlet-column > .pamphlet-row { flex: 1 1 auto; }
 .pamphlet-row.is-columns > .pamphlet-column + .pamphlet-column {
   border-left: 1px solid var(--line);
   padding-left: 22px; margin-left: 22px;
@@ -61,7 +68,9 @@
 .pamphlet-column > .pamphlet-row,
 .pamphlet-row + .pamphlet-row { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
 
-.pamphlet-leaflet { min-width: 0; }
+.pamphlet-leaflet { min-width: 0; display: flex; flex-direction: column; }
+/* A link sits in the middle of the room it is given. */
+.pamphlet-leaflet.is-link { justify-content: center; }
 
 /* A section head: small capitals over a heavy rule, as a paper heads a page. */
 .paper-section {
@@ -118,7 +127,7 @@
 
 .paper-note { margin: 0; color: var(--muted); font-style: italic; }
 .paper-empty { text-align: center; padding: 24px 0; }
-.leaflet-more { margin: 10px 0 0; font-size: calc(12.5px * var(--text-scale)); font-style: italic; }
+.leaflet-more { margin: auto 0 0; padding-top: 10px; font-size: calc(12.5px * var(--text-scale)); font-style: italic; }
 
 /* A Link leaflet: a "turn to" line rather than a button. */
 .paper-turn {
@@ -135,7 +144,8 @@
 
 /* A chart: one series on one hue. Bars are thin, rounded only at the end
    that holds the value, with a gap between them; the axis stays quiet. */
-.leaflet-chart { position: relative; padding-left: 28px; }
+/* A chart day by day grows its bars into the height it is given. */
+.leaflet-chart { position: relative; padding-left: 28px; flex: 1 1 auto; display: flex; flex-direction: column; }
 .chart-top {
   position: absolute; left: 0; top: -6px;
   color: var(--muted); font-size: calc(11px * var(--text-scale));
@@ -143,7 +153,8 @@
 }
 .chart-bars {
   display: flex; align-items: flex-end; gap: 2px;
-  height: 140px;
+  flex: 1 1 auto;
+  min-height: 140px;
   border-top: 1px dashed var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -223,8 +234,11 @@
   --sheet: color-mix(in oklab, var(--panel) 92%, #f3e9d6);
   position: relative;
   display: block;
-  width: min(100%, 260px);
-  margin: 6px 10px 14px 4px;
+  /* The whole of its place on the page, less room for the sheets behind to
+     show at its edges. */
+  flex: 1 1 auto;
+  display: flex; flex-direction: column;
+  margin: 6px 10px 14px 6px;
   color: var(--text);
   text-decoration: none;
 }
@@ -236,6 +250,7 @@
 }
 .paper-sheet.is-front {
   position: relative; z-index: 4;
+  flex: 1 1 auto;
   display: flex; flex-direction: column; gap: 8px;
   padding: 14px 14px 16px;
   box-shadow: 0 2px 6px var(--shadow);
@@ -274,7 +289,12 @@
   color: var(--muted);
   font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.12em;
 }
-.stack-picture { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; filter: saturate(0.9); }
+/* The picture takes up whatever height the sheet has to spare. */
+.stack-picture {
+  display: block; width: 100%;
+  flex: 1 1 auto; min-height: 150px;
+  object-fit: cover; filter: saturate(0.9);
+}
 .stack-headline {
   font-family: var(--font-display);
   font-size: calc(16px * var(--text-scale)); font-weight: 700; line-height: 1.2;
