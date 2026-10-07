@@ -2308,8 +2308,15 @@ function graphSlotFor(state, event, held = false, under = "", moving = -1) {
     for (const slot of graphSlots(state, held, under, moving)) {
         // Measured to the slot's middle, so a box is easiest to hit from
         // directly below it and hardest from off to one side.
-        const dx = at.x - (slot.x + slot.width / 2);
-        const dy = at.y - (slot.y + slot.height / 2);
+        // A leaflet's slot can run the width of a page, so it is measured to
+        // the nearest point along it: aimed at anywhere on the line, it lands.
+        const along = slot.between !== undefined;
+        const dx = along
+            ? at.x - Math.min(Math.max(at.x, slot.x), slot.x + slot.width)
+            : at.x - (slot.x + slot.width / 2);
+        const dy = along
+            ? at.y - Math.min(Math.max(at.y, slot.y), slot.y + slot.height)
+            : at.y - (slot.y + slot.height / 2);
         const away = Math.sqrt(dx * dx + dy * dy);
         if (away < best) {
             best = away;
