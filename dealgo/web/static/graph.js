@@ -1865,7 +1865,7 @@ function placeGraphLeaflets(state) {
         box.style.width = "";
         box.style.height = "";
         const first = at(node.id, "below");
-        box.classList.toggle("has-leaflets", first !== undefined);
+        box.classList.toggle("has-piece", first !== undefined);
         if (first === undefined)
             continue;
         const inset = box.offsetWidth - box.clientWidth - 1; // the coloured bar down its left

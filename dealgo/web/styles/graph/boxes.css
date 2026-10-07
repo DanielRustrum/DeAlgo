@@ -93,7 +93,7 @@
 .graph-node.kind-expire:not(.has-piece)::after,
 .graph-node.kind-filter:not(.has-piece)::after,
 .graph-node.kind-sort:not(.has-piece)::after,
-.graph-node.kind-pamphlet:not(.has-leaflets)::after {
+.graph-node.kind-pamphlet:not(.has-piece)::after {
   content: "";
   position: absolute;
   bottom: calc(var(--graph-tab) / -2);
@@ -139,6 +139,13 @@
   background: color-mix(in oklab, var(--kind-colour) 8%, var(--panel));
   justify-content: flex-start;
 }
+/* Its leaflets are inside it, not hanging from its bottom edge. */
+.graph-node.kind-pamphlet.has-piece {
+  border-radius: var(--radius);
+  border-bottom-color: var(--line);
+}
+.graph-node.kind-pamphlet.has-piece:hover,
+.graph-node.kind-pamphlet.has-piece.is-picked { border-bottom-color: var(--accent); }
 .graph-node.is-piece[data-host="pamphlet"] {
   z-index: 1;
   border-radius: calc(var(--radius) * 0.6);
