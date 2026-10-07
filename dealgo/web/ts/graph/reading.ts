@@ -23,6 +23,8 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "group" ||
     value === "pamphlet" ||
     value === "format" ||
+    value === "transform" ||
+    value === "count" ||
     value === "leaflet-feed" ||
     value === "leaflet-chart" ||
     value === "leaflet-text" ||
@@ -87,6 +89,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     leaflet: asGraphLeaflet(raw["leaflet"]),
     pamphlet: asGraphPamphlet(raw["pamphlet"]),
     format: asGraphFormat(raw["format"]),
+    dataOnly: raw["dataOnly"] === true,
   };
 }
 

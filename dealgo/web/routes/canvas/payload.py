@@ -83,13 +83,14 @@ class _Canvas:
     feeds: dict[int, str]
     #: The pamphlet the Pamphlets tab opens on, if one is chosen.
     default_pamphlet: int | None
-    #: Chart leaflets with a Format box wired into them.
-    shaped: set[int]
+    #: Chart leaflets with a Format or Transform box wired into them, and which.
+    shaped: dict[int, str]
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
         """Read everything once for the whole canvas."""
         nodes, _ = graph_service.load(session, owner)
+        by_id = {node.id: node for node in nodes}
         windows = graph_service.consumption(session, owner)
         return cls(
             nodes=nodes,
@@ -120,8 +121,10 @@ class _Canvas:
             },
             default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
             shaped={
-                edge.target_pk for edge in graph_service.edges(session, owner, every=True)
-                if any(one.id == edge.source_pk and one.kind == "format" for one in nodes)
+                edge.target_pk: "Format" if by_id[edge.source_pk].kind == "format" else "Transform"
+                for edge in graph_service.edges(session, owner, every=True)
+                if edge.carries == "data" and edge.source_pk in by_id
+                and by_id[edge.source_pk].kind in ("format", "transform")
             },
         )
 
@@ -133,8 +136,14 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)
             if node.id in canvas.shaped:
-                drawn["note"] = "drawn by the Format box wired in"
+                drawn["note"] = f"drawn by the {canvas.shaped[node.id]} box wired in"
         drawn["leaflet"] = _leaflet(node, canvas)
+    elif node.kind == "transform":
+        pieces = [one for one in canvas.slotted.get(node.id, []) if one.enabled]
+        drawn["note"] = (
+            " then ".join(one.title.lower() for one in pieces) if pieces
+            else "slot a Count under it to say what it does"
+        )
     elif node.kind == "format":
         drawn["note"] = graph_service.formatting.words(node)
         formatting = graph_service.formatting
@@ -179,6 +188,8 @@ def _drawn(node: GraphNode, canvas: _Canvas) -> Context:
     return {
         "id": node.id,
         "kind": node.kind,
+        # A box that gives data and no items: a REST API source has no ▶.
+        "dataOnly": graph_service.only_data(node),
         # An empty source box is named after the kind it was dragged out as —
         # "New Subreddit". Said here rather than on the model because the
         # pretty name is the plugin's and the model must be readable without

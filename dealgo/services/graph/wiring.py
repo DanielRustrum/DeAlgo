@@ -39,6 +39,15 @@ def connect(
         raise GraphError("A node cannot feed itself.")
     said = carries in WIRING
     carries = carries if carries is not None and said else carries_between(source.kind, target.kind)
+    if not said and carries == "content" and only_data(source):
+        carries = "data"
+    if only_data(source) and (
+        carries == "content" or target.kind not in WIRING["data"].get(source.kind, ())
+    ):
+        raise GraphError(
+            "A REST API gives data, not items: wire its { } port to an operation, "
+            "a Transform or a Format box."
+        )
     if target.kind not in WIRING[carries].get(source.kind, ()):
         if said and carries == "data":
             raise GraphError(f"A {source.kind} cannot give data to a {target.kind}.")
@@ -70,7 +79,12 @@ def connect(
     if existing is not None:
         return existing
 
-    if (carries == "data" and target.kind in DATA_TAKERS) or carries == "page":
+    if target.kind == "transform":
+        # One thing in, items or data: what it turns into data is that.
+        for older in session.scalars(select(GraphEdge).where(GraphEdge.target_pk == target.id)):
+            session.delete(older)
+        session.flush()
+    elif (carries == "data" and target.kind in DATA_TAKERS) or carries == "page":
         # One thing in of this kind: a second wired in takes the first's place.
         for older in session.scalars(select(GraphEdge).where(
             GraphEdge.target_pk == target.id, GraphEdge.carries == carries,
@@ -242,3 +256,12 @@ def _reaches(
         seen.add(current)
         stack.extend(out.get(current, []))
     return False
+
+
+def only_data(node: GraphNode) -> bool:
+    """Whether a box gives data and no items: a REST API source does — what
+    an API answers is numbers and records, read through Format or Transform."""
+    if node.kind != "source":
+        return False
+    kind = node.channel.source_kind if node.channel is not None else node.source_kind
+    return kind == "rest"

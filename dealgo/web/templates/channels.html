@@ -255,6 +255,7 @@
             {{ node_row('expire', 'Expire', 'How long an item stays in the feed once it arrives. Takes a Timer.') }}
             {{ node_row('deposit', 'Deposit', 'Ends a path in a named repository. Nothing comes out until a Withdraw pulls it.') }}
             {{ node_row('withdraw', 'Withdraw', 'Starts a path from a named repository, when a trigger says to pull.') }}
+            {{ node_row('transform', 'Transform', 'Turns items or data into data, as the piece under it says — a Count, to start with.') }}
             {{ node_row('format', 'Format', 'Reshapes a source’s JSON — an API’s answer, or its items — into bars for a Chart leaflet.') }}
           </ul>
         </details>
@@ -274,6 +275,7 @@
             {{ node_row('reset', 'Reset', 'When that time comes back — a cron.') }}
             {{ node_row('alive', 'Alive', 'Only between two times of day. Narrows whatever else is slotted in.') }}
             {{ node_row('lock', 'Lock', 'Makes the Timer above it one you cannot pause.') }}
+            {{ node_row('count', 'Count', 'Under a Transform: how many come in, as one number.') }}
             {{ node_row('after-watch', 'After watching', 'Under an Expire box: items leave once watched — or by its Timer, whichever comes first.') }}
             {{ node_row('has-words', 'Title has', 'Only what matches. Words, or /a regex/.') }}
             {{ node_row('lacks-words', 'Title lacks', 'Holds anything that matches.') }}

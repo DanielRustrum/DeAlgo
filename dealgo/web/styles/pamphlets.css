@@ -311,3 +311,11 @@
 }
 .stack-empty { color: var(--muted); font-style: italic; text-align: center; padding: 18px 0; }
 .paper-stack.is-shut .paper-sheet.is-front { opacity: 0.75; }
+
+/* One number from a Transform, set large in the display face. */
+.paper-figure {
+  margin: auto 0;
+  font-family: var(--font-display);
+  font-size: calc(72px * var(--text-scale)); font-weight: 700; line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+}

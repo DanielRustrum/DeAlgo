@@ -39,6 +39,8 @@ PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     **{one.kind: (one.under,) for one in CONDITIONS},
     # A leaflet is a block of a Pamphlet's page, and means nothing anywhere else.
     **{kind: ("pamphlet",) for kind in LEAFLET_KINDS},
+    # What a Transform does with what comes in.
+    "count": ("transform",),
 }
 
 

@@ -222,7 +222,8 @@ def data_into(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) 
 
 
 def data_source(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> GraphNode | None:
-    """The box at the start of the data wired into this one: a source or a repository."""
+    """The box at the start of the data wired into this one: a source or a
+    repository. None where it starts as items, or nothing is wired in."""
     if depth > 40:
         return None
     wire = session.scalar(
@@ -244,11 +245,17 @@ def data_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -
         return repository_rows(session, box, owner)
     if not box.enabled:
         return None  # a box that is off passes nothing, data or items
+    if box.kind == "transform":
+        return transformed(session, box, owner, depth)
     arriving = data_into(session, box, owner, depth)
     if arriving is None or box.kind == "decay":
         # A Decay is about time with an item, which rows do not have.
         return arriving
-    rows = rows_of(arriving)
+    return _through(rows_of(arriving), box, session, owner)
+
+
+def _through(rows: list[Any], box: GraphNode, session: Session, owner: OwnerId) -> list[Any]:
+    """Rows as an operation box leaves them, the way it leaves items."""
     if box.kind == "filter":
         return _filtered(rows, box, session, owner)
     if box.kind == "sort":
@@ -258,7 +265,82 @@ def data_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -
         return [_tagged(row, named) for row in rows] if named else rows
     if box.kind == "expire":
         return _unexpired(rows, box, session, owner)
-    return arriving
+    return rows
+
+
+# -- items, read as rows -----------------------------------------------------------
+
+
+def items_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> list[Any]:
+    """The items a box sends on down its ▶ wires, as rows: a source's own,
+    what a repository holds, or what an operation lets through of what
+    reaches it. A REST source sends none — it gives data."""
+    if depth > 40 or not box.enabled:
+        return []
+    if box.kind == "source":
+        channel = box.channel
+        if channel is None or channel.source_kind == "rest":
+            return []
+        return media_rows(session, channel)
+    if box.kind in ("deposit", "withdraw"):
+        return repository_rows(session, box, owner)
+    if box.kind in ("filter", "sort", "tag", "decay", "expire"):
+        return _through(items_into(session, box, owner, depth), box, session, owner)
+    return []
+
+
+def items_into(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> list[Any]:
+    """Every item reaching a box down its ▶ wires, once each, as rows."""
+    rows: list[Any] = []
+    seen: set[Any] = set()
+    for wire in session.scalars(
+        owned(select(GraphEdge), GraphEdge, owner)
+        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "content")
+        .order_by(GraphEdge.id)
+    ):
+        start = session.get(GraphNode, wire.source_pk)
+        if start is None:
+            continue
+        for row in items_out(session, start, owner, depth + 1):
+            key = row.get("id") if isinstance(row, dict) else id(row)
+            if key not in seen:
+                seen.add(key)
+                rows.append(row)
+    return rows
+
+
+# -- Transform boxes ---------------------------------------------------------------
+
+
+def transformed(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> Any:
+    """What a Transform box gives out: what comes in — data, or items read as
+    rows — changed by each piece under it, nearest first. With none, it
+    gives what came in as data."""
+    has_data = session.scalar(
+        owned(select(GraphEdge.id), GraphEdge, owner)
+        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "data")
+    ) is not None
+    value: Any = data_into(session, box, owner, depth) if has_data else items_into(
+        session, box, owner, depth
+    )
+    if value is None:
+        return None
+    for piece in pieces_under(nodes(session, owner), box.id):
+        if not piece.enabled:
+            continue
+        if piece.kind == "count":
+            value = count_of(value)
+    return value
+
+
+def count_of(value: Any) -> int:
+    """How many: the rows in a list or found in an answer; one for anything
+    that is a single thing."""
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, dict):
+        return len(rows_of(value))
+    return 0 if value is None else 1
 
 
 def rows_of(data: Any) -> list[Any]:
@@ -406,6 +488,11 @@ def shape(data: Any, spec: Mapping[str, Any]) -> Shaped:
     """Reshape JSON into bars, as a Format box's settings say."""
     if data is None:
         return Shaped(error="Nothing has come in yet: it is read when its source is next checked.")
+    if isinstance(data, (int, float)) and not isinstance(data, bool):
+        return Shaped(error=(
+            f"That is one number ({data:g}), not rows to make bars from: wire it straight "
+            "into a Chart leaflet to show it."
+        ))
     try:
         rows, rows_path = rest.locate(data, str(spec.get("rows") or ""))
     except rest.RestError as exc:

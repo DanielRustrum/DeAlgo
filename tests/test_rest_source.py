@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from dealgo import outgoing, sources
-from dealgo.models import Channel, GraphNode, Placement, Video
+from dealgo.models import Channel, GraphNode
 from dealgo.services import graph
 from dealgo.services import playlists as playlist_service
 from dealgo.sources import rest
@@ -154,7 +154,9 @@ def test_a_rest_box_takes_an_address():
     assert "rest" in {kind.name for kind in sources.all_kinds()}
 
 
-def test_it_is_read_on_a_run_into_a_feed(db, monkeypatch):
+def test_it_is_read_on_a_run_and_its_answer_kept(db, monkeypatch):
+    """A REST source gives data, not items: read on a run, and its whole
+    answer kept for what its data wire goes to."""
     from dealgo.services import sync as sync_service
 
     serve(monkeypatch, REDDITISH)
@@ -166,16 +168,18 @@ def test_it_is_read_on_a_run_into_a_feed(db, monkeypatch):
         session.add(channel)
         session.flush()
         source = graph.add_source(session, channel=channel)
+        graph.connect(session, source, graph.add_format(session))
+        # Never into a feed: an API's answer is data.
         feed = graph.add_feed(session, playlist_service.create_generic(session, "From the API"))
-        graph.connect(session, source, feed)
+        with pytest.raises(graph.GraphError, match="gives data, not items"):
+            graph.connect(session, source, feed)
 
     sync_service.run_sync("manual", force=True)
 
     with db.session_scope() as session:
-        titles = sorted(v.title for v in session.scalars(select(Video)))
-        assert titles == ["Hello & world", "Second"]
-        assert session.scalar(select(Placement)) is not None
-        assert session.scalar(select(Channel)).last_error in (None, "")
+        channel = session.scalar(select(Channel))
+        assert channel.last_error in (None, "")
+        assert json.loads(channel.raw_snapshot or "{}") == REDDITISH
 
 
 def test_an_unreadable_api_is_said_on_the_source(db, monkeypatch):
@@ -188,7 +192,7 @@ def test_an_unreadable_api_is_said_on_the_source(db, monkeypatch):
         session.add(channel)
         session.flush()
         graph.connect(session, graph.add_source(session, channel=channel),
-                      graph.add_feed(session, playlist_service.create_generic(session, "F")))
+                      graph.add_format(session))
 
     sync_service.run_sync("manual", force=True)
     with db.session_scope() as session:

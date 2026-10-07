@@ -370,3 +370,92 @@ def test_a_group_keeps_what_each_wire_carries(db):
         inside = {node.id for node in graph.inside(session, loaded)}
         kinds = sorted(w["kind"] for w in graph.wires(session) if w["from"] in inside)
         assert kinds == ["data", "edge"]
+
+
+# -- Transform boxes ---------------------------------------------------------------
+
+
+def test_a_rest_source_gives_data_and_no_items(db):
+    with db.session_scope() as session:
+        source = a_rest_source(session, ANSWER)
+        middle = graph.add_filter(session)
+        graph.connect(session, source, middle)  # said nothing: it carries data
+        assert [w["kind"] for w in graph.wires(session)] == ["data"]
+        with pytest.raises(graph.GraphError, match="gives data, not items"):
+            graph.connect(session, source, middle, carries="content")
+        assert graph.only_data(source) and graph.routes(session) == []
+
+
+def test_a_transform_counts_items_or_data(db):
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        middle = graph.add_filter(session)
+        graph.add_piece(session, kind="has-words", host=middle).title_include = "cats"
+        box = graph.add_transform(session)
+        graph.add_piece(session, kind="count", host=box)
+        graph.connect(session, source, middle)          # items down a path…
+        graph.connect(session, middle, box)             # …into the Transform
+        assert formatting.data_out(session, box, None) == 2
+
+        # Data instead: one thing in, so it takes the first's place.
+        rest = a_rest_source(session, ANSWER)
+        graph.connect(session, rest, box)
+        assert [w["kind"] for w in graph.wires(session) if w["to"] == box.id] == ["data"]
+        assert formatting.data_out(session, box, None) == 4
+
+        # Without a piece it gives what came in, as data.
+        box.enabled = True
+        session.delete(next(n for n in graph.nodes(session) if n.kind == "count"))
+        session.flush()
+        assert formatting.rows_of(formatting.data_out(session, box, None))[0]["data"]["author"] == "ana"
+
+
+def test_a_count_shows_as_a_figure_on_a_page(client, db):
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        box = graph.add_transform(session, label="Videos in")
+        graph.add_piece(session, kind="count", host=box)
+        pamphlet = graph.add_pamphlet(session, label="Numbers")
+        chart = graph.add_piece(session, kind="leaflet-chart", host=pamphlet)
+        graph.connect(session, source, box)
+        graph.connect(session, box, chart)
+        pamphlet_pk = pamphlet.id
+        # A Format box handed one number says what to do instead.
+        assert "one number" in formatting.shape(4, spec(label="x")).error
+
+    page = client.get(f"/pamphlets/{pamphlet_pk}").text
+    assert '<p class="paper-figure">4</p>' in page and "Videos in" in page
+
+
+def test_the_canvas_draws_a_rest_source_with_only_a_data_port(client, db):
+    with db.session_scope() as session:
+        rest_pk = a_rest_source(session, ANSWER).id
+    made = client.post("/graph/nodes", data={"kind": "transform"}).json()
+    box = next(node for node in made["nodes"] if node["kind"] == "transform")
+    assert box["note"] == "slot a Count under it to say what it does"
+    assert next(node for node in made["nodes"] if node["id"] == rest_pk)["dataOnly"] is True
+    counted = client.post("/graph/nodes", data={"kind": "count", "attach_to": str(box["id"])}).json()
+    assert next(n for n in counted["nodes"] if n["id"] == box["id"])["note"] == "count"
+
+
+def test_item_wires_from_a_rest_source_become_data_or_go(db):
+    from sqlalchemy import text
+
+    from dealgo.db.migrations import rest_sources_give_data
+
+    with db.session_scope() as session:
+        source = a_rest_source(session, ANSWER)
+        middle = graph.add_filter(session)
+        feed = graph.add_feed(session, playlist_service.create_generic(session, "F"))
+        ids = source.id, middle.id, feed.id
+    with db.get_engine().begin() as connection:
+        for target in ids[1:]:
+            connection.execute(text(
+                "INSERT INTO graph_edge (source_pk, target_pk, carries) VALUES (:s, :t, 'content')"
+            ), {"s": ids[0], "t": target})
+
+    rest_sources_give_data()
+    rest_sources_give_data()
+    with db.get_engine().begin() as connection:
+        left = connection.execute(text("SELECT target_pk, carries FROM graph_edge")).all()
+    assert [tuple(row) for row in left] == [(ids[1], "data")]

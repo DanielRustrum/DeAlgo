@@ -59,6 +59,8 @@ Each kind of wire has its own port, marked inside the dot:
 | Sheet of print | A feed, onto a page | Feed → Feed or Link leaflet |
 | `{ }` braces | JSON, to be drawn | Source → operations → [Format](Nodes/Format.md) → Chart leaflet |
 
+A [REST API](Nodes/REST%20API.md) source gives data only: its one output is `{ }`.
+
 A box that can connect more than one way shows a port for each. Sources, the operation boxes
 (Filter, Sort, Tag, Decay, Expire) and Withdraw have a ▶ port and a `{ }` port on each side they
 use: items and data can run through the same box at once, down separate wires — even between the

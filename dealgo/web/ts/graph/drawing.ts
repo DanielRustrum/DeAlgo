@@ -33,6 +33,8 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "shorter-than") return "Shorter than";
   if (kind === "pamphlet") return "Pamphlet";
   if (kind === "format") return "Format";
+  if (kind === "transform") return "Transform";
+  if (kind === "count") return "Count";
   if (kind === "leaflet-feed") return "Feed leaflet";
   if (kind === "leaflet-chart") return "Chart leaflet";
   if (kind === "leaflet-text") return "Text leaflet";
@@ -306,7 +308,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     if (graphIsLeaflet(node.kind)) drawGraphLeafletParts(box, node);
     return box;
   }
-  const ports = graphPortKinds(node.kind);
+  const ports = graphPortKinds(node.kind, node.dataOnly);
   for (const takes of ports.in) {
     box.appendChild(graphPort("in", takes, graphPortSays(node.kind, "in", takes)));
   }
@@ -330,8 +332,14 @@ function graphDataOps(): GraphNodeKind[] {
 /** Which kinds of wire a box takes in, and gives out — a port for each.
  *  The same answer the server's wiring table gives, side by side: an
  *  operation box passes items and data, separately, at the same time. */
-function graphPortKinds(kind: GraphNodeKind): { in: GraphCarries[]; out: GraphCarries[] } {
+function graphPortKinds(
+  kind: GraphNodeKind, dataOnly = false,
+): { in: GraphCarries[]; out: GraphCarries[] } {
   if (kind === "trigger") return { in: [], out: ["signal"] };
+  // A REST API answers with records and numbers: data, and no items.
+  if (kind === "source" && dataOnly) return { in: ["signal"], out: ["data"] };
+  // Items or data in; data out, as the piece under it says.
+  if (kind === "transform") return { in: ["content", "data"], out: ["data"] };
   if (kind === "source" || kind === "withdraw") return { in: ["signal"], out: ["content", "data"] };
   // A feed and a deposit are both ends of a path. What a feed holds can go
   // onto a page; what a repository holds can go on as data.
@@ -346,7 +354,15 @@ function graphPortKinds(kind: GraphNodeKind): { in: GraphCarries[]; out: GraphCa
 /** What one port takes in or gives out, in a sentence. */
 function graphPortSays(kind: GraphNodeKind, where: "in" | "out", carries: GraphCarries): string {
   if (carries === "page") return "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet.";
+  if (carries === "content" && kind === "transform") {
+    return "Takes items: what comes down a path, to be counted or changed into data.";
+  }
   if (carries !== "data") return graphPortWords(kind, where);
+  if (kind === "transform") {
+    return where === "in"
+      ? "Takes data: JSON, or what a box before it passed on."
+      : "Gives out what the piece under it makes — a count — as data.";
+  }
   if (kind === "format") {
     return where === "in"
       ? "Takes JSON: a source's, or what an operation passed on."

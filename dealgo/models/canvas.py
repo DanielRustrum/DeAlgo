@@ -263,6 +263,10 @@ class GraphNode(Base):
             return "Pamphlet"
         if self.kind == "format":
             return "Format"
+        if self.kind == "transform":
+            return "Transform"
+        if self.kind == "count":
+            return "Count"
         if self.kind in LEAFLET_LABELS:
             return LEAFLET_LABELS[self.kind]
         if self.kind == "rule":

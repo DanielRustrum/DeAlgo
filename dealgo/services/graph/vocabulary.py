@@ -13,7 +13,7 @@ from .leaflets import LEAFLET_KINDS
 #: whatever ones the plugins declared — and a Sort reads an Order.
 #: Every other kind ignores a piece entirely, which is why only these are
 #: drawn with somewhere for one to go.
-SLOTTED = ("feed", "decay", "expire", "filter", "sort", "pamphlet")
+SLOTTED = ("feed", "decay", "expire", "filter", "sort", "pamphlet", "transform")
 
 
 #: The boxes that mark what goes through them. On a path like a filter, but
@@ -30,6 +30,11 @@ WIRED_LEAFLETS = ("leaflet-feed", "leaflet-link")
 ONE_INPUT = WIRED_LEAFLETS + ("format", "leaflet-chart")
 
 
+#: What a Transform box can be told to do, one augmentation each. It turns
+#: what comes in — items or data — into data, as these say.
+TRANSFORMS: tuple[str, ...] = ("count",)
+
+
 #: The augmentations, as against the boxes. An augmentation is not on any
 #: path and has no wires: it is slotted under a box and changes what that box
 #: does. Kept in one tuple so "is this an augmentation" is one question asked
@@ -41,7 +46,7 @@ ONE_INPUT = WIRED_LEAFLETS + ("format", "leaflet-chart")
 #: "piece" is what one looks like.
 AUGMENTATIONS: tuple[str, ...] = (
     ("timer", "reset", "alive", "lock", "after-watch") + CONDITION_KINDS + (RULE,)
-    + LEAFLET_KINDS
+    + LEAFLET_KINDS + TRANSFORMS
 )
 
 
@@ -49,6 +54,7 @@ AUGMENTATIONS: tuple[str, ...] = (
 BOX_NAMES: dict[str, str] = {
     "feed": "Feed", "filter": "Filter", "sort": "Sort",
     "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet", "format": "Format",
+    "transform": "Transform",
 }
 
 
@@ -65,6 +71,10 @@ TRIGGER_KINDS = ("schedule", "pulse")
 # Which wires make sense. Triggers feed channels, sources start paths, feeds
 # end them, filters and sorts sit in between — and nothing runs backwards.
 MIDDLE = ("filter", "sort", "decay", "expire", "tag")
+
+#: Where items may also go, off the end of a path: a Transform box, which
+#: turns them into data. No path runs through one.
+INTO_TRANSFORM = ("transform",)
 
 
 #: Where a path may end: a feed, or a repository to be pulled from later.
@@ -85,14 +95,17 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # be read. That is a Timer and a Reset slotted under it now: it is a
     # property of the feed rather than something arriving along a wire.
     "trigger": ("source", "withdraw"),
-    "source": MIDDLE + ENDS,
+    "source": MIDDLE + ENDS + INTO_TRANSFORM,
     "format": (),
-    "filter": MIDDLE + ENDS,
-    "sort": MIDDLE + ENDS,
+    # A Transform takes items as well as data, and gives out data only.
+    "transform": (),
+    **{kind: () for kind in TRANSFORMS},
+    "filter": MIDDLE + ENDS + INTO_TRANSFORM,
+    "sort": MIDDLE + ENDS + INTO_TRANSFORM,
     # A withdraw stands where a source stands: it starts a path, and what
     # comes out of it has already been through whatever filtered it on the
     # way in.
-    "withdraw": MIDDLE + ENDS,
+    "withdraw": MIDDLE + ENDS + INTO_TRANSFORM,
     "feed": (),
     # The end of the line. What is in it comes out through a Withdraw box,
     # which is a path of its own rather than a continuation of this one.
@@ -113,9 +126,9 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "order": (),
     "rule": (),
     # They mark what passes and pass it on, so they sit where a filter sits.
-    "decay": MIDDLE + ENDS,
-    "expire": MIDDLE + ENDS,
-    "tag": MIDDLE + ENDS,
+    "decay": MIDDLE + ENDS + INTO_TRANSFORM,
+    "expire": MIDDLE + ENDS + INTO_TRANSFORM,
+    "tag": MIDDLE + ENDS + INTO_TRANSFORM,
 }
 
 
@@ -126,12 +139,17 @@ DATA_OPS = ("filter", "sort", "tag", "decay", "expire")
 #: Where data may go from each box: through the operations, into a Format
 #: box, and from a Format box into a Chart leaflet. A repository gives what
 #: is waiting in it.
+_ONWARD = DATA_OPS + ("format", "transform")
+
 DATA_ALLOWED: dict[str, tuple[str, ...]] = {
-    "source": DATA_OPS + ("format",),
-    **{kind: DATA_OPS + ("format",) for kind in DATA_OPS},
-    "deposit": DATA_OPS + ("format",),
-    "withdraw": DATA_OPS + ("format",),
+    "source": _ONWARD,
+    **{kind: _ONWARD for kind in DATA_OPS},
+    "deposit": _ONWARD,
+    "withdraw": _ONWARD,
     "format": ("leaflet-chart",),
+    # What a Transform gives — a count, say — can go on, be shaped, or be
+    # shown on a page as it is.
+    "transform": _ONWARD + ("leaflet-chart",),
 }
 
 #: What may be wired to what, by what the wire carries.
@@ -145,7 +163,7 @@ WIRING: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 #: Boxes a data wire may come into. Each takes one: a second replaces it.
-DATA_TAKERS = DATA_OPS + ("format", "leaflet-chart")
+DATA_TAKERS = DATA_OPS + ("format", "leaflet-chart", "transform")
 
 
 def carries_between(source_kind: str, target_kind: str) -> str:

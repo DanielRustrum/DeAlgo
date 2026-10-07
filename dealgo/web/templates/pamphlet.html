@@ -162,7 +162,10 @@
     on focus; the same numbers are in a table under it. -#}
 {% macro chart(said) -%}
 {% set bars = said.bars %}
-{% if said.format_error and not bars %}
+{% if said.figure is defined %}
+  {#- One number, set large, as a paper sets a figure it is proud of. -#}
+  <p class="paper-figure">{{ '{:,}'.format(said.figure) if said.figure is integer else '%g' | format(said.figure) }}</p>
+{% elif said.format_error and not bars %}
   <p class="paper-note">{{ said.format_error }}</p>
 {% elif not bars or (bars | sum(attribute='value')) == 0 %}
   <p class="paper-note">Nothing to count yet.</p>

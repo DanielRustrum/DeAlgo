@@ -10,6 +10,10 @@ type GraphNodeKind =
   | "pamphlet"
   // Reshapes a source's JSON into bars for a Chart leaflet. On no path.
   | "format"
+  // Turns items or data into data, as the piece under it says.
+  | "transform"
+  // What a Transform does: counts what comes in.
+  | "count"
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
   // hang beside each other as well as below — beside is the next column.
   | "leaflet-feed"
@@ -59,7 +63,7 @@ function graphConditionKinds(): GraphNodeKind[] {
 function graphIsPiece(kind: GraphNodeKind): boolean {
   return (
     kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
-    kind === "after-watch" || graphIsLeaflet(kind) ||
+    kind === "after-watch" || kind === "count" || graphIsLeaflet(kind) ||
     kind === "rule" || graphConditionKinds().indexOf(kind) >= 0
   );
 }
@@ -68,7 +72,7 @@ function graphIsPiece(kind: GraphNodeKind): boolean {
 function graphTakesPieces(kind: GraphNodeKind): boolean {
   return (
     kind === "feed" || kind === "decay" || kind === "expire" ||
-    kind === "filter" || kind === "sort" || kind === "pamphlet"
+    kind === "filter" || kind === "sort" || kind === "pamphlet" || kind === "transform"
   );
 }
 
@@ -124,6 +128,8 @@ interface GraphNodeView {
   pamphlet: GraphPamphlet | null;
   /** Format boxes: how it reshapes what is wired in. */
   format: GraphFormat | null;
+  /** A box that gives data and no items: a REST API source. */
+  dataOnly: boolean;
 }
 
 /** A feed box's reading windows and caps. */

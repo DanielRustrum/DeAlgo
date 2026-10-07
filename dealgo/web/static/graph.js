@@ -1006,6 +1006,10 @@ function graphKindLabel(kind) {
         return "Pamphlet";
     if (kind === "format")
         return "Format";
+    if (kind === "transform")
+        return "Transform";
+    if (kind === "count")
+        return "Count";
     if (kind === "leaflet-feed")
         return "Feed leaflet";
     if (kind === "leaflet-chart")
@@ -1205,7 +1209,7 @@ function drawGraphNode(state, node) {
             drawGraphLeafletParts(box, node);
         return box;
     }
-    const ports = graphPortKinds(node.kind);
+    const ports = graphPortKinds(node.kind, node.dataOnly);
     for (const takes of ports.in) {
         box.appendChild(graphPort("in", takes, graphPortSays(node.kind, "in", takes)));
     }
@@ -1228,9 +1232,15 @@ function graphDataOps() {
 /** Which kinds of wire a box takes in, and gives out — a port for each.
  *  The same answer the server's wiring table gives, side by side: an
  *  operation box passes items and data, separately, at the same time. */
-function graphPortKinds(kind) {
+function graphPortKinds(kind, dataOnly = false) {
     if (kind === "trigger")
         return { in: [], out: ["signal"] };
+    // A REST API answers with records and numbers: data, and no items.
+    if (kind === "source" && dataOnly)
+        return { in: ["signal"], out: ["data"] };
+    // Items or data in; data out, as the piece under it says.
+    if (kind === "transform")
+        return { in: ["content", "data"], out: ["data"] };
     if (kind === "source" || kind === "withdraw")
         return { in: ["signal"], out: ["content", "data"] };
     // A feed and a deposit are both ends of a path. What a feed holds can go
@@ -1250,8 +1260,16 @@ function graphPortKinds(kind) {
 function graphPortSays(kind, where, carries) {
     if (carries === "page")
         return "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet.";
+    if (carries === "content" && kind === "transform") {
+        return "Takes items: what comes down a path, to be counted or changed into data.";
+    }
     if (carries !== "data")
         return graphPortWords(kind, where);
+    if (kind === "transform") {
+        return where === "in"
+            ? "Takes data: JSON, or what a box before it passed on."
+            : "Gives out what the piece under it makes — a count — as data.";
+    }
     if (kind === "format") {
         return where === "in"
             ? "Takes JSON: a source's, or what an operation passed on."
@@ -2400,13 +2418,13 @@ function graphConditionKinds() {
 /** Which kinds are pieces rather than boxes. */
 function graphIsPiece(kind) {
     return (kind === "timer" || kind === "reset" || kind === "alive" || kind === "lock" ||
-        kind === "after-watch" || graphIsLeaflet(kind) ||
+        kind === "after-watch" || kind === "count" || graphIsLeaflet(kind) ||
         kind === "rule" || graphConditionKinds().indexOf(kind) >= 0);
 }
 /** Which boxes have somewhere for a piece to go. */
 function graphTakesPieces(kind) {
     return (kind === "feed" || kind === "decay" || kind === "expire" ||
-        kind === "filter" || kind === "sort" || kind === "pamphlet");
+        kind === "filter" || kind === "sort" || kind === "pamphlet" || kind === "transform");
 }
 
 "use strict";
@@ -2895,6 +2913,9 @@ function graphNodeForm(state, node) {
         graphPamphletFields(form, node);
     else if (node.kind === "format")
         graphFormatFields(form, node);
+    else if (node.kind === "transform") {
+        form.appendChild(graphElement("p", "hint", "Wire items (▶) or data ({ }) into this — one or the other — and slot a piece under it to say what it makes of them. Count gives how many came in, as one number. What it gives out is data: for a Chart leaflet, a Format box, or another operation."));
+    }
     else if (node.stamp !== null)
         graphStampFields(form, node);
     else if (node.piece !== null)
@@ -3431,6 +3452,12 @@ function graphPieceFields(form, node) {
     const piece = node.piece;
     if (piece === null)
         return;
+    if (node.kind === "count") {
+        form.appendChild(graphElement("p", "hint", piece.under === null
+            ? "Loose on the canvas. Drop it on a Transform box to count what comes into it."
+            : "Counts what comes into the Transform — the items, or the rows of its data — and gives out that one number."));
+        return;
+    }
     if (node.kind === "after-watch") {
         form.appendChild(graphElement("p", "hint", piece.under === null
             ? "Loose on the canvas. Drop it on an Expire box to take items out once you watch them."
@@ -3549,6 +3576,8 @@ function asGraphNodeKind(value) {
         value === "group" ||
         value === "pamphlet" ||
         value === "format" ||
+        value === "transform" ||
+        value === "count" ||
         value === "leaflet-feed" ||
         value === "leaflet-chart" ||
         value === "leaflet-text" ||
@@ -3613,6 +3642,7 @@ function asGraphNode(value) {
         leaflet: asGraphLeaflet(raw["leaflet"]),
         pamphlet: asGraphPamphlet(raw["pamphlet"]),
         format: asGraphFormat(raw["format"]),
+        dataOnly: raw["dataOnly"] === true,
     };
 }
 /** What an empty source box asks to be told. */

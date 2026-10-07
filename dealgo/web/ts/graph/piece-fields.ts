@@ -142,6 +142,19 @@ function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
   const piece = node.piece;
   if (piece === null) return;
 
+  if (node.kind === "count") {
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        piece.under === null
+          ? "Loose on the canvas. Drop it on a Transform box to count what comes into it."
+          : "Counts what comes into the Transform — the items, or the rows of its data — and gives out that one number.",
+      ),
+    );
+    return;
+  }
+
   if (node.kind === "after-watch") {
     form.appendChild(
       graphElement(

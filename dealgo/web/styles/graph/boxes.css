@@ -93,6 +93,7 @@
 .graph-node.kind-expire:not(.has-piece)::after,
 .graph-node.kind-filter:not(.has-piece)::after,
 .graph-node.kind-sort:not(.has-piece)::after,
+.graph-node.kind-transform:not(.has-piece)::after,
 .graph-node.kind-pamphlet:not(.has-piece)::after {
   content: "";
   position: absolute;

@@ -139,6 +139,21 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
     elif node.kind == "leaflet-chart" and (shaping := _shaping(session, owner, node)) is not None:
         # A Format box wired in: its bars, from the JSON wired into it.
         box = shaping
+        if box.kind != "format":
+            # A Transform's data, shown as it is: one number as a figure.
+            value = graph_service.formatting.data_out(session, box, owner)
+            shown["chart_label"] = box.title if box.label else (
+                "How many" if isinstance(value, (int, float)) else box.title
+            )
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                shown["figure"] = value
+            else:
+                shown["format_error"] = (
+                    "Nothing has come in yet." if value is None else
+                    "That is rows, not a number: wire a Format box between to draw them as bars."
+                )
+                shown["bars"] = []
+            return shown
         spec = graph_service.formatting.settings(box)
         shaped = graph_service.formatting.shape(
             graph_service.formatting.data_into(session, box, owner), spec
@@ -171,12 +186,13 @@ def _feed(session: Session, owner: OwnerId, pk: Any) -> Playlist | None:
 
 
 def _shaping(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | None:
-    """The Format box wired into a chart, if any."""
+    """The Format or Transform box wired into a chart, if any."""
     wired = graph_service.edges(session, owner, every=True)
     by_id = {node.id: node for node in graph_service.nodes(session, owner)}
     return next(
         (by_id[edge.source_pk] for edge in wired
          if edge.target_pk == chart.id and edge.carries == "data"
-         and by_id.get(edge.source_pk) is not None and by_id[edge.source_pk].kind == "format"),
+         and by_id.get(edge.source_pk) is not None
+         and by_id[edge.source_pk].kind in ("format", "transform")),
         None,
     )

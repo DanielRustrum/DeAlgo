@@ -1,8 +1,9 @@
 # REST API
 
-A **REST API** source reads any JSON API that answers with a list of things: a service's own API,
-a search, a status page, your own app. Each item becomes an item like a post or an article, so
-filters, sorts, feeds and Focus treat it like any other source.
+A **REST API** source reads any JSON API: a service's own API, a search, a status page, your own
+app. It gives **data**, not items: its one port is `{ }`, and its answer goes to operation boxes,
+a [Transform](Transform.md) or a [Format](Format.md) box — to be counted, filtered, or drawn on a
+pamphlet. It never fills a feed. Its whole answer is kept each time it is checked.
 
 ## Adding one
 
@@ -15,7 +16,7 @@ filters, sorts, feeds and Focus treat it like any other source.
      `Bearer …`, or `X-API-Key` with the key.
 3. Press **Try it**. It reads the API with the fields as they stand, without saving, and shows
    the first few items as they'll arrive.
-4. **Save**, then wire it to a feed and a trigger as usual.
+4. **Save**, then wire a trigger into it, and its `{ }` port to where its data goes.
 
 An API that needs its key before it answers can still be added: set the key on the box afterwards.
 

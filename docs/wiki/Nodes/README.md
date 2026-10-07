@@ -20,6 +20,7 @@ Everything you can place on the [Configuration Canvas](../The%20Configuration%20
 | [Group](Groups.md) | A background for arranging and sharing boxes |
 | [Pamphlet](Pamphlets.md) | A page of your own under the Pamphlets tab; on no path |
 | [Format](Format.md) | Reshapes a source's JSON into bars for a Chart leaflet; on no path |
+| [Transform](Transform.md) | Turns items or data into data — a count, to start with; on no path |
 
 ## Pieces
 
@@ -29,6 +30,7 @@ Everything you can place on the [Configuration Canvas](../The%20Configuration%20
 | [Timer, Reset, Alive](Reading%20Windows.md) | Feed | When a feed can be read |
 | [Timer, Lock](Decay.md) | Decay | Time per item, and whether it can be paused |
 | [Timer](Expire.md) | Expire | How long an item stays |
+| [Count](Transform.md#pieces) | Transform | How many came in, as one number |
 | [Leaflets](Pamphlets.md#leaflets) | Pamphlet, or beside another leaflet | The blocks of a pamphlet's page |
 
 All pieces are covered in [Augmentations](Augmentations.md).

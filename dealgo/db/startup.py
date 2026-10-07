@@ -6,6 +6,7 @@ from ..models import Base
 from .engine import get_engine, session_scope
 from .migrations import (
     rebuild_edge_uniqueness,
+    rest_sources_give_data,
     wires_say_what_they_carry,
     after_watching_is_its_own_condition,
     leaflets_are_wired_to_their_feeds,
@@ -48,6 +49,7 @@ def init_db() -> None:
     after_watching_is_its_own_condition()
     leaflets_are_wired_to_their_feeds()
     wires_say_what_they_carry()
+    rest_sources_give_data()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     drop_removed_columns()

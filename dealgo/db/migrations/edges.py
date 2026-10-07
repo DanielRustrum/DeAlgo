@@ -84,3 +84,28 @@ def wires_say_what_they_carry() -> None:
         connection.execute(text("UPDATE graph_edge SET carries = 'content' WHERE carries IS NULL"))
     if changed:
         log.info("%d wire(s) now say what they carry", changed)
+
+
+def rest_sources_give_data() -> None:
+    """A REST API source gives data only now. An item wire out of one becomes
+    a data wire where what it goes into takes data, and goes otherwise —
+    into a feed, say, which data never fills."""
+    engine = get_engine()
+    if "carries" not in {c["name"] for c in inspect(engine).get_columns("graph_edge")}:
+        return
+    rest = (
+        "SELECT n.id FROM graph_node n LEFT JOIN channel c ON c.id = n.channel_pk "
+        "WHERE n.kind = 'source' AND COALESCE(c.source_kind, n.source_kind) = 'rest'"
+    )
+    takers = "SELECT id FROM graph_node WHERE kind IN " \
+        "('filter', 'sort', 'tag', 'decay', 'expire', 'format', 'transform')"
+    with engine.begin() as connection:
+        moved = connection.execute(text(
+            f"UPDATE OR IGNORE graph_edge SET carries = 'data' WHERE carries = 'content' "
+            f"AND source_pk IN ({rest}) AND target_pk IN ({takers})"
+        )).rowcount
+        gone = connection.execute(text(
+            f"DELETE FROM graph_edge WHERE carries = 'content' AND source_pk IN ({rest})"
+        )).rowcount
+    if moved or gone:
+        log.info("REST sources give data: %d wire(s) now carry data, %d taken out", moved, gone)

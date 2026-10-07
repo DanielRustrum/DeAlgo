@@ -642,9 +642,7 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
         if node is None or node.kind != "format":
             return JSONResponse({"error": "That is not a Format box."}, status_code=404)
         source = graph_service.formatting.data_source(session, node, owner)
-        if source is None:
-            return JSONResponse({"error": "Wire a source box into it first."}, status_code=400)
-        channel = source.channel if source.kind == "source" else None
+        channel = source.channel if source is not None and source.kind == "source" else None
         if channel is not None and channel.source_kind == "rest" and not channel.raw_snapshot:
             try:
                 with outgoing.client() as http:
@@ -656,9 +654,10 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
             from ....services.sync.polling import keep_snapshot
 
             keep_snapshot(channel, found.data)
-        shaped = graph_service.formatting.shape(
-            graph_service.formatting.data_into(session, node, owner), spec
-        )
+        arriving = graph_service.formatting.data_into(session, node, owner)
+        if arriving is None and source is None:
+            return JSONResponse({"error": "Wire something into it first."}, status_code=400)
+        shaped = graph_service.formatting.shape(arriving, spec)
         return JSONResponse({
             "rows": shaped.rows,
             "rows_path": shaped.rows_path,

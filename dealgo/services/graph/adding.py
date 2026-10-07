@@ -297,3 +297,13 @@ def add_format(
     session.add(node)
     session.flush()
     return node
+
+
+def add_transform(
+    session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
+) -> GraphNode:
+    """A Transform box: turns items or data into data, as the piece under it says."""
+    node = GraphNode(owner_pk=owner, kind="transform", label=label.strip()[:120], x=x, y=y)
+    session.add(node)
+    session.flush()
+    return node

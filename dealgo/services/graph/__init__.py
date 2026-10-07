@@ -39,6 +39,7 @@ from .adding import (
     add_feed,
     add_filter,
     add_format,
+    add_transform,
     add_pamphlet,
     add_piece,
     add_sort,
@@ -96,7 +97,7 @@ from .units import (
 )
 from .vocabulary import AUGMENTATIONS, BOX_NAMES, GROUP_SIZE, SLOTTED, STAMPS, TRIGGER_KINDS
 from .windows import begin_sitting, consumption, is_open, window_state
-from .wiring import connect, disconnect, wires
+from .wiring import connect, disconnect, only_data, wires
 from .words import condition_words, piece_note, piece_words, stamp_words, window_words
 
 __all__ = [
@@ -104,6 +105,8 @@ __all__ = [
     "add_filter",
     "add_group",
     "add_format",
+    "add_transform",
+    "only_data",
     "add_pamphlet",
     "add_piece",
     "add_sort",

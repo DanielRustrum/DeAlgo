@@ -112,6 +112,8 @@ def piece_words(piece: GraphNode, window: int | None = None) -> str:
         return condition_words(piece)
     if piece.kind == "lock":
         return "cannot be paused"
+    if piece.kind == "count":
+        return "how many come in, as one number"
     if piece.kind == "after-watch":
         return "once you watch it"
     if piece.kind == "alive":
