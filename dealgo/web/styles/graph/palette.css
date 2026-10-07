@@ -128,8 +128,8 @@
    it answers "does this slot under something?" at a glance, and the rows that
    are boxes must not look like they are missing something.
 
-   A jigsaw piece: it locks into a box the way a piece wears a tab into the
-   notch of the box above it on the canvas. Neutral, like a loose piece: it takes
+   The tab it draws is the shape the piece itself wears on the canvas, and the
+   shape of the notch you then aim at. Neutral, like a loose piece: it takes
    a colour from the box it lands under. */
 .palette-badge {
   margin-left: auto;
@@ -137,7 +137,10 @@
   display: flex;
   color: var(--kind-piece);
 }
-.palette-augment { width: 16px; height: 16px; display: block; }
+.palette-augment { width: 16px; height: 12px; display: block; }
+/* A leaflet's badge: a sheet, in the pamphlet's colour rather than a piece's. */
+.palette-augment.palette-leaflet { height: 16px; }
+.palette-badge-leaflet { color: var(--leaf); }
 
 /* Follows the pointer between the palette and the canvas. */
 .graph-node.is-ghost { opacity: 0.85; z-index: 9; box-shadow: 0 10px 26px var(--shadow); }

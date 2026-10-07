@@ -118,15 +118,26 @@
    before you pick it up — and the rows are mixed in among the boxes under
    Conditions and under Plugins.
 
-   Drawn rather than written: a jigsaw piece, because that is how one goes
-   on — into the notch under the box you are dropping it on. #}
+   Drawn rather than written, because the same shape is what you then aim at:
+   the notch under the box you are dropping it on. #}
 {% macro augment_mark() -%}
-  <svg class="palette-augment" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-    {#- A jigsaw piece: a knob on top and on the right, the way a piece locks
-        into the box above it on the canvas. -#}
-    <path d="M1.8 6 H5.6 A2.4 2.4 0 1 1 10.4 6 H13 V7.6 A2.4 2.4 0 1 1 13 12.4 V14.2 H1.8 Z"
+  <svg class="palette-augment" viewBox="0 0 16 12" aria-hidden="true" focusable="false">
+    <path d="M1 11 L1 4 L5.2 4 A2.8 2.8 0 1 1 10.8 4 L15 4 L15 11"
           fill="none" stroke="currentColor" stroke-width="1.6"
           stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+{%- endmacro %}
+
+{# A leaflet's own badge, apart from an augmentation's: it is a block of a
+   page rather than something that changes a box, so a sheet with its
+   corner turned down and blocks laid out on it — a column over two. #}
+{% macro leaflet_mark() -%}
+  <svg class="palette-augment palette-leaflet" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M3 1.5 H10 L13 4.5 V14.5 H3 Z M10 1.5 V4.5 H13"
+          fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+    <rect x="5" y="6" width="6" height="2.2" rx="0.4" fill="currentColor"/>
+    <rect x="5" y="9.6" width="2.6" height="3" rx="0.4" fill="currentColor"/>
+    <rect x="8.4" y="9.6" width="2.6" height="3" rx="0.4" fill="currentColor"/>
   </svg>
 {%- endmacro %}
 
@@ -162,7 +173,12 @@
       <span class="palette-blurb">{{ blurb }}</span>
       {{ goes_under_line(kind) }}
     </span>
-    {% if is_augmentation(kind) %}
+    {% if kind.startswith('leaflet-') %}
+      <span class="palette-badge palette-badge-leaflet"
+            title="A leaflet: a block of a pamphlet's page, below or beside another">
+        {{ leaflet_mark() }}
+      </span>
+    {% elif is_augmentation(kind) %}
       <span class="palette-badge" title="An augmentation: it slots under a box rather than sitting on a path">
         {{ augment_mark() }}
       </span>
