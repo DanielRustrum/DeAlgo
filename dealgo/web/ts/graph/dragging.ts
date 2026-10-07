@@ -67,9 +67,11 @@ function beginGraphPan(state: GraphState, event: PointerEvent): void {
 }
 
 /** Start drawing a wire from a box's out port, with a ghost following the pointer. */
-function beginGraphWire(state: GraphState, event: PointerEvent, nodeId: number): void {
-  state.drag = { ...graphGrab(state, event), kind: "wire", nodeId };
-  const from = graphPortPoint(state, nodeId, "out");
+function beginGraphWire(
+  state: GraphState, event: PointerEvent, nodeId: number, carries?: GraphCarries,
+): void {
+  state.drag = { ...graphGrab(state, event), kind: "wire", nodeId, carries };
+  const from = graphPortPoint(state, nodeId, "out", carries);
   if (from === null) return;
   state.ghost = graphSvgPath("graph-wire wire-ghost", graphCurve(from.x, from.y, from.x, from.y));
   state.parts.wires.appendChild(state.ghost);
@@ -253,7 +255,9 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   const onGrip = target instanceof Element && target.closest<HTMLElement>("[data-grip]");
   const onPort = target instanceof Element && target.closest<HTMLElement>(".graph-port");
   if (onGrip) beginGraphResize(state, event, node);
-  else if (onPort && onPort.dataset["port"] === "out") beginGraphWire(state, event, grabbed);
+  else if (onPort && onPort.dataset["port"] === "out") {
+    beginGraphWire(state, event, grabbed, graphPortCarries(onPort));
+  }
   else beginGraphMove(state, event, node, nodeId);
 
   state.parts.canvas.setPointerCapture(event.pointerId);
@@ -341,7 +345,7 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     return;
   }
 
-  const from = graphPortPoint(state, drag.nodeId, "out");
+  const from = graphPortPoint(state, drag.nodeId, "out", drag.carries);
   if (from !== null && state.ghost !== null) {
     state.ghost.setAttribute("d", graphCurve(from.x, from.y, at.x, at.y));
   }
@@ -560,4 +564,13 @@ async function saveGraphSize(state: GraphState, nodeId: number): Promise<void> {
   } catch {
     showGraphError(state, "That group changed size on screen, but it was not saved.");
   }
+}
+
+/** Which kind of wire a port is for, read off its class. */
+function graphPortCarries(port: HTMLElement): GraphCarries | undefined {
+  for (const name of Array.from(port.classList)) {
+    const kind = name.startsWith("carries-") ? name.slice(8) : "";
+    if (kind === "signal" || kind === "content" || kind === "page" || kind === "data") return kind;
+  }
+  return undefined;
 }

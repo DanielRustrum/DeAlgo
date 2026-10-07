@@ -330,7 +330,59 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     const gives: GraphCarries = node.kind === "trigger" ? "signal" : "content";
     box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
   }
+  // A source gives two different things, and each has its own port: what
+  // it collects, down a path, and its JSON, to a Format box.
+  if (node.kind === "source") {
+    box.appendChild(graphPort("out", "data", "Gives out its JSON — an API's answer, or its items — to a Format box."));
+  }
+  graphSpreadPorts(box);
   return box;
+}
+
+/** Ports on one side, spaced evenly down it: one in the middle, two at a
+ *  third and two thirds, so each kind of wire has a place of its own. */
+function graphSpreadPorts(box: HTMLElement): void {
+  for (const where of ["in", "out"]) {
+    const ports = Array.from(box.querySelectorAll<HTMLElement>(`:scope > .graph-port.port-${where}`));
+    if (ports.length < 2) continue;
+    ports.forEach((port, index): void => {
+      port.style.top = `${Math.round((100 * (index + 1)) / (ports.length + 1))}%`;
+    });
+  }
+}
+
+/** What a wire carries, read off its kind and the box it starts from: which
+ *  port at either end it belongs to. */
+function graphWireCarries(state: GraphState, wire: GraphWireView): GraphCarries {
+  if (wire.kind === "page" || wire.kind === "data") return wire.kind;
+  const start = state.nodes.find((one): boolean => one.id === wire.from);
+  return start?.kind === "trigger" ? "signal" : "content";
+}
+
+/** Fade a port with no wire, on a side where another port has one: the
+ *  connection in use stands out, and the one not taken still works. */
+function graphMarkIdlePorts(state: GraphState): void {
+  const used = new Set<string>();
+  for (const wire of state.wires) {
+    const carries = graphWireCarries(state, wire);
+    used.add(`${wire.from}:out:${carries}`);
+    used.add(`${wire.to}:in:${carries}`);
+  }
+  for (const [nodeId, box] of state.boxes) {
+    for (const where of ["in", "out"]) {
+      const ports = Array.from(box.querySelectorAll<HTMLElement>(`:scope > .graph-port.port-${where}`));
+      if (ports.length < 2) continue;
+      const taken = ports.map((port): boolean =>
+        Array.from(port.classList).some(
+          (name): boolean => name.startsWith("carries-") && used.has(`${nodeId}:${where}:${name.slice(8)}`),
+        ),
+      );
+      const any = taken.some((one): boolean => one);
+      ports.forEach((port, index): void => {
+        port.classList.toggle("is-idle", any && !taken[index]);
+      });
+    }
+  }
 }
 
 /** A trigger says which of the two it is, since they behave nothing alike. */
@@ -472,15 +524,20 @@ function graphPortPoint(
   state: GraphState,
   nodeId: number,
   where: "in" | "out",
+  carries?: GraphCarries,
 ): { x: number; y: number } | null {
   const box = state.boxes.get(nodeId);
   const node = state.nodes.find((entry): boolean => entry.id === nodeId);
   if (box === undefined || node === undefined) return null;
 
-  return {
-    x: where === "out" ? node.x + box.offsetWidth : node.x,
-    y: node.y + box.offsetHeight / 2,
-  };
+  // At its own port, where a box has more than one on that side.
+  const port = carries === undefined
+    ? null
+    : box.querySelector<HTMLElement>(`:scope > .graph-port.port-${where}.carries-${carries}`);
+  const y = port !== null && port.offsetHeight > 0
+    ? node.y + port.offsetTop + port.offsetHeight / 2
+    : node.y + box.offsetHeight / 2;
+  return { x: where === "out" ? node.x + box.offsetWidth : node.x, y };
 }
 
 /** The SVG path of a wire: a gentle S from one port to another. */
@@ -506,8 +563,9 @@ function drawGraphWires(state: GraphState): void {
   const over = graphPageWireLayer(state);
   over.textContent = "";
   for (const wire of state.wires) {
-    const from = graphPortPoint(state, wire.from, "out");
-    const to = graphPortPoint(state, wire.to, "in");
+    const carries = graphWireCarries(state, wire);
+    const from = graphPortPoint(state, wire.from, "out", carries);
+    const to = graphPortPoint(state, wire.to, "in", carries);
     if (from === null || to === null) continue;
 
     const d = graphCurve(from.x, from.y, to.x, to.y);
@@ -532,6 +590,7 @@ function drawGraphWires(state: GraphState): void {
       state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));
     }
   }
+  graphMarkIdlePorts(state);
 }
 
 /** The ✕ on a picked wire. Two clicks to remove a wire, never one by accident. */

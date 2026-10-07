@@ -498,9 +498,9 @@ function beginGraphPan(state, event) {
     state.parts.canvas.classList.add("is-panning");
 }
 /** Start drawing a wire from a box's out port, with a ghost following the pointer. */
-function beginGraphWire(state, event, nodeId) {
-    state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "wire", nodeId });
-    const from = graphPortPoint(state, nodeId, "out");
+function beginGraphWire(state, event, nodeId, carries) {
+    state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "wire", nodeId, carries });
+    const from = graphPortPoint(state, nodeId, "out", carries);
     if (from === null)
         return;
     state.ghost = graphSvgPath("graph-wire wire-ghost", graphCurve(from.x, from.y, from.x, from.y));
@@ -661,8 +661,9 @@ function onGraphPointerDown(state, event) {
     const onPort = target instanceof Element && target.closest(".graph-port");
     if (onGrip)
         beginGraphResize(state, event, node);
-    else if (onPort && onPort.dataset["port"] === "out")
-        beginGraphWire(state, event, grabbed);
+    else if (onPort && onPort.dataset["port"] === "out") {
+        beginGraphWire(state, event, grabbed, graphPortCarries(onPort));
+    }
     else
         beginGraphMove(state, event, node, nodeId);
     state.parts.canvas.setPointerCapture(event.pointerId);
@@ -746,7 +747,7 @@ function onGraphPointerMove(state, event) {
         drawGraphWires(state);
         return;
     }
-    const from = graphPortPoint(state, drag.nodeId, "out");
+    const from = graphPortPoint(state, drag.nodeId, "out", drag.carries);
     if (from !== null && state.ghost !== null) {
         state.ghost.setAttribute("d", graphCurve(from.x, from.y, at.x, at.y));
     }
@@ -933,6 +934,15 @@ async function saveGraphSize(state, nodeId) {
     catch (_a) {
         showGraphError(state, "That group changed size on screen, but it was not saved.");
     }
+}
+/** Which kind of wire a port is for, read off its class. */
+function graphPortCarries(port) {
+    for (const name of Array.from(port.classList)) {
+        const kind = name.startsWith("carries-") ? name.slice(8) : "";
+        if (kind === "signal" || kind === "content" || kind === "page" || kind === "data")
+            return kind;
+    }
+    return undefined;
 }
 
 "use strict";
@@ -1216,7 +1226,55 @@ function drawGraphNode(state, node) {
         const gives = node.kind === "trigger" ? "signal" : "content";
         box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
     }
+    // A source gives two different things, and each has its own port: what
+    // it collects, down a path, and its JSON, to a Format box.
+    if (node.kind === "source") {
+        box.appendChild(graphPort("out", "data", "Gives out its JSON — an API's answer, or its items — to a Format box."));
+    }
+    graphSpreadPorts(box);
     return box;
+}
+/** Ports on one side, spaced evenly down it: one in the middle, two at a
+ *  third and two thirds, so each kind of wire has a place of its own. */
+function graphSpreadPorts(box) {
+    for (const where of ["in", "out"]) {
+        const ports = Array.from(box.querySelectorAll(`:scope > .graph-port.port-${where}`));
+        if (ports.length < 2)
+            continue;
+        ports.forEach((port, index) => {
+            port.style.top = `${Math.round((100 * (index + 1)) / (ports.length + 1))}%`;
+        });
+    }
+}
+/** What a wire carries, read off its kind and the box it starts from: which
+ *  port at either end it belongs to. */
+function graphWireCarries(state, wire) {
+    if (wire.kind === "page" || wire.kind === "data")
+        return wire.kind;
+    const start = state.nodes.find((one) => one.id === wire.from);
+    return (start === null || start === void 0 ? void 0 : start.kind) === "trigger" ? "signal" : "content";
+}
+/** Fade a port with no wire, on a side where another port has one: the
+ *  connection in use stands out, and the one not taken still works. */
+function graphMarkIdlePorts(state) {
+    const used = new Set();
+    for (const wire of state.wires) {
+        const carries = graphWireCarries(state, wire);
+        used.add(`${wire.from}:out:${carries}`);
+        used.add(`${wire.to}:in:${carries}`);
+    }
+    for (const [nodeId, box] of state.boxes) {
+        for (const where of ["in", "out"]) {
+            const ports = Array.from(box.querySelectorAll(`:scope > .graph-port.port-${where}`));
+            if (ports.length < 2)
+                continue;
+            const taken = ports.map((port) => Array.from(port.classList).some((name) => name.startsWith("carries-") && used.has(`${nodeId}:${where}:${name.slice(8)}`)));
+            const any = taken.some((one) => one);
+            ports.forEach((port, index) => {
+                port.classList.toggle("is-idle", any && !taken[index]);
+            });
+        }
+    }
 }
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node) {
@@ -1359,15 +1417,19 @@ function placeGraphPieces(state) {
     }
 }
 /** Where a wire leaves a box, and where it arrives — measured, not guessed. */
-function graphPortPoint(state, nodeId, where) {
+function graphPortPoint(state, nodeId, where, carries) {
     const box = state.boxes.get(nodeId);
     const node = state.nodes.find((entry) => entry.id === nodeId);
     if (box === undefined || node === undefined)
         return null;
-    return {
-        x: where === "out" ? node.x + box.offsetWidth : node.x,
-        y: node.y + box.offsetHeight / 2,
-    };
+    // At its own port, where a box has more than one on that side.
+    const port = carries === undefined
+        ? null
+        : box.querySelector(`:scope > .graph-port.port-${where}.carries-${carries}`);
+    const y = port !== null && port.offsetHeight > 0
+        ? node.y + port.offsetTop + port.offsetHeight / 2
+        : node.y + box.offsetHeight / 2;
+    return { x: where === "out" ? node.x + box.offsetWidth : node.x, y };
 }
 /** The SVG path of a wire: a gentle S from one port to another. */
 function graphCurve(x1, y1, x2, y2) {
@@ -1390,8 +1452,9 @@ function drawGraphWires(state) {
     const over = graphPageWireLayer(state);
     over.textContent = "";
     for (const wire of state.wires) {
-        const from = graphPortPoint(state, wire.from, "out");
-        const to = graphPortPoint(state, wire.to, "in");
+        const carries = graphWireCarries(state, wire);
+        const from = graphPortPoint(state, wire.from, "out", carries);
+        const to = graphPortPoint(state, wire.to, "in", carries);
         if (from === null || to === null)
             continue;
         const d = graphCurve(from.x, from.y, to.x, to.y);
@@ -1415,6 +1478,7 @@ function drawGraphWires(state) {
             state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));
         }
     }
+    graphMarkIdlePorts(state);
 }
 /** The ✕ on a picked wire. Two clicks to remove a wire, never one by accident. */
 function graphCutButton(wireId, x, y) {
@@ -2155,6 +2219,7 @@ function drawGraphLeafletParts(box, node) {
     }
     box.appendChild(graphElement("span", "leaflet-notch is-below"));
     box.appendChild(graphElement("span", "leaflet-notch is-beside"));
+    graphSpreadPorts(box);
 }
 /** A Pamphlet box's panel: where its page is. Its name is the page's title. */
 function graphPamphletFields(form, node) {

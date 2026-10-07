@@ -276,6 +276,7 @@ function drawGraphLeafletParts(box: HTMLElement, node: GraphNodeView): void {
   }
   box.appendChild(graphElement("span", "leaflet-notch is-below"));
   box.appendChild(graphElement("span", "leaflet-notch is-beside"));
+  graphSpreadPorts(box);
 }
 
 /** A Pamphlet box's panel: where its page is. Its name is the page's title. */

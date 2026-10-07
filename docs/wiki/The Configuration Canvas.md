@@ -50,6 +50,19 @@ Drag from a box's output (right edge) to another box's input (left edge). Only s
 connect — a trigger into a source, a source into a filter, a filter into a feed — and De-Algo says
 why when it refuses one. Loops are refused.
 
+Each kind of wire has its own port, marked inside the dot:
+
+| Mark | Carries | From → to |
+| --- | --- | --- |
+| ⚡ bolt | A signal to run | Trigger → source or Withdraw |
+| ▶ play | Items, down a path | Source → filter, sort, feed… |
+| Sheet of print | A feed, onto a page | Feed → Feed or Link leaflet |
+| `{ }` braces | JSON, to be drawn | Source → [Format](Nodes/Format.md) → Chart leaflet |
+
+A box that can connect more than one way shows a port for each — a source has one for its path and
+one for a Format box. Once one of them is wired, the others on that side fade; they still take a
+wire if you want both.
+
 Click a wire to select it, then press the **✕** that appears on it to remove it.
 
 ## Boxes

@@ -283,6 +283,8 @@ interface GraphDrag {
   startY: number;
   /** Moving a group: what it surrounds, and where each of them started. */
   carried: { node: GraphNodeView; x: number; y: number }[];
+  /** Drawing a wire: which of the box's out ports it is drawn from. */
+  carries?: GraphCarries | undefined;
 }
 
 /** The page elements the canvas draws into. */
