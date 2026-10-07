@@ -126,6 +126,10 @@ function placeGraphLeaflets(state: GraphState): void {
     if (box !== undefined) box.style.width = "";
   }
 
+  // A leaflet being dragged follows the pointer, and leaves its place on the
+  // page held open until it is let go.
+  const held = state.drag?.kind === "move" ? state.drag.nodeId : -1;
+
   const rowWidth = (first: GraphNodeView | undefined, depth: number): number => {
     let total = 0;
     let walk = first;
@@ -149,20 +153,27 @@ function placeGraphLeaflets(state: GraphState): void {
       const box = state.boxes.get(walk.id);
       if (box === undefined) break;
       box.dataset["host"] = "pamphlet";
+      box.dataset["side"] = walk.piece?.side ?? "below";
+      const below = at(walk.id, "below");
+      const beside = at(walk.id, "beside");
+      // The free edges show a notch, as the bottom of a stack of pieces does.
+      box.classList.toggle("has-below", below !== undefined);
+      box.classList.toggle("has-beside", beside !== undefined);
       // As wide as its column, as it is on the page: a heading over two
       // columns spans both.
       const across = columnWidth(walk, depth + 1);
-      box.style.width = `${across}px`;
-      box.style.left = `${x}px`;
-      box.style.top = `${top}px`;
-      walk.x = x;
-      walk.y = top;
+      if (walk.id !== held) {
+        box.style.width = `${across}px`;
+        box.style.left = `${x}px`;
+        box.style.top = `${top}px`;
+        walk.x = x;
+        walk.y = top;
+      }
       let reached = top + box.offsetHeight;
-      const below = at(walk.id, "below");
       if (below !== undefined) reached = placeRow(below, x, reached + gap, depth + 1);
       bottom = Math.max(bottom, reached);
       x += across + gap;
-      walk = at(walk.id, "beside");
+      walk = beside;
     }
     return bottom;
   };
@@ -187,30 +198,53 @@ function placeGraphLeaflets(state: GraphState): void {
 
 /** Every empty edge a leaflet could be dropped on: below a pamphlet with
  *  nothing under it yet, and below or beside any leaflet already on one. */
-function graphLeafletSlots(state: GraphState): GraphSlot[] {
+function graphLeafletSlots(state: GraphState, moving = -1): GraphSlot[] {
   const hanging = graphHanging(state);
+  const { gap } = graphLeafletSpacing();
   const found: GraphSlot[] = [];
+  // Every edge is somewhere to put one — an edge with a leaflet on it
+  // already takes it in between. Moving one already on a page, its own
+  // edges and the one it hangs from now are not anywhere new.
+  const mover = state.nodes.find((one): boolean => one.id === moving);
+  const from = mover?.piece ?? null;
   for (const node of state.nodes) {
     const box = state.boxes.get(node.id);
-    if (box === undefined) continue;
+    if (box === undefined || node.id === moving) continue;
     const onPage = node.kind === "pamphlet" || (graphIsLeaflet(node.kind) && node.piece?.under != null);
     if (!onPage) continue;
-    const { gap } = graphLeafletSpacing();
-    if (!hanging.has(`${node.id}:below`)) {
-      found.push({
-        under: node.id, side: "below",
-        x: node.x, y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
-        width: box.offsetWidth, height: 0,
-      });
-    }
-    if (node.kind !== "pamphlet" && !hanging.has(`${node.id}:beside`)) {
-      found.push({
-        under: node.id, side: "beside",
-        x: node.x + box.offsetWidth + gap / 2, y: node.y, width: 0, height: box.offsetHeight,
-      });
+    const sides: ("below" | "beside")[] = node.kind === "pamphlet" ? ["below"] : ["below", "beside"];
+    for (const side of sides) {
+      const taken = hanging.get(`${node.id}:${side}`);
+      if (taken?.id === moving) continue;
+      if (from !== null && from.under === node.id && from.side === side) continue;
+      const between = taken !== undefined;
+      found.push(
+        side === "below"
+          ? {
+            under: node.id, side, between,
+            x: node.x,
+            y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
+            width: box.offsetWidth, height: 0,
+          }
+          : {
+            under: node.id, side, between,
+            x: node.x + box.offsetWidth + gap / 2, y: node.y,
+            width: 0, height: box.offsetHeight,
+          },
+      );
     }
   }
   return found;
+}
+
+/** A leaflet's own parts: the port a feed is wired into, for the leaflets
+ *  that show one, and the notches on its two free edges. */
+function drawGraphLeafletParts(box: HTMLElement, node: GraphNodeView): void {
+  if (node.kind === "leaflet-feed" || node.kind === "leaflet-link") {
+    box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to show what it holds."));
+  }
+  box.appendChild(graphElement("span", "leaflet-notch is-below"));
+  box.appendChild(graphElement("span", "leaflet-notch is-beside"));
 }
 
 /** A Pamphlet box's panel: where its page is. Its name is the page's title. */
@@ -280,8 +314,22 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     (feed): GraphChoice => ({ name: String(feed.id), label: feed.title }),
   );
 
+  // Which feed is said by the wire into it, not picked here.
+  const wiredFeed = feeds.find((one): boolean => one.name === said("feed"))?.label ?? "";
+  const fromWire = (): void => {
+    form.appendChild(
+      graphElement(
+        "p",
+        "hint",
+        wiredFeed !== ""
+          ? `Shows “${wiredFeed}”, wired in from its Feed box. Wire another feed in to change it.`
+          : "Wire a Feed box's page port (the sheet on its right) into this leaflet to say which feed.",
+      ),
+    );
+  };
+
   if (node.kind === "leaflet-feed") {
-    form.appendChild(graphLabelled("Feed", graphLeafletSelect("leaflet_feed", feeds, said("feed"), "Pick a feed")));
+    fromWire();
     form.appendChild(graphLabelled("How many", graphLeafletNumber("leaflet_count", said("count"), 1, 60)));
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
   } else if (node.kind === "leaflet-chart") {
@@ -299,9 +347,9 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphElement("p", "hint", "A blank line starts a new paragraph."));
   } else if (node.kind === "leaflet-link") {
     form.appendChild(graphLabelled("Goes to", graphLeafletSelect("leaflet_goes", leaflet.goes, said("goes"))));
-    form.appendChild(graphLabelled("Feed", graphLeafletSelect("leaflet_feed", feeds, said("feed"), "Everything")));
+    fromWire();
     form.appendChild(graphLabelled("Address", graphLeafletText("leaflet_url", said("url"), "https://")));
     form.appendChild(graphLabelled("Says", graphLeafletText("leaflet_label", said("label"), "worked out from where it goes")));
-    form.appendChild(graphElement("p", "hint", "Focus with no feed picked goes through everything."));
+    form.appendChild(graphElement("p", "hint", "Focus with no feed wired in goes through everything."));
   }
 }

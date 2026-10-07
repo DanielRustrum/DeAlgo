@@ -6,6 +6,7 @@ from ..models import Base
 from .engine import get_engine, session_scope
 from .migrations import (
     after_watching_is_its_own_condition,
+    leaflets_are_wired_to_their_feeds,
     add_missing_columns,
     drop_removed_columns,
     feed_windows_become_pieces,
@@ -42,6 +43,7 @@ def init_db() -> None:
     youtube_becomes_a_plugin()
     youtube_takes_become_declared()
     after_watching_is_its_own_condition()
+    leaflets_are_wired_to_their_feeds()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     drop_removed_columns()

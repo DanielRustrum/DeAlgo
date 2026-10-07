@@ -356,7 +356,7 @@ function asGraphWire(value: unknown): GraphWireView | null {
   const from = raw["from"];
   const to = raw["to"];
   if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number") return null;
-  return { id, from, to, kind: "edge" };
+  return { id, from, to, kind: raw["kind"] === "page" ? "page" : "edge" };
 }
 
 /** The graph, or null if this is not one — an error body, say. */

@@ -16,32 +16,121 @@
 .pamphlet-tile-title { font-size: calc(18px * var(--text-scale)); font-weight: 600; }
 .pamphlet-tile-meta { color: var(--muted); font-size: calc(13px * var(--text-scale)); }
 
-/* A row is its columns side by side, sharing the width; a row of one is just
-   that column. Columns stack again on a phone, in the order they read. */
-.pamphlet-row { display: flex; flex-direction: column; gap: var(--gap-block); }
-.pamphlet-row.is-columns { flex-direction: row; align-items: flex-start; }
-.pamphlet-row + .pamphlet-row,
-.pamphlet-column > .pamphlet-row { margin-top: var(--gap-block); }
-.pamphlet-column { flex: 1 1 0; min-width: 0; }
-
-.pamphlet-leaflet {
+/* A pamphlet is set like a newspaper: a masthead, a dateline between rules,
+   then the leaflets in columns divided by thin rules, each under a section
+   head. No cards: the page is one sheet, and the rules are what divide it. */
+.paper {
   @apply surface;
-  padding: var(--pad-panel-y) var(--pad-panel);
+  padding: 28px 36px 36px;
 }
-.leaflet-heading { margin: 0 0 12px; font-size: calc(20px * var(--text-scale)); }
-.leaflet-heading a { color: inherit; text-decoration: none; }
-.leaflet-heading a:hover { color: var(--accent); }
-.leaflet-words { margin: 0 0 10px; line-height: 1.55; white-space: pre-line; }
+.paper-masthead { text-align: center; margin-bottom: 22px; }
+.paper-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: calc(54px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.paper-dateline {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 18px;
+  margin-top: 14px; padding: 6px 0;
+  border-top: 3px double var(--text);
+  border-bottom: 1px solid var(--text);
+  color: var(--muted);
+  font-size: calc(11.5px * var(--text-scale));
+  text-transform: uppercase; letter-spacing: 0.14em;
+}
+.paper-dateline form { margin: 0; }
+.paper-default {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+.paper-default:hover { color: var(--accent); }
+
+/* A row is its columns side by side, sharing the width, a rule between each;
+   a row of one is just that column. Columns stack again on a phone. */
+.pamphlet-row { display: flex; flex-direction: column; }
+.pamphlet-row.is-columns { flex-direction: row; align-items: stretch; }
+.pamphlet-column { flex: 1 1 0; min-width: 0; }
+.pamphlet-row.is-columns > .pamphlet-column + .pamphlet-column {
+  border-left: 1px solid var(--line);
+  padding-left: 22px; margin-left: 22px;
+}
+/* Things stacked in a column are divided by a rule across it. */
+.pamphlet-column > .pamphlet-row,
+.pamphlet-row + .pamphlet-row { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+
+.pamphlet-leaflet { min-width: 0; }
+
+/* A section head: small capitals over a heavy rule, as a paper heads a page. */
+.paper-section {
+  margin: 0 0 12px; padding-top: 6px;
+  border-top: 3px solid var(--text);
+  font-family: var(--font-body);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em;
+}
+.paper-section a { color: inherit; text-decoration: none; }
+.paper-section a:hover { color: var(--accent); }
+
+/* A Text leaflet: a headline and copy, with a drop cap to open it. */
+.paper-headline {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: calc(32px * var(--text-scale));
+  line-height: 1.1;
+}
+.paper-copy { display: flow-root; font-family: var(--font-display); font-size: calc(16px * var(--text-scale)); line-height: 1.6; }
+.paper-copy .leaflet-words:first-child::first-letter {
+  float: left; margin: 4px 8px 0 0;
+  font-size: 3.3em; line-height: 0.8; font-weight: 700;
+}
+.leaflet-words { margin: 0 0 10px; white-space: pre-line; }
 .leaflet-words:last-child { margin-bottom: 0; }
-.leaflet-more { margin: 12px 0 0; font-size: calc(13px * var(--text-scale)); }
-.leaflet-text .leaflet-heading:only-child { margin: 0; }
-.leaflet-link { display: inline-flex; }
-/* A link on its own needs no box around it. */
-.pamphlet-leaflet.leaflet-link {
-  background: transparent; border: 0; box-shadow: none; padding: 0;
+
+/* Stories: the first leads, with its picture across the column and a
+   standfirst; the rest are headlines with a byline and a small picture. */
+.story { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.paper-section + .story { border-top: 0; padding-top: 0; }
+.story.is-lead { flex-direction: column; gap: 10px; }
+.story-words { flex: 1; min-width: 0; }
+.story-headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: calc(17px * var(--text-scale));
+  line-height: 1.25;
 }
-/* Narrow columns hold narrower cards. */
-.pamphlet-row.is-columns .card-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.story.is-lead .story-headline { font-size: calc(26px * var(--text-scale)); line-height: 1.15; }
+.story-headline a { color: var(--text); text-decoration: none; }
+.story-headline a:hover { color: var(--accent); }
+.story-byline {
+  margin: 4px 0 0; color: var(--muted);
+  font-size: calc(11.5px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.story-standfirst {
+  margin: 8px 0 0;
+  font-family: var(--font-display); font-size: calc(15px * var(--text-scale)); line-height: 1.5;
+}
+.story-picture img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.story-thumb { flex: 0 0 auto; }
+.story-thumb img { display: block; width: 96px; aspect-ratio: 4 / 3; object-fit: cover; }
+
+.paper-note { margin: 0; color: var(--muted); font-style: italic; }
+.paper-empty { text-align: center; padding: 24px 0; }
+.leaflet-more { margin: 10px 0 0; font-size: calc(12.5px * var(--text-scale)); font-style: italic; }
+
+/* A Link leaflet: a "turn to" line rather than a button. */
+.paper-turn {
+  display: block; padding: 8px 0;
+  border-top: 1px solid var(--text); border-bottom: 1px solid var(--text);
+  color: var(--text); text-decoration: none; text-align: center;
+  font-size: calc(12.5px * var(--text-scale)); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.14em;
+}
+.paper-turn:hover { color: var(--accent); border-color: var(--accent); }
+.paper-turn.is-focus { color: var(--accent); }
+
 .pamphlet-leaflet .stats { margin-bottom: 0; }
 
 /* A chart: one series on one hue. Bars are thin, rounded only at the end
@@ -118,5 +207,11 @@
 .chart-table table { margin-top: 6px; }
 
 @variant phone {
-  .pamphlet-row.is-columns { flex-direction: column; align-items: stretch; }
+  .paper { padding: 18px 16px 24px; }
+  .paper-title { font-size: calc(36px * var(--text-scale)); }
+  .pamphlet-row.is-columns { flex-direction: column; }
+  .pamphlet-row.is-columns > .pamphlet-column + .pamphlet-column {
+    border-left: 0; padding-left: 0; margin-left: 0;
+    border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px;
+  }
 }

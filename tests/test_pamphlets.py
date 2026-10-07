@@ -121,7 +121,7 @@ def test_a_leaflet_takes_only_what_makes_sense(db):
 def test_a_leaflet_says_what_it_shows(db):
     with db.session_scope() as session:
         feed = leaflet(session, "feed")
-        assert leaflets.words(feed, {}) == "open it and pick a feed"
+        assert leaflets.words(feed, {}) == "wire a feed into it"
         leaflets.save(feed, {"leaflet_feed": "7", "leaflet_count": "5"}, {7})
         assert leaflets.words(feed, {7: "News"}) == "5 from “News”"
         link = leaflet(session, "link")
@@ -202,7 +202,10 @@ def test_a_pamphlet_page_shows_every_leaflet(client, db):
     assert "pamphlet-row is-columns" in page
     assert "A Science video" in page  # the feed's card
     assert "What each feed holds" in page and "Science · 1 waiting" in page
-    assert f'href="/focus?playlist={feed_pk}"' in page and "Focus on Science" in page
+    assert f'href="/focus?playlist={feed_pk}"' in page and "Read Science in Focus" in page
+    # Set as a paper: a masthead with a dateline, the feed's items as stories.
+    assert 'class="paper-title">Morning<' in page and "paper-dateline" in page
+    assert 'class="story is-lead"' in page
 
 
 def test_the_tab_opens_on_the_default_once_one_is_chosen(client, db):
@@ -281,3 +284,89 @@ def test_a_group_carries_its_pamphlet_laid_out_and_pointed_at_its_feed(db):
         row = leaflets.layout(graph.nodes(session), copy)
         assert [column.leaflet.kind for column in row] == ["leaflet-feed", "leaflet-text"]
         assert leaflets.settings(row[0].leaflet)["feed"] == new_feed.playlist_pk
+
+
+# -- a feed wired onto a page ------------------------------------------------------
+
+
+def test_a_feed_wired_into_a_leaflet_is_what_it_shows(db):
+    with db.session_scope() as session:
+        news = graph.add_feed(session, playlist_service.create_generic(session, "News"))
+        sport = graph.add_feed(session, playlist_service.create_generic(session, "Sport"))
+        pamphlet = graph.add_pamphlet(session)
+        cards = leaflet(session, "feed", pamphlet)
+
+        graph.connect(session, news, cards)
+        assert leaflets.settings(cards)["feed"] == news.playlist_pk
+        wire = next(one for one in graph.wires(session) if one["to"] == cards.id)
+        assert wire["kind"] == "page"
+
+        # One feed to a leaflet: a second wired in takes the first's place.
+        graph.connect(session, sport, cards)
+        assert [one["from"] for one in graph.wires(session) if one["to"] == cards.id] == [sport.id]
+        assert leaflets.settings(cards)["feed"] == sport.playlist_pk
+
+        graph.disconnect(session, int(wire_id(graph.wires(session), cards.id)))
+        assert leaflets.settings(cards)["feed"] is None
+
+        # A text leaflet shows no feed, and nothing but a feed goes into one.
+        words = leaflet(session, "text", cards)
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, news, words)
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, pamphlet, cards)
+
+
+def wire_id(wires, target):
+    return next(one["id"] for one in wires if one["to"] == target).split(":")[1]
+
+
+def test_leaflets_pointed_at_a_feed_before_wires_are_wired_to_it(db):
+    from dealgo.db.migrations import leaflets_are_wired_to_their_feeds
+
+    with db.session_scope() as session:
+        news = graph.add_feed(session, playlist_service.create_generic(session, "News"))
+        cards = leaflet(session, "feed", graph.add_pamphlet(session))
+        cards.leaflet = json.dumps({"feed": news.playlist_pk, "count": 4})
+        cards_pk, news_pk = cards.id, news.id
+
+    leaflets_are_wired_to_their_feeds()
+    leaflets_are_wired_to_their_feeds()
+    with db.session_scope() as session:
+        wires = [one for one in graph.wires(session) if one["to"] == cards_pk]
+        assert [(one["from"], one["kind"]) for one in wires] == [(news_pk, "page")]
+
+
+# -- moving leaflets about ---------------------------------------------------------
+
+
+def test_a_leaflet_moves_on_its_own_even_under_what_was_below_it(db):
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session)
+        top = named(leaflet(session, "text", pamphlet), "top")
+        middle = named(leaflet(session, "text", top), "middle")
+        bottom = named(leaflet(session, "text", middle), "bottom")
+
+        # Down past what was below it: the rest closes up, then it goes in.
+        graph.attach(session, top, bottom)
+        assert page_of(session, pamphlet) == [("middle", [("bottom", ["top"])])]
+
+        # Beside something, and in between two that were beside each other.
+        graph.attach(session, top, middle, side="beside")
+        assert page_of(session, pamphlet) == [("middle", ["bottom"]), "top"]
+        far = named(leaflet(session, "text", top, side="beside"), "far")
+        graph.attach(session, bottom, top, side="beside")
+        assert page_of(session, pamphlet) == ["middle", "top", "bottom", "far"]
+        assert far.attached_to == bottom.id
+
+
+def test_dragged_off_a_page_a_leaflet_lies_where_it_was_let_go(client, db):
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session)
+        one = leaflet(session, "text", pamphlet)
+        one_pk = one.id
+
+    answer = client.post(f"/graph/nodes/{one_pk}/attach",
+                         data={"under": "", "x": "640", "y": "-20"}).json()
+    moved = next(node for node in answer["nodes"] if node["id"] == one_pk)
+    assert moved["piece"]["under"] is None and (moved["x"], moved["y"]) == (640, -20)

@@ -124,6 +124,14 @@ def attach(
         side = side if side in SIDES else "below"
         if side == "beside" and host.kind not in LEAFLET_KINDS:
             raise GraphError("A leaflet goes beside another leaflet, or below the Pamphlet box.")
+        if piece.attached_to == host.id and side_of(piece) == side:
+            return piece  # dropped back where it was
+        # A leaflet moved from elsewhere leaves a closed-up gap behind it —
+        # first, so it can go where something below it was a moment ago.
+        if piece.attached_to is not None:
+            close_up(session, piece)
+            piece.attached_to = None
+            session.flush()
 
     # No rings. Walking up from the host must not arrive back at the piece.
     seen = {piece.id}
@@ -139,9 +147,6 @@ def attach(
         session.flush()
         return piece
 
-    # A leaflet moved from elsewhere leaves a closed-up gap behind it.
-    if piece.attached_to is not None:
-        close_up(session, piece)
     # An edge holds one leaflet. Whatever already hung there hangs on from
     # the new one instead, so dropping a leaflet between two puts it between
     # them rather than beside the one that was there.

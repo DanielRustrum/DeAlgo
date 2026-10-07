@@ -153,6 +153,13 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
     node.leaflet = json.dumps(said, sort_keys=True)
 
 
+def point_at(node: GraphNode, playlist_pk: int | None) -> None:
+    """Show this feed — or none — as the wire into the leaflet says."""
+    said = settings(node)
+    said["feed"] = playlist_pk
+    node.leaflet = json.dumps(said, sort_keys=True)
+
+
 def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
     """What a leaflet shows, said on the canvas."""
     said = settings(node)
@@ -164,7 +171,7 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
 
     if node.kind == "leaflet-feed":
         named = feed_named()
-        return f"{said['count']} from “{named}”" if named else "open it and pick a feed"
+        return f"{said['count']} from “{named}”" if named else "wire a feed into it"
     if node.kind == "leaflet-chart":
         chart = dict(CHARTS).get(str(said["chart"]), "a chart")
         daily = str(said["chart"]).endswith("-daily")
@@ -182,7 +189,7 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
         named = feed_named()
         if goes == "focus":
             return f"Focus on “{named}”" if named else "Focus on everything"
-        return f"open “{named}”" if named else "open it and pick a feed"
+        return f"open “{named}”" if named else "wire a feed into it"
     return ""
 
 

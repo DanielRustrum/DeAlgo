@@ -21,6 +21,10 @@ SLOTTED = ("feed", "decay", "expire", "filter", "sort", "pamphlet")
 STAMPS = ("decay", "expire", "tag")
 
 
+#: The leaflets a feed can be wired into: what they show is that feed's.
+WIRED_LEAFLETS = ("leaflet-feed", "leaflet-link")
+
+
 #: The augmentations, as against the boxes. An augmentation is not on any
 #: path and has no wires: it is slotted under a box and changes what that box
 #: does. Kept in one tuple so "is this an augmentation" is one question asked
@@ -83,7 +87,9 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # comes out of it has already been through whatever filtered it on the
     # way in.
     "withdraw": MIDDLE + ENDS,
-    "feed": (),
+    # A feed is where a path ends — but what is in it can be shown on a
+    # pamphlet's page, down a wire of its own kind into a leaflet.
+    "feed": WIRED_LEAFLETS,
     # The end of the line. What is in it comes out through a Withdraw box,
     # which is a path of its own rather than a continuation of this one.
     "deposit": (),

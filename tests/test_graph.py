@@ -3838,9 +3838,11 @@ def test_a_piece_is_drawn_tucked_under_the_box_it_is_slotted_into(canvas_report)
 def test_a_feed_has_one_input_and_not_two(canvas_report):
     """The second one took a trigger saying when the feed could be read. That
     is a Timer and a Reset slotted under it now, so the dot it arrived at has
-    no reason to be there."""
+    no reason to be there. Its one output is of another kind: it puts what
+    the feed holds onto a pamphlet's page, not down a path."""
     assert canvas_report["slotting"]["feedPorts"] == [
-        "graph-port port-in carries-content"
+        "graph-port port-in carries-content",
+        "graph-port port-out carries-page",
     ]
 
 

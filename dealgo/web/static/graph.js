@@ -623,7 +623,10 @@ function onGraphPointerDown(state, event) {
     // A slotted piece travels with whatever it is slotted into: dragging one
     // drags the assembly, the way picking up a puzzle by a piece picks up the
     // part it belongs to. Its own position is worked out from its host's.
-    while (node !== undefined && node.piece !== null && node.piece.under !== null) {
+    // A leaflet is the exception: it moves on its own, to be put somewhere
+    // else on its page, or taken off it.
+    while (node !== undefined && node.piece !== null && node.piece.under !== null &&
+        !graphIsLeaflet(node.kind)) {
         const above = node.piece.under;
         node = state.nodes.find((entry) => entry.id === above);
     }
@@ -680,7 +683,10 @@ function onGraphPointerMove(state, event) {
     }
     if (drag.kind === "move") {
         const held = state.nodes.find((one) => one.id === drag.nodeId);
-        if (held !== undefined && held.piece !== null && held.piece.under === null) {
+        if (held !== undefined && held.piece !== null && graphIsLeaflet(held.kind)) {
+            markGraphSlotFor(state, event, held.id, "pamphlet");
+        }
+        else if (held !== undefined && held.piece !== null && held.piece.under === null) {
             markGraphSlotFor(state, event, held.id, (_b = (_a = held.piece) === null || _a === void 0 ? void 0 : _a.hosts) !== null && _b !== void 0 ? _b : "");
         }
     }
@@ -798,6 +804,19 @@ function onGraphPointerUp(state, event) {
         // gets slotted in: one already lying on the canvas could otherwise only
         // be deleted and dragged out of the palette again.
         const loose = state.nodes.find((one) => one.id === drag.nodeId);
+        // A leaflet goes wherever it was let go on a page — or, dragged off one,
+        // comes off it and lies where it was dropped.
+        if (drag.moved && loose !== undefined && loose.piece !== null && graphIsLeaflet(loose.kind)) {
+            const slot = graphSlotFor(state, event, true, "pamphlet", loose.id);
+            if (slot !== null) {
+                void applyGraph(state, `/graph/nodes/${loose.id}/attach`, new URLSearchParams({ under: String(slot.under), side: slot.side }));
+                return;
+            }
+            if (loose.piece.under !== null) {
+                void applyGraph(state, `/graph/nodes/${loose.id}/attach`, new URLSearchParams({ under: "", x: String(loose.x), y: String(loose.y) }));
+                return;
+            }
+        }
         if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
             const slot = graphSlotFor(state, event, true, (_d = (_c = loose.piece) === null || _c === void 0 ? void 0 : _c.hosts) !== null && _d !== void 0 ? _d : "");
             if (slot !== null && slot.under !== loose.id) {
@@ -1007,8 +1026,13 @@ function graphPortIcon(carries) {
     mark.setAttribute("d", carries === "signal"
         // A bolt: something setting the channel off.
         ? "M6.2 0.6 L2.2 5.6 H4.5 L3.8 9.4 L7.8 4.4 H5.5 Z"
-        // A play mark: the videos and posts being carried along.
-        : "M2.6 1.2 L8.2 5 L2.6 8.8 Z");
+        : carries === "page"
+            // A folded sheet with lines of print: a feed going onto a page.
+            ? "M1.4 0.8 H8.6 V9.2 H1.4 Z M2.8 2.4 V3.4 H7.2 V2.4 Z M2.8 4.5 V5.5 H7.2 V4.5 Z M2.8 6.6 V7.6 H5.6 V6.6 Z"
+            // A play mark: the videos and posts being carried along.
+            : "M2.6 1.2 L8.2 5 L2.6 8.8 Z");
+    if (carries === "page")
+        mark.setAttribute("fill-rule", "evenodd");
     svg.appendChild(mark);
     return svg;
 }
@@ -1148,6 +1172,8 @@ function drawGraphNode(state, node) {
             box.classList.add("is-loose");
         box.appendChild(graphElement("span", "graph-node-kind", graphKindLabel(node.kind)));
         box.appendChild(graphElement("strong", "graph-node-title", node.note));
+        if (graphIsLeaflet(node.kind))
+            drawGraphLeafletParts(box, node);
         return box;
     }
     // A pamphlet is on no path: nothing runs into or out of one.
@@ -1164,7 +1190,11 @@ function drawGraphNode(state, node) {
     if (node.trigger !== null)
         box.appendChild(graphFireButton(node));
     // A feed and a deposit are both ends of a path: nothing leaves either.
-    if (node.kind !== "feed" && node.kind !== "deposit" && wired) {
+    if (node.kind === "feed") {
+        // What a feed holds can go onto a pamphlet's page, down a wire of its own.
+        box.appendChild(graphPort("out", "page", "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet."));
+    }
+    else if (node.kind !== "deposit" && wired) {
         const gives = node.kind === "trigger" ? "signal" : "content";
         box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
     }
@@ -1803,6 +1833,7 @@ function graphLeafletSpacing() {
  *  pamphlet reads as one thing rather than a box with pieces hung off it.
  *  Measured, as every piece is, once they are in the document. */
 function placeGraphLeaflets(state) {
+    var _a;
     const hanging = graphHanging(state);
     const { pad, gap } = graphLeafletSpacing();
     const at = (id, side) => hanging.get(`${id}:${side}`);
@@ -1815,6 +1846,9 @@ function placeGraphLeaflets(state) {
         if (box !== undefined)
             box.style.width = "";
     }
+    // A leaflet being dragged follows the pointer, and leaves its place on the
+    // page held open until it is let go.
+    const held = ((_a = state.drag) === null || _a === void 0 ? void 0 : _a.kind) === "move" ? state.drag.nodeId : -1;
     const rowWidth = (first, depth) => {
         let total = 0;
         let walk = first;
@@ -1828,6 +1862,8 @@ function placeGraphLeaflets(state) {
     const seen = new Set();
     // Places a row, and answers how far down the page it reached.
     const placeRow = (first, left, top, depth) => {
+        var _a;
+        var _b;
         let walk = first;
         let x = left;
         let bottom = top;
@@ -1837,21 +1873,28 @@ function placeGraphLeaflets(state) {
             if (box === undefined)
                 break;
             box.dataset["host"] = "pamphlet";
+            box.dataset["side"] = (_b = (_a = walk.piece) === null || _a === void 0 ? void 0 : _a.side) !== null && _b !== void 0 ? _b : "below";
+            const below = at(walk.id, "below");
+            const beside = at(walk.id, "beside");
+            // The free edges show a notch, as the bottom of a stack of pieces does.
+            box.classList.toggle("has-below", below !== undefined);
+            box.classList.toggle("has-beside", beside !== undefined);
             // As wide as its column, as it is on the page: a heading over two
             // columns spans both.
             const across = columnWidth(walk, depth + 1);
-            box.style.width = `${across}px`;
-            box.style.left = `${x}px`;
-            box.style.top = `${top}px`;
-            walk.x = x;
-            walk.y = top;
+            if (walk.id !== held) {
+                box.style.width = `${across}px`;
+                box.style.left = `${x}px`;
+                box.style.top = `${top}px`;
+                walk.x = x;
+                walk.y = top;
+            }
             let reached = top + box.offsetHeight;
-            const below = at(walk.id, "below");
             if (below !== undefined)
                 reached = placeRow(below, x, reached + gap, depth + 1);
             bottom = Math.max(bottom, reached);
             x += across + gap;
-            walk = at(walk.id, "beside");
+            walk = beside;
         }
         return bottom;
     };
@@ -1877,33 +1920,56 @@ function placeGraphLeaflets(state) {
 }
 /** Every empty edge a leaflet could be dropped on: below a pamphlet with
  *  nothing under it yet, and below or beside any leaflet already on one. */
-function graphLeafletSlots(state) {
+function graphLeafletSlots(state, moving = -1) {
     var _a;
+    var _b;
     const hanging = graphHanging(state);
+    const { gap } = graphLeafletSpacing();
     const found = [];
+    // Every edge is somewhere to put one — an edge with a leaflet on it
+    // already takes it in between. Moving one already on a page, its own
+    // edges and the one it hangs from now are not anywhere new.
+    const mover = state.nodes.find((one) => one.id === moving);
+    const from = (_b = mover === null || mover === void 0 ? void 0 : mover.piece) !== null && _b !== void 0 ? _b : null;
     for (const node of state.nodes) {
         const box = state.boxes.get(node.id);
-        if (box === undefined)
+        if (box === undefined || node.id === moving)
             continue;
         const onPage = node.kind === "pamphlet" || (graphIsLeaflet(node.kind) && ((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) != null);
         if (!onPage)
             continue;
-        const { gap } = graphLeafletSpacing();
-        if (!hanging.has(`${node.id}:below`)) {
-            found.push({
-                under: node.id, side: "below",
-                x: node.x, y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
-                width: box.offsetWidth, height: 0,
-            });
-        }
-        if (node.kind !== "pamphlet" && !hanging.has(`${node.id}:beside`)) {
-            found.push({
-                under: node.id, side: "beside",
-                x: node.x + box.offsetWidth + gap / 2, y: node.y, width: 0, height: box.offsetHeight,
-            });
+        const sides = node.kind === "pamphlet" ? ["below"] : ["below", "beside"];
+        for (const side of sides) {
+            const taken = hanging.get(`${node.id}:${side}`);
+            if ((taken === null || taken === void 0 ? void 0 : taken.id) === moving)
+                continue;
+            if (from !== null && from.under === node.id && from.side === side)
+                continue;
+            const between = taken !== undefined;
+            found.push(side === "below"
+                ? {
+                    under: node.id, side, between,
+                    x: node.x,
+                    y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
+                    width: box.offsetWidth, height: 0,
+                }
+                : {
+                    under: node.id, side, between,
+                    x: node.x + box.offsetWidth + gap / 2, y: node.y,
+                    width: 0, height: box.offsetHeight,
+                });
         }
     }
     return found;
+}
+/** A leaflet's own parts: the port a feed is wired into, for the leaflets
+ *  that show one, and the notches on its two free edges. */
+function drawGraphLeafletParts(box, node) {
+    if (node.kind === "leaflet-feed" || node.kind === "leaflet-link") {
+        box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to show what it holds."));
+    }
+    box.appendChild(graphElement("span", "leaflet-notch is-below"));
+    box.appendChild(graphElement("span", "leaflet-notch is-beside"));
 }
 /** A Pamphlet box's panel: where its page is. Its name is the page's title. */
 function graphPamphletFields(form, node) {
@@ -1946,7 +2012,8 @@ function graphLeafletNumber(name, value, least, most) {
 }
 /** A leaflet's panel: what this block of the page shows. */
 function graphLeafletFields(form, node) {
-    var _a;
+    var _a, _b;
+    var _c;
     const leaflet = node.leaflet;
     if (leaflet === null)
         return;
@@ -1958,8 +2025,15 @@ function graphLeafletFields(form, node) {
         return value === null || value === undefined ? "" : String(value);
     };
     const feeds = leaflet.feeds.map((feed) => ({ name: String(feed.id), label: feed.title }));
+    // Which feed is said by the wire into it, not picked here.
+    const wiredFeed = (_c = (_b = feeds.find((one) => one.name === said("feed"))) === null || _b === void 0 ? void 0 : _b.label) !== null && _c !== void 0 ? _c : "";
+    const fromWire = () => {
+        form.appendChild(graphElement("p", "hint", wiredFeed !== ""
+            ? `Shows “${wiredFeed}”, wired in from its Feed box. Wire another feed in to change it.`
+            : "Wire a Feed box's page port (the sheet on its right) into this leaflet to say which feed."));
+    };
     if (node.kind === "leaflet-feed") {
-        form.appendChild(graphLabelled("Feed", graphLeafletSelect("leaflet_feed", feeds, said("feed"), "Pick a feed")));
+        fromWire();
         form.appendChild(graphLabelled("How many", graphLeafletNumber("leaflet_count", said("count"), 1, 60)));
         form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
     }
@@ -1980,10 +2054,10 @@ function graphLeafletFields(form, node) {
     }
     else if (node.kind === "leaflet-link") {
         form.appendChild(graphLabelled("Goes to", graphLeafletSelect("leaflet_goes", leaflet.goes, said("goes"))));
-        form.appendChild(graphLabelled("Feed", graphLeafletSelect("leaflet_feed", feeds, said("feed"), "Everything")));
+        fromWire();
         form.appendChild(graphLabelled("Address", graphLeafletText("leaflet_url", said("url"), "https://")));
         form.appendChild(graphLabelled("Says", graphLeafletText("leaflet_label", said("label"), "worked out from where it goes")));
-        form.appendChild(graphElement("p", "hint", "Focus with no feed picked goes through everything."));
+        form.appendChild(graphElement("p", "hint", "Focus with no feed wired in goes through everything."));
     }
 }
 
@@ -2100,7 +2174,7 @@ function graphPieceGoesUnder(box, under) {
  *
  *  `held` false asks for every slot there is, which is what an ordinary drag
  *  wants before anything is known about what is being dragged. */
-function graphSlots(state, held = false, under = "") {
+function graphSlots(state, held = false, under = "", moving = -1) {
     var _a, _b;
     const below = new Map();
     for (const node of state.nodes) {
@@ -2151,15 +2225,17 @@ function graphSlots(state, held = false, under = "") {
         });
     }
     if (!held || graphPieceGoesUnder("pamphlet", under))
-        found.push(...graphLeafletSlots(state));
+        found.push(...graphLeafletSlots(state, moving));
     return found;
 }
 /** The slot a piece being dragged would drop into, if any. */
-function graphSlotFor(state, event, held = false, under = "") {
+function graphSlotFor(state, event, held = false, under = "", moving = -1) {
     const at = pointInGraph(state, event);
     let nearest = null;
-    let best = graphSlotReach();
-    for (const slot of graphSlots(state, held, under)) {
+    // A leaflet being moved about its page is aimed at close edges only: the
+    // page is crowded with them, and letting go in open canvas takes it off.
+    let best = moving >= 0 ? 60 : graphSlotReach();
+    for (const slot of graphSlots(state, held, under, moving)) {
         // Measured to the slot's middle, so a box is easiest to hit from
         // directly below it and hardest from off to one side.
         const dx = at.x - (slot.x + slot.width / 2);
@@ -2182,7 +2258,7 @@ function markGraphSlot(state, event) {
 }
 /** The same, for a piece already on the canvas being dragged onto one. */
 function markGraphSlotFor(state, event, moving, under) {
-    const slot = graphSlotFor(state, event, true, under);
+    const slot = graphSlotFor(state, event, true, under, moving);
     showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
 /** Show where a dragged piece would slot in, or hide the marker with null. */
@@ -2200,6 +2276,7 @@ function showGraphSlot(state, wanted) {
     marker.style.width = `${wanted.width}px`;
     marker.style.height = wanted.side === "beside" ? `${wanted.height}px` : "";
     marker.classList.toggle("is-beside", wanted.side === "beside");
+    marker.classList.toggle("is-between", wanted.between === true);
 }
 /** The outline drawn where a piece would land. Made once and kept. */
 function graphSlotMarker(state) {
@@ -3471,7 +3548,7 @@ function asGraphWire(value) {
     const to = raw["to"];
     if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number")
         return null;
-    return { id, from, to, kind: "edge" };
+    return { id, from, to, kind: raw["kind"] === "page" ? "page" : "edge" };
 }
 /** The graph, or null if this is not one — an error body, say. */
 function asGraph(value) {

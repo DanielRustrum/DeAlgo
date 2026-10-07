@@ -19,7 +19,8 @@ from ..scope import OwnerId, owned
 from .canvas import load
 from .errors import GraphError
 from .reading import edges, nodes
-from .vocabulary import ALLOWED
+from . import leaflets
+from .vocabulary import ALLOWED, WIRED_LEAFLETS
 
 
 def connect(
@@ -63,9 +64,17 @@ def connect(
     if existing is not None:
         return existing
 
+    if target.kind in WIRED_LEAFLETS:
+        # A leaflet shows one feed: a second wired in takes the first's place.
+        for older in session.scalars(select(GraphEdge).where(GraphEdge.target_pk == target.id)):
+            session.delete(older)
+        session.flush()
+
     edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id)
     session.add(edge)
     session.flush()
+    if target.kind in WIRED_LEAFLETS and source.playlist_pk is not None:
+        leaflets.point_at(target, source.playlist_pk)
     if fresh and source.channel is not None and target.playlist is not None:
         refresh_membership(session, source.channel, owner)
         _bring_back_what_it_can_now_hold(session, source.channel, target.playlist, owner)
@@ -157,14 +166,16 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
     One kind now. A source's wire used to be synthesised from its channel's
     feeds, which is why two boxes for one channel showed the same wires.
     """
-    _, all_edges = load(session, owner)
+    all_nodes, all_edges = load(session, owner)
+    # A wire into a leaflet carries a feed onto a page, not items down a path.
+    shown = {node.id for node in all_nodes if node.kind in WIRED_LEAFLETS}
 
     return [
         {
             "id": f"edge:{edge.id}",
             "from": edge.source_pk,
             "to": edge.target_pk,
-            "kind": "edge",
+            "kind": "page" if edge.target_pk in shown else "edge",
         }
         for edge in all_edges
     ]
@@ -179,8 +190,11 @@ def disconnect(session: Session, edge_pk: int, owner: OwnerId = None) -> bool:
     # channel's feeds have just changed.
     start = session.get(GraphNode, edge.source_pk)
     channel = start.channel if start is not None and start.kind == "source" else None
+    end = session.get(GraphNode, edge.target_pk)
     session.delete(edge)
     session.flush()
+    if end is not None and end.kind in WIRED_LEAFLETS:
+        leaflets.point_at(end, None)
     if channel is not None:
         refresh_membership(session, channel, owner)
     return True

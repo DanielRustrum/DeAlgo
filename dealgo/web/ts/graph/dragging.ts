@@ -213,7 +213,12 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   // A slotted piece travels with whatever it is slotted into: dragging one
   // drags the assembly, the way picking up a puzzle by a piece picks up the
   // part it belongs to. Its own position is worked out from its host's.
-  while (node !== undefined && node.piece !== null && node.piece.under !== null) {
+  // A leaflet is the exception: it moves on its own, to be put somewhere
+  // else on its page, or taken off it.
+  while (
+    node !== undefined && node.piece !== null && node.piece.under !== null &&
+    !graphIsLeaflet(node.kind)
+  ) {
     const above: number = node.piece.under;
     node = state.nodes.find((entry): boolean => entry.id === above);
   }
@@ -269,7 +274,9 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
 
   if (drag.kind === "move") {
     const held = state.nodes.find((one): boolean => one.id === drag.nodeId);
-    if (held !== undefined && held.piece !== null && held.piece.under === null) {
+    if (held !== undefined && held.piece !== null && graphIsLeaflet(held.kind)) {
+      markGraphSlotFor(state, event, held.id, "pamphlet");
+    } else if (held !== undefined && held.piece !== null && held.piece.under === null) {
       markGraphSlotFor(state, event, held.id, held.piece?.hosts ?? "");
     }
   }
@@ -393,6 +400,27 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
     // gets slotted in: one already lying on the canvas could otherwise only
     // be deleted and dragged out of the palette again.
     const loose = state.nodes.find((one): boolean => one.id === drag.nodeId);
+    // A leaflet goes wherever it was let go on a page — or, dragged off one,
+    // comes off it and lies where it was dropped.
+    if (drag.moved && loose !== undefined && loose.piece !== null && graphIsLeaflet(loose.kind)) {
+      const slot = graphSlotFor(state, event, true, "pamphlet", loose.id);
+      if (slot !== null) {
+        void applyGraph(
+          state,
+          `/graph/nodes/${loose.id}/attach`,
+          new URLSearchParams({ under: String(slot.under), side: slot.side }),
+        );
+        return;
+      }
+      if (loose.piece.under !== null) {
+        void applyGraph(
+          state,
+          `/graph/nodes/${loose.id}/attach`,
+          new URLSearchParams({ under: "", x: String(loose.x), y: String(loose.y) }),
+        );
+        return;
+      }
+    }
     if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
       const slot = graphSlotFor(state, event, true, loose.piece?.hosts ?? "");
       if (slot !== null && slot.under !== loose.id) {

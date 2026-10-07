@@ -218,7 +218,8 @@ def _add_piece_box(
 
 @router.post("/graph/nodes/{node_pk}/attach")
 def graph_attach(
-    request: Request, node_pk: int, under: str = Form(""), side: str = Form("below")
+    request: Request, node_pk: int, under: str = Form(""), side: str = Form("below"),
+    x: str = Form(""), y: str = Form(""),
 ) -> JSONResponse:
     """Slot a piece that is already on the canvas into a box, or take it out.
 
@@ -237,6 +238,9 @@ def graph_attach(
         wanted = under.strip()
         if not wanted:
             graph_service.detach(session, piece)
+            # Taken out by being dragged off: it lies where it was let go.
+            if x.lstrip("-").isdigit() and y.lstrip("-").isdigit():
+                piece.x, piece.y = int(x), int(y)
             return JSONResponse(graph_payload(session, owner))
 
         host = session.scalar(

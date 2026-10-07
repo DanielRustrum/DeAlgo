@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -346,3 +347,44 @@ def after_watching_is_its_own_condition() -> None:
         )).rowcount
     if changed:
         log.info("%d placement(s) now leave once watched rather than after a delay", changed)
+
+
+def leaflets_are_wired_to_their_feeds() -> None:
+    """A leaflet used to be pointed at a feed from its panel; now a wire from
+    the feed's box says which. Draw that wire for every leaflet pointed at a
+    feed that has a box, so nothing set up before loses its feed.
+    """
+    engine = get_engine()
+    columns = {column["name"] for column in inspect(engine).get_columns("graph_node")}
+    if "leaflet" not in columns:
+        return
+    drawn = 0
+    with engine.begin() as connection:
+        leaflets = connection.execute(text(
+            "SELECT id, owner_pk, leaflet FROM graph_node "
+            "WHERE kind IN ('leaflet-feed', 'leaflet-link') AND leaflet IS NOT NULL"
+        )).all()
+        for pk, owner_pk, said in leaflets:
+            try:
+                feed = json.loads(said).get("feed")
+            except (ValueError, AttributeError):
+                continue
+            if not isinstance(feed, int):
+                continue
+            if connection.execute(
+                text("SELECT 1 FROM graph_edge WHERE target_pk = :pk"), {"pk": pk}
+            ).first():
+                continue
+            box = connection.execute(text(
+                "SELECT id FROM graph_node WHERE kind = 'feed' AND playlist_pk = :feed "
+                "AND (owner_pk = :owner OR (owner_pk IS NULL AND :owner IS NULL)) "
+                "ORDER BY id LIMIT 1"
+            ), {"feed": feed, "owner": owner_pk}).scalar()
+            if box is None:
+                continue
+            connection.execute(text(
+                "INSERT INTO graph_edge (owner_pk, source_pk, target_pk) VALUES (:owner, :box, :pk)"
+            ), {"owner": owner_pk, "box": box, "pk": pk})
+            drawn += 1
+    if drawn:
+        log.info("Wired %d leaflet(s) to the feed each was showing", drawn)

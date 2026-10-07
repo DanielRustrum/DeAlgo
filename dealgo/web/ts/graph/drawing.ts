@@ -120,7 +120,7 @@ interface GraphStore {
 }
 
 /** What travels down a wire: a nudge to run, or the things being collected. */
-type GraphCarries = "signal" | "content";
+type GraphCarries = "signal" | "content" | "page";
 
 /** A port dot on a box's edge: where wires leave or arrive. */
 function graphPort(where: "in" | "out", carries: GraphCarries, says: string): HTMLElement {
@@ -145,9 +145,13 @@ function graphPortIcon(carries: GraphCarries): SVGSVGElement {
     carries === "signal"
       // A bolt: something setting the channel off.
       ? "M6.2 0.6 L2.2 5.6 H4.5 L3.8 9.4 L7.8 4.4 H5.5 Z"
-      // A play mark: the videos and posts being carried along.
-      : "M2.6 1.2 L8.2 5 L2.6 8.8 Z",
+      : carries === "page"
+        // A folded sheet with lines of print: a feed going onto a page.
+        ? "M1.4 0.8 H8.6 V9.2 H1.4 Z M2.8 2.4 V3.4 H7.2 V2.4 Z M2.8 4.5 V5.5 H7.2 V4.5 Z M2.8 6.6 V7.6 H5.6 V6.6 Z"
+        // A play mark: the videos and posts being carried along.
+        : "M2.6 1.2 L8.2 5 L2.6 8.8 Z",
   );
+  if (carries === "page") mark.setAttribute("fill-rule", "evenodd");
   svg.appendChild(mark);
   return svg;
 }
@@ -283,6 +287,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     if (node.piece.under === null) box.classList.add("is-loose");
     box.appendChild(graphElement("span", "graph-node-kind", graphKindLabel(node.kind)));
     box.appendChild(graphElement("strong", "graph-node-title", node.note));
+    if (graphIsLeaflet(node.kind)) drawGraphLeafletParts(box, node);
     return box;
   }
   // A pamphlet is on no path: nothing runs into or out of one.
@@ -299,7 +304,10 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   box.appendChild(graphElement("span", "graph-node-note", node.note));
   if (node.trigger !== null) box.appendChild(graphFireButton(node));
   // A feed and a deposit are both ends of a path: nothing leaves either.
-  if (node.kind !== "feed" && node.kind !== "deposit" && wired) {
+  if (node.kind === "feed") {
+    // What a feed holds can go onto a pamphlet's page, down a wire of its own.
+    box.appendChild(graphPort("out", "page", "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet."));
+  } else if (node.kind !== "deposit" && wired) {
     const gives: GraphCarries = node.kind === "trigger" ? "signal" : "content";
     box.appendChild(graphPort("out", gives, graphPortWords(node.kind, "out")));
   }

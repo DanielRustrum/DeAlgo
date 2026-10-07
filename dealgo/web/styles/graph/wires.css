@@ -7,6 +7,10 @@
   stroke-linecap: round;
 }
 .graph-wire.is-picked { stroke: var(--accent); stroke-width: 3; }
+/* A feed going onto a page carries nothing down a path: dashed, and in the
+   pamphlet's colour, so it is never read as part of the flow. */
+.graph-wire.wire-page { stroke: var(--leaf); stroke-dasharray: 6 5; }
+.graph-wire.wire-page.is-picked { stroke: var(--accent); }
 .graph-wire.is-through { stroke: var(--ok); stroke-width: 3; }
 .graph-wire.is-stopped { stroke: var(--bad); stroke-dasharray: 5 5; }
 .wire-ghost { stroke: var(--accent); stroke-dasharray: 6 5; }

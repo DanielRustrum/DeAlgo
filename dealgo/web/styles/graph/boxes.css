@@ -158,8 +158,54 @@
   border-right-color: var(--accent);
   border-bottom-color: var(--accent);
 }
-.graph-node.is-piece[data-host="pamphlet"]::before,
 .graph-node.is-piece[data-host="pamphlet"]::after { content: none; }
+
+/* The joint to what a leaflet hangs from, bridging the gap between them:
+   up to the one above it, or across to the one on its left. It is what says
+   which leaflet goes with which, the way a piece's tab sits in the notch of
+   the one above. */
+.graph-node.is-piece[data-host="pamphlet"]::before {
+  content: "";
+  position: absolute;
+  background: var(--kind-colour);
+  border-radius: 3px;
+  clip-path: none;
+  border: 0;
+}
+.graph-node.is-piece[data-host="pamphlet"][data-side="below"]::before {
+  left: 22px; top: -9px; width: 12px; height: 8px;
+}
+.graph-node.is-piece[data-host="pamphlet"][data-side="beside"]::before {
+  left: -10px; top: 6px; width: 8px; height: 10px;
+}
+
+/* A free edge of a leaflet on a page: a notch where the next one would go,
+   below it or beside it. */
+.leaflet-notch { display: none; position: absolute; pointer-events: none; }
+.graph-node[data-host="pamphlet"]:not(.has-below) .leaflet-notch.is-below,
+.graph-node[data-host="pamphlet"]:not(.has-beside) .leaflet-notch.is-beside {
+  display: block;
+  border: 1px dashed color-mix(in oklab, var(--kind-colour) 70%, var(--line));
+  background: color-mix(in oklab, var(--kind-colour) 8%, var(--panel));
+}
+.leaflet-notch.is-below {
+  left: 22px; bottom: -6px; width: 12px; height: 6px;
+  border-top: 0 !important; border-radius: 0 0 6px 6px;
+}
+.leaflet-notch.is-beside {
+  right: -6px; top: 6px; width: 6px; height: 10px;
+  border-left: 0 !important; border-radius: 0 6px 6px 0;
+}
+
+/* Between two leaflets: a line where it would go in. */
+.graph-slot.is-between {
+  height: 4px !important;
+  border: 0;
+  border-radius: 2px;
+  background: var(--accent);
+  margin-top: -2px;
+}
+.graph-slot.is-beside.is-between { width: 4px !important; margin-top: 0; margin-left: -2px; }
 
 .graph-node-kind {
   font-size: calc(10px * var(--text-scale)); text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted);

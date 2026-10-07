@@ -73,7 +73,7 @@ function graphTakesPieces(kind: GraphNodeKind): boolean {
 /** There used to be two: a source's wire was stored against its channel and
  *  drawn from that, which is why two boxes for one channel showed the same
  *  wires. Every wire is an edge now. */
-type GraphWireKind = "edge";
+type GraphWireKind = "edge" | "page";
 
 /** One box or piece as the server sent it. */
 interface GraphNodeView {

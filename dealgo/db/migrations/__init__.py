@@ -14,6 +14,7 @@ from .feeds import migrate_single_playlist, rename_local_feed_prefix
 from .pieces import (
     after_watching_is_its_own_condition,
     feed_windows_become_pieces,
+    leaflets_are_wired_to_their_feeds,
     plugin_boxes_become_pieces,
     rules_become_pieces,
 )
@@ -22,6 +23,7 @@ from .wires import retire_tag_nodes, wires_belong_to_boxes
 
 __all__ = [
     "after_watching_is_its_own_condition",
+    "leaflets_are_wired_to_their_feeds",
     "add_missing_columns",
     "drop_removed_columns",
     "feed_windows_become_pieces",

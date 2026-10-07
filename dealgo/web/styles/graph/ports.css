@@ -30,3 +30,10 @@
 }
 /* A signal is a different kind of thing from what it sets off, and reads as one. */
 .graph-port.carries-signal { border-color: var(--text); color: var(--text); }
+
+/* A feed going onto a page: its own colour and its own mark, a sheet of print. */
+.graph-port.carries-page {
+  border-color: var(--leaf);
+  color: var(--leaf);
+}
+.graph-node.is-piece .graph-port.port-in.carries-page { top: 50%; }

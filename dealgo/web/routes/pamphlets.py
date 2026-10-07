@@ -80,6 +80,11 @@ def pamphlet_page(request: Request, node_pk: int) -> Response:
             "shown": shown,
             "is_default": get_settings(session, owner).default_pamphlet_pk == pamphlet.id,
             "others": len(_pamphlets(session, owner)) > 1,
+            # The dateline, as a paper prints it.
+            "today": utcnow().strftime("%A %-d %B %Y"),
+            "waiting": sum(
+                len(one.get("videos") or []) for one in shown.values()
+            ),
         })
 
 

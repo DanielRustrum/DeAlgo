@@ -1,18 +1,26 @@
 {% extends "base.html" %}
-{% from "_garden.html" import page_head with context %}
 {% block title %}De-Algo — {{ pamphlet.title }}{% endblock %}
 {% block content %}
 {% if others or not is_default %}
 <p class="crumbs"><a href="/pamphlets?all=1">Pamphlets</a> › {{ pamphlet.title }}</p>
 {% endif %}
-{% call page_head(pamphlet.title) %}
-<form method="post" action="/pamphlets/{{ pamphlet.id }}/default">
-  <button class="btn {{ 'btn-quiet' if is_default }}" type="submit"
-          title="{{ 'Stop opening the Pamphlets tab on this one' if is_default else 'Open the Pamphlets tab on this pamphlet' }}">
-    {{ '★ Default' if is_default else '☆ Make default' }}
-  </button>
-</form>
-{% endcall %}
+
+{#- Laid out as a paper is: a masthead, a dateline between rules, then the
+    leaflets in ruled columns, each under a section head. -#}
+<article class="paper">
+<header class="paper-masthead">
+  <h1 class="paper-title">{{ pamphlet.title }}</h1>
+  <div class="paper-dateline">
+    <span>{{ today }}</span>
+    <span>{{ waiting }} stor{{ 'y' if waiting == 1 else 'ies' }} inside</span>
+    <form method="post" action="/pamphlets/{{ pamphlet.id }}/default">
+      <button class="paper-default" type="submit"
+              title="{{ 'Stop opening the Pamphlets tab on this one' if is_default else 'Open the Pamphlets tab on this pamphlet' }}">
+        {{ '★ The tab opens here' if is_default else '☆ Open the tab here' }}
+      </button>
+    </form>
+  </div>
+</header>
 
 {#- A row of columns, side by side; each column is a leaflet and whatever is
     stacked below it, which may be a row of columns again. -#}
@@ -27,40 +35,67 @@
 </div>
 {%- endmacro %}
 
+{% macro story(video, said, lead) -%}
+{% set href = '/focus?start=' ~ video.id ~ ('&playlist=' ~ said.playlist.id if said.playlist) %}
+{% set picture = video.pictures | first %}
+<article class="story {{ 'is-lead' if lead }}">
+  {% if picture and lead %}
+  <a class="story-picture" href="{{ href }}" tabindex="-1" aria-hidden="true">
+    <img src="{{ picture }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+  </a>
+  {% endif %}
+  <div class="story-words">
+    <h3 class="story-headline"><a href="{{ href }}">{{ video.title or video.body or video.video_id }}</a></h3>
+    <p class="story-byline">
+      {{ video.channel.title }} · <span title="{{ video.published_at | stamp }}">{{ video.published_at | ago }}</span>
+      {%- if video.duration_sec %} · {{ video.duration_sec | duration }}{% endif %}
+    </p>
+    {% if lead and video.body and video.body != video.title %}
+    <p class="story-standfirst">{{ video.body | truncate(240) }}</p>
+    {% endif %}
+  </div>
+  {% if picture and not lead %}
+  <a class="story-thumb" href="{{ href }}" tabindex="-1" aria-hidden="true">
+    <img src="{{ picture }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+  </a>
+  {% endif %}
+</article>
+{%- endmacro %}
+
 {% macro leaflet(node, said) -%}
 {% if said.on %}
-<section class="pamphlet-leaflet leaflet-{{ node.kind[8:] }}">
+<section class="pamphlet-leaflet is-{{ node.kind[8:] }}">
   {% if node.kind == 'leaflet-text' %}
-    {% if said.heading %}<h2 class="leaflet-heading">{{ said.heading }}</h2>{% endif %}
+    {% if said.heading %}<h2 class="paper-headline">{{ said.heading }}</h2>{% endif %}
     {% if said.body %}
+      <div class="paper-copy">
       {% for paragraph in said.body.split('\n\n') %}<p class="leaflet-words">{{ paragraph }}</p>{% endfor %}
+      </div>
     {% endif %}
 
   {% elif node.kind == 'leaflet-feed' %}
     {% if said.playlist %}
-      <h2 class="leaflet-heading">
+      <h2 class="paper-section">
         <a href="/feed/{{ said.playlist.id }}">{{ said.title or said.playlist.title }}</a>
       </h2>
       {% set section = said.section %}
       {% if section.shut %}
-        <p class="empty shut-note">Shut for now.{% if section.opens_at %} It opens again {{ section.opens_at | ago }}.{% endif %}</p>
+        <p class="paper-note">Shut for now.{% if section.opens_at %} It opens again {{ section.opens_at | ago }}.{% endif %}</p>
       {% elif said.videos %}
-        <div class="card-grid">
-          {% for video in said.videos %}{% include "_feed_card.html" %}{% endfor %}
-        </div>
+        {% for video in said.videos %}{{ story(video, said, loop.first) }}{% endfor %}
         {% if section.videos | length > said.videos | length %}
         <p class="leaflet-more"><a href="/feed/{{ said.playlist.id }}">
           {{ section.videos | length - said.videos | length }} more in {{ said.playlist.title }} →</a></p>
         {% endif %}
       {% else %}
-        <p class="empty">Nothing waiting in {{ said.playlist.title }}.</p>
+        <p class="paper-note">Nothing waiting in {{ said.playlist.title }}.</p>
       {% endif %}
     {% else %}
-      <p class="empty">This leaflet has no feed yet. Open it on the canvas and pick one.</p>
+      <p class="paper-note">This leaflet has no feed yet. On the canvas, wire a Feed box into it.</p>
     {% endif %}
 
   {% elif node.kind == 'leaflet-chart' %}
-    <h2 class="leaflet-heading">{{ said.title or said.chart_label }}</h2>
+    <h2 class="paper-section">{{ said.title or said.chart_label }}</h2>
     {% if said.counts %}
       {% with counts=said.counts.counts, enabled_channels=said.counts.enabled_channels,
                in_playlist=said.counts.in_playlist, watched_count=said.counts.watched_count %}
@@ -73,16 +108,16 @@
   {% elif node.kind == 'leaflet-link' %}
     {% set goes = said.goes %}
     {% if goes == 'url' and said.url %}
-      <a class="btn leaflet-link" href="{{ said.url }}" rel="noopener noreferrer" target="_blank">
+      <a class="paper-turn" href="{{ said.url }}" rel="noopener noreferrer" target="_blank">
         {{ said.label or said.url }} ↗</a>
     {% elif goes == 'feed' and said.playlist %}
-      <a class="btn leaflet-link" href="/feed/{{ said.playlist.id }}">{{ said.label or 'Open ' ~ said.playlist.title }}</a>
+      <a class="paper-turn" href="/feed/{{ said.playlist.id }}">{{ said.label or 'Continued in ' ~ said.playlist.title }} →</a>
     {% elif goes == 'focus' %}
-      <a class="btn btn-primary leaflet-link"
+      <a class="paper-turn is-focus"
          href="/focus{{ '?playlist=' ~ said.playlist.id if said.playlist }}">
-        {{ said.label or ('Focus on ' ~ said.playlist.title if said.playlist else 'Focus on everything') }} ▶</a>
+        {{ said.label or ('Read ' ~ said.playlist.title ~ ' in Focus' if said.playlist else 'Read everything in Focus') }} ▶</a>
     {% else %}
-      <p class="empty">This link goes nowhere yet. Open it on the canvas and say where.</p>
+      <p class="paper-note">This link goes nowhere yet. Open it on the canvas and say where.</p>
     {% endif %}
   {% endif %}
 </section>
@@ -94,7 +129,7 @@
 {% macro chart(said) -%}
 {% set bars = said.bars %}
 {% if not bars or (bars | sum(attribute='value')) == 0 %}
-  <p class="empty">Nothing to count yet.</p>
+  <p class="paper-note">Nothing to count yet.</p>
 {% else %}
   {% if said.across %}
   {% set every = ((bars | length) / 7) | round(0, 'ceil') | int %}
@@ -139,11 +174,10 @@
 {% if rows %}
 <div class="pamphlet">{{ row(rows) }}</div>
 {% else %}
-<section class="panel">
-  <p class="empty">
-    Nothing on this pamphlet yet. On the <a href="/channels">Configuration</a> canvas, slot leaflets
-    under its box: below one another for a column, beside one another for columns side by side.
-  </p>
-</section>
+<p class="paper-note paper-empty">
+  Nothing in this edition yet. On the <a href="/channels">Configuration</a> canvas, slot leaflets
+  into its box: below one another for a column, beside one another for columns side by side.
+</p>
 {% endif %}
+</article>
 {% endblock %}

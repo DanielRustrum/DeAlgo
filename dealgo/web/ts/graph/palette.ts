@@ -90,6 +90,8 @@ interface GraphSlot {
   /** A slot below is a line across; one beside is a line down. */
   width: number;
   height: number;
+  /** An edge something already hangs from: dropped here, it goes between. */
+  between?: boolean;
 }
 
 /** Whether a piece belongs under this kind of box.
@@ -112,7 +114,7 @@ function graphPieceGoesUnder(box: GraphNodeKind, under: string): boolean {
  *  `held` false asks for every slot there is, which is what an ordinary drag
  *  wants before anything is known about what is being dragged. */
 function graphSlots(
-  state: GraphState, held = false, under = ""
+  state: GraphState, held = false, under = "", moving = -1
 ): GraphSlot[] {
   const below = new Map<number, GraphNodeView[]>();
   for (const node of state.nodes) {
@@ -155,18 +157,20 @@ function graphSlots(
       height: 0,
     });
   }
-  if (!held || graphPieceGoesUnder("pamphlet", under)) found.push(...graphLeafletSlots(state));
+  if (!held || graphPieceGoesUnder("pamphlet", under)) found.push(...graphLeafletSlots(state, moving));
   return found;
 }
 
 /** The slot a piece being dragged would drop into, if any. */
 function graphSlotFor(
-  state: GraphState, event: PointerEvent, held = false, under = ""
+  state: GraphState, event: PointerEvent, held = false, under = "", moving = -1
 ): GraphSlot | null {
   const at = pointInGraph(state, event);
   let nearest: GraphSlot | null = null;
-  let best = graphSlotReach();
-  for (const slot of graphSlots(state, held, under)) {
+  // A leaflet being moved about its page is aimed at close edges only: the
+  // page is crowded with them, and letting go in open canvas takes it off.
+  let best = moving >= 0 ? 60 : graphSlotReach();
+  for (const slot of graphSlots(state, held, under, moving)) {
     // Measured to the slot's middle, so a box is easiest to hit from
     // directly below it and hardest from off to one side.
     const dx = at.x - (slot.x + slot.width / 2);
@@ -194,7 +198,7 @@ function markGraphSlot(state: GraphState, event: PointerEvent): void {
 function markGraphSlotFor(
   state: GraphState, event: PointerEvent, moving: number, under: string
 ): void {
-  const slot = graphSlotFor(state, event, true, under);
+  const slot = graphSlotFor(state, event, true, under, moving);
   showGraphSlot(state, slot !== null && slot.under !== moving ? slot : null);
 }
 
@@ -212,6 +216,7 @@ function showGraphSlot(state: GraphState, wanted: GraphSlot | null): void {
   marker.style.width = `${wanted.width}px`;
   marker.style.height = wanted.side === "beside" ? `${wanted.height}px` : "";
   marker.classList.toggle("is-beside", wanted.side === "beside");
+  marker.classList.toggle("is-between", wanted.between === true);
 }
 
 /** The outline drawn where a piece would land. Made once and kept. */
