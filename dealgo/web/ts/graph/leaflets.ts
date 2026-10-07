@@ -218,12 +218,29 @@ function graphLeafletSlots(state: GraphState, moving = -1): GraphSlot[] {
       if (taken?.id === moving) continue;
       if (from !== null && from.under === node.id && from.side === side) continue;
       const between = taken !== undefined;
+      if (side === "below" && node.kind === "pamphlet") {
+        // A frame grows to hold its page, so its own bottom edge is under
+        // everything: the slot is above its first leaflet, under its title.
+        const first = taken !== undefined ? state.boxes.get(taken.id) : undefined;
+        found.push(
+          taken !== undefined && first !== undefined
+            ? {
+              under: node.id, side, between,
+              x: taken.x, y: taken.y - gap / 2, width: first.offsetWidth, height: 0,
+            }
+            : {
+              under: node.id, side, between,
+              x: node.x, y: node.y + box.offsetHeight, width: box.offsetWidth, height: 0,
+            },
+        );
+        continue;
+      }
       found.push(
         side === "below"
           ? {
             under: node.id, side, between,
             x: node.x,
-            y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
+            y: node.y + box.offsetHeight + gap / 2,
             width: box.offsetWidth, height: 0,
           }
           : {
@@ -232,6 +249,15 @@ function graphLeafletSlots(state: GraphState, moving = -1): GraphSlot[] {
             width: 0, height: box.offsetHeight,
           },
       );
+    }
+    // The first leaflet of a row has a left edge too: dropped there, a
+    // leaflet goes in front of it, and it moves along.
+    const first = node.piece?.side === "below" && graphIsLeaflet(node.kind);
+    if (first && node.piece?.under != null) {
+      found.push({
+        under: node.id, side: "before", between: true,
+        x: node.x - gap / 2, y: node.y, width: 0, height: box.offsetHeight,
+      });
     }
   }
   return found;

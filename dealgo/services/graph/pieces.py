@@ -121,11 +121,17 @@ def attach(
 
     leaflet = piece.kind in LEAFLET_KINDS
     if leaflet:
-        side = side if side in SIDES else "below"
-        if side == "beside" and host.kind not in LEAFLET_KINDS:
+        # "before" puts it in front of another leaflet in its row: where that
+        # one was, with that one moved along beside it.
+        side = side if side in SIDES or side == "before" else "below"
+        if side != "below" and host.kind not in LEAFLET_KINDS:
             raise GraphError("A leaflet goes beside another leaflet, or below the Pamphlet box.")
+        if side == "before" and host.attached_to is None:
+            raise GraphError("That leaflet is not on a page, so nothing can go before it.")
         if piece.attached_to == host.id and side_of(piece) == side:
             return piece  # dropped back where it was
+        if side == "before" and host.attached_to == piece.id and side_of(host) == "beside":
+            return piece  # already just before it
         # A leaflet moved from elsewhere leaves a closed-up gap behind it —
         # first, so it can go where something below it was a moment ago.
         if piece.attached_to is not None:
@@ -144,6 +150,16 @@ def attach(
 
     if not leaflet:
         piece.attached_to = host.id
+        session.flush()
+        return piece
+
+    if side == "before":
+        # Into the place the other one held; it moves along beside this one.
+        piece.attached_to = host.attached_to
+        piece.attached_side = side_of(host)
+        session.flush()
+        host.attached_to = piece.id
+        host.attached_side = "beside"
         session.flush()
         return piece
 

@@ -370,3 +370,35 @@ def test_dragged_off_a_page_a_leaflet_lies_where_it_was_let_go(client, db):
                          data={"under": "", "x": "640", "y": "-20"}).json()
     moved = next(node for node in answer["nodes"] if node["id"] == one_pk)
     assert moved["piece"]["under"] is None and (moved["x"], moved["y"]) == (640, -20)
+
+
+def test_a_leaflet_goes_in_between_anywhere_on_a_page(db):
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session)
+        top = named(leaflet(session, "text", pamphlet), "top")
+        left = named(leaflet(session, "text", top), "left")
+        named(leaflet(session, "text", left, side="beside"), "right")
+
+        # Between the box and its first leaflet.
+        named(leaflet(session, "text", pamphlet), "first")
+        assert page_of(session, pamphlet) == [("first", [("top", ["left", "right"])])]
+
+        # Between two stacked ones, and between two side by side.
+        named(leaflet(session, "text", top), "under top")
+        named(leaflet(session, "text", left, side="beside"), "middle")
+        assert page_of(session, pamphlet) == [
+            ("first", [("top", [("under top", ["left", "middle", "right"])])])
+        ]
+
+        # Before the first column of a row.
+        named(leaflet(session, "text", left, side="before"), "leftmost")
+        assert page_of(session, pamphlet) == [
+            ("first", [("top", [("under top", ["leftmost", "left", "middle", "right"])])])
+        ]
+
+        # And one already on the page moved before another.
+        right = session.scalar(select(GraphNode).where(GraphNode.label == "right"))
+        graph.attach(session, right, left, side="before")
+        assert page_of(session, pamphlet) == [
+            ("first", [("top", [("under top", ["leftmost", "right", "left", "middle"])])])
+        ]

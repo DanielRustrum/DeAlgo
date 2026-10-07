@@ -83,8 +83,9 @@ function graphSlotReach(): number {
  *  box itself when there is none — and carrying where that slot is drawn. */
 interface GraphSlot {
   under: number;
-  /** Which edge: below, or — for a leaflet — beside, the next column. */
-  side: "below" | "beside";
+  /** Which edge: below, or — for a leaflet — beside, the next column, or
+   *  before, in front of the first in a row. */
+  side: "below" | "beside" | "before";
   x: number;
   y: number;
   /** A slot below is a line across; one beside is a line down. */
@@ -214,8 +215,8 @@ function showGraphSlot(state: GraphState, wanted: GraphSlot | null): void {
   marker.style.left = `${wanted.x}px`;
   marker.style.top = `${wanted.y}px`;
   marker.style.width = `${wanted.width}px`;
-  marker.style.height = wanted.side === "beside" ? `${wanted.height}px` : "";
-  marker.classList.toggle("is-beside", wanted.side === "beside");
+  marker.style.height = wanted.side !== "below" ? `${wanted.height}px` : "";
+  marker.classList.toggle("is-beside", wanted.side !== "below");
   marker.classList.toggle("is-between", wanted.between === true);
 }
 
@@ -272,7 +273,7 @@ async function dropGraphNode(
   y: number,
   which = "",
   onto: number | null = null,
-  side: "below" | "beside" = "below",
+  side: "below" | "beside" | "before" = "below",
 ): Promise<void> {
   toggleGraphPalette(state, false);
   const before = state.nodes;

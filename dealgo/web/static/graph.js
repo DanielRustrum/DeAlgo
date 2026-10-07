@@ -1925,8 +1925,8 @@ function placeGraphLeaflets(state) {
 /** Every empty edge a leaflet could be dropped on: below a pamphlet with
  *  nothing under it yet, and below or beside any leaflet already on one. */
 function graphLeafletSlots(state, moving = -1) {
-    var _a;
-    var _b;
+    var _a, _b, _c;
+    var _d;
     const hanging = graphHanging(state);
     const { gap } = graphLeafletSpacing();
     const found = [];
@@ -1934,7 +1934,7 @@ function graphLeafletSlots(state, moving = -1) {
     // already takes it in between. Moving one already on a page, its own
     // edges and the one it hangs from now are not anywhere new.
     const mover = state.nodes.find((one) => one.id === moving);
-    const from = (_b = mover === null || mover === void 0 ? void 0 : mover.piece) !== null && _b !== void 0 ? _b : null;
+    const from = (_d = mover === null || mover === void 0 ? void 0 : mover.piece) !== null && _d !== void 0 ? _d : null;
     for (const node of state.nodes) {
         const box = state.boxes.get(node.id);
         if (box === undefined || node.id === moving)
@@ -1950,11 +1950,26 @@ function graphLeafletSlots(state, moving = -1) {
             if (from !== null && from.under === node.id && from.side === side)
                 continue;
             const between = taken !== undefined;
+            if (side === "below" && node.kind === "pamphlet") {
+                // A frame grows to hold its page, so its own bottom edge is under
+                // everything: the slot is above its first leaflet, under its title.
+                const first = taken !== undefined ? state.boxes.get(taken.id) : undefined;
+                found.push(taken !== undefined && first !== undefined
+                    ? {
+                        under: node.id, side, between,
+                        x: taken.x, y: taken.y - gap / 2, width: first.offsetWidth, height: 0,
+                    }
+                    : {
+                        under: node.id, side, between,
+                        x: node.x, y: node.y + box.offsetHeight, width: box.offsetWidth, height: 0,
+                    });
+                continue;
+            }
             found.push(side === "below"
                 ? {
                     under: node.id, side, between,
                     x: node.x,
-                    y: node.y + box.offsetHeight + (node.kind === "pamphlet" ? 0 : gap / 2),
+                    y: node.y + box.offsetHeight + gap / 2,
                     width: box.offsetWidth, height: 0,
                 }
                 : {
@@ -1962,6 +1977,15 @@ function graphLeafletSlots(state, moving = -1) {
                     x: node.x + box.offsetWidth + gap / 2, y: node.y,
                     width: 0, height: box.offsetHeight,
                 });
+        }
+        // The first leaflet of a row has a left edge too: dropped there, a
+        // leaflet goes in front of it, and it moves along.
+        const first = ((_b = node.piece) === null || _b === void 0 ? void 0 : _b.side) === "below" && graphIsLeaflet(node.kind);
+        if (first && ((_c = node.piece) === null || _c === void 0 ? void 0 : _c.under) != null) {
+            found.push({
+                under: node.id, side: "before", between: true,
+                x: node.x - gap / 2, y: node.y, width: 0, height: box.offsetHeight,
+            });
         }
     }
     return found;
@@ -2320,8 +2344,8 @@ function showGraphSlot(state, wanted) {
     marker.style.left = `${wanted.x}px`;
     marker.style.top = `${wanted.y}px`;
     marker.style.width = `${wanted.width}px`;
-    marker.style.height = wanted.side === "beside" ? `${wanted.height}px` : "";
-    marker.classList.toggle("is-beside", wanted.side === "beside");
+    marker.style.height = wanted.side !== "below" ? `${wanted.height}px` : "";
+    marker.classList.toggle("is-beside", wanted.side !== "below");
     marker.classList.toggle("is-between", wanted.between === true);
 }
 /** The outline drawn where a piece would land. Made once and kept. */

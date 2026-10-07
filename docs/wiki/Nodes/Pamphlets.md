@@ -11,7 +11,9 @@ Drag a **Pamphlet** box out of the palette (under **Pamphlets**), then drag leaf
 - **Beside** a leaflet (its right edge): the next column to its right.
 
 A dashed slot shows where a leaflet will land; a solid line means it goes in between two that are
-already there.
+already there. You can go in between anywhere: under the pamphlet's title and above its first
+leaflet, between two stacked leaflets, between two side by side, or along the left edge of the
+first leaflet in a row to go in front of it.
 
 On the canvas the box is a small picture of its page: the leaflets sit inside it as cards, in their
 columns. A small green joint shows what each one hangs from — the one above it, or the one to its
