@@ -68,7 +68,7 @@ story to read it in Focus mode.
 
 The tab lists every pamphlet. On a pamphlet's page, **☆ Make it the front page** on the dateline
 makes it the **default**: the app opens on it — it is the page at the app's bare address, and what an
-installed app opens to — and the Pamphlets tab opens straight on it too. The dateline then says
+installed app opens to. The Pamphlets tab always lists them all. The dateline then says
 **★ The front page**; press it again to go back to the list. With no default chosen, the bare
 address goes to the list. The full list is always one click away through **Pamphlets** at the top
 of the page.

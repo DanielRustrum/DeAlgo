@@ -208,23 +208,17 @@ def test_a_pamphlet_page_shows_every_leaflet(client, db):
     assert 'class="story is-lead"' in page
 
 
-def test_the_tab_opens_on_the_default_once_one_is_chosen(client, db):
+def test_the_tab_always_lists_every_pamphlet_even_with_a_default(client, db):
     with db.session_scope() as session:
-        first = graph.add_pamphlet(session, label="First").id
-        graph.add_pamphlet(session, label="Second")
+        only = graph.add_pamphlet(session, label="Only one").id
 
-    listed = client.get("/pamphlets").text
-    assert "First" in listed and "Second" in listed
-
-    client.post(f"/pamphlets/{first}/default")
-    opened = client.get("/pamphlets", follow_redirects=False)
-    assert opened.status_code == 303 and opened.headers["location"] == f"/pamphlets/{first}"
-    # Every one is still a click away.
-    assert "Second" in client.get("/pamphlets?all=1").text
-
-    # Pressed again, it stops being the default.
-    client.post(f"/pamphlets/{first}/default")
-    assert client.get("/pamphlets", follow_redirects=False).status_code == 200
+    client.post(f"/pamphlets/{only}/default")
+    # The default is the front page; the tab is still the list.
+    listed = client.get("/pamphlets", follow_redirects=False)
+    assert listed.status_code == 200 and "Only one" in listed.text and "opens first" in listed.text
+    # And the way back to it is on the pamphlet itself, even the only one.
+    assert '<a href="/pamphlets">Pamphlets</a>' in client.get(f"/pamphlets/{only}").text
+    assert '<a href="/pamphlets">Pamphlets</a>' in client.get("/").text
 
 
 def test_the_canvas_builds_a_pamphlet(client, db):

@@ -1,9 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Pamphlets — {{ pamphlet.title }}{% endblock %}
 {% block content %}
-{% if others or not is_default %}
-<p class="crumbs"><a href="/pamphlets?all=1">Pamphlets</a> › {{ pamphlet.title }}</p>
-{% endif %}
+<p class="crumbs"><a href="/pamphlets">Pamphlets</a> › {{ pamphlet.title }}</p>
 
 {#- Laid out as a paper is: a masthead, a dateline between rules, then the
     leaflets in ruled columns, each under a section head. -#}

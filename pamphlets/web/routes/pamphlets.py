@@ -40,13 +40,12 @@ def _pamphlets(session: Session, owner: OwnerId) -> list[GraphNode]:
 
 @router.get("/pamphlets", response_class=HTMLResponse)
 def pamphlets_page(request: Request, all: str = "") -> Response:
-    """Every pamphlet as a tile — or, with one chosen as the default, that one."""
+    """Every pamphlet as a tile. Always the list: the default is the app's
+    front page, at its bare address, so this tab is how to reach the rest."""
     owner = owner_of(request)
     with session_scope() as session:
         found = _pamphlets(session, owner)
         chosen = get_settings(session, owner).default_pamphlet_pk
-        if not all and chosen is not None and any(one.id == chosen for one in found):
-            return redirect(f"/pamphlets/{chosen}")
         all_nodes = graph_service.nodes(session, owner)
         tiles = [
             {
