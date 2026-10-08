@@ -247,11 +247,25 @@ def data_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -
         return None  # a box that is off passes nothing, data or items
     if box.kind == "transform":
         return transformed(session, box, owner, depth)
+    if not _wired_in(session, box, owner, "data"):
+        # Items in, data out: what the box lets through, read as rows — so a
+        # media path can be charted or written about from any box along it.
+        if not _wired_in(session, box, owner, "content"):
+            return None
+        return items_out(session, box, owner, depth)
     arriving = data_into(session, box, owner, depth)
     if arriving is None or box.kind == "decay":
         # A Decay is about time with an item, which rows do not have.
         return arriving
     return _through(rows_of(arriving), box, session, owner)
+
+
+def _wired_in(session: Session, box: GraphNode, owner: OwnerId, carries: str) -> bool:
+    """Whether anything is wired into a box that carries this."""
+    return session.scalar(
+        owned(select(GraphEdge.id), GraphEdge, owner)
+        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == carries)
+    ) is not None
 
 
 def _through(rows: list[Any], box: GraphNode, session: Session, owner: OwnerId) -> list[Any]:

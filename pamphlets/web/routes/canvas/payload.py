@@ -150,6 +150,8 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
                 drawn["note"] = "written by the Text box wired in"
             elif by is not None and by.kind == "format":
                 drawn["note"] = f"{_kind_name(node)} drawn as the Format box shapes it"
+            elif by is not None and by.kind == "transform" and not graph_service.leaflets.settings(node)["label"]:
+                drawn["note"] = "shows what the Transform box gives"
             elif by is not None:
                 drawn["note"] = charting.words(graph_service.leaflets.settings(node))
         drawn["leaflet"] = _leaflet(node, canvas)

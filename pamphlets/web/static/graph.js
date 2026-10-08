@@ -2619,7 +2619,7 @@ function graphLeafletFields(form, node) {
     }
 }
 /** Where the part of a page wire inside its pamphlet is drawn: among the
- *  boxes, over the pamphlet's frame and under its leaflets. Made once. */
+ *  boxes, over the pamphlet's frame and its leaflets. Made once. */
 function graphPageWireLayer(state) {
     const found = state.parts.layer.querySelector(":scope > .graph-page-wires");
     if (found !== null)
@@ -2632,7 +2632,8 @@ function graphPageWireLayer(state) {
 }
 /** A wire into a leaflet runs under every box, as every wire does — so the
  *  last of it, across its own pamphlet's frame, is drawn again over the
- *  frame, clipped to it, so the frame does not hide where it goes in. */
+ *  frame and its leaflets, clipped to it, so neither the frame nor a leaflet
+ *  beside it hides where it goes in. */
 function drawGraphWireIntoPage(state, over, wire, d, classes) {
     var _a;
     let walk = state.nodes.find((one) => one.id === wire.to);

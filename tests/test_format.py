@@ -459,3 +459,22 @@ def test_item_wires_from_a_rest_source_become_data_or_go(db):
     with db.get_engine().begin() as connection:
         left = connection.execute(text("SELECT target_pk, carries FROM graph_edge")).all()
     assert [tuple(row) for row in left] == [(ids[1], "data")]
+
+
+def test_an_operation_with_items_coming_in_gives_them_out_as_data(db):
+    # Media in down ▶, data out of { }: the user's own path, Source → Filter
+    # → (data) → Transform, with no data wired into the Filter at all.
+    with db.session_scope() as session:
+        source = media_source(session, TITLES)
+        middle = graph.add_filter(session)
+        graph.add_piece(session, kind="has-words", host=middle).title_include = "cats"
+        box = graph.add_transform(session)
+        graph.add_piece(session, kind="count", host=box)
+        graph.connect(session, source, middle)
+        graph.connect(session, middle, box, carries="data")
+        assert formatting.data_out(session, box, None) == 2
+        assert len(formatting.data_out(session, middle, None)) == 2
+
+        # With nothing wired in at all, there is nothing to give.
+        alone = graph.add_filter(session)
+        assert formatting.data_out(session, alone, None) is None
