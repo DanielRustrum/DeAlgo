@@ -24,7 +24,7 @@ from ....plugins import registry
 from ....services import channels as channel_service
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
-from ....services import algorithm, tagging, writing
+from ....services import algorithm, charting, tagging, writing
 from ....services.scope import OwnerId, owned
 from ...responses import owner_of
 
@@ -697,6 +697,43 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
             "bars": [{"label": bar.long, "value": bar.shown} for bar in shaped.bars[:12]],
             "more": max(0, len(shaped.bars) - 12),
             "error": shaped.error,
+        })
+
+
+@router.post("/graph/nodes/{node_pk}/chart/preview")
+async def graph_preview_chart(request: Request, node_pk: int) -> JSONResponse:
+    """A Chart leaflet drawn as its dialog says now, saved or not: the chart
+    as the pamphlet would show it, and the fields the wired data's rows have
+    for the dialog to offer."""
+    from ...templates import TEMPLATES
+    from ..pamphlets import chart_for
+
+    owner = owner_of(request)
+    given = await request.form()
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is None or node.kind != "leaflet-chart":
+            return JSONResponse({"error": "That is not a Chart leaflet."}, status_code=404)
+        said = graph_service.leaflets.settings(node)
+        for key, value in given.items():
+            if key.startswith("leaflet_") and key[8:] in said:
+                said[key[8:]] = str(value).strip()
+        if not str(said.get("limit", "")).isdigit():
+            said["limit"] = charting.SPEC_DEFAULTS["limit"]
+        label, chart, counts = chart_for(session, owner, node, said)
+        html = "" if chart is None else TEMPLATES.get_template("_chart.html").render(
+            chart=chart, chart_label=label
+        )
+        return JSONResponse({
+            "html": html,
+            "label": label,
+            "rows": chart.rows if chart else 0,
+            "rows_path": chart.rows_path if chart else "",
+            "fields": chart.fields if chart else [],
+            "error": chart.error if chart else "",
+            "counts": counts is not None,
         })
 
 

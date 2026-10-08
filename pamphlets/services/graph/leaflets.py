@@ -59,7 +59,14 @@ MOST_DAYS = 90
 
 DEFAULTS: dict[str, dict[str, Any]] = {
     "leaflet-feed": {"title": "", "feed": None, "count": 8, "shape": "stories"},
-    "leaflet-chart": {"title": "", "chart": "watched-daily", "days": 14},
+    # A chart: with data wired in, organised by the second half — what each
+    # point is, what number it shows, split how, drawn how (services/charting.py);
+    # with nothing wired in, one of the built-in counts.
+    "leaflet-chart": {
+        "title": "", "chart": "watched-daily", "days": 14,
+        "kind": "column", "rows": "", "label": "", "group": "none", "value": "",
+        "combine": "count", "series": "", "sort": "label-asc", "limit": 30,
+    },
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
 }
@@ -83,6 +90,10 @@ def settings(node: GraphNode) -> dict[str, Any]:
         stored = {}
     if isinstance(stored, dict):
         said.update({key: value for key, value in stored.items() if key in said})
+    # A feed-by-feed chart from before charts had a type was drawn as bars.
+    if node.kind == "leaflet-chart" and "kind" not in (stored if isinstance(stored, dict) else {}) \
+            and said["chart"] == "feeds-held":
+        said["kind"] = "bar"
     return said
 
 
@@ -118,6 +129,24 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
         else:
             raise GraphError("That feed is not one of yours.")
 
+    def organise() -> None:
+        """How wired data is organised and drawn: the chart dialog's fields."""
+        from ..charting import KINDS
+        from .formatting import COMBINES, GROUPS, SORTS
+
+        for name, choices in (("kind", KINDS), ("group", GROUPS), ("combine", COMBINES), ("sort", SORTS)):
+            value = given(name)
+            if value is None:
+                continue
+            if value not in dict(choices):
+                raise GraphError(f"“{value}” is not something a chart can do.")
+            said[name] = value
+        for name in ("rows", "label", "value", "series"):
+            value = given(name)
+            if value is not None:
+                said[name] = value[:200]
+        number("limit", 1, 60)
+
     def title() -> None:
         value = given("title")
         if value is not None:
@@ -140,6 +169,7 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
                 raise GraphError("There is no chart of that kind.")
             said["chart"] = chart
         number("days", 2, MOST_DAYS)
+        organise()
     elif node.kind == "leaflet-text":
         if given("heading") is not None:
             said["heading"] = str(given("heading"))[:200]

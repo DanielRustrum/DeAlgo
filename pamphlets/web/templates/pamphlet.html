@@ -143,14 +143,14 @@
     {% endif %}
 
   {% elif node.kind == 'leaflet-chart' %}
-    <h2 class="paper-section">{{ said.title or said.chart_label }}</h2>
+    <h2 class="paper-section">{{ said.chart_label }}</h2>
     {% if said.counts %}
       {% with counts=said.counts.counts, enabled_channels=said.counts.enabled_channels,
                in_playlist=said.counts.in_playlist, watched_count=said.counts.watched_count %}
       {% include "_stats.html" %}
       {% endwith %}
     {% else %}
-      {{ chart(said) }}
+      {% with chart=said.chart, chart_label=said.chart_label %}{% include "_chart.html" %}{% endwith %}
     {% endif %}
 
   {% elif node.kind == 'leaflet-link' %}
@@ -169,58 +169,6 @@
     {% endif %}
   {% endif %}
 </section>
-{% endif %}
-{%- endmacro %}
-
-{#- One series of bars on a single hue. Each bar says its value on hover and
-    on focus; the same numbers are in a table under it. -#}
-{% macro chart(said) -%}
-{% set bars = said.bars %}
-{% if said.figure is defined %}
-  {#- One number, set large, as a paper sets a figure it is proud of. -#}
-  <p class="paper-figure">{{ '{:,}'.format(said.figure) if said.figure is integer else '%g' | format(said.figure) }}</p>
-{% elif said.format_error and not bars %}
-  <p class="paper-note">{{ said.format_error }}</p>
-{% elif not bars or (bars | sum(attribute='value')) == 0 %}
-  <p class="paper-note">Nothing to count yet.</p>
-{% else %}
-  {% if said.across %}
-  {% set every = ((bars | length) / 7) | round(0, 'ceil') | int %}
-  <div class="leaflet-chart" role="img"
-       aria-label="{{ said.chart_label }}: {{ bars | length }} bars">
-    <span class="chart-top" aria-hidden="true">{{ '%g' | format(said.top) }}</span>
-    <div class="chart-bars" aria-hidden="true">
-      {% for bar in bars %}
-      <span class="chart-bar" tabindex="0" style="--share: {{ (100 * bar.value / said.top) | round(1) }}%"
-            data-tip="{{ bar.long }} · {{ bar.shown }}">
-        <span class="chart-fill"></span>
-      </span>
-      {% endfor %}
-    </div>
-    <div class="chart-axis" aria-hidden="true">
-      {% for bar in bars %}<span>{{ bar.label if loop.index0 % every == 0 else '' }}</span>{% endfor %}
-    </div>
-  </div>
-  {% else %}
-  <ul class="leaflet-chart-rows">
-    {% for bar in bars %}
-    <li class="chart-row" tabindex="0" data-tip="{{ bar.long }} · {{ bar.shown }}{{ ' waiting' if not said.format_error is defined }}">
-      <span class="chart-row-name">{{ bar.label }}</span>
-      <span class="chart-row-track"><span class="chart-row-fill" style="--share: {{ (100 * bar.value / said.top) | round(1) }}%"></span></span>
-      <span class="chart-row-value">{{ bar.shown }}</span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-  <details class="chart-table">
-    <summary>As a table</summary>
-    <table>
-      <thead><tr><th scope="col">{{ 'Label' if said.format_error is defined else ('Day' if said.across else 'Feed') }}</th><th scope="col">{{ 'Value' if said.format_error is defined else ('Count' if said.across else 'Waiting') }}</th></tr></thead>
-      <tbody>
-        {% for bar in bars %}<tr><td>{{ bar.long }}</td><td>{{ bar.shown }}</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </details>
 {% endif %}
 {%- endmacro %}
 

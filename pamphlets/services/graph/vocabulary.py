@@ -142,7 +142,7 @@ DATA_OPS = ("filter", "sort", "tag", "decay", "expire")
 #: Where data may go from each box: through the operations, into a Format
 #: box, and from a Format box into a Chart leaflet. A repository gives what
 #: is waiting in it.
-_ONWARD = DATA_OPS + ("format", "transform", "text")
+_ONWARD = DATA_OPS + ("format", "transform", "text", "leaflet-chart")
 
 DATA_ALLOWED: dict[str, tuple[str, ...]] = {
     "source": _ONWARD,
@@ -152,7 +152,7 @@ DATA_ALLOWED: dict[str, tuple[str, ...]] = {
     "format": ("leaflet-chart",),
     # What a Transform gives — a count, say — can go on, be shaped, or be
     # shown on a page as it is.
-    "transform": _ONWARD + ("leaflet-chart",),
+    "transform": _ONWARD,
 }
 
 #: What may be wired to what, by what the wire carries.

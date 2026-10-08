@@ -142,64 +142,150 @@
 
 .pamphlet-leaflet .stats { margin-bottom: 0; }
 
-/* A chart: one series on one hue. Bars are thin, rounded only at the end
-   that holds the value, with a gap between them; the axis stays quiet. */
-/* A chart day by day grows its bars into the height it is given. */
+/* A chart's six series colours, in fixed order — the sixth is Other. Checked
+   for colour-blind separation on the paper by day and the panel by night;
+   by day some sit near the contrast floor, so every chart has a legend,
+   labels and a table as well as colour. */
+:root {
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-4: #c98500; --series-5: #d55181; --series-6: #008300;
+  }
+}
+:root[data-mode="dark"] {
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --series-4: #c98500; --series-5: #d55181; --series-6: #008300;
+}
+.series-1 { --series: var(--series-1); }
+.series-2 { --series: var(--series-2); }
+.series-3 { --series: var(--series-3); }
+.series-4 { --series: var(--series-4); }
+.series-5 { --series: var(--series-5); }
+.series-6 { --series: var(--series-6); }
+
+.chart { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+
+/* Columns, grouped where there are series. Thin, rounded only at the end
+   that holds the value, 2px apart; the axis stays quiet. */
 .leaflet-chart { position: relative; padding-left: 28px; flex: 1 1 auto; display: flex; flex-direction: column; }
 .chart-top {
   position: absolute; left: 0; top: -6px;
   color: var(--muted); font-size: calc(11px * var(--text-scale));
   font-variant-numeric: tabular-nums;
 }
-.chart-bars {
-  display: flex; align-items: flex-end; gap: 2px;
+.chart-bars, .chart-plot {
   flex: 1 1 auto;
   min-height: 140px;
   border-top: 1px dashed var(--line);
   border-bottom: 1px solid var(--line);
 }
+/* Stretched rather than given 100%: a stretched flex item's height is
+   definite, so a fill's percentage has something to be a share of. */
+.chart-bars { display: flex; align-items: stretch; gap: 4px; }
+.chart-group { flex: 1 1 0; display: flex; align-items: stretch; gap: 2px; min-width: 0; }
 .chart-bar {
-  position: relative; flex: 1 1 0; height: 100%;
-  display: flex; align-items: flex-end;
+  position: relative; flex: 1 1 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
   outline: none;
 }
 .chart-fill {
   width: 100%; height: var(--share);
   min-height: 0;
-  background: var(--accent);
+  background: var(--series);
   border-radius: 4px 4px 0 0;
 }
 .chart-bar:hover .chart-fill,
-.chart-bar:focus-visible .chart-fill { background: var(--accent-dim); }
+.chart-bar:focus-visible .chart-fill { filter: brightness(1.12); }
 .chart-axis {
-  display: flex; gap: 2px; margin-top: 4px;
+  display: flex; gap: 4px; margin-top: 4px; padding-left: 28px;
   color: var(--muted); font-size: calc(11px * var(--text-scale));
   font-variant-numeric: tabular-nums;
 }
-.chart-axis span { flex: 1 1 0; text-align: center; overflow: visible; white-space: nowrap; }
+.leaflet-chart .chart-axis { padding-left: 0; }
+.chart-axis span { flex: 1 1 0; text-align: center; overflow: visible; white-space: nowrap; min-width: 0; }
 
-/* Feed by feed: a bar per row, its name before it and its number after. */
-.leaflet-chart-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+/* Bars: a row per label, its name before it and a bar per series. */
+.leaflet-chart-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.chart-row-group {
+  display: grid; grid-template-columns: minmax(0, 9em) 1fr; align-items: center; gap: 10px;
+  font-size: calc(13px * var(--text-scale));
+}
+.chart-row-bars { display: grid; gap: 2px; }
 .chart-row {
   position: relative;
-  display: grid; grid-template-columns: minmax(0, 9em) 1fr auto; align-items: center; gap: 10px;
-  font-size: calc(13px * var(--text-scale));
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
   outline: none;
 }
 .chart-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart-row-track { height: 12px; }
 .chart-row-fill {
   display: block; height: 100%; width: var(--share);
-  background: var(--accent);
+  background: var(--series);
   border-radius: 0 4px 4px 0;
 }
 .chart-row:hover .chart-row-fill,
-.chart-row:focus-visible .chart-row-fill { background: var(--accent-dim); }
+.chart-row:focus-visible .chart-row-fill { filter: brightness(1.12); }
 .chart-row-value { font-variant-numeric: tabular-nums; color: var(--muted); }
 
-/* What a bar says on hover or focus, in text colours, never the bar's. */
+/* A line or stacked area, drawn stretched to the plot; the strokes keep
+   their 2px however it stretches. Hover columns lie over it. */
+.chart-plot { position: relative; }
+.chart-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart-line {
+  fill: none; stroke: var(--series); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.chart-band {
+  fill: var(--series); fill-opacity: 0.85;
+  stroke: var(--panel); stroke-width: 2; vector-effect: non-scaling-stroke;
+}
+.chart-hover { position: absolute; inset: 0; display: flex; }
+.chart-spot { position: relative; flex: 1 1 0; height: 100%; outline: none; }
+.chart-spot:hover, .chart-spot:focus-visible {
+  background: linear-gradient(to right, transparent calc(50% - 0.5px), var(--line) calc(50% - 0.5px),
+              var(--line) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+.chart-dot {
+  position: absolute; left: 50%; bottom: var(--share);
+  width: 8px; height: 8px; margin: 0 0 -4px -4px; border-radius: 50%;
+  background: var(--series); box-shadow: 0 0 0 2px var(--panel);
+  opacity: 0;
+}
+.chart-dot.is-alone,
+.chart-spot:hover .chart-dot, .chart-spot:focus-visible .chart-dot { opacity: 1; }
+
+/* A pie, as a ring, its total in the middle, its legend beside it. */
+.chart-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+.chart-donut { width: min(180px, 100%); height: auto; flex: 0 0 auto; }
+.chart-slice { fill: var(--series); stroke: var(--panel); stroke-width: 1; outline: none; }
+.chart-slice:hover, .chart-slice:focus-visible { filter: brightness(1.12); }
+.chart-donut-total {
+  fill: var(--text); font-family: var(--font-display); font-weight: 700; font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Which colour is which: always, for two series or more, in text colours. */
+.chart-legend {
+  list-style: none; margin: 0 0 10px; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  color: var(--muted); font-size: calc(12px * var(--text-scale));
+}
+.chart-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend.is-list { flex-direction: column; flex: 0 1 22em; margin: 0; gap: 6px; }
+.chart-legend.is-list li { display: grid; grid-template-columns: auto 1fr auto; }
+.chart-legend-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-legend-value { font-variant-numeric: tabular-nums; }
+.chart-key { width: 10px; height: 10px; border-radius: 3px; background: var(--series); flex: 0 0 auto; }
+
+/* What a mark says on hover or focus, in text colours, never the mark's. */
 .chart-bar::after,
-.chart-row::after {
+.chart-row::after,
+.chart-spot::after {
   content: attr(data-tip);
   position: absolute; z-index: 2; bottom: calc(100% + 6px); left: 50%;
   transform: translateX(-50%);
@@ -209,13 +295,18 @@
   font-size: calc(12px * var(--text-scale)); white-space: nowrap;
   pointer-events: none; opacity: 0; transition: opacity 0.1s;
 }
+.chart-spot::after { bottom: auto; top: -8px; transform: translate(-50%, -100%); }
 .chart-row::after { left: auto; right: 0; transform: none; }
 .chart-bar:hover::after, .chart-bar:focus-visible::after,
-.chart-row:hover::after, .chart-row:focus-visible::after { opacity: 1; }
+.chart-row:hover::after, .chart-row:focus-visible::after,
+.chart-spot:hover::after, .chart-spot:focus-visible::after { opacity: 1; }
 
 .chart-table { margin-top: 10px; font-size: calc(12.5px * var(--text-scale)); }
 .chart-table summary { color: var(--muted); cursor: pointer; }
 .chart-table table { margin-top: 6px; }
+.chart-plain { font-size: calc(13px * var(--text-scale)); }
+.chart-plain td + td, .chart-table td + td { font-variant-numeric: tabular-nums; }
+.chart-measure { margin-top: 4px; }
 
 @variant phone {
   .paper { padding: 18px 16px 24px; }

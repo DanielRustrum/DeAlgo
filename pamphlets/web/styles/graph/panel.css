@@ -257,3 +257,38 @@
   border-left: 3px solid var(--leaf); background: var(--panel-2);
   font-size: calc(12.5px * var(--text-scale)); white-space: pre-wrap;
 }
+
+/* A Chart leaflet's Organize dialog: the fields on one side, the chart as
+   the pamphlet will set it on the other; one above the other on a phone. */
+.modal.graph-chart { width: min(980px, calc(100% - 32px)); }
+.graph-chart-body { display: grid; grid-template-columns: minmax(0, 20em) minmax(0, 1fr); gap: 22px; align-items: start; }
+.graph-chart-fields { display: flex; flex-direction: column; gap: 12px; }
+.graph-chart-step {
+  margin: 0; padding: 10px 12px 12px; min-width: 0;
+  border: 1px solid var(--line); border-radius: 8px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.graph-chart-step legend { padding: 0 4px; font-size: calc(12px * var(--text-scale)); font-weight: 600; }
+.graph-chart-kinds { display: flex; flex-wrap: wrap; gap: 4px; }
+.graph-chart-kind {
+  font: inherit; font-size: calc(12.5px * var(--text-scale));
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
+}
+.graph-chart-kind[aria-checked="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.graph-chart-chips { display: flex; flex-direction: column; gap: 6px; }
+.graph-chart-seen {
+  position: sticky; top: 0;
+  display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg);
+  transition: opacity 0.15s;
+}
+.graph-chart-seen.is-busy { opacity: 0.6; }
+.graph-chart-seen h3.paper-section { margin: 0; }
+.graph-chart-picture { min-height: 200px; }
+
+@variant phone {
+  .graph-chart-body { grid-template-columns: minmax(0, 1fr); }
+  .graph-chart-seen { position: static; }
+}

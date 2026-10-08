@@ -7,6 +7,7 @@ Nothing is kept for a pamphlet but its layout, which is the canvas's.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 from ...db import get_settings, session_scope
 from ...models import GraphNode, Playlist, utcnow
 from ...services import graph as graph_service
+from ...services import charting
 from ...services import pamphlet_charts as charts
 from ...services import playlists as playlist_service
 from ...services import writing
@@ -163,46 +165,12 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             )
             shown["section"] = section
             shown["videos"] = section["videos"][: int(said["count"])]
-    elif node.kind == "leaflet-chart" and (shaping := _shaping(session, owner, node)) is not None:
-        # A Format box wired in: its bars, from the JSON wired into it.
-        box = shaping
-        if box.kind != "format":
-            # A Transform's data, shown as it is: one number as a figure.
-            value = graph_service.formatting.data_out(session, box, owner)
-            shown["chart_label"] = box.title if box.label else (
-                "How many" if isinstance(value, (int, float)) else box.title
-            )
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                shown["figure"] = value
-            else:
-                shown["format_error"] = (
-                    "Nothing has come in yet." if value is None else
-                    "That is rows, not a number: wire a Format box between to draw them as bars."
-                )
-                shown["bars"] = []
-            return shown
-        spec = graph_service.formatting.settings(box)
-        shaped = graph_service.formatting.shape(
-            graph_service.formatting.data_into(session, box, owner), spec
-        )
-        shown["chart_label"] = box.title if box.label else graph_service.formatting.words(box)
-        shown["bars"] = shaped.bars
-        shown["top"] = graph_service.formatting.scale(shaped.bars)
-        shown["across"] = shaped.across
-        shown["format_error"] = shaped.error
     elif node.kind == "leaflet-chart":
-        chart = str(said["chart"])
-        shown["chart_label"] = dict(graph_service.leaflets.CHARTS).get(chart, "")
-        if chart == "counts":
-            shown["counts"] = stats_context(session, owner)
-        else:
-            bars = (
-                charts.feeds_held(session, owner) if chart == "feeds-held"
-                else charts.daily(session, owner, chart, int(said["days"]))
-            )
-            shown["bars"] = bars
-            shown["top"] = charts.scale(bars)
-            shown["across"] = chart != "feeds-held"
+        label, chart, counts = chart_for(session, owner, node, said)
+        shown["chart_label"] = label
+        shown["chart"] = chart
+        if counts is not None:
+            shown["counts"] = counts
     return shown
 
 
@@ -212,17 +180,51 @@ def _feed(session: Session, owner: OwnerId, pk: Any) -> Playlist | None:
     return next((one for one in playlist_service.list_playlists(session, owner) if one.id == pk), None)
 
 
-def _shaping(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | None:
-    """The Format or Transform box wired into a chart, if any."""
-    wired = graph_service.edges(session, owner, every=True)
-    by_id = {node.id: node for node in graph_service.nodes(session, owner)}
-    return next(
-        (by_id[edge.source_pk] for edge in wired
-         if edge.target_pk == chart.id and edge.carries == "data"
-         and by_id.get(edge.source_pk) is not None
-         and by_id[edge.source_pk].kind in ("format", "transform")),
-        None,
+def chart_for(
+    session: Session, owner: OwnerId, node: GraphNode, said: Mapping[str, Any]
+) -> tuple[str, charting.Chart | None, Context | None]:
+    """A Chart leaflet's heading and chart, as its settings `said` say.
+
+    With data wired in, the leaflet organises it — or, from a Format box,
+    draws the bars that box shaped. With nothing wired in, one of the
+    built-in counts. `said` is passed rather than read, so the canvas can
+    preview settings not yet saved.
+    """
+    box = wired_into(session, owner, node)
+    title = str(said.get("title") or "")
+    kind = str(said.get("kind") or "column")
+    if box is not None and box.kind == "format":
+        spec = graph_service.formatting.settings(box)
+        shaped = graph_service.formatting.shape(
+            graph_service.formatting.data_into(session, box, owner), spec
+        )
+        chart = charting.from_bars(shaped.bars, kind, graph_service.formatting.words(box))
+        chart.error = shaped.error if not shaped.bars else ""
+        return title or (box.title if box.label else graph_service.formatting.words(box)), chart, None
+    if box is not None:
+        chart = charting.from_data(graph_service.formatting.data_out(session, box, owner), said)
+        named = box.title if box.label and box.kind == "transform" else charting.words(said)
+        return title or named, chart, None
+
+    built = str(said.get("chart") or "watched-daily")
+    named = title or dict(graph_service.leaflets.CHARTS).get(built, "")
+    if built == "counts":
+        return named, None, stats_context(session, owner)
+    bars = (
+        charts.feeds_held(session, owner) if built == "feeds-held"
+        else charts.daily(session, owner, built, int(said.get("days") or 14))
     )
+    if built == "feeds-held":
+        return named, charting.from_bars(bars, kind, "waiting", "waiting"), None
+    return named, charting.from_bars(bars, kind), None
+
+
+def wired_into(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | None:
+    """What a Chart leaflet's data wire comes from, if anything."""
+    for edge in graph_service.edges(session, owner, every=True):
+        if edge.target_pk == chart.id and edge.carries == "data":
+            return session.get(GraphNode, edge.source_pk)
+    return None
 
 
 def _writer(session: Session, owner: OwnerId, leaflet: GraphNode) -> GraphNode | None:

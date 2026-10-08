@@ -13,7 +13,7 @@ from ....services import channels as channel_service
 from ....db import get_settings
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
-from ....services import algorithm, tagging, writing
+from ....services import algorithm, charting, tagging, writing
 from ....services.scope import OwnerId
 from ...templates import Context
 from .facts import (
@@ -89,8 +89,9 @@ class _Canvas:
     model: writing.Model | None
     #: What the algorithm of one's own can do now, by signal, in words.
     learning: dict[str, str]
-    #: Chart leaflets with a Format or Transform box wired into them, and which.
-    shaped: dict[int, str]
+    #: Leaflets with a box wired into them — data into a Chart, a page into
+    #: a Text leaflet — and that box.
+    shaped: dict[int, GraphNode]
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
@@ -129,12 +130,11 @@ class _Canvas:
             model=writing.model_for(get_settings(session, owner)),
             learning=_learning(session, owner),
             shaped={
-                edge.target_pk: {"format": "Format", "transform": "Transform", "text": "Text"}[
-                    by_id[edge.source_pk].kind
-                ]
+                edge.target_pk: by_id[edge.source_pk]
                 for edge in graph_service.edges(session, owner, every=True)
-                if edge.carries in ("data", "page") and edge.source_pk in by_id
-                and by_id[edge.source_pk].kind in ("format", "transform", "text")
+                if edge.carries in ("data", "page")
+                and edge.source_pk in by_id and edge.target_pk in by_id
+                and by_id[edge.target_pk].kind in ("leaflet-chart", "leaflet-text")
             },
         )
 
@@ -145,12 +145,13 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
     if node.kind in graph_service.LEAFLET_KINDS:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)
-            if node.id in canvas.shaped:
-                by = canvas.shaped[node.id]
-                drawn["note"] = (
-                    "written by the Text box wired in" if by == "Text"
-                    else f"drawn by the {by} box wired in"
-                )
+            by = canvas.shaped.get(node.id)
+            if by is not None and node.kind == "leaflet-text":
+                drawn["note"] = "written by the Text box wired in"
+            elif by is not None and by.kind == "format":
+                drawn["note"] = f"{_kind_name(node)} drawn as the Format box shapes it"
+            elif by is not None:
+                drawn["note"] = charting.words(graph_service.leaflets.settings(node))
         drawn["leaflet"] = _leaflet(node, canvas)
     elif node.kind == "aggregation":
         said = algorithm.settings(node)
@@ -206,11 +207,24 @@ def _leaflet(node: GraphNode, canvas: _Canvas) -> Context:
     leaflets = graph_service.leaflets
     return {
         "settings": leaflets.settings(node),
+        # What a Chart leaflet draws, and how its dialog organises data —
+        # only offered once data is wired in; without, a built-in count.
+        "wired": node.id in canvas.shaped,
+        "shapedBy": (canvas.shaped[node.id].kind == "format") if node.id in canvas.shaped else False,
+        "kinds": [{"name": name, "label": label} for name, label in charting.KINDS],
+        "groups": [{"name": n, "label": l} for n, l in graph_service.formatting.GROUPS],
+        "combines": [{"name": n, "label": l} for n, l in graph_service.formatting.COMBINES],
+        "sorts": [{"name": n, "label": l} for n, l in graph_service.formatting.SORTS],
         "feeds": [{"id": pk, "title": title} for pk, title in canvas.feeds.items()],
         "charts": [{"name": name, "label": label} for name, label in leaflets.CHARTS],
         "goes": [{"name": name, "label": label} for name, label in leaflets.GOES],
         "shapes": [{"name": name, "label": label} for name, label in leaflets.SHAPES],
     }
+
+
+def _kind_name(node: GraphNode) -> str:
+    """A Chart leaflet's chart type, in words: "Columns", "Pie"."""
+    return dict(charting.KINDS).get(str(graph_service.leaflets.settings(node).get("kind")), "Chart")
 
 
 def _pamphlet_note(pieces: list[GraphNode]) -> str:

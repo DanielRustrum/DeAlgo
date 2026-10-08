@@ -57,7 +57,7 @@ Each kind of wire has its own port, marked inside the dot:
 | ⚡ bolt | A signal to run | Trigger → source or Withdraw |
 | ▶ play | Items, down a path | Source → filter, sort, feed… |
 | Sheet of print | A feed or words, onto a page | Feed → Feed or Link leaflet; [Text](Nodes/Text.md) → Text leaflet |
-| `{ }` braces | JSON, to be drawn | Source → operations → [Format](Nodes/Format.md) → Chart leaflet |
+| `{ }` braces | JSON, to be drawn | Source → operations → Chart leaflet, or through a [Format](Nodes/Format.md) box |
 
 A [REST API](Nodes/REST%20API.md) source gives data only: its one output is `{ }`.
 

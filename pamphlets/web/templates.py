@@ -17,6 +17,7 @@ from ..models import (
 )
 from ..plugins.publisher import publishing_plugin
 from ..services import connections
+from ..services import charting
 from ..services import graph as graph_service
 from ..services.filters import format_duration
 from ..services.scope import OwnerId, owned
@@ -213,3 +214,10 @@ def publishing_offline(owner: OwnerId = None) -> Context | None:
         if not feeds:
             return None
         return {"feeds": feeds, "stale": token is not None}
+
+
+# A Chart leaflet's numbers as a person writes them, and the box its lines
+# are drawn in — the same on the pamphlet and in the canvas's preview.
+TEMPLATES.env.globals["chart_number"] = charting.shown
+TEMPLATES.env.globals["chart_width"] = charting.WIDTH
+TEMPLATES.env.globals["chart_height"] = charting.HEIGHT

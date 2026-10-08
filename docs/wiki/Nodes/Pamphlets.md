@@ -37,7 +37,7 @@ beside.
 | Leaflet | Shows | Set in its panel |
 | --- | --- | --- |
 | **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order — or the feed as one tile: a small stack of papers, its newest item on the front page and a sheet behind for every few more waiting | Shows as (stories or a tile), how many (up to 60), a heading |
-| **Chart** | Watched each day, arrived each day, filtered out each day, what each feed holds, or the counts — or, with a [Format](Format.md) box wired in, whatever that box shapes from a source's JSON | Which chart, how many days (2–90), a heading |
+| **Chart** | The data wired into it, organised as you say — or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | Draw as (columns, bars, line, stacked area, pie, one number or a table), a heading; with data wired in, **Organize the data…**; without, which built-in chart and how many days (2–90) |
 | **Text** | A heading and your own words. A blank line starts a new paragraph — or, with a [Text](Text.md) box wired in, what its model wrote | Heading, words |
 | **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |
 
@@ -52,7 +52,30 @@ A Link leaflet set to Focus with no feed wired in goes through everything.
 A Feed leaflet follows the feed's [reading windows](Reading%20Windows.md): a shut feed shows as shut.
 Opening a pamphlet does **not** start a reading window's sitting; opening the feed itself does.
 
-Charts count in UTC days. Each bar shows its number on hover, and **As a table** shows them all.
+## Charting data
+
+A Chart leaflet has a `{ }` port on its left. Wire data into it from a source box, an operation, a
+Deposit or Withdraw, a [Transform](Transform.md) or a [Format](Format.md) box. Then open its panel,
+pick what to **Draw as**, and press **Organize the data…** for a dialog with the chart as the page
+will show it, redrawn as you change:
+
+| Step | Says |
+| --- | --- |
+| **Rows** | Where the list is. Blank finds it — `data.children` in a Reddit answer, say. |
+| **Points** | The field each point is labelled by, as a path like `published` or `data.author`. Dates can be grouped by day, week, month, weekday or hour; a list gives a point for each thing in it. |
+| **Numbers** | How rows sharing a label combine — counted, added up, averaged, the smallest, largest or last — and, unless counting, the field holding the number. |
+| **Series** | Optionally, a field to split by: a line, a band or a column per value found there. The five largest are named and the rest are **Other**. |
+| **Which** | The order, and how many points (up to 60). |
+
+The fields the rows have show as chips under the steps; press one to put it in the path field you
+were last in. **Save** keeps it all; **Cancel** or Esc leaves it as it was.
+
+A Format box wired in has already said which rows, labels and numbers there are, so its chart
+offers only **Draw as**. A Transform giving one number shows it large, whatever it is drawn as.
+
+Every chart has one scale. Each mark shows its number on hover or focus, two series or more always
+have a legend, and **As a table** shows every number. Counted or added up, a point with nothing in
+it is zero; averaged, it is a gap in the line. Built-in charts count in UTC days.
 
 A switched-off leaflet is left off the page.
 

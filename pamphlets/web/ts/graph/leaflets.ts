@@ -22,6 +22,14 @@ interface GraphLeaflet {
   charts: GraphChoice[];
   goes: GraphChoice[];
   shapes: GraphChoice[];
+  /** Whether data is wired into a Chart leaflet, and whether from a Format box. */
+  wired: boolean;
+  shapedBy: boolean;
+  /** What a chart can be drawn as, and how its dialog organises data. */
+  kinds: GraphChoice[];
+  groups: GraphChoice[];
+  combines: GraphChoice[];
+  sorts: GraphChoice[];
 }
 
 /** A Pamphlet box: where its page is, and whether the tab opens on it. */
@@ -76,6 +84,12 @@ function asGraphLeaflet(value: unknown): GraphLeaflet | null {
     charts: asGraphChoices(raw["charts"]),
     goes: asGraphChoices(raw["goes"]),
     shapes: asGraphChoices(raw["shapes"]),
+    wired: raw["wired"] === true,
+    shapedBy: raw["shapedBy"] === true,
+    kinds: asGraphChoices(raw["kinds"]),
+    groups: asGraphChoices(raw["groups"]),
+    combines: asGraphChoices(raw["combines"]),
+    sorts: asGraphChoices(raw["sorts"]),
   };
 }
 
@@ -275,7 +289,7 @@ function drawGraphLeafletParts(box: HTMLElement, node: GraphNodeView): void {
     box.appendChild(graphPort("in", "page", "Takes words: wire a Text box here to show what it wrote."));
   }
   if (node.kind === "leaflet-chart") {
-    box.appendChild(graphPort("in", "data", "Takes bars: wire a Format box here to draw what it shapes."));
+    box.appendChild(graphPort("in", "data", "Takes data: wire a source, an operation, a Transform or a Format box here, then organise it in the panel."));
   }
   box.appendChild(graphElement("span", "leaflet-notch is-below"));
   box.appendChild(graphElement("span", "leaflet-notch is-beside"));
@@ -370,10 +384,7 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
     form.appendChild(graphElement("p", "hint", "As a tile, it is the feed's tile from the Feeds tab, one cell wide; How many and Heading are for stories."));
   } else if (node.kind === "leaflet-chart") {
-    form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
-    form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
-    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
-    form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only."));
+    graphChartFields(form, node, leaflet, said);
   } else if (node.kind === "leaflet-text") {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
     const body = document.createElement("textarea");
