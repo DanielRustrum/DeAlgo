@@ -254,8 +254,9 @@ def from_data(data: Any, said: Mapping[str, Any]) -> Chart:
     kind = str(spec["kind"])
     if data is None:
         return Chart(kind=kind, error="Nothing has come in yet: it is read when its source is next checked.")
-    if isinstance(data, (int, float)) and not isinstance(data, bool):
-        return Chart(kind="number", figure=float(data))
+    figure = formatting.figure_of(data)
+    if figure is not None:
+        return Chart(kind="number", figure=figure[1], measure=figure[0])
     try:
         rows, rows_path = rest.locate(data, str(spec["rows"] or ""))
     except rest.RestError as exc:

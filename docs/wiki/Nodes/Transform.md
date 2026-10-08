@@ -15,12 +15,13 @@ Filter before it has already held back what it holds back.
 
 | Piece | Gives out |
 | --- | --- |
-| **Count** | How many came in, as one whole number — items, or the rows of its data. |
+| **Count** | How many came in — items, or the rows of its data — as JSON: `{"count": 8}`. |
 
 With no piece under it, a Transform gives out what came in, as data. Pieces apply nearest the box
 first.
 
-A Chart leaflet with a Transform wired in that gives one number shows it as a large figure under
-the Transform's name.
+What a Transform gives out is always JSON. A Chart leaflet given an object holding one number, such
+as a count, shows it as a large figure under the Transform's name, with the field's name beneath.
+A Text box reads it as it is.
 
 **Related:** [Format](Format.md) · [Pamphlets](Pamphlets.md)

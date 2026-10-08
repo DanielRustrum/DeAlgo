@@ -395,13 +395,14 @@ def test_a_transform_counts_items_or_data(db):
         graph.add_piece(session, kind="count", host=box)
         graph.connect(session, source, middle)          # items down a path…
         graph.connect(session, middle, box)             # …into the Transform
-        assert formatting.data_out(session, box, None) == 2
+        # JSON, naming what the number is.
+        assert formatting.data_out(session, box, None) == {"count": 2}
 
         # Data instead: one thing in, so it takes the first's place.
         rest = a_rest_source(session, ANSWER)
         graph.connect(session, rest, box)
         assert [w["kind"] for w in graph.wires(session) if w["to"] == box.id] == ["data"]
-        assert formatting.data_out(session, box, None) == 4
+        assert formatting.data_out(session, box, None) == {"count": 4}
 
         # Without a piece it gives what came in, as data.
         box.enabled = True
@@ -422,6 +423,9 @@ def test_a_count_shows_as_a_figure_on_a_page(client, db):
         pamphlet_pk = pamphlet.id
         # A Format box handed one number says what to do instead.
         assert "one number" in formatting.shape(4, spec(label="x")).error
+        assert "one number (4)" in formatting.shape({"count": 4}, spec(label="x")).error
+        # A count counted again is one thing.
+        assert formatting.count_of({"count": 4}) == 1
 
     page = client.get(f"/pamphlets/{pamphlet_pk}").text
     assert '<p class="paper-figure">4</p>' in page and "Videos in" in page
@@ -472,7 +476,7 @@ def test_an_operation_with_items_coming_in_gives_them_out_as_data(db):
         graph.add_piece(session, kind="count", host=box)
         graph.connect(session, source, middle)
         graph.connect(session, middle, box, carries="data")
-        assert formatting.data_out(session, box, None) == 2
+        assert formatting.data_out(session, box, None) == {"count": 2}
         assert len(formatting.data_out(session, middle, None)) == 2
 
         # With nothing wired in at all, there is nothing to give.

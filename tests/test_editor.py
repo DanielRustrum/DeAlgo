@@ -73,7 +73,9 @@ def test_a_transform_shows_its_count(client, db):
         graph.connect(session, source, box)
         pk, total = box.id, len(formatting.items_into(session, box, None))
     seen = inspect(client, pk)
-    assert seen["input"]["count"] == total and seen["output"]["value"] == total
+    assert seen["input"]["count"] == total
+    assert seen["output"]["rows"] == [{"count": total}]
+    assert seen["output"]["fields"][0]["path"] == "count"
 
 
 def test_a_text_box_shows_what_it_reads_and_what_it_wrote(client, db):

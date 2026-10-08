@@ -67,6 +67,8 @@ def test_one_number_from_rows_or_from_a_count():
     total = charting.from_data(ROWS, said(kind="number", value="score", combine="sum"))
     assert total.figure == 22
     assert charting.from_data(7, said()).figure == 7 and charting.from_data(7, said()).kind == "number"
+    counted = charting.from_data({"count": 8}, said(kind="pie"))
+    assert counted.kind == "number" and counted.figure == 8 and counted.measure == "count"
 
 
 def test_it_says_what_is_missing():

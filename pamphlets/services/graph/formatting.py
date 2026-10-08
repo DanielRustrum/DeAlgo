@@ -343,7 +343,9 @@ def transformed(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0
         if not piece.enabled:
             continue
         if piece.kind == "count":
-            value = count_of(value)
+            # JSON, as everything down a data wire is: an object naming what
+            # the number is, which a Chart leaflet shows as one figure.
+            value = {"count": count_of(value)}
     return value
 
 
@@ -353,8 +355,23 @@ def count_of(value: Any) -> int:
     if isinstance(value, list):
         return len(value)
     if isinstance(value, dict):
-        return len(rows_of(value))
+        # An answer with rows in it counts its rows; one thing, like another
+        # count, is one.
+        return len(rows_of(value)) if figure_of(value) is None else 1
     return 0 if value is None else 1
+
+
+def figure_of(data: Any) -> tuple[str, float] | None:
+    """One number, and what it is called, if that is all the data is: a
+    bare number, or an object with one field holding a number — what a
+    Transform's Count gives, `{"count": 8}`. None for anything else."""
+    if isinstance(data, (int, float)) and not isinstance(data, bool):
+        return "", float(data)
+    if isinstance(data, dict) and len(data) == 1:
+        name, value = next(iter(data.items()))
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(name), float(value)
+    return None
 
 
 def rows_of(data: Any) -> list[Any]:
@@ -502,9 +519,10 @@ def shape(data: Any, spec: Mapping[str, Any]) -> Shaped:
     """Reshape JSON into bars, as a Format box's settings say."""
     if data is None:
         return Shaped(error="Nothing has come in yet: it is read when its source is next checked.")
-    if isinstance(data, (int, float)) and not isinstance(data, bool):
+    figure = figure_of(data)
+    if figure is not None:
         return Shaped(error=(
-            f"That is one number ({data:g}), not rows to make bars from: wire it straight "
+            f"That is one number ({figure[1]:g}), not rows to make bars from: wire it straight "
             "into a Chart leaflet to show it."
         ))
     try:
