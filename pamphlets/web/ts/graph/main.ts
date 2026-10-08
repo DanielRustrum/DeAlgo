@@ -37,14 +37,34 @@ function listenToGraph(state: GraphState): void {
   canvas.addEventListener("pointerup", (event: PointerEvent): void => onGraphPointerUp(state, event));
   canvas.addEventListener("pointercancel", (event: PointerEvent): void => onGraphPointerUp(state, event));
   canvas.addEventListener("click", (event: MouseEvent): void => onGraphClick(state, event));
-  // A double-click on a box opens its editor, as a flow tool's does.
-  canvas.addEventListener("dblclick", (event: MouseEvent): void => {
+  // Two presses on a box, close together and without moving, open its
+  // editor, as a flow tool's double-click does. Counted here rather than
+  // left to the browser's dblclick: the first press opens the box's panel,
+  // which draws every box afresh, so the second lands on a new element and
+  // the browser never puts the two together.
+  let pressed: { node: string; x: number; y: number } | null = null;
+  let tapped: { node: string; at: number } | null = null;
+  canvas.addEventListener("pointerdown", (event: PointerEvent): void => {
     const target = event.target;
-    if (!(target instanceof Element) || target.closest(".graph-pop") !== null) return;
-    const box = target.closest<HTMLElement>("[data-node]")?.dataset["node"];
-    if (box === undefined) return;
-    event.preventDefault();
-    openGraphEditor(state, Number(box));
+    const node = target instanceof Element && target.closest(".graph-pop") === null
+      ? target.closest<HTMLElement>("[data-node]")?.dataset["node"]
+      : undefined;
+    pressed = node === undefined || event.button !== 0 ? null : { node, x: event.clientX, y: event.clientY };
+  });
+  canvas.addEventListener("pointerup", (event: PointerEvent): void => {
+    const was = pressed;
+    pressed = null;
+    if (was === null || Math.hypot(event.clientX - was.x, event.clientY - was.y) > 5) {
+      tapped = null;
+      return;
+    }
+    const now = performance.now();
+    if (tapped !== null && tapped.node === was.node && now - tapped.at < 450) {
+      tapped = null;
+      openGraphEditor(state, Number(was.node));
+      return;
+    }
+    tapped = { node: was.node, at: now };
   });
   // Clicking into the canvas means working on it, so the page scrolls to
   // show all of it rather than leaving it half under the fold. On the click,
