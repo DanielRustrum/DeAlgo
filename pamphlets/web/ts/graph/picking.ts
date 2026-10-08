@@ -72,6 +72,13 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     return;
   }
 
+  const editor = target.closest<HTMLElement>("[data-editor]")?.dataset["editor"];
+  if (editor !== undefined) {
+    event.preventDefault();
+    openGraphEditor(state, Number(editor));
+    return;
+  }
+
   const write = target.closest<HTMLElement>("[data-write]");
   const writeId = write?.dataset["write"];
   if (write !== null && writeId !== undefined) {

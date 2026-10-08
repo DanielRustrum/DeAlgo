@@ -31,6 +31,7 @@ from ...responses import owner_of
 if TYPE_CHECKING:
     pass
 from .facts import orders
+from .inspecting import read_rest_once
 from .payload import graph_payload
 
 router = APIRouter()
@@ -674,18 +675,9 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
         if node is None or node.kind != "format":
             return JSONResponse({"error": "That is not a Format box."}, status_code=404)
         source = graph_service.formatting.data_source(session, node, owner)
-        channel = source.channel if source is not None and source.kind == "source" else None
-        if channel is not None and channel.source_kind == "rest" and not channel.raw_snapshot:
-            try:
-                with outgoing.client() as http:
-                    found = rest.read(
-                        channel.feed_url, rest.Mapping.loads(channel.source_options), http
-                    )
-            except Exception as exc:  # refused, unreachable, not JSON
-                return JSONResponse({"error": f"Could not read it: {exc}"}, status_code=400)
-            from ....services.sync.polling import keep_snapshot
-
-            keep_snapshot(channel, found.data)
+        problem = read_rest_once(session, node, owner)
+        if problem:
+            return JSONResponse({"error": problem}, status_code=400)
         arriving = graph_service.formatting.data_into(session, node, owner)
         if arriving is None and source is None:
             return JSONResponse({"error": "Wire something into it first."}, status_code=400)
@@ -697,43 +689,6 @@ async def graph_try_format(request: Request, node_pk: int) -> JSONResponse:
             "bars": [{"label": bar.long, "value": bar.shown} for bar in shaped.bars[:12]],
             "more": max(0, len(shaped.bars) - 12),
             "error": shaped.error,
-        })
-
-
-@router.post("/graph/nodes/{node_pk}/chart/preview")
-async def graph_preview_chart(request: Request, node_pk: int) -> JSONResponse:
-    """A Chart leaflet drawn as its dialog says now, saved or not: the chart
-    as the pamphlet would show it, and the fields the wired data's rows have
-    for the dialog to offer."""
-    from ...templates import TEMPLATES
-    from ..pamphlets import chart_for
-
-    owner = owner_of(request)
-    given = await request.form()
-    with session_scope() as session:
-        node = session.scalar(
-            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
-        )
-        if node is None or node.kind != "leaflet-chart":
-            return JSONResponse({"error": "That is not a Chart leaflet."}, status_code=404)
-        said = graph_service.leaflets.settings(node)
-        for key, value in given.items():
-            if key.startswith("leaflet_") and key[8:] in said:
-                said[key[8:]] = str(value).strip()
-        if not str(said.get("limit", "")).isdigit():
-            said["limit"] = charting.SPEC_DEFAULTS["limit"]
-        label, chart, counts = chart_for(session, owner, node, said)
-        html = "" if chart is None else TEMPLATES.get_template("_chart.html").render(
-            chart=chart, chart_label=label
-        )
-        return JSONResponse({
-            "html": html,
-            "label": label,
-            "rows": chart.rows if chart else 0,
-            "rows_path": chart.rows_path if chart else "",
-            "fields": chart.fields if chart else [],
-            "error": chart.error if chart else "",
-            "counts": counts is not None,
         })
 
 

@@ -37,7 +37,7 @@ Each box takes one data wire in; a second replaces it.
 ## What comes in
 
 - From a [REST API](REST%20API.md) source: the endpoint's last whole answer, kept each time the source
-  is checked (up to 2 MB). Pressing **Try** before it has been checked reads it once.
+  is checked (up to 2 MB). Opening the editor before it has been checked reads it once.
 - From any other source (YouTube, Reddit, RSS, …): its newest 1,000 items as JSON, each with `id`,
   `title`, `link`, `kind`, `source`, `published`, `arrived`, `duration` (seconds), `views`, `likes`,
   `tags`, `status`, `watched` (true or false) and `watched_at`.
@@ -59,8 +59,8 @@ One source per box: wiring a second one in replaces the first.
 
 Paths are dots between steps and numbers for a place in a list: `items.0.price`.
 
-**Try** shows how many rows it found and where, the fields in them — press one to put it in whichever
-path field you were last in — and the bars it would give, without saving anything.
+Open the [editor](../The%20Configuration%20Canvas.md#the-editor) to see the rows coming in, drag their
+fields into Rows, Label or The number, and watch the bars it gives change before saving anything.
 
 ## Examples
 

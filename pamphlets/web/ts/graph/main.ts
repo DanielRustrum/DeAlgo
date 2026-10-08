@@ -37,6 +37,15 @@ function listenToGraph(state: GraphState): void {
   canvas.addEventListener("pointerup", (event: PointerEvent): void => onGraphPointerUp(state, event));
   canvas.addEventListener("pointercancel", (event: PointerEvent): void => onGraphPointerUp(state, event));
   canvas.addEventListener("click", (event: MouseEvent): void => onGraphClick(state, event));
+  // A double-click on a box opens its editor, as a flow tool's does.
+  canvas.addEventListener("dblclick", (event: MouseEvent): void => {
+    const target = event.target;
+    if (!(target instanceof Element) || target.closest(".graph-pop") !== null) return;
+    const box = target.closest<HTMLElement>("[data-node]")?.dataset["node"];
+    if (box === undefined) return;
+    event.preventDefault();
+    openGraphEditor(state, Number(box));
+  });
   // Clicking into the canvas means working on it, so the page scrolls to
   // show all of it rather than leaving it half under the fold. On the click,
   // not the press: scrolling under a drag that is starting moves the box

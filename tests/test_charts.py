@@ -152,7 +152,7 @@ def test_every_kind_draws(client, db):
             assert "chart-legend" in page, kind
 
 
-def test_the_canvas_offers_the_dialog_and_previews_unsaved_settings(client, db):
+def test_the_editor_shows_the_data_and_the_chart_with_unsaved_settings(client, db):
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)
         _, chart = a_chart_from(session, source)
@@ -163,13 +163,14 @@ def test_the_canvas_offers_the_dialog_and_previews_unsaved_settings(client, db):
     assert {"name": "line", "label": "Line"} in drawn["leaflet"]["kinds"]
     assert "organise the data" in drawn["note"]
 
-    seen = client.post(f"/graph/nodes/{chart_pk}/chart/preview", data={
+    seen = client.post(f"/graph/nodes/{chart_pk}/inspect", data={
         "leaflet_kind": "bar", "leaflet_label": "data.author",
     }).json()
-    assert seen["rows"] == 4 and seen["rows_path"] == "data.children"
-    assert "data.score" in seen["fields"]
-    assert "chart-row" in seen["html"] and "ana · 2" in seen["html"]
-    assert not seen["error"]
+    assert seen["input"]["count"] == 4 and seen["input"]["found_at"] == "data.children"
+    assert "data.score" in [field["path"] for field in seen["input"]["fields"]]
+    assert "chart-row" in seen["output"]["html"] and "ana · 2" in seen["output"]["html"]
+    assert seen["output"]["rows"][0] == {"label": "ana", "how many": 2.0}
+    assert not seen["output"]["error"]
 
     saved = client.post(f"/graph/nodes/{chart_pk}", data={
         "label": "", "leaflet_kind": "line", "leaflet_label": "data.author", "leaflet_limit": "5",

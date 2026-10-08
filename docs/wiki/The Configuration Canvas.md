@@ -79,6 +79,28 @@ a switched-off box carries nothing.
 If a source or feed has two boxes, renaming or switching off one leaves the other alone. With only
 one box, renaming or switching it off renames or pauses the source or feed itself.
 
+## The editor
+
+**Double-click** a box, or press **Open editor** in its panel, to see what goes through it.
+
+On a **Transform**, **Format** or **Text** box, or a **Chart** leaflet, the editor has three panes:
+
+- **Input** on the left: what reaches the box — the data down its `{ }` wire, or the items down its
+  ▶ wires read as rows.
+- **Settings** in the middle.
+- **Output** on the right: what the box gives out with those settings, worked out again as you
+  change them, before anything is saved. A Format box or Chart leaflet shows its chart here; a
+  Text box shows what it last wrote, with **Write now**.
+
+Each side can be shown as **Fields** (every path in the rows, what kind of thing is there, and an
+example), as a **Table**, or as **JSON**. Drag a field — from the list or a table heading — onto a
+setting that takes a path to fill it in, or press it to fill the path setting you were last in.
+**Save** keeps the settings; ✕ or Esc closes without saving.
+
+On a source, an operation (Filter, Sort, Tag, Decay, Expire), a Deposit or Withdraw, or a feed,
+**Input & output** shows the two sides only: those boxes are set in their panel. A source shows
+only what it gives out.
+
 ## Selecting and removing
 
 - **Shift-click** boxes, or **Shift-drag** across empty canvas, to select several.

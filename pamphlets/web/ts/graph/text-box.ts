@@ -38,7 +38,7 @@ function asGraphWriting(value: unknown): GraphWriting | null {
 }
 
 /** A Text box's panel: what to write, how often, and what it last wrote. */
-function graphTextBoxFields(form: HTMLElement, node: GraphNodeView): void {
+function graphTextBoxFields(form: HTMLElement, node: GraphNodeView, inEditor = false): void {
   const writing = node.writing;
   if (writing === null) return;
   const said = (key: string): string => String(writing.settings[key] ?? "");
@@ -65,6 +65,8 @@ function graphTextBoxFields(form: HTMLElement, node: GraphNodeView): void {
     graphElement("p", "hint", "It reads the first items that come in, up to that many, each cut to its first 600 characters."),
   );
 
+  // In the editor, writing and what was written are on its output side.
+  if (inEditor) return;
   const write = graphElement("button", "btn btn-quiet", "Write now");
   write.setAttribute("type", "button");
   write.dataset["write"] = String(node.id);

@@ -37,7 +37,7 @@ beside.
 | Leaflet | Shows | Set in its panel |
 | --- | --- | --- |
 | **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order — or the feed as one tile: a small stack of papers, its newest item on the front page and a sheet behind for every few more waiting | Shows as (stories or a tile), how many (up to 60), a heading |
-| **Chart** | The data wired into it, organised as you say — or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | Draw as (columns, bars, line, stacked area, pie, one number or a table), a heading; with data wired in, **Organize the data…**; without, which built-in chart and how many days (2–90) |
+| **Chart** | The data wired into it, organised as you say — or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | Draw as (columns, bars, line, stacked area, pie, one number or a table), a heading; with data wired in, the rest in its editor; without, which built-in chart and how many days (2–90) |
 | **Text** | A heading and your own words. A blank line starts a new paragraph — or, with a [Text](Text.md) box wired in, what its model wrote | Heading, words |
 | **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |
 
@@ -55,20 +55,22 @@ Opening a pamphlet does **not** start a reading window's sitting; opening the fe
 ## Charting data
 
 A Chart leaflet has a `{ }` port on its left. Wire data into it from a source box, an operation, a
-Deposit or Withdraw, a [Transform](Transform.md) or a [Format](Format.md) box. Then open its panel,
-pick what to **Draw as**, and press **Organize the data…** for a dialog with the chart as the page
-will show it, redrawn as you change:
+Deposit or Withdraw, a [Transform](Transform.md) or a [Format](Format.md) box. Then double-click it
+for the [editor](../The%20Configuration%20Canvas.md#the-editor): the wired data on the left, how to
+organise it in the middle, and the chart as the page will show it on the right, redrawn as you
+change:
 
 | Step | Says |
 | --- | --- |
 | **Rows** | Where the list is. Blank finds it — `data.children` in a Reddit answer, say. |
+| **Draw as** | Columns, bars, line, stacked area, pie, one number or a table. |
 | **Points** | The field each point is labelled by, as a path like `published` or `data.author`. Dates can be grouped by day, week, month, weekday or hour; a list gives a point for each thing in it. |
 | **Numbers** | How rows sharing a label combine — counted, added up, averaged, the smallest, largest or last — and, unless counting, the field holding the number. |
 | **Series** | Optionally, a field to split by: a line, a band or a column per value found there. The five largest are named and the rest are **Other**. |
 | **Which** | The order, and how many points (up to 60). |
 
-The fields the rows have show as chips under the steps; press one to put it in the path field you
-were last in. **Save** keeps it all; **Cancel** or Esc leaves it as it was.
+Drag a field from the input onto a step to use it. **Save** keeps it all; ✕ or Esc leaves it as it
+was.
 
 A Format box wired in has already said which rows, labels and numbers there are, so its chart
 offers only **Draw as**. A Transform giving one number shows it large, whatever it is drawn as.

@@ -249,6 +249,17 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     buttons.appendChild(open);
   }
 
+  // The editor: what comes in and goes out, and — for a data box — its
+  // settings beside them. A double-click on the box opens it too.
+  const editor = graphEditorFor(node.kind);
+  if (editor !== null) {
+    const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");
+    open.setAttribute("type", "button");
+    open.title = "Or double-click the box";
+    open.dataset["editor"] = String(node.id);
+    buttons.appendChild(open);
+  }
+
   if (node.kind === "filter") {
     const seen = graphElement("button", "btn btn-quiet", "What it catches");
     seen.setAttribute("type", "button");

@@ -215,67 +215,44 @@ function graphFilterFields(form, node) {
 }
 
 "use strict";
-// Chart leaflets: organising the data wired into one, and choosing how it
-// is drawn — columns, bars, a line, a stacked area, a pie, one number or a
-// table.
+// Chart leaflets: what one draws, and how it organises the data wired in.
 //
-// The organising is done in a dialog rather than the panel: it needs room
-// for the fields the data has, and for the chart as it would look. Its
-// fields belong to the panel's form (by the form attribute) though they sit
-// outside it, so the panel's Save sends them like any other.
+// The organising is done in the box editor (editor.ts), beside the data it
+// organises and the chart it makes; the panel says what is drawn and opens
+// the editor.
 //
 // Part of the Configuration canvas; see main.ts.
 /** A Chart leaflet's panel: what it draws, and from what. */
 function graphChartFields(form, node, leaflet, said) {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
-    const kind = graphLeafletSelect("leaflet_kind", leaflet.kinds, said("kind"));
-    form.appendChild(graphLabelled("Draw as", kind));
+    form.appendChild(graphLabelled("Draw as", graphLeafletSelect("leaflet_kind", leaflet.kinds, said("kind"))));
     if (leaflet.wired && leaflet.shapedBy) {
         form.appendChild(graphElement("p", "hint", "A Format box is wired in, and says which rows, labels and numbers there are. Draw as says how they look."));
-        return;
     }
-    if (leaflet.wired) {
+    else if (leaflet.wired) {
         form.appendChild(graphElement("p", "hint", node.note !== "" ? `Shows ${node.note}.` : "Data is wired in."));
-        const open = graphElement("button", "btn btn-quiet", "Organize the data…");
-        open.setAttribute("type", "button");
-        open.addEventListener("click", () => {
-            openGraphChartDialog(form, node, leaflet, said, kind);
-        });
-        form.appendChild(open);
-        return;
     }
-    form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
-    form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
-    form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only. Or wire data in — the { } port — from a source, an operation or a Transform box, and organise that instead."));
+    else {
+        form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
+        form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
+        form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only. Or wire data in — the { } port — from a source, an operation or a Transform box, and organise that in the editor."));
+    }
 }
-/** The dialog that says how a chart reads the data wired into it, with the
- *  chart as it would look, redrawn as the fields change. */
-function openGraphChartDialog(form, node, leaflet, said, kind) {
-    document.querySelectorAll("[data-graph-chart]").forEach((old) => old.remove());
-    if (form.id === "")
-        form.id = `graph-form-${node.id}`;
-    const owner = form.id;
-    const dialog = document.createElement("dialog");
-    dialog.className = "modal graph-chart";
-    dialog.dataset["graphChart"] = String(node.id);
-    const head = graphElement("div", "modal-head");
-    head.appendChild(graphElement("h2", "", "Organize the data"));
-    const close = graphElement("button", "modal-close", "✕");
-    close.setAttribute("type", "button");
-    close.setAttribute("aria-label", "Close");
-    head.appendChild(close);
-    dialog.appendChild(head);
-    const body = graphElement("div", "modal-body graph-chart-body");
-    const fields = graphElement("div", "graph-chart-fields");
-    const seen = graphElement("div", "graph-chart-seen");
-    body.appendChild(fields);
-    body.appendChild(seen);
-    dialog.appendChild(body);
-    // What it is drawn as: the panel's own select, pressed from here.
+/** A Chart leaflet's settings in the editor: what it is drawn as, and —
+ *  with data wired in — where its rows are, what labels a point, what
+ *  number it shows and what splits it into series. */
+function graphChartEditorFields(form, leaflet, said) {
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
+    // What it is drawn as, as buttons over one field.
+    const kind = document.createElement("input");
+    kind.type = "hidden";
+    kind.name = "leaflet_kind";
+    kind.value = said("kind");
+    form.appendChild(kind);
     const kinds = graphElement("div", "graph-chart-kinds");
     kinds.setAttribute("role", "radiogroup");
     kinds.setAttribute("aria-label", "Draw as");
-    const pressKinds = () => {
+    const press = () => {
         kinds.querySelectorAll("button").forEach((one) => {
             one.setAttribute("aria-checked", String(one.dataset["kind"] === kind.value));
         });
@@ -287,168 +264,36 @@ function openGraphChartDialog(form, node, leaflet, said, kind) {
         one.dataset["kind"] = choice.name;
         one.addEventListener("click", () => {
             kind.value = choice.name;
-            pressKinds();
-            redraw();
+            press();
+            form.dispatchEvent(new Event("change", { bubbles: true }));
         });
         kinds.appendChild(one);
     }
-    pressKinds();
-    fields.appendChild(graphLabelled("Draw as", kinds));
-    const paths = new Map();
-    const text = (name, label, placeholder) => {
-        const field = graphLeafletText(`leaflet_${name}`, said(name), placeholder);
-        field.setAttribute("form", owner);
-        field.addEventListener("focus", () => {
-            fields.dataset["aim"] = name;
-        });
-        paths.set(name, field);
-        return graphLabelled(label, field);
-    };
-    const pick = (name, label, choices) => {
-        const select = graphLeafletSelect(`leaflet_${name}`, choices, said(name));
-        select.setAttribute("form", owner);
-        return graphLabelled(label, select);
-    };
+    press();
+    form.appendChild(graphLabelled("Draw as", kinds));
+    if (leaflet.wired && leaflet.shapedBy) {
+        form.appendChild(graphElement("p", "hint", "The Format box wired in says which rows, labels and numbers there are: change them there."));
+        return;
+    }
+    if (!leaflet.wired) {
+        form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
+        form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
+        return;
+    }
     const step = (title, ...rows) => {
         const set = graphElement("fieldset", "graph-chart-step");
         set.appendChild(graphElement("legend", "", title));
         for (const row of rows)
             set.appendChild(row);
-        fields.appendChild(set);
+        form.appendChild(set);
     };
-    step("Rows", text("rows", "The list", "found by itself — or a path like data.children"));
-    step("Points", text("label", "Label each by", "a path in each row, like published"), pick("group", "Group labels", leaflet.groups));
-    step("Numbers", pick("combine", "Combine rows", leaflet.combines), text("value", "The number", "a path, like duration — not needed to count"));
-    step("Series", text("series", "Split by", "optional: a path, like author — a line or bar for each"));
-    const limit = graphLeafletNumber("leaflet_limit", said("limit"), 1, 60);
-    limit.setAttribute("form", owner);
-    step("Which", pick("sort", "Order", leaflet.sorts), graphLabelled("How many points", limit));
-    fields.dataset["aim"] = "label";
-    const chips = graphElement("div", "graph-chart-chips");
-    fields.appendChild(chips);
-    const foot = graphElement("div", "modal-foot");
-    const cancel = graphElement("button", "btn btn-quiet", "Cancel");
-    cancel.setAttribute("type", "button");
-    const save = graphElement("button", "btn btn-primary", "Save");
-    save.setAttribute("type", "button");
-    foot.appendChild(cancel);
-    foot.appendChild(save);
-    dialog.appendChild(foot);
-    const wasKind = kind.value;
-    const shut = () => {
-        if (dialog.open && typeof dialog.close === "function")
-            dialog.close();
-        dialog.remove();
-        holdPageForGraph(false);
-    };
-    close.addEventListener("click", () => {
-        kind.value = wasKind;
-        shut();
-    });
-    cancel.addEventListener("click", () => {
-        kind.value = wasKind;
-        shut();
-    });
-    // Esc: as Cancel. What was typed goes with the dialog, so a Save from the
-    // panel afterwards leaves the organising as it was.
-    dialog.addEventListener("cancel", () => {
-        kind.value = wasKind;
-        holdPageForGraph(false);
-        window.setTimeout(() => dialog.remove(), 0);
-    });
-    save.addEventListener("click", () => {
-        const sending = form instanceof HTMLFormElement ? form : null;
-        // Submitted while the fields are still on the page, then put away.
-        if (sending !== null)
-            sending.requestSubmit();
-        shut();
-    });
-    let timer = 0;
-    let asked = 0;
-    const redraw = () => {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => {
-            asked += 1;
-            void previewGraphChart(node.id, dialog, kind, seen, chips, paths, fields, asked, () => asked);
-        }, 250);
-    };
-    dialog.addEventListener("input", redraw);
-    dialog.addEventListener("change", redraw);
-    document.body.appendChild(dialog);
-    openGraphCatch(dialog);
-    redraw();
-}
-/** Draw the chart as the dialog says now, unsaved, and offer the fields
- *  the wired data's rows have. Only the latest answer is shown. */
-async function previewGraphChart(nodeId, dialog, kind, seen, chips, paths, fields, mine, latest) {
-    const body = new URLSearchParams();
-    body.append("leaflet_kind", kind.value);
-    dialog.querySelectorAll("[name^='leaflet_']").forEach((field) => {
-        body.append(field.name, field.value);
-    });
-    seen.classList.add("is-busy");
-    let answer;
-    try {
-        answer = await askGraph(`/graph/nodes/${nodeId}/chart/preview`, body);
-    }
-    catch (_a) {
-        if (mine !== latest())
-            return;
-        seen.classList.remove("is-busy");
-        seen.replaceChildren(graphElement("p", "error-note", "No connection, so it could not be drawn."));
-        return;
-    }
-    if (mine !== latest())
-        return;
-    seen.classList.remove("is-busy");
-    const raw = asGraphRecord(answer);
-    if (raw === null) {
-        seen.replaceChildren(graphElement("p", "error-note", "That did not work."));
-        return;
-    }
-    const shown = [];
-    const label = typeof raw["label"] === "string" ? raw["label"] : "";
-    if (label !== "")
-        shown.push(graphElement("h3", "paper-section", label));
-    const picture = graphElement("div", "graph-chart-picture pamphlet-leaflet");
-    // The server's own partial, the same the pamphlet sets: what is seen here
-    // is what the page will show. Built from escaped template output only.
-    picture.innerHTML = typeof raw["html"] === "string" ? raw["html"] : "";
-    shown.push(picture);
-    const rows = typeof raw["rows"] === "number" ? raw["rows"] : 0;
-    const where = typeof raw["rows_path"] === "string" && raw["rows_path"] !== "" ? raw["rows_path"] : "the top";
-    if (rows > 0) {
-        shown.push(graphElement("p", "hint", `${rows} rows, at “${where}”.`));
-        const rowsField = paths.get("rows");
-        if (rowsField !== undefined && rowsField.value === "" && where !== "the top")
-            rowsField.placeholder = where;
-    }
-    seen.replaceChildren(...shown);
-    // The fields there are, as chips: pressed, one goes into whichever path
-    // field was last in focus — the label to begin with.
-    const offered = [];
-    if (Array.isArray(raw["fields"]) && raw["fields"].length > 0) {
-        offered.push(graphElement("p", "hint", "Fields in its rows — press one to put it in the field you were last in:"));
-        const list = graphElement("div", "graph-tag-choices");
-        for (const one of raw["fields"]) {
-            if (typeof one !== "string")
-                continue;
-            const chip = graphElement("button", "graph-tag-choice", one);
-            chip.setAttribute("type", "button");
-            chip.addEventListener("click", () => {
-                var _a, _b;
-                const aim = (_b = paths.get((_a = fields.dataset["aim"]) !== null && _a !== void 0 ? _a : "label")) !== null && _b !== void 0 ? _b : paths.get("label");
-                if (aim === undefined)
-                    return;
-                aim.value = one;
-                aim.dispatchEvent(new Event("input", { bubbles: true }));
-                aim.focus();
-            });
-            list.appendChild(chip);
-        }
-        offered.push(list);
-    }
-    chips.replaceChildren(...offered);
+    const path = (name, label, placeholder) => graphLabelled(label, graphLeafletText(`leaflet_${name}`, said(name), placeholder));
+    const pick = (name, label, choices) => graphLabelled(label, graphLeafletSelect(`leaflet_${name}`, choices, said(name)));
+    step("Rows", path("rows", "The list", "found by itself — or a path like data.children"));
+    step("Points", path("label", "Label each by", "drag a field here, like published"), pick("group", "Group labels", leaflet.groups));
+    step("Numbers", pick("combine", "Combine rows", leaflet.combines), path("value", "The number", "drag a field here — not needed to count"));
+    step("Series", path("series", "Split by", "optional: a field, like author — a line or bar for each"));
+    step("Which", pick("sort", "Order", leaflet.sorts), graphLabelled("How many points", graphLeafletNumber("leaflet_limit", said("limit"), 1, 60)));
 }
 
 "use strict";
@@ -1863,6 +1708,471 @@ function showGraphVerdict(state, message) {
 }
 
 "use strict";
+// The box editor: what came in, the box's settings, what it gives out.
+//
+// Opened by double-clicking a box, or from its panel. On a data box —
+// Transform, Format, Text, a Chart leaflet — it has three panes, the way a
+// flow tool lays a node out: input on the left, settings in the middle,
+// output on the right, the output worked out again as the settings change,
+// before anything is saved. On a source, an operation, a repository or a
+// feed it has the two outer panes only: those are set in their own panel.
+//
+// Each side shows as the fields it has, as a table or as JSON. A field can
+// be dragged into a setting, or pressed to go into the setting last used.
+//
+// Part of the Configuration canvas; see main.ts.
+/** Which editor a kind opens: all three panes, the two sides, or none. */
+function graphEditorFor(kind) {
+    if (kind === "transform" || kind === "format" || kind === "text" || kind === "leaflet-chart")
+        return "settings";
+    if (kind === "source" || kind === "filter" || kind === "sort" || kind === "tag" ||
+        kind === "decay" || kind === "expire" || kind === "deposit" || kind === "withdraw" || kind === "feed")
+        return "sides";
+    return null;
+}
+function asGraphSide(value) {
+    var _a;
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const text = (key) => (typeof raw[key] === "string" ? raw[key] : "");
+    const fields = [];
+    if (Array.isArray(raw["fields"])) {
+        for (const entry of raw["fields"]) {
+            const one = asGraphRecord(entry);
+            if (one === null || typeof one["path"] !== "string")
+                continue;
+            fields.push({ path: one["path"], type: typeof one["type"] === "string" ? one["type"] : "", sample: one["sample"] });
+        }
+    }
+    return {
+        how: text("how"),
+        note: text("note"),
+        rows: Array.isArray(raw["rows"]) ? raw["rows"] : [],
+        count: typeof raw["count"] === "number" ? raw["count"] : 0,
+        value: (_a = raw["value"]) !== null && _a !== void 0 ? _a : null,
+        foundAt: text("found_at"),
+        fields,
+        empty: raw["empty"] === true,
+        html: text("html"),
+        error: text("error"),
+        text: text("text"),
+        at: typeof raw["at"] === "string" ? raw["at"] : null,
+    };
+}
+/** Open the editor on a box. */
+function openGraphEditor(state, nodeId) {
+    var _a, _b;
+    const node = state.nodes.find((one) => one.id === nodeId);
+    if (node === undefined)
+        return;
+    const shape = graphEditorFor(node.kind);
+    if (shape === null)
+        return;
+    document.querySelectorAll("[data-graph-editor]").forEach((old) => old.remove());
+    const dialog = document.createElement("dialog");
+    dialog.className = `modal graph-editor is-${shape}`;
+    dialog.dataset["graphEditor"] = String(node.id);
+    const head = graphElement("div", "modal-head graph-editor-head");
+    const named = graphElement("div", "graph-editor-name");
+    named.appendChild(graphElement("span", "graph-pop-kind", graphTriggerLabel(node)));
+    named.appendChild(graphElement("h2", "", node.title));
+    head.appendChild(named);
+    const actions = graphElement("div", "graph-editor-actions");
+    const close = graphElement("button", "modal-close", "✕");
+    close.setAttribute("type", "button");
+    close.setAttribute("aria-label", "Close");
+    head.appendChild(actions);
+    head.appendChild(close);
+    dialog.appendChild(head);
+    const body = graphElement("div", "graph-editor-body");
+    const input = graphElement("section", "graph-editor-pane is-input");
+    const output = graphElement("section", "graph-editor-pane is-output");
+    const form = document.createElement("form");
+    form.className = "graph-editor-pane is-settings graph-form";
+    form.noValidate = true;
+    form.addEventListener("submit", (event) => event.preventDefault());
+    // A source is where things start: it has only what it gives out.
+    if (node.kind === "source")
+        dialog.classList.add("is-alone");
+    else
+        body.appendChild(input);
+    if (shape === "settings") {
+        graphEditorSettings(form, node);
+        body.appendChild(form);
+    }
+    body.appendChild(output);
+    dialog.appendChild(body);
+    // Which path field a pressed field goes into: the last one in focus.
+    let aim = null;
+    const paths = graphEditorPathFields(form);
+    for (const field of paths) {
+        field.addEventListener("focus", () => {
+            aim = field;
+        });
+        // A field dragged from either side, dropped here, is what it says.
+        field.addEventListener("dragover", (event) => {
+            var _a;
+            if (((_a = event.dataTransfer) === null || _a === void 0 ? void 0 : _a.types.includes("text/plain")) === true) {
+                event.preventDefault();
+                field.classList.add("is-dropping");
+            }
+        });
+        field.addEventListener("dragleave", () => field.classList.remove("is-dropping"));
+        field.addEventListener("drop", (event) => {
+            var _a;
+            var _b;
+            const path = (_b = (_a = event.dataTransfer) === null || _a === void 0 ? void 0 : _a.getData("text/plain")) !== null && _b !== void 0 ? _b : "";
+            field.classList.remove("is-dropping");
+            if (path === "")
+                return;
+            event.preventDefault();
+            field.value = path;
+            aim = field;
+            field.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+    }
+    aim = (_b = (_a = paths.find((one) => one.name.endsWith("_label"))) !== null && _a !== void 0 ? _a : paths[0]) !== null && _b !== void 0 ? _b : null;
+    const usePath = (path) => {
+        if (aim === null)
+            return;
+        aim.value = path;
+        aim.dispatchEvent(new Event("input", { bubbles: true }));
+        aim.focus();
+    };
+    const views = { input: "fields", output: "" };
+    let latest = null;
+    const draw = () => {
+        const raw = asGraphRecord(latest);
+        if (raw === null)
+            return;
+        const problem = typeof raw["problem"] === "string" ? raw["problem"] : "";
+        const inSide = asGraphSide(raw["input"]);
+        const outSide = asGraphSide(raw["output"]);
+        graphEditorPane(input, "Input", inSide, views, "input", usePath, problem, draw);
+        graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw);
+        if (node.kind === "feed")
+            output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
+    };
+    let asked = 0;
+    let timer = 0;
+    const ask = () => {
+        asked += 1;
+        const mine = asked;
+        input.classList.add("is-busy");
+        output.classList.add("is-busy");
+        const fetchSides = async () => {
+            let answer;
+            try {
+                answer = await askGraph(`/graph/nodes/${node.id}/inspect`, graphFormValues(form));
+            }
+            catch (_a) {
+                answer = { input: null, output: null, problem: "No connection, so it could not be read." };
+            }
+            if (mine !== asked)
+                return;
+            input.classList.remove("is-busy");
+            output.classList.remove("is-busy");
+            latest = answer;
+            draw();
+        };
+        void fetchSides();
+    };
+    form.addEventListener("input", () => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(ask, 300);
+    });
+    form.addEventListener("change", () => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(ask, 50);
+    });
+    const shut = () => {
+        if (dialog.open && typeof dialog.close === "function")
+            dialog.close();
+        dialog.remove();
+        holdPageForGraph(false);
+    };
+    close.addEventListener("click", shut);
+    dialog.addEventListener("close", () => {
+        holdPageForGraph(false);
+        dialog.remove();
+    });
+    if (node.kind === "text") {
+        const write = graphElement("button", "btn btn-quiet", "Write now");
+        write.setAttribute("type", "button");
+        write.addEventListener("click", () => {
+            write.textContent = "Writing…";
+            write.setAttribute("disabled", "");
+            const writeThenShow = async () => {
+                // Saved first, so it writes with what the editor says.
+                await applyGraph(state, `/graph/nodes/${node.id}`, graphFormValues(form));
+                await applyGraph(state, `/graph/nodes/${node.id}/write`, new URLSearchParams());
+                write.textContent = "Write now";
+                write.removeAttribute("disabled");
+                ask();
+            };
+            void writeThenShow();
+        });
+        actions.appendChild(write);
+    }
+    if (shape === "settings") {
+        const save = graphElement("button", "btn btn-primary", "Save");
+        save.setAttribute("type", "button");
+        save.addEventListener("click", () => {
+            const saveThenShut = async () => {
+                const was = graphNodeFormWas(state, node.id);
+                if (was !== "") {
+                    rememberGraphUndo(state, "the change to that box", async () => {
+                        await applyGraph(state, `/graph/nodes/${node.id}`, new URLSearchParams(was));
+                    });
+                }
+                if (await applyGraph(state, `/graph/nodes/${node.id}`, graphFormValues(form)))
+                    shut();
+            };
+            void saveThenShut();
+        });
+        actions.appendChild(save);
+    }
+    else {
+        actions.appendChild(graphElement("span", "hint", "Set it in its panel; this shows what goes through it."));
+    }
+    document.body.appendChild(dialog);
+    openGraphCatch(dialog);
+    ask();
+}
+/** What a box's own panel would send now, for undoing a save made here. */
+function graphNodeFormWas(state, nodeId) {
+    var _a;
+    const form = state.parts.layer.querySelector(`form[data-save="${nodeId}"]`);
+    return (_a = form === null || form === void 0 ? void 0 : form.dataset["was"]) !== null && _a !== void 0 ? _a : "";
+}
+/** The settings pane: its name, and what its kind is set by. */
+function graphEditorSettings(form, node) {
+    form.appendChild(graphElement("h3", "graph-editor-title", "Settings"));
+    const name = document.createElement("input");
+    name.type = "text";
+    name.name = "label";
+    name.value = node.title;
+    form.appendChild(graphLabelled("Name", name));
+    if (node.kind === "format")
+        graphFormatFields(form, node, true);
+    else if (node.kind === "text")
+        graphTextBoxFields(form, node, true);
+    else if (node.kind === "leaflet-chart" && node.leaflet !== null) {
+        const leaflet = node.leaflet;
+        graphChartEditorFields(form, leaflet, (key) => {
+            const value = leaflet.settings[key];
+            return value === null || value === undefined ? "" : String(value);
+        });
+    }
+    else if (node.kind === "transform") {
+        form.appendChild(graphElement("p", "hint", "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, as one number. With none, it gives what came in."));
+    }
+}
+/** The settings that are paths into a row: where a field can go. */
+function graphEditorPathFields(form) {
+    return Array.from(form.querySelectorAll("input[type='text']")).filter((field) => /^(format|leaflet)_(rows|label|value|series)$/.test(field.name));
+}
+/** Draw one side: its heading, its count, its views, and the view chosen. */
+function graphEditorPane(pane, title, side, views, which, usePath, problem, redraw) {
+    var _a;
+    var _b;
+    const parts = [];
+    const head = graphElement("div", "graph-editor-pane-head");
+    head.appendChild(graphElement("h3", "graph-editor-title", title));
+    if (side !== null && !side.empty && side.how !== "text") {
+        const many = side.value !== null && side.rows.length === 0 ? "1 value" : `${side.count} ${side.how === "items" ? "item" : "row"}${side.count === 1 ? "" : "s"}`;
+        head.appendChild(graphElement("span", "graph-editor-count", many));
+    }
+    // The views this side has: a chart first where there is one.
+    const offered = [];
+    if (side !== null && side.html !== "")
+        offered.push(["chart", "Chart"]);
+    if (side !== null && side.how !== "text" && !side.empty) {
+        offered.push(["fields", "Fields"], ["table", "Table"], ["json", "JSON"]);
+    }
+    const chosen = offered.some(([name]) => name === views[which]) ? views[which] : ((_b = (_a = offered[0]) === null || _a === void 0 ? void 0 : _a[0]) !== null && _b !== void 0 ? _b : "");
+    if (offered.length > 1) {
+        const tabs = graphElement("div", "graph-editor-views");
+        tabs.setAttribute("role", "tablist");
+        for (const [name, label] of offered) {
+            const tab = graphElement("button", "graph-editor-view", label);
+            tab.setAttribute("type", "button");
+            tab.setAttribute("role", "tab");
+            tab.setAttribute("aria-selected", String(name === chosen));
+            tab.addEventListener("click", () => {
+                views[which] = name;
+                redraw();
+            });
+            tabs.appendChild(tab);
+        }
+        head.appendChild(tabs);
+    }
+    parts.push(head);
+    if (problem !== "")
+        parts.push(graphElement("p", "error-note", problem));
+    if (side === null) {
+        parts.push(graphElement("p", "hint", which === "input" ? "A source is where things start: nothing comes into it." : "Nothing goes out of this."));
+    }
+    else {
+        if (side.note !== "")
+            parts.push(graphElement("p", "hint", side.note));
+        if (side.error !== "")
+            parts.push(graphElement("p", "error-note", side.error));
+        if (side.foundAt !== "")
+            parts.push(graphElement("p", "hint", `Rows found at “${side.foundAt}”.`));
+        const shown = graphElement("div", "graph-editor-shown");
+        if (side.how === "text")
+            graphEditorText(shown, side);
+        else if (side.empty)
+            shown.appendChild(graphElement("p", "hint", side.note === "" ? "Nothing yet." : ""));
+        else if (chosen === "chart")
+            graphEditorChart(shown, side);
+        else if (chosen === "table")
+            graphEditorTable(shown, side, usePath);
+        else if (chosen === "json")
+            graphEditorJson(shown, side);
+        else
+            graphEditorFieldList(shown, side, usePath);
+        parts.push(shown);
+    }
+    pane.replaceChildren(...parts);
+}
+/** A field that can be dragged into a setting, or pressed to fill the last one. */
+function graphEditorDraggable(element, path, usePath) {
+    element.draggable = true;
+    element.tabIndex = 0;
+    element.title = `Drag “${path}” into a setting, or press to use it`;
+    element.addEventListener("dragstart", (event) => {
+        var _a;
+        (_a = event.dataTransfer) === null || _a === void 0 ? void 0 : _a.setData("text/plain", path);
+        if (event.dataTransfer !== null)
+            event.dataTransfer.effectAllowed = "copy";
+    });
+    element.addEventListener("click", () => usePath(path));
+    element.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            usePath(path);
+        }
+    });
+}
+/** Every field the rows have: its path, what kind of thing, an example. */
+function graphEditorFieldList(shown, side, usePath) {
+    var _a;
+    if (side.fields.length === 0) {
+        shown.appendChild(graphElement("p", "graph-editor-value", graphEditorWords((_a = side.value) !== null && _a !== void 0 ? _a : side.rows[0])));
+        return;
+    }
+    const list = graphElement("ul", "graph-editor-fields");
+    for (const field of side.fields) {
+        const row = graphElement("li", "graph-editor-field");
+        row.appendChild(graphElement("span", `graph-editor-type is-${field.type.replace(/[^a-z]/g, "")}`, field.type));
+        row.appendChild(graphElement("span", "graph-editor-path", field.path));
+        row.appendChild(graphElement("span", "graph-editor-sample", graphEditorWords(field.sample)));
+        graphEditorDraggable(row, field.path, usePath);
+        list.appendChild(row);
+    }
+    shown.appendChild(list);
+}
+/** The rows as a table: a column per field that is not itself a list or object. */
+function graphEditorTable(shown, side, usePath) {
+    if (side.rows.length === 0) {
+        shown.appendChild(graphElement("p", "graph-editor-value", graphEditorWords(side.value)));
+        return;
+    }
+    const columns = side.fields.filter((one) => one.type !== "object").slice(0, 12).map((one) => one.path);
+    const wrap = graphElement("div", "graph-editor-table");
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const top = document.createElement("tr");
+    top.appendChild(graphElement("th", "", "#"));
+    for (const path of columns) {
+        const cell = graphElement("th", "");
+        cell.setAttribute("scope", "col");
+        const chip = graphElement("span", "graph-editor-path", path);
+        graphEditorDraggable(chip, path, usePath);
+        cell.appendChild(chip);
+        top.appendChild(cell);
+    }
+    head.appendChild(top);
+    table.appendChild(head);
+    const rows = document.createElement("tbody");
+    side.rows.forEach((row, index) => {
+        const line = document.createElement("tr");
+        line.appendChild(graphElement("td", "graph-editor-index", String(index + 1)));
+        for (const path of columns)
+            line.appendChild(graphElement("td", "", graphEditorWords(graphWalkPath(row, path))));
+        rows.appendChild(line);
+    });
+    table.appendChild(rows);
+    wrap.appendChild(table);
+    shown.appendChild(wrap);
+    if (side.count > side.rows.length) {
+        shown.appendChild(graphElement("p", "hint", `The first ${side.rows.length} of ${side.count}.`));
+    }
+}
+/** The rows, or the one value, as JSON. */
+function graphEditorJson(shown, side) {
+    const value = side.rows.length > 0 ? side.rows : side.value;
+    let text = JSON.stringify(value, null, 2);
+    if (text.length > 120000)
+        text = text.slice(0, 120000) + "\n…";
+    shown.appendChild(graphElement("pre", "graph-editor-json", text));
+    if (side.count > side.rows.length && side.rows.length > 0) {
+        shown.appendChild(graphElement("p", "hint", `The first ${side.rows.length} of ${side.count}.`));
+    }
+}
+/** The chart, as the server drew it with the same partial the pamphlet uses. */
+function graphEditorChart(shown, side) {
+    const picture = graphElement("div", "graph-editor-picture pamphlet-leaflet");
+    // Built from the server's own template, whose output is escaped.
+    picture.innerHTML = side.html;
+    shown.appendChild(picture);
+}
+/** What a Text box last wrote. */
+function graphEditorText(shown, side) {
+    if (side.error !== "")
+        return;
+    if (side.text === "") {
+        shown.appendChild(graphElement("p", "hint", "Nothing written yet. Write now has it write from the input on the left."));
+        return;
+    }
+    const when = side.at !== null ? new Date(side.at).toLocaleString() : "";
+    if (when !== "")
+        shown.appendChild(graphElement("p", "hint", `Written ${when}:`));
+    shown.appendChild(graphElement("blockquote", "graph-written", side.text));
+}
+/** One step down a dotted path, the way the server walks it. */
+function graphWalkPath(row, path) {
+    let here = row;
+    for (const step of path.split(".")) {
+        if (Array.isArray(here) && /^\d+$/.test(step))
+            here = here[Number(step)];
+        else {
+            const record = asGraphRecord(here);
+            if (record === null)
+                return undefined;
+            here = record[step];
+        }
+    }
+    return here;
+}
+/** A value as a short line of text for a cell or an example. */
+function graphEditorWords(value) {
+    if (value === undefined || value === null)
+        return "—";
+    if (typeof value === "string")
+        return value.length > 120 ? value.slice(0, 119) + "…" : value;
+    if (typeof value === "number" || typeof value === "boolean")
+        return String(value);
+    if (Array.isArray(value))
+        return `[${value.length}]`;
+    const text = JSON.stringify(value);
+    return text.length > 120 ? text.slice(0, 119) + "…" : text;
+}
+
+"use strict";
 // What a Filter is doing: what it let through, and what it held and why.
 //
 // Part of the Configuration canvas; see main.ts.
@@ -2149,15 +2459,17 @@ function asGraphFormat(value) {
         draws: asGraphChoices(raw["draws"]),
     };
 }
-/** A Format box's panel: which list, what labels a bar, what it measures,
- *  and a Try that shows the fields there are and the bars it would give. */
-function graphFormatFields(form, node) {
-    var _a;
+/** A Format box's settings: which list, what labels a bar, what it
+ *  measures. In the panel, and in the editor — where the fields there are
+ *  and the bars it gives are shown beside them. */
+function graphFormatFields(form, node, inEditor = false) {
     const format = node.format;
     if (format === null)
         return;
     const said = (key) => { var _a; return String((_a = format.settings[key]) !== null && _a !== void 0 ? _a : ""); };
-    form.appendChild(graphElement("p", "hint", "Wire a source box into this, and this into a Chart leaflet. A REST API source gives its last whole answer; any other source gives its items as JSON."));
+    if (!inEditor) {
+        form.appendChild(graphElement("p", "hint", "Wire a source box into this, and this into a Chart leaflet. Open the editor to see what comes in and the bars it makes."));
+    }
     const group = graphElement("div", "graph-format");
     const inputs = new Map();
     const text = (name, label, placeholder) => {
@@ -2174,90 +2486,6 @@ function graphFormatFields(form, node) {
     group.appendChild(graphLabelled("How many bars", graphLeafletNumber("format_limit", said("limit"), 1, 60)));
     group.appendChild(graphLabelled("Draw as", graphLeafletSelect("format_draw", format.draws, said("draw"))));
     form.appendChild(group);
-    // Which path field a chip from Try goes into: the one last in focus.
-    for (const name of ["label", "value"]) {
-        (_a = inputs.get(name)) === null || _a === void 0 ? void 0 : _a.addEventListener("focus", () => {
-            group.dataset["aim"] = name;
-        });
-    }
-    const tried = graphElement("div", "graph-format-tried");
-    const button = graphElement("button", "btn btn-quiet", "Try");
-    button.setAttribute("type", "button");
-    button.addEventListener("click", () => {
-        void tryGraphFormat(node.id, group, inputs, tried);
-    });
-    form.appendChild(button);
-    form.appendChild(tried);
-}
-/** Ask what the box would make of what is wired into it, unsaved. */
-async function tryGraphFormat(nodeId, group, inputs, said) {
-    var _a, _b;
-    const body = new URLSearchParams();
-    group.querySelectorAll("[name^='format_']").forEach((field) => {
-        body.append(field.name, field.value);
-    });
-    said.replaceChildren(graphElement("p", "hint", "Reading…"));
-    let answer;
-    try {
-        answer = await askGraph(`/graph/nodes/${nodeId}/format/try`, body);
-    }
-    catch (_c) {
-        said.replaceChildren(graphElement("p", "error-note", "No connection, so it could not be tried."));
-        return;
-    }
-    const raw = asGraphRecord(answer);
-    if (raw === null) {
-        said.replaceChildren(graphElement("p", "error-note", "That did not work."));
-        return;
-    }
-    const shown = [];
-    const rows = typeof raw["rows"] === "number" ? raw["rows"] : 0;
-    const where = typeof raw["rows_path"] === "string" && raw["rows_path"] !== "" ? raw["rows_path"] : "the top";
-    if (rows > 0) {
-        shown.push(graphElement("p", "hint", `${rows} rows, at “${where}”.`));
-        const rowsField = inputs.get("rows");
-        if (rowsField !== undefined && rowsField.value === "" && where !== "the top")
-            rowsField.placeholder = where;
-    }
-    if (Array.isArray(raw["fields"]) && raw["fields"].length > 0) {
-        // The fields there are, as chips: pressed, one goes into whichever of
-        // the two path fields was last in focus — the label by default.
-        const chips = graphElement("div", "graph-tag-choices");
-        for (const one of raw["fields"]) {
-            if (typeof one !== "string")
-                continue;
-            const chip = graphElement("button", "graph-tag-choice", one);
-            chip.setAttribute("type", "button");
-            chip.addEventListener("click", () => {
-                const aim = group.dataset["aim"] === "value" ? inputs.get("value") : inputs.get("label");
-                if (aim !== undefined)
-                    aim.value = one;
-            });
-            chips.appendChild(chip);
-        }
-        shown.push(graphElement("p", "hint", "Fields in its rows — press one to use it:"));
-        shown.push(chips);
-    }
-    if (typeof raw["error"] === "string" && raw["error"] !== "") {
-        shown.push(graphElement("p", "error-note", raw["error"]));
-    }
-    if (Array.isArray(raw["bars"]) && raw["bars"].length > 0) {
-        const list = graphElement("ol", "graph-rest-items");
-        for (const one of raw["bars"]) {
-            const bar = asGraphRecord(one);
-            if (bar === null)
-                continue;
-            const row = graphElement("li", "");
-            row.appendChild(graphElement("strong", "", String((_a = bar["label"]) !== null && _a !== void 0 ? _a : "")));
-            row.appendChild(graphElement("span", "graph-rest-meta", String((_b = bar["value"]) !== null && _b !== void 0 ? _b : "")));
-            list.appendChild(row);
-        }
-        shown.push(list);
-        const more = typeof raw["more"] === "number" ? raw["more"] : 0;
-        if (more > 0)
-            shown.push(graphElement("p", "hint", `and ${more} more.`));
-    }
-    said.replaceChildren(...shown);
 }
 
 "use strict";
@@ -3218,6 +3446,16 @@ function graphNodeForm(state, node) {
         open.textContent = "Open";
         buttons.appendChild(open);
     }
+    // The editor: what comes in and goes out, and — for a data box — its
+    // settings beside them. A double-click on the box opens it too.
+    const editor = graphEditorFor(node.kind);
+    if (editor !== null) {
+        const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");
+        open.setAttribute("type", "button");
+        open.title = "Or double-click the box";
+        open.dataset["editor"] = String(node.id);
+        buttons.appendChild(open);
+    }
     if (node.kind === "filter") {
         const seen = graphElement("button", "btn btn-quiet", "What it catches");
         seen.setAttribute("type", "button");
@@ -3402,7 +3640,8 @@ function clearGraphPick(state) {
 }
 /** Handle a click on the canvas: cut a wire, run a trigger, open a box or a wire. */
 function onGraphClick(state, event) {
-    var _a, _b;
+    var _a;
+    var _b, _c;
     const target = event.target;
     if (!(target instanceof Element))
         return;
@@ -3426,6 +3665,12 @@ function onGraphClick(state, event) {
     if (target.closest("[data-remove-picked]") !== null) {
         event.preventDefault();
         void removeGraphPicked(state);
+        return;
+    }
+    const editor = (_a = target.closest("[data-editor]")) === null || _a === void 0 ? void 0 : _a.dataset["editor"];
+    if (editor !== undefined) {
+        event.preventDefault();
+        openGraphEditor(state, Number(editor));
         return;
     }
     const write = target.closest("[data-write]");
@@ -3476,7 +3721,7 @@ function onGraphClick(state, event) {
         event.preventDefault();
         // A filter or a trigger stands for nothing else and just goes. A channel
         // or a feed takes its history with it, so that is said out loud first.
-        const warning = (_a = remove === null || remove === void 0 ? void 0 : remove.dataset["what"]) !== null && _a !== void 0 ? _a : "";
+        const warning = (_b = remove === null || remove === void 0 ? void 0 : remove.dataset["what"]) !== null && _b !== void 0 ? _b : "";
         void removeGraphNode(state, removeId, warning);
         return;
     }
@@ -3484,7 +3729,7 @@ function onGraphClick(state, event) {
     const wanted = tab === null || tab === void 0 ? void 0 : tab.dataset["tab"];
     if (wanted !== undefined) {
         event.preventDefault();
-        const whose = Number((_b = tab === null || tab === void 0 ? void 0 : tab.dataset["for"]) !== null && _b !== void 0 ? _b : "");
+        const whose = Number((_c = tab === null || tab === void 0 ? void 0 : tab.dataset["for"]) !== null && _c !== void 0 ? _c : "");
         const box = state.nodes.find((entry) => entry.id === whose);
         state.tab = wanted === "test" ? "test" : "settings";
         if (graphTabNeedsRun(box, state.trial, wanted)) {
@@ -4890,7 +5135,7 @@ function asGraphWriting(value) {
     };
 }
 /** A Text box's panel: what to write, how often, and what it last wrote. */
-function graphTextBoxFields(form, node) {
+function graphTextBoxFields(form, node, inEditor = false) {
     const writing = node.writing;
     if (writing === null)
         return;
@@ -4906,6 +5151,9 @@ function graphTextBoxFields(form, node) {
     form.appendChild(graphLabelled("Items it reads", graphLeafletNumber("writing_items", said("items"), 1, 100)));
     form.appendChild(graphLabelled("Writes again", graphLeafletSelect("writing_refresh", writing.refreshes, said("refresh"))));
     form.appendChild(graphElement("p", "hint", "It reads the first items that come in, up to that many, each cut to its first 600 characters."));
+    // In the editor, writing and what was written are on its output side.
+    if (inEditor)
+        return;
     const write = graphElement("button", "btn btn-quiet", "Write now");
     write.setAttribute("type", "button");
     write.dataset["write"] = String(node.id);
@@ -5153,6 +5401,18 @@ function listenToGraph(state) {
     canvas.addEventListener("pointerup", (event) => onGraphPointerUp(state, event));
     canvas.addEventListener("pointercancel", (event) => onGraphPointerUp(state, event));
     canvas.addEventListener("click", (event) => onGraphClick(state, event));
+    // A double-click on a box opens its editor, as a flow tool's does.
+    canvas.addEventListener("dblclick", (event) => {
+        var _a;
+        const target = event.target;
+        if (!(target instanceof Element) || target.closest(".graph-pop") !== null)
+            return;
+        const box = (_a = target.closest("[data-node]")) === null || _a === void 0 ? void 0 : _a.dataset["node"];
+        if (box === undefined)
+            return;
+        event.preventDefault();
+        openGraphEditor(state, Number(box));
+    });
     // Clicking into the canvas means working on it, so the page scrolls to
     // show all of it rather than leaving it half under the fold. On the click,
     // not the press: scrolling under a drag that is starting moves the box
