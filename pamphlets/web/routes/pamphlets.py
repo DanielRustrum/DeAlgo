@@ -23,6 +23,7 @@ from ...services import pamphlet_charts as charts
 from ...services import playlists as playlist_service
 from ...services import writing
 from ...services.playlists import shelf as shelf_service
+from ...services.graph.templating import fill
 from ...services.scope import OwnerId, owned
 from ..contexts import stats_context
 from ..responses import owner_of, redirect, render
@@ -195,16 +196,18 @@ def chart_for(
     kind = str(said.get("kind") or "column")
     if box is not None and box.kind == "format":
         spec = graph_service.formatting.settings(box)
-        shaped = graph_service.formatting.shape(
-            graph_service.formatting.data_into(session, box, owner), spec
-        )
+        arriving = graph_service.formatting.data_into(session, box, owner)
+        shaped = graph_service.formatting.shape(arriving, spec)
         chart = charting.from_bars(shaped.bars, kind, graph_service.formatting.words(box))
         chart.error = shaped.error if not shaped.bars else ""
-        return title or (box.title if box.label else graph_service.formatting.words(box)), chart, None
+        named = box.title if box.label else graph_service.formatting.words(box)
+        return fill(title, arriving) or named, chart, None
     if box is not None:
-        chart = charting.from_data(graph_service.formatting.data_out(session, box, owner), said)
+        data = graph_service.formatting.data_out(session, box, owner)
+        chart = charting.from_data(data, said)
         named = box.title if box.label and box.kind == "transform" else charting.words(said)
-        return title or named, chart, None
+        # A heading can say what the data says: "Videos this week: {{ count }}".
+        return fill(title, data) or named, chart, None
 
     built = str(said.get("chart") or "watched-daily")
     named = title or dict(graph_service.leaflets.CHARTS).get(built, "")

@@ -30,6 +30,7 @@ from typing import Any
 
 from ..sources import rest
 from .graph import formatting
+from .graph.templating import path_of
 
 KINDS: tuple[tuple[str, str], ...] = (
     ("column", "Columns"),
@@ -245,6 +246,9 @@ def spec_of(said: Mapping[str, Any]) -> dict[str, Any]:
     """A leaflet's chart settings, every one filled in."""
     spec = dict(SPEC_DEFAULTS)
     spec.update({key: value for key, value in said.items() if key in SPEC_DEFAULTS and value is not None})
+    # Fields are written {{ like.this }}; what is between the braces is the path.
+    for key in ("rows", "label", "value", "series"):
+        spec[key] = path_of(spec[key])
     return spec
 
 

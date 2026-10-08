@@ -94,8 +94,20 @@ On a **Transform**, **Format** or **Text** box, or a **Chart** leaflet, the edit
 
 Each side can be shown as **Fields** (every path in the rows, what kind of thing is there, and an
 example), as a **Table**, or as **JSON**. Drag a field — from the list or a table heading — onto a
-setting that takes a path to fill it in, or press it to fill the path setting you were last in.
-**Save** keeps the settings; ✕ or Esc closes without saving.
+setting, or press it to put it in the setting you were last in. **Save** keeps the settings; ✕ or
+Esc closes without saving.
+
+### Fields in settings
+
+A field goes into a setting written in double braces — `{{ data.author }}` — and is highlighted, so
+what is read from the data stands apart from plain text. Under the setting, after `=`, is what it
+comes to with the data on the left.
+
+- In a setting that names one field (a chart's or Format box's rows, label, number or series), the
+  field replaces what was there. A bare path, as settings were written before, still works.
+- In words — a Chart leaflet's heading, what a Text box is told — it goes in where the cursor is,
+  among the rest: `Videos this week: {{ count }}`. Each field is filled from the data as it is,
+  or else from its first row; one that is not there is left blank.
 
 On a source, an operation (Filter, Sort, Tag, Decay, Expire), a Deposit or Withdraw, or a feed,
 **Input & output** shows the two sides only: those boxes are set in their panel. A source shows

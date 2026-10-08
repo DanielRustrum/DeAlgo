@@ -1762,7 +1762,7 @@ function asGraphSide(value) {
 }
 /** Open the editor on a box. */
 function openGraphEditor(state, nodeId) {
-    var _a, _b;
+    var _a, _b, _c;
     const node = state.nodes.find((one) => one.id === nodeId);
     if (node === undefined)
         return;
@@ -1803,16 +1803,27 @@ function openGraphEditor(state, nodeId) {
     }
     body.appendChild(output);
     dialog.appendChild(body);
-    // Which path field a pressed field goes into: the last one in focus.
-    let aim = null;
+    // Every setting that can take a field: those naming one, and those that
+    // are words a field can be written into. A field goes in as
+    // {{ path }}, so what is read from the data stands apart from what is not.
+    const takers = graphEditorTakers(form);
     const paths = graphEditorPathFields(form);
-    for (const field of paths) {
+    let aim = (_c = (_b = (_a = paths.find((one) => one.name.endsWith("_label"))) !== null && _a !== void 0 ? _a : paths[0]) !== null && _b !== void 0 ? _b : takers[0]) !== null && _c !== void 0 ? _c : null;
+    const usePath = (path) => {
+        if (aim === null)
+            return;
+        graphPutField(aim, path, paths.includes(aim));
+        aim.focus();
+    };
+    for (const field of takers) {
+        graphExpressionField(field);
         field.addEventListener("focus", () => {
             aim = field;
         });
-        // A field dragged from either side, dropped here, is what it says.
         field.addEventListener("dragover", (event) => {
             var _a;
+            if (!(event instanceof DragEvent))
+                return;
             if (((_a = event.dataTransfer) === null || _a === void 0 ? void 0 : _a.types.includes("text/plain")) === true) {
                 event.preventDefault();
                 field.classList.add("is-dropping");
@@ -1822,24 +1833,18 @@ function openGraphEditor(state, nodeId) {
         field.addEventListener("drop", (event) => {
             var _a;
             var _b;
+            if (!(event instanceof DragEvent))
+                return;
             const path = (_b = (_a = event.dataTransfer) === null || _a === void 0 ? void 0 : _a.getData("text/plain")) !== null && _b !== void 0 ? _b : "";
             field.classList.remove("is-dropping");
             if (path === "")
                 return;
             event.preventDefault();
-            field.value = path;
             aim = field;
-            field.dispatchEvent(new Event("input", { bubbles: true }));
+            field.focus();
+            graphPutField(field, path, paths.includes(field));
         });
     }
-    aim = (_b = (_a = paths.find((one) => one.name.endsWith("_label"))) !== null && _a !== void 0 ? _a : paths[0]) !== null && _b !== void 0 ? _b : null;
-    const usePath = (path) => {
-        if (aim === null)
-            return;
-        aim.value = path;
-        aim.dispatchEvent(new Event("input", { bubbles: true }));
-        aim.focus();
-    };
     const views = { input: "fields", output: "" };
     let latest = null;
     const draw = () => {
@@ -1853,6 +1858,7 @@ function openGraphEditor(state, nodeId) {
         graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw);
         if (node.kind === "feed")
             output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
+        graphShowFilled(takers, asGraphRecord(raw["filled"]));
     };
     let asked = 0;
     let timer = 0;
@@ -1938,6 +1944,8 @@ function openGraphEditor(state, nodeId) {
     }
     document.body.appendChild(dialog);
     openGraphCatch(dialog);
+    for (const field of takers)
+        field.dispatchEvent(new Event("input"));
     ask();
 }
 /** What a box's own panel would send now, for undoing a save made here. */
@@ -1967,6 +1975,92 @@ function graphEditorSettings(form, node) {
     }
     else if (node.kind === "transform") {
         form.appendChild(graphElement("p", "hint", "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, as one number. With none, it gives what came in."));
+    }
+}
+/** Every setting a field can be put into: text boxes and longer text. */
+function graphEditorTakers(form) {
+    return Array.from(form.querySelectorAll("input[type='text'], textarea"))
+        .filter((field) => field.name !== "label");
+}
+/** Put a field into a setting, written {{ path }}. A setting that only ever
+ *  names one field is replaced; words have it written in where the cursor is. */
+function graphPutField(field, path, whole) {
+    var _a, _b;
+    const written = `{{ ${path} }}`;
+    if (whole || field.value.trim() === "") {
+        field.value = written;
+    }
+    else {
+        const start = (_a = field.selectionStart) !== null && _a !== void 0 ? _a : field.value.length;
+        const end = (_b = field.selectionEnd) !== null && _b !== void 0 ? _b : start;
+        field.value = field.value.slice(0, start) + written + field.value.slice(end);
+        const after = start + written.length;
+        field.setSelectionRange(after, after);
+    }
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+/** A setting that shows its {{ fields }} marked out from the words around
+ *  them: a copy of its text laid under it, with each field highlighted, and
+ *  a line beneath saying what it comes to. */
+function graphExpressionField(field) {
+    const holder = graphElement("span", `graph-expr${field instanceof HTMLTextAreaElement ? " is-long" : ""}`);
+    const under = graphElement("span", "graph-expr-under");
+    under.setAttribute("aria-hidden", "true");
+    field.replaceWith(holder);
+    holder.appendChild(under);
+    holder.appendChild(field);
+    const result = graphElement("span", "graph-expr-result");
+    result.setAttribute("aria-live", "polite");
+    holder.after(result);
+    const sync = () => {
+        // Laid exactly under the text: the field's own metrics, read once it is
+        // on the page — they differ on a phone.
+        if (field.isConnected && under.dataset["fitted"] !== "1") {
+            const look = getComputedStyle(field);
+            if (look.fontSize !== "") {
+                under.style.font = look.font;
+                under.style.letterSpacing = look.letterSpacing;
+                under.style.padding = look.padding;
+                under.style.borderWidth = look.borderWidth;
+                under.dataset["fitted"] = "1";
+            }
+        }
+        const parts = [];
+        let last = 0;
+        const fields = /\{\{[^{}]*\}\}/g;
+        for (let match = fields.exec(field.value); match !== null; match = fields.exec(field.value)) {
+            const at = match.index;
+            parts.push(document.createTextNode(field.value.slice(last, at)));
+            parts.push(graphElement("mark", "graph-expr-field", match[0]));
+            last = at + match[0].length;
+        }
+        // A trailing space keeps a last empty line its height in a textarea.
+        parts.push(document.createTextNode(field.value.slice(last) + " "));
+        under.replaceChildren(...parts);
+        under.scrollTop = field.scrollTop;
+        under.scrollLeft = field.scrollLeft;
+        holder.classList.toggle("has-fields", field.value.includes("{{"));
+        if (!field.value.includes("{{"))
+            result.textContent = "";
+    };
+    field.addEventListener("input", sync);
+    field.addEventListener("scroll", () => {
+        under.scrollTop = field.scrollTop;
+        under.scrollLeft = field.scrollLeft;
+    });
+    sync();
+}
+/** Under each setting with a field in it, what it comes to now. */
+function graphShowFilled(takers, filled) {
+    var _a;
+    for (const field of takers) {
+        const result = (_a = field.parentElement) === null || _a === void 0 ? void 0 : _a.nextElementSibling;
+        if (!(result instanceof HTMLElement) || !result.classList.contains("graph-expr-result"))
+            continue;
+        const value = filled === null || filled === void 0 ? void 0 : filled[field.name];
+        result.textContent = typeof value === "string" && field.value.includes("{{")
+            ? `= ${value === "" ? "(nothing there)" : value}`
+            : "";
     }
 }
 /** The settings that are paths into a row: where a field can go. */

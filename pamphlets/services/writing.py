@@ -299,6 +299,7 @@ class Written:
 def run(session: Session, node: GraphNode, owner: Any, account: Settings) -> Written:
     """Have a Text box write now, keeping what it wrote — or why it could not."""
     from .graph.formatting import data_into, items_into
+    from .graph.templating import fill
 
     model = model_for(account)
     if model is None:
@@ -310,7 +311,9 @@ def run(session: Session, node: GraphNode, owner: Any, account: Settings) -> Wri
         return _keep(node, "", "Nothing has come in to write about yet.")
     text_in, total, sent = material(value, int(said["items"]))
     try:
-        text = write(model, str(said["instructions"]), text_in, counted=(total, sent))
+        # What it is told can name fields of what came in: {{ count }}.
+        told = fill(str(said["instructions"]), value)
+        text = write(model, told, text_in, counted=(total, sent))
     except WritingError as exc:
         return _keep(node, "", str(exc))
     return _keep(node, text, "")

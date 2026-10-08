@@ -42,6 +42,7 @@ from .names import store_name, tag_name, tag_names
 from .pieces import pieces_of, pieces_under
 from .reading import nodes
 from .stamps import stamped_life
+from .templating import path_of
 
 GROUPS: tuple[tuple[str, str], ...] = (
     ("none", "As it is"),
@@ -125,12 +126,12 @@ def save(node: GraphNode, form: Mapping[str, str]) -> None:
 def words(node: GraphNode) -> str:
     """What a Format box does, said on the canvas."""
     said = settings(node)
-    label = said["label"] or "each row"
+    label = path_of(said["label"]) or "each row"
     grouped = "" if said["group"] == "none" else f" {dict(GROUPS)[said['group']].lower()}"
     if said["combine"] == "count":
         return f"count of {label}{grouped}"
     combine = dict(COMBINES)[said["combine"]].lower()
-    return f"{combine} {said['value']} by {label}{grouped}"
+    return f"{combine} {path_of(said['value'])} by {label}{grouped}"
 
 
 # -- what comes in -----------------------------------------------------------------
@@ -526,7 +527,7 @@ def shape(data: Any, spec: Mapping[str, Any]) -> Shaped:
             "into a Chart leaflet to show it."
         ))
     try:
-        rows, rows_path = rest.locate(data, str(spec.get("rows") or ""))
+        rows, rows_path = rest.locate(data, path_of(spec.get("rows")))
     except rest.RestError as exc:
         return Shaped(error=str(exc))
     rows = rows[:MOST_ROWS]
@@ -534,8 +535,8 @@ def shape(data: Any, spec: Mapping[str, Any]) -> Shaped:
 
     group = str(spec.get("group") or "none")
     combine = str(spec.get("combine") or "count")
-    label_path = str(spec.get("label") or "")
-    value_path = str(spec.get("value") or "")
+    label_path = path_of(spec.get("label"))
+    value_path = path_of(spec.get("value"))
     if not label_path:
         shaped.error = "Say which field labels each bar."
         return shaped

@@ -111,38 +111,42 @@ function openGraphEditor(state: GraphState, nodeId: number): void {
   body.appendChild(output);
   dialog.appendChild(body);
 
-  // Which path field a pressed field goes into: the last one in focus.
-  let aim: HTMLInputElement | null = null;
+  // Every setting that can take a field: those naming one, and those that
+  // are words a field can be written into. A field goes in as
+  // {{ path }}, so what is read from the data stands apart from what is not.
+  const takers = graphEditorTakers(form);
   const paths = graphEditorPathFields(form);
-  for (const field of paths) {
+  let aim: HTMLInputElement | HTMLTextAreaElement | null =
+    paths.find((one): boolean => one.name.endsWith("_label")) ?? paths[0] ?? takers[0] ?? null;
+  const usePath = (path: string): void => {
+    if (aim === null) return;
+    graphPutField(aim, path, paths.includes(aim as HTMLInputElement));
+    aim.focus();
+  };
+  for (const field of takers) {
+    graphExpressionField(field);
     field.addEventListener("focus", (): void => {
       aim = field;
     });
-    // A field dragged from either side, dropped here, is what it says.
-    field.addEventListener("dragover", (event): void => {
+    field.addEventListener("dragover", (event: Event): void => {
+      if (!(event instanceof DragEvent)) return;
       if (event.dataTransfer?.types.includes("text/plain") === true) {
         event.preventDefault();
         field.classList.add("is-dropping");
       }
     });
     field.addEventListener("dragleave", (): void => field.classList.remove("is-dropping"));
-    field.addEventListener("drop", (event): void => {
+    field.addEventListener("drop", (event: Event): void => {
+      if (!(event instanceof DragEvent)) return;
       const path = event.dataTransfer?.getData("text/plain") ?? "";
       field.classList.remove("is-dropping");
       if (path === "") return;
       event.preventDefault();
-      field.value = path;
       aim = field;
-      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.focus();
+      graphPutField(field, path, paths.includes(field as HTMLInputElement));
     });
   }
-  aim = paths.find((one): boolean => one.name.endsWith("_label")) ?? paths[0] ?? null;
-  const usePath = (path: string): void => {
-    if (aim === null) return;
-    aim.value = path;
-    aim.dispatchEvent(new Event("input", { bubbles: true }));
-    aim.focus();
-  };
 
   const views: { input: string; output: string } = { input: "fields", output: "" };
   let latest: unknown = null;
@@ -155,6 +159,7 @@ function openGraphEditor(state: GraphState, nodeId: number): void {
     graphEditorPane(input, "Input", inSide, views, "input", usePath, problem, draw);
     graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw);
     if (node.kind === "feed") output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
+    graphShowFilled(takers, asGraphRecord(raw["filled"]));
   };
 
   let asked = 0;
@@ -239,6 +244,7 @@ function openGraphEditor(state: GraphState, nodeId: number): void {
 
   document.body.appendChild(dialog);
   openGraphCatch(dialog);
+  for (const field of takers) field.dispatchEvent(new Event("input"));
   ask();
 }
 
@@ -268,6 +274,91 @@ function graphEditorSettings(form: HTMLFormElement, node: GraphNodeView): void {
   } else if (node.kind === "transform") {
     form.appendChild(graphElement("p", "hint",
       "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, as one number. With none, it gives what came in."));
+  }
+}
+
+/** Every setting a field can be put into: text boxes and longer text. */
+function graphEditorTakers(form: HTMLFormElement): (HTMLInputElement | HTMLTextAreaElement)[] {
+  return Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[type='text'], textarea"))
+    .filter((field): boolean => field.name !== "label");
+}
+
+/** Put a field into a setting, written {{ path }}. A setting that only ever
+ *  names one field is replaced; words have it written in where the cursor is. */
+function graphPutField(field: HTMLInputElement | HTMLTextAreaElement, path: string, whole: boolean): void {
+  const written = `{{ ${path} }}`;
+  if (whole || field.value.trim() === "") {
+    field.value = written;
+  } else {
+    const start = field.selectionStart ?? field.value.length;
+    const end = field.selectionEnd ?? start;
+    field.value = field.value.slice(0, start) + written + field.value.slice(end);
+    const after = start + written.length;
+    field.setSelectionRange(after, after);
+  }
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** A setting that shows its {{ fields }} marked out from the words around
+ *  them: a copy of its text laid under it, with each field highlighted, and
+ *  a line beneath saying what it comes to. */
+function graphExpressionField(field: HTMLInputElement | HTMLTextAreaElement): void {
+  const holder = graphElement("span", `graph-expr${field instanceof HTMLTextAreaElement ? " is-long" : ""}`);
+  const under = graphElement("span", "graph-expr-under");
+  under.setAttribute("aria-hidden", "true");
+  field.replaceWith(holder);
+  holder.appendChild(under);
+  holder.appendChild(field);
+  const result = graphElement("span", "graph-expr-result");
+  result.setAttribute("aria-live", "polite");
+  holder.after(result);
+  const sync = (): void => {
+    // Laid exactly under the text: the field's own metrics, read once it is
+    // on the page — they differ on a phone.
+    if (field.isConnected && under.dataset["fitted"] !== "1") {
+      const look = getComputedStyle(field);
+      if (look.fontSize !== "") {
+        under.style.font = look.font;
+        under.style.letterSpacing = look.letterSpacing;
+        under.style.padding = look.padding;
+        under.style.borderWidth = look.borderWidth;
+        under.dataset["fitted"] = "1";
+      }
+    }
+    const parts: Node[] = [];
+    let last = 0;
+    const fields = /\{\{[^{}]*\}\}/g;
+    for (let match = fields.exec(field.value); match !== null; match = fields.exec(field.value)) {
+      const at = match.index;
+      parts.push(document.createTextNode(field.value.slice(last, at)));
+      parts.push(graphElement("mark", "graph-expr-field", match[0]));
+      last = at + match[0].length;
+    }
+    // A trailing space keeps a last empty line its height in a textarea.
+    parts.push(document.createTextNode(field.value.slice(last) + " "));
+    under.replaceChildren(...parts);
+    under.scrollTop = field.scrollTop;
+    under.scrollLeft = field.scrollLeft;
+    holder.classList.toggle("has-fields", field.value.includes("{{"));
+    if (!field.value.includes("{{")) result.textContent = "";
+  };
+  field.addEventListener("input", sync);
+  field.addEventListener("scroll", (): void => {
+    under.scrollTop = field.scrollTop;
+    under.scrollLeft = field.scrollLeft;
+  });
+  sync();
+}
+
+/** Under each setting with a field in it, what it comes to now. */
+function graphShowFilled(takers: (HTMLInputElement | HTMLTextAreaElement)[], filled: Record<string, unknown> | null): void {
+  for (const field of takers) {
+    const result = field.parentElement?.nextElementSibling;
+    if (!(result instanceof HTMLElement) || !result.classList.contains("graph-expr-result")) continue;
+    const value = filled?.[field.name];
+    result.textContent = typeof value === "string" && field.value.includes("{{")
+      ? `= ${value === "" ? "(nothing there)" : value}`
+      : "";
   }
 }
 

@@ -340,8 +340,34 @@
 }
 .graph-editor-picture { overflow: hidden; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-height: 200px; }
 
+/* A setting with {{ fields }} in it: its text laid over a copy in which
+   each field is marked, so what is read from the data stands apart from
+   the words around it. The copy's text is invisible; only the marks show. */
+.graph-expr { position: relative; display: block; border-radius: var(--radius-control); background: var(--panel); }
+.graph-expr > input, .graph-expr > textarea { position: relative; z-index: 1; background: transparent; }
+.graph-expr-under {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  border: 1px solid transparent; box-sizing: border-box;
+  color: transparent; white-space: pre; pointer-events: none;
+}
+.graph-expr.is-long .graph-expr-under { white-space: pre-wrap; overflow-wrap: break-word; }
+.graph-expr-field {
+  color: transparent; border-radius: 4px;
+  background: color-mix(in oklab, var(--ok) 32%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ok) 60%, transparent);
+}
+.graph-expr.has-fields > input, .graph-expr.has-fields > textarea {
+  border-color: color-mix(in oklab, var(--ok) 55%, var(--line));
+}
+.graph-expr-result {
+  display: block; margin-top: 2px; min-height: 0;
+  font-size: calc(12px * var(--text-scale)); color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.graph-expr-result:empty { display: none; }
+
 /* A setting a field is being dragged over. */
-.graph-editor input.is-dropping { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.graph-editor input.is-dropping, .graph-editor textarea.is-dropping { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 
 /* A Chart leaflet's settings: its type as buttons, the steps in boxes. */
 .graph-chart-step {

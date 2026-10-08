@@ -22,6 +22,7 @@ from ....services import charting, writing
 from ....services import graph as graph_service
 from ....services.graph import formatting, inspecting
 from ....services.graph.inspecting import side
+from ....services.graph.templating import fill
 from ....services.scope import OwnerId, owned
 from ....sources import rest
 from ...responses import owner_of
@@ -50,7 +51,31 @@ async def graph_inspect(request: Request, node_pk: int) -> JSONResponse:
         answer = inspect(session, node, owner, given)
         if problem:
             answer["problem"] = problem
+        # What each setting with a {{ field }} in it comes to, read from
+        # what came in: shown under the setting, as it is typed.
+        written = {key: value for key, value in given.items() if "{{" in value}
+        if written:
+            arrived = raw_input(session, node, owner)
+            answer["filled"] = {key: fill(value, arrived) for key, value in written.items()}
         return JSONResponse(answer)
+
+
+def raw_input(session: Session, node: GraphNode, owner: OwnerId) -> Any:
+    """What reaches a box, as it is: what its {{ fields }} are read from."""
+    if node.kind == "source":
+        return formatting.data_for(session, node)
+    if node.kind == "format":
+        return formatting.data_into(session, node, owner)
+    if node.kind == "leaflet-chart":
+        from ..pamphlets import wired_into
+
+        box = wired_into(session, owner, node)
+        if box is None:
+            return None
+        if box.kind == "format":
+            return formatting.data_into(session, box, owner)
+        return formatting.data_out(session, box, owner)
+    return inspecting.arriving(session, node, owner)[0]
 
 
 def read_rest_once(session: Session, node: GraphNode, owner: OwnerId) -> str:
