@@ -88,6 +88,8 @@ class Map:
     #: south, west, north and east edges.
     focus: str = ""
     bounds: tuple[float, float, float, float] | None = None
+    #: Whether it stays where it is: no dragging, no zooming.
+    fixed: bool = False
 
     @property
     def drawn(self) -> bool:
@@ -106,6 +108,7 @@ class Map:
             "tiles": self.tiles,
             "credit": self.credit,
             "focus": self.focus,
+            "fixed": self.fixed,
             "bounds": [[self.bounds[0], self.bounds[1]], [self.bounds[2], self.bounds[3]]] if self.bounds else None,
         }
 
@@ -359,6 +362,7 @@ def focus_on(placed: Map, said: Mapping[str, Any]) -> Map:
     bounds = parse_bounds(said.get("bounds"))
     if bounds is not None:
         placed.bounds, placed.focus = bounds, str(said.get("focus") or "")
+    placed.fixed = said.get("moves") == "fixed"
     return placed
 
 

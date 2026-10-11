@@ -60,6 +60,8 @@ STYLES: dict[str, dict[str, tuple[tuple[str, str], ...]]] = {
     },
     "leaflet-pie": {"shape": (("pie", "A pie"), ("doughnut", "A doughnut"))},
     "leaflet-radar": {"fill": (("area", "Filled"), ("none", "Lines"))},
+    # A map a reader can move about, or one that stays where it was set.
+    "leaflet-map": {"moves": (("free", "Can be moved and zoomed"), ("fixed", "Stays where it is"))},
 }
 
 #: The two edges a leaflet can hang from.
@@ -108,7 +110,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     },
     MAP: {"title": "", "rows": "", "lat": "", "lng": "", "popup": "", "series": "", "size": "", "limit": 500,
           # The area it is focused on: a place's name, and its edges as found.
-          "focus": "", "bounds": ""},
+          "focus": "", "bounds": "", "moves": "free"},
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
 }
@@ -241,6 +243,11 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
         if popup is not None:
             said["popup"] = popup[:500]
         number("limit", 1, 1000)
+        moves = given("moves")
+        if moves is not None:
+            if moves not in dict(STYLES[MAP]["moves"]):
+                raise GraphError("A map can be moved, or stay where it is.")
+            said["moves"] = moves
         from ..mapping import parse_bounds
 
         bounds = given("bounds")

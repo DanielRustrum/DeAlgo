@@ -32,6 +32,8 @@ interface MapSpec {
   credit: string;
   /** The area it is focused on — south-west and north-east corners — or null to fit the dots. */
   bounds: [[number, number], [number, number]] | null;
+  /** Whether it stays where it is: no dragging, no zooming. */
+  fixed: boolean;
 }
 
 /** A map's dots and where its pictures come from, from the JSON beside it. */
@@ -76,6 +78,7 @@ function mapSpec(figure: HTMLElement): MapSpec | null {
     tiles: typeof given["tiles"] === "string" ? given["tiles"] : "",
     credit: typeof given["credit"] === "string" ? given["credit"] : "",
     bounds,
+    fixed: given["fixed"] === true,
   };
 }
 
@@ -99,10 +102,17 @@ function drawMap(figure: HTMLElement): void {
 
   const theme = mapTheme();
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Fixed, it is a picture of where it was set: nothing moves it. Free, a
+  // page scrolls past it rather than being caught by it: zooming is by its
+  // buttons, or by the wheel once the map has been clicked into.
+  const free = !spec.fixed;
   const map = library.map(box, {
-    zoomControl: true,
-    // A page scrolls past a map rather than being caught by it: zooming is
-    // by its buttons, or by the wheel once the map has been clicked into.
+    zoomControl: free,
+    dragging: free,
+    touchZoom: free,
+    doubleClickZoom: free,
+    boxZoom: free,
+    keyboard: free,
     scrollWheelZoom: false,
     zoomAnimation: !still,
     fadeAnimation: !still,
@@ -110,7 +120,7 @@ function drawMap(figure: HTMLElement): void {
   });
   map.attributionControl.setPrefix(false);
   library.tileLayer(spec.tiles, { attribution: spec.credit, maxZoom: 19 }).addTo(map);
-  map.on("click", (): void => map.scrollWheelZoom.enable());
+  if (free) map.on("click", (): void => map.scrollWheelZoom.enable());
 
   const placed: [number, number][] = [];
   for (const dot of spec.dots) {

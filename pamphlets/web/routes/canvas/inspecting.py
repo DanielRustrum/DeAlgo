@@ -189,7 +189,9 @@ def _map(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, str
     heading, placed = map_for(session, owner, node, said)
     output = side([{"lat": dot.lat, "lng": dot.lng, "says": dot.says} for dot in placed.dots], "data")
     output["html"] = TEMPLATES.get_template("_map.html").render(map=placed, map_label=heading)
-    output["error"] = placed.error if not placed.drawn else ""
+    # Said once: by the map's own note when there is no map, else above it —
+    # a focused map with rows it could not place still shows its area.
+    output["error"] = placed.error if placed.drawn and not placed.dots else ""
     output["guessed"] = placed.guessed
     if placed.guessed:
         output["note"] = (f"A guess, while nothing is chosen: {placed.guessed} as latitude and "

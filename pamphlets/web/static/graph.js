@@ -3310,9 +3310,12 @@ function graphMapFields(form, node, leaflet, said) {
  *  says, and what colours and sizes the dots — said back as one sentence. */
 function graphMapEditorFields(form, nodeId, leaflet, said) {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "none — or words, with {{ fields }}")));
+    for (const style of leaflet.styles) {
+        form.appendChild(graphLabelled("The map", graphChartStyle(form, style.name, style.choices, said(style.name))));
+    }
     graphMapFocus(form, nodeId, said);
     if (!leaflet.wired) {
-        form.appendChild(graphElement("p", "hint", "Wire data into it — its { } port — to place a dot for each row."));
+        form.appendChild(graphElement("p", "hint", "With nothing wired in, it is a map of the place it is focused on — set it to stay where it is for a still one. Wire data into its { } port to place a dot for each row."));
         return;
     }
     const says = graphElement("p", "graph-chart-says");

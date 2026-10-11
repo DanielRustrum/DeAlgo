@@ -222,3 +222,32 @@ def test_the_admin_names_the_place_search_server(client, db, monkeypatch):
     assert FakeClient.asked == [("https://places.example/search", "Lyon")]
     refused = client.post("/admin/maps", data={"search": "http://plain.example"}, follow_redirects=False)
     assert refused.status_code in (302, 303)
+
+
+def test_a_still_map_of_a_place_needs_no_data_and_stays_put(client, db):
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session, label="Here")
+        node = graph.add_piece(session, kind="leaflet-map", host=pamphlet)
+        leaflets.save(node, {"leaflet_focus": "Kew", "leaflet_bounds": "51.46,-0.31,51.49,-0.28",
+                             "leaflet_moves": "fixed"}, set())
+        pamphlet_pk, map_pk = pamphlet.id, node.id
+    [config] = configs(client.get(f"/pamphlets/{pamphlet_pk}").text)
+    assert config["fixed"] is True and config["dots"] == []
+    assert [one["name"] for one in drawn_node(db, map_pk)["leaflet"]["styles"]] == ["moves"]
+    assert client.post(f"/graph/nodes/{map_pk}", data={"leaflet_moves": "spinning"}).status_code == 400
+
+
+def test_rows_it_cannot_place_are_said_once(client, db):
+    with db.session_scope() as session:
+        source = a_rest_source(session, {"rows": [{"name": "somewhere"}]})
+        _, node = a_map_from(session, source, lat="name", lng="name")
+        map_pk = node.id
+    seen = client.post(f"/graph/nodes/{map_pk}/inspect").json()["output"]
+    said = seen["error"] + seen["html"]
+    assert said.count("No row had a latitude and a longitude") == 1
+
+    # Focused on a place, it shows the place, and says why there are no dots.
+    focused = client.post(f"/graph/nodes/{map_pk}/inspect", data={
+        "leaflet_focus": "Kew", "leaflet_bounds": "51.46,-0.31,51.49,-0.28"}).json()["output"]
+    assert "data-map" in focused["html"] and "No row had" in focused["error"]
+    assert (focused["error"] + focused["html"]).count("No row had") == 1

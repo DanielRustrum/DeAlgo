@@ -115,7 +115,8 @@ Double-click it for the [editor](../The%20Configuration%20Canvas.md#the-editor):
 
 | Setting | Says |
 | --- | --- |
-| **Focus on** | A place — a city, a state, a country, an address. Type it and press **Find**, then choose which of what was found you meant; the map shows that area, with whatever dots fall in it. **Fit the dots instead** goes back to showing wherever the dots are. A map focused on a place needs no data wired in at all. |
+| **The map** | **Can be moved and zoomed**, or **Stays where it is**: a still picture of the area — no dragging, no zooming, no buttons — whose dots still say their words when pressed. |
+| **Focus on** | A place — a city, a state, a country, an address. Type it and press **Find**, then choose which of what was found you meant; the map shows that area, with whatever dots fall in it. **Fit the dots instead** goes back to showing wherever the dots are. A map focused on a place needs no data wired in at all: focused, set to stay where it is and with nothing wired in, it is a still map of the place. Focused with rows it cannot place, it shows the place and says why there are no dots. |
 | **Where each row is** | The fields holding its latitude and longitude. Left empty, fields called `lat` / `latitude` and `lng` / `lon` / `longitude` are guessed — and said to be. A row without both, or with one off the globe, is left off. |
 | **Pressed, a dot says** | Words, with [`{{ fields }}`](../The%20Configuration%20Canvas.md#fields-in-settings) of its row: `{{ name }} — {{ visits }} visits`. Set as plain text. |
 | **Colour by** *(optional)* | A field whose every value gets its own colour, with a key under the map. Five are named; the rest are Other. |

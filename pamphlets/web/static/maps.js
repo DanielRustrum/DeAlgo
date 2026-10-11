@@ -64,6 +64,7 @@ function mapSpec(figure) {
         tiles: typeof given["tiles"] === "string" ? given["tiles"] : "",
         credit: typeof given["credit"] === "string" ? given["credit"] : "",
         bounds,
+        fixed: given["fixed"] === true,
     };
 }
 /** The theme's colours a map is drawn in, as the page has them now. */
@@ -88,10 +89,17 @@ function drawMap(figure) {
     before === null || before === void 0 ? void 0 : before.remove();
     const theme = mapTheme();
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Fixed, it is a picture of where it was set: nothing moves it. Free, a
+    // page scrolls past it rather than being caught by it: zooming is by its
+    // buttons, or by the wheel once the map has been clicked into.
+    const free = !spec.fixed;
     const map = library.map(box, {
-        zoomControl: true,
-        // A page scrolls past a map rather than being caught by it: zooming is
-        // by its buttons, or by the wheel once the map has been clicked into.
+        zoomControl: free,
+        dragging: free,
+        touchZoom: free,
+        doubleClickZoom: free,
+        boxZoom: free,
+        keyboard: free,
         scrollWheelZoom: false,
         zoomAnimation: !still,
         fadeAnimation: !still,
@@ -99,7 +107,8 @@ function drawMap(figure) {
     });
     map.attributionControl.setPrefix(false);
     library.tileLayer(spec.tiles, { attribution: spec.credit, maxZoom: 19 }).addTo(map);
-    map.on("click", () => map.scrollWheelZoom.enable());
+    if (free)
+        map.on("click", () => map.scrollWheelZoom.enable());
     const placed = [];
     for (const dot of spec.dots) {
         const colour = (_b = (_a = theme.colours[Math.min(6, Math.max(1, dot.slot)) - 1]) !== null && _a !== void 0 ? _a : theme.colours[0]) !== null && _b !== void 0 ? _b : "#c04f2c";
