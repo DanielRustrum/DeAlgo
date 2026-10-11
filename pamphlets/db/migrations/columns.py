@@ -144,6 +144,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("channel", "raw_snapshot_at", "DATETIME"),
     # What a Tag box marks whatever comes through it with.
     ("graph_node", "marks", "VARCHAR(40)"),
+    # Which Canvas node a box is inside: None for the top of the canvas.
+    ("graph_node", "inside_pk", "INTEGER"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

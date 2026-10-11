@@ -89,6 +89,30 @@ def remove(session: Session, node_pk: int, owner: OwnerId = None) -> bool:
 
     channel, playlist = node.channel, node.playlist
 
+    if node.kind == "canvas":
+        # Everything inside it goes with it, canvases inside it and all —
+        # each the way it would go on its own, so what is behind a source
+        # or a feed inside goes too when nothing else draws it.
+        from .insides import everything_inside
+
+        for inside in reversed(everything_inside(nodes(session, owner), node.id)):
+            if session.get(GraphNode, inside.id) is not None and inside.kind not in AUGMENTATIONS:
+                remove(session, inside.id, owner)
+        for leftover in everything_inside(nodes(session, owner), node.id):
+            session.delete(leftover)
+        session.flush()
+
+    if node.kind == "relay":
+        # Its wires go with it: put right what they said, as taking each out would.
+        from .wiring import after_relay_change, relay_ends, relay_origin
+
+        origin = relay_origin(session, node, owner)[0]
+        ends = relay_ends(session, node, owner)
+        session.delete(node)
+        session.flush()
+        after_relay_change(session, origin, ends, owner)
+        return True
+
     if node.kind in AUGMENTATIONS:
         # The chain closes up behind it. The column carries a cascade on a
         # database built from scratch, which would take everything below it

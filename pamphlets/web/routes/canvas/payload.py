@@ -14,6 +14,7 @@ from ....db import get_settings
 from ....services import graph as graph_service
 from ....services import playlists as playlist_service
 from ....services import algorithm, charting, tagging, writing
+from ....services.graph import insides
 from ....services.scope import OwnerId
 from ...templates import Context
 from .facts import (
@@ -38,9 +39,15 @@ from .notes import node_note
 def graph_payload(session: Session, owner: OwnerId) -> Context:
     """The whole canvas as JSON: what the browser draws from."""
     canvas = _Canvas.read(session, owner)
+    # Only the canvas being looked at: the top, or one Canvas node's inside.
+    inside = insides.current(session, owner)
+    shown = [node for node in canvas.nodes if node.inside_pk == inside]
+    here = {node.id for node in shown}
     return {
-        "nodes": [_node(node, canvas) for node in canvas.nodes],
-        "wires": graph_service.wires(session, owner),
+        "inside": inside,
+        "trail": insides.trail(session, owner, inside),
+        "nodes": [_node(node, canvas) for node in shown],
+        "wires": [wire for wire in graph_service.wires(session, owner) if wire["from"] in here and wire["to"] in here],
         # What is already watched, for a source node to be pointed at rather
         # than told again. Sent once for the whole canvas: every empty source
         # node offers the same list, narrowed in the browser to its own kind.
@@ -92,6 +99,9 @@ class _Canvas:
     #: Leaflets with a box wired into them — data into a Chart, a page into
     #: a Text leaflet — and that box.
     shaped: dict[int, GraphNode]
+    #: What each Relay carries: what is wired into it, as drawn. "" for one
+    #: with nothing wired in yet.
+    relaying: dict[int, str]
 
     @classmethod
     def read(cls, session: Session, owner: OwnerId) -> _Canvas:
@@ -129,6 +139,11 @@ class _Canvas:
             default_pamphlet=get_settings(session, owner).default_pamphlet_pk,
             model=writing.model_for(get_settings(session, owner)),
             learning=_learning(session, owner),
+            relaying={
+                edge.target_pk: edge.carries
+                for edge in graph_service.edges(session, owner, every=True, raw=True)
+                if edge.target_pk in by_id and by_id[edge.target_pk].kind == "relay"
+            },
             shaped={
                 edge.target_pk: by_id[edge.source_pk]
                 for edge in graph_service.edges(session, owner, every=True)
@@ -142,6 +157,12 @@ class _Canvas:
 def _node(node: GraphNode, canvas: _Canvas) -> Context:
     """One box or piece, as the canvas draws it."""
     drawn = _drawn(node, canvas)
+    if node.kind == "relay":
+        drawn["relay"] = {"carries": canvas.relaying.get(node.id, "")}
+    elif node.kind == "canvas":
+        held = sum(1 for one in canvas.nodes if one.inside_pk == node.id and one.attached_to is None)
+        drawn["note"] = (f"{held} box{'es' if held != 1 else ''} inside · double-click to open"
+                         if held else "empty · double-click to open")
     if node.kind in graph_service.LEAFLET_KINDS:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)

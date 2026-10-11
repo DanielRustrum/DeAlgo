@@ -19,6 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import __version__, scheduler
 from ..config import CONFIG
 from ..db import init_db, session_scope
+from ..models import CURRENT_INSIDE
 from ..services import accounts
 from . import guard, routes
 from .responses import is_htmx
@@ -49,6 +50,24 @@ app = FastAPI(title="Pamphlets", version=__version__, lifespan=lifespan)
 # Starlette hands the next handler in untyped; naming the shape here keeps
 # the middleware itself honest about what it returns.
 Handler = Callable[[Request], Awaitable[Response]]
+
+
+@app.middleware("http")
+async def canvas_being_looked_at(request: Request, call_next: Handler) -> Response:
+    """Which canvas a request to the canvas's API is about: the top, or the
+    inside of the Canvas node its `inside` names. Read by whatever the
+    request makes (a new box goes there) and shows (only that canvas's
+    boxes); checked as the account's own where it is read
+    (services/graph/insides.py). Every other request is about the top."""
+    path = request.url.path
+    wanted = request.query_params.get("inside", "")
+    if not (path.startswith("/graph") or path.startswith("/api/graph")) or not wanted.isdigit():
+        return await call_next(request)
+    token = CURRENT_INSIDE.set(int(wanted))
+    try:
+        return await call_next(request)
+    finally:
+        CURRENT_INSIDE.reset(token)
 
 
 @app.middleware("http")

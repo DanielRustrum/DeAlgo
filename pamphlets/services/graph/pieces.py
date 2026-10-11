@@ -112,6 +112,8 @@ def attach(
         raise GraphError("A piece cannot be slotted under itself.")
     if host.kind == "group":
         raise GraphError("A group is a background, not something to slot into.")
+    if host.inside_pk != piece.inside_pk:
+        raise GraphError("A canvas keeps to itself: a piece slots only under a box beside it.")
 
     # Where this kind of piece is allowed to end up. A chain belongs to the
     # box at the top of it, so what matters is that box and not whatever the

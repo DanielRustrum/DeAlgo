@@ -14,12 +14,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models import GraphEdge, GraphNode
+from ...models import GraphNode
 from ...sources import rest
-from ..scope import OwnerId, owned
+from ..scope import OwnerId
 from . import formatting
 
 #: Rows sent to the browser for a side. The count says how many there were.
@@ -35,10 +34,7 @@ OPERATIONS = ("filter", "sort", "tag", "decay", "expire")
 
 def wired(session: Session, box: GraphNode, owner: OwnerId, carries: str) -> bool:
     """Whether anything carrying this is wired into a box."""
-    return session.scalar(
-        owned(select(GraphEdge.id), GraphEdge, owner)
-        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == carries)
-    ) is not None
+    return bool(formatting.incoming(session, box, owner, carries))
 
 
 def arriving(session: Session, box: GraphNode, owner: OwnerId) -> tuple[Any, str]:

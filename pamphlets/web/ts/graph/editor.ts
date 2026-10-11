@@ -72,6 +72,11 @@ function asGraphSide(value: unknown): GraphSide | null {
 function openGraphEditor(state: GraphState, nodeId: number): void {
   const node = state.nodes.find((one): boolean => one.id === nodeId);
   if (node === undefined) return;
+  // A Canvas node opens onto its inside rather than into an editor.
+  if (node.kind === "canvas") {
+    enterGraphCanvas(state, node.id);
+    return;
+  }
   const shape = graphEditorFor(node.kind);
   if (shape === null) return;
   document.querySelectorAll("[data-graph-editor]").forEach((old): void => old.remove());

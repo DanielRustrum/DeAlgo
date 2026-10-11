@@ -134,6 +134,13 @@ def graph_add_node(
             )
         elif kind == "group":
             graph_service.add_group(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "canvas":
+            try:
+                graph_service.add_canvas(session, owner, label=title.strip(), x=x, y=y)
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+        elif kind == "relay":
+            graph_service.add_relay(session, owner, x=x, y=y)
         elif kind == "pamphlet":
             graph_service.add_pamphlet(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "format":

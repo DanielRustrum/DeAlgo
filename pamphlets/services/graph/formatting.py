@@ -40,7 +40,7 @@ from .conditions import filter_rules
 from .errors import GraphError
 from .names import store_name, tag_name, tag_names
 from .pieces import pieces_of, pieces_under
-from .reading import nodes
+from .reading import edges, nodes
 from .stamps import stamped_life
 from .templating import path_of
 
@@ -206,16 +206,22 @@ def repository_rows(session: Session, box: GraphNode, owner: OwnerId) -> list[di
 # -- through the operations --------------------------------------------------------
 
 
+def incoming(session: Session, box: GraphNode, owner: OwnerId, carries: str) -> list[GraphEdge]:
+    """The wires into a box that carry this, oldest first — seen through any
+    Relay they pass on the way, so a relay changes nothing about what arrives."""
+    return [
+        edge for edge in edges(session, owner, every=True)
+        if edge.target_pk == box.id and edge.carries == carries
+    ]
+
+
 def data_into(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -> Any:
     """The JSON wired into a box down its data wire, as it arrives: after
     whatever the boxes on the way did to it. None if nothing is wired in."""
     if depth > 40:
         return None  # a ring built before they were refused
-    wire = session.scalar(
-        owned(select(GraphEdge), GraphEdge, owner)
-        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "data")
-        .order_by(GraphEdge.id.desc())
-    )
+    found = incoming(session, box, owner, "data")
+    wire = found[-1] if found else None
     start = session.get(GraphNode, wire.source_pk) if wire is not None else None
     if start is None:
         return None
@@ -227,11 +233,8 @@ def data_source(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0
     repository. None where it starts as items, or nothing is wired in."""
     if depth > 40:
         return None
-    wire = session.scalar(
-        owned(select(GraphEdge), GraphEdge, owner)
-        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "data")
-        .order_by(GraphEdge.id.desc())
-    )
+    found = incoming(session, box, owner, "data")
+    wire = found[-1] if found else None
     start = session.get(GraphNode, wire.source_pk) if wire is not None else None
     if start is None or start.kind in ("source", "deposit", "withdraw"):
         return start
@@ -263,10 +266,7 @@ def data_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -
 
 def _wired_in(session: Session, box: GraphNode, owner: OwnerId, carries: str) -> bool:
     """Whether anything is wired into a box that carries this."""
-    return session.scalar(
-        owned(select(GraphEdge.id), GraphEdge, owner)
-        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == carries)
-    ) is not None
+    return bool(incoming(session, box, owner, carries))
 
 
 def _through(rows: list[Any], box: GraphNode, session: Session, owner: OwnerId) -> list[Any]:
@@ -308,11 +308,7 @@ def items_into(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0)
     """Every item reaching a box down its ▶ wires, once each, as rows."""
     rows: list[Any] = []
     seen: set[Any] = set()
-    for wire in session.scalars(
-        owned(select(GraphEdge), GraphEdge, owner)
-        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "content")
-        .order_by(GraphEdge.id)
-    ):
+    for wire in incoming(session, box, owner, "content"):
         start = session.get(GraphNode, wire.source_pk)
         if start is None:
             continue
@@ -331,10 +327,7 @@ def transformed(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0
     """What a Transform box gives out: what comes in — data, or items read as
     rows — changed by each piece under it, nearest first. With none, it
     gives what came in as data."""
-    has_data = session.scalar(
-        owned(select(GraphEdge.id), GraphEdge, owner)
-        .where(GraphEdge.target_pk == box.id, GraphEdge.carries == "data")
-    ) is not None
+    has_data = bool(incoming(session, box, owner, "data"))
     value: Any = data_into(session, box, owner, depth) if has_data else items_into(
         session, box, owner, depth
     )

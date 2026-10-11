@@ -28,6 +28,8 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "count" ||
     value === "aggregation" ||
     value === "leaflet-feed" ||
+    value === "canvas" ||
+    value === "relay" ||
     value === "leaflet-bar" ||
     value === "leaflet-line" ||
     value === "leaflet-pie" ||
@@ -66,6 +68,12 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
 }
 
 /** One box or piece from the server, checked field by field; null if it has no id or kind. */
+/** A Relay's one fact: what is wired into it, which is what it passes on. */
+function asGraphRelay(value: unknown): { carries: string } | null {
+  const relay = asGraphRecord(value);
+  return relay === null ? null : { carries: typeof relay["carries"] === "string" ? relay["carries"] : "" };
+}
+
 function asGraphNode(value: unknown): GraphNodeView | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -98,6 +106,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     plugin: asGraphPlugin(raw["plugin"]),
     feed: asGraphFeed(raw["feed"]),
     leaflet: asGraphLeaflet(raw["leaflet"]),
+    relay: asGraphRelay(raw["relay"]),
     pamphlet: asGraphPamphlet(raw["pamphlet"]),
     format: asGraphFormat(raw["format"]),
     dataOnly: raw["dataOnly"] === true,
@@ -422,7 +431,24 @@ function asGraph(value: unknown): GraphView | null {
       });
     }
   }
-  return { nodes: readNodes, wires: readWires, sources: watched };
+  const trail: GraphTrailStep[] = [];
+  if (Array.isArray(raw["trail"])) {
+    for (const entry of raw["trail"]) {
+      const step = asGraphRecord(entry);
+      if (step === null) continue;
+      trail.push({
+        id: typeof step["id"] === "number" ? step["id"] : null,
+        title: typeof step["title"] === "string" ? step["title"] : "",
+      });
+    }
+  }
+  return {
+    inside: typeof raw["inside"] === "number" ? raw["inside"] : null,
+    trail,
+    nodes: readNodes,
+    wires: readWires,
+    sources: watched,
+  };
 }
 
 /** The error message in a refusal, or null. */

@@ -17,6 +17,7 @@ function stubDocument() {
     addEventListener() {},
     body: { addEventListener() {} },
     querySelectorAll() { return nothing; },
+    querySelector() { return null; },
     // Enough of an element for the drawing functions to build one.
     createElement(tag) {
       const made = {
@@ -621,6 +622,7 @@ async function removingWithDialogsBlocked() {
       addEventListener() {},
       body: { addEventListener() {}, classList: { toggle() {} } },
       querySelectorAll() { return nothing; },
+      querySelector() { return null; },
       createElement: make,
       createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
     },
@@ -672,6 +674,7 @@ async function droppingAPieceNearABox() {
       ) ?? null;
     },
     querySelectorAll() { return nothing; },
+    querySelector() { return null; },
   });
   class Element {
     constructor(fields) { Object.assign(this, fields); }
@@ -683,6 +686,7 @@ async function droppingAPieceNearABox() {
       addEventListener() {},
       body: { addEventListener() {}, classList: { toggle() {} } },
       querySelectorAll() { return nothing; },
+      querySelector() { return null; },
       createElement: make,
       createElementNS: (ns, tag) => make(tag),
       createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
@@ -771,6 +775,7 @@ function piecesFollowTheirHost() {
       addEventListener() {},
       body: { addEventListener() {}, classList: { toggle() {} } },
       querySelectorAll() { return nothing; },
+      querySelector() { return null; },
       createElement: make,
       createElementNS: (ns, tag) => make(tag),
       createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),
@@ -850,6 +855,7 @@ function slottedUnderTheirHost() {
       addEventListener() {},
       body: { addEventListener() {}, classList: { toggle() {} } },
       querySelectorAll() { return nothing; },
+      querySelector() { return null; },
       createElement: make,
       createElementNS: (ns, tag) => make(tag),
       createTextNode: (text) => ({ tag: "#text", textContent: text, children: [] }),

@@ -21,6 +21,10 @@ type GraphNodeKind =
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
   // hang beside each other as well as below — beside is the next column.
   | "leaflet-feed"
+  // Layout: a canvas of its own, opened by double-clicking; a point a wire
+  // passes through, to be drawn round other boxes.
+  | "canvas"
+  | "relay"
   | "leaflet-bar"
   | "leaflet-line"
   | "leaflet-pie"
@@ -137,6 +141,8 @@ interface GraphNodeView {
   feed: GraphFeed | null;
   /** Leaflets: what this block of a pamphlet shows, and what it could. */
   leaflet: GraphLeaflet | null;
+  /** Relays only: what is wired into it, which is what it passes on. */
+  relay: { carries: string } | null;
   /** Pamphlet boxes: where its page is, and whether the tab opens on it. */
   pamphlet: GraphPamphlet | null;
   /** Format boxes: how it reshapes what is wired in. */
@@ -275,7 +281,17 @@ interface GraphWireView {
 }
 
 /** The whole canvas as the server sent it. */
+/** One step of the way back out of a canvas: the top, or a Canvas node. */
+interface GraphTrailStep {
+  id: number | null;
+  title: string;
+}
+
 interface GraphView {
+  /** The canvas shown: null for the top, else a Canvas node's id. */
+  inside: number | null;
+  /** The way back out of it, from the top down. */
+  trail: GraphTrailStep[];
   nodes: GraphNodeView[];
   wires: GraphWireView[];
   /** What is already watched, for a channel node to be pointed at. */
@@ -358,6 +374,10 @@ interface GraphState {
   trial: GraphTrial | null;
   /** What to do to put things back, most recent last. */
   undo: GraphUndo[];
+  /** The canvas shown: the top (null), or inside a Canvas node. */
+  inside: number | null;
+  /** The way back out of it, from the top down. */
+  trail: GraphTrailStep[];
 }
 
 /** How to put one action back.

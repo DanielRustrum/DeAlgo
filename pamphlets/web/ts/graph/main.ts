@@ -171,7 +171,20 @@ function startGraph(canvas: HTMLElement): void {
     tab: "settings",
     trial: null,
     undo: [],
+    inside: null,
+    trail: [],
   };
+  // The canvas that was open when the tab was left, if any: the server says
+  // the top instead if it has gone.
+  try {
+    const kept = window.localStorage.getItem("pamphlets-canvas-inside");
+    if (kept !== null && /^\d+$/.test(kept)) {
+      state.inside = Number(kept);
+      canvas.dataset["inside"] = kept;
+    }
+  } catch {
+    // Storage refused: the top, then.
+  }
   listenToGraph(state);
   // Where it was left: leaving the tab does not send the view back to the start.
   restoreGraphView(state);

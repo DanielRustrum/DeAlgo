@@ -37,6 +37,8 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "text") return "Text";
   if (kind === "count") return "Count";
   if (kind === "aggregation") return "Aggregation";
+  if (kind === "canvas") return "Canvas";
+  if (kind === "relay") return "Relay";
   if (kind === "leaflet-feed") return "Feed leaflet";
   if (kind === "leaflet-bar") return "Bar chart";
   if (kind === "leaflet-line") return "Line chart";
@@ -323,6 +325,18 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   const colour = node.channel?.colour ?? node.asks?.colour ?? "";
   if (colour !== "") box.dataset["colour"] = colour;
 
+  if (node.kind === "relay") {
+    // A point a wire passes through: a dot, with a way in and a way out of
+    // whatever kind is wired into it — or, with nothing yet, of any kind.
+    const carried = node.relay?.carries ?? "";
+    const carries: GraphCarries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
+    box.classList.add("is-relay");
+    if (carried === "") box.classList.add("is-empty");
+    box.title = carried === "" ? "A relay: wire anything into it, and on from it." : "A relay: it passes on what is wired into it.";
+    box.appendChild(graphPort("in", carries, "Takes one wire in, of any kind."));
+    box.appendChild(graphPort("out", carries, "Passes on what comes in, to as many boxes as you like."));
+    return box;
+  }
   if (node.piece !== null) {
     // A piece is slotted, not wired: nothing runs into or out of one, so it
     // has no ports at all.
@@ -427,6 +441,8 @@ function graphSpreadPorts(box: HTMLElement): void {
 function graphWireCarries(state: GraphState, wire: GraphWireView): GraphCarries {
   if (wire.kind === "page" || wire.kind === "data") return wire.kind;
   const start = state.nodes.find((one): boolean => one.id === wire.from);
+  // Out of a relay, a wire carries what went into it.
+  if (start?.kind === "relay" && start.relay?.carries === "signal") return "signal";
   return start?.kind === "trigger" ? "signal" : "content";
 }
 
@@ -688,16 +704,19 @@ function panGraph(state: GraphState, x: number, y: number): void {
   showGraphView(state);
 }
 
-/** Where the view is kept between visits: this browser's, as a convenience. */
-function graphViewKey(): string {
-  return "pamphlets-canvas-view";
+/** Where the view is kept between visits: this browser's, as a convenience —
+ *  one for the top, and one for the inside of each Canvas node. */
+function graphViewKey(state: GraphState): string {
+  return state.inside === null || state.inside === undefined
+    ? "pamphlets-canvas-view"
+    : `pamphlets-canvas-view-${state.inside}`;
 }
 
 /** Note where the canvas is looked at, so leaving the tab and coming back
  *  — or reloading — finds it where it was rather than back at the start. */
 function keepGraphView(state: GraphState): void {
   try {
-    window.localStorage.setItem(graphViewKey(), JSON.stringify({ x: state.panX, y: state.panY, zoom: state.zoom }));
+    window.localStorage.setItem(graphViewKey(state), JSON.stringify({ x: state.panX, y: state.panY, zoom: state.zoom }));
   } catch {
     // Storage refused (a private window, say): the canvas still works.
   }
@@ -708,7 +727,7 @@ function keepGraphView(state: GraphState): void {
 function restoreGraphView(state: GraphState): void {
   let kept: unknown = null;
   try {
-    kept = JSON.parse(window.localStorage.getItem(graphViewKey()) ?? "null");
+    kept = JSON.parse(window.localStorage.getItem(graphViewKey(state)) ?? "null");
   } catch {
     kept = null;
   }
@@ -723,6 +742,7 @@ function restoreGraphView(state: GraphState): void {
     panGraph(state, x, y);
     return;
   }
+  state.zoom = 1;
   panGraph(state, 0, 0);
 }
 
@@ -761,6 +781,7 @@ function zoomGraph(state: GraphState, factor: number, clientX: number, clientY: 
 
 /** Redraw everything from the state: boxes, wires, panel, finder, run marks. */
 function renderGraph(state: GraphState): void {
+  renderGraphTrail(state);
   drawGraphNodes(state);
   drawGraphWires(state);
   renderGraphPopover(state);
@@ -787,4 +808,59 @@ function showGraphVerdict(state: GraphState, message: string | null): void {
   if (box === null) return;
   box.textContent = message ?? "";
   box.hidden = message === null;
+}
+
+/** The way back out of a Canvas node: the top, then each canvas down to
+ *  this one, each pressable but the one shown. Not drawn at the top. */
+function renderGraphTrail(state: GraphState): void {
+  let bar = state.parts.canvas.querySelector<HTMLElement>(":scope > .graph-trail");
+  const trail = state.trail ?? [];
+  if (trail.length < 2) {
+    bar?.remove();
+    return;
+  }
+  if (bar === null) {
+    bar = graphElement("nav", "graph-trail");
+    bar.setAttribute("aria-label", "Canvases");
+    state.parts.canvas.appendChild(bar);
+  }
+  const steps: Node[] = [];
+  trail.forEach((step, index): void => {
+    if (index > 0) steps.push(graphElement("span", "graph-trail-gap", "›"));
+    if (index === trail.length - 1) {
+      const here = graphElement("strong", "graph-trail-here", step.title);
+      here.setAttribute("aria-current", "page");
+      steps.push(here);
+      return;
+    }
+    const back = graphElement("button", "graph-trail-step", step.title);
+    back.setAttribute("type", "button");
+    back.addEventListener("click", (): void => enterGraphCanvas(state, step.id));
+    steps.push(back);
+  });
+  bar.replaceChildren(...steps);
+}
+
+/** Show another canvas: the inside of a Canvas node, or (null) the top.
+ *  Where each was being looked at is kept, and which is open is kept too,
+ *  so leaving the tab and coming back finds the same canvas. */
+function enterGraphCanvas(state: GraphState, inside: number | null): void {
+  keepGraphView(state);
+  state.inside = inside;
+  if (inside === null) delete state.parts.canvas.dataset["inside"];
+  else state.parts.canvas.dataset["inside"] = String(inside);
+  try {
+    if (inside === null) window.localStorage.removeItem("pamphlets-canvas-inside");
+    else window.localStorage.setItem("pamphlets-canvas-inside", String(inside));
+  } catch {
+    // Storage refused: the canvas still opens, just not here next time.
+  }
+  state.selectedNode = null;
+  state.selectedWire = null;
+  state.picked = new Set<number>();
+  // An undo is about a canvas: putting back something in one not shown would
+  // be putting it back out of sight.
+  state.undo = [];
+  restoreGraphView(state);
+  void applyGraph(state, "/api/graph", null);
 }

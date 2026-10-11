@@ -217,6 +217,14 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.kind === "source") graphChannelFields(state, form, node);
   else if (node.kind === "feed") graphFeedFields(form, node);
   else if (node.trigger !== null) graphTriggerFields(form, node);
+  else if (node.kind === "canvas") {
+    form.appendChild(graphElement("p", "hint",
+      "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs."));
+  }
+  else if (node.kind === "relay") {
+    form.appendChild(graphElement("p", "hint",
+      "A point a wire passes through, to route it round other boxes. It takes one wire in and passes it on, unchanged, to as many boxes as you like."));
+  }
   else graphFilterFields(form, node);
 
   const buttons = graphElement("div", "graph-form-buttons");
@@ -252,6 +260,13 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   // The editor: what comes in and goes out, and — for a data box — its
   // settings beside them. A double-click on the box opens it too.
   const editor = graphEditorFor(node.kind);
+  if (node.kind === "canvas") {
+    const open = graphElement("button", "btn btn-quiet", "Open");
+    open.setAttribute("type", "button");
+    open.title = "Or double-click the box";
+    open.dataset["editor"] = String(node.id);
+    buttons.appendChild(open);
+  }
   if (editor !== null) {
     const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");
     open.setAttribute("type", "button");
@@ -342,6 +357,9 @@ function graphRemovalWarning(node: GraphNodeView): string {
   }
   if (node.kind === "feed") {
     return `Remove the feed ${node.title}? What it collected inside Pamphlets goes with it.`;
+  }
+  if (node.kind === "canvas" && !node.note.startsWith("empty")) {
+    return `Remove the canvas ${node.title}? Everything inside it goes too — sources and feeds included.`;
   }
   return "";
 }

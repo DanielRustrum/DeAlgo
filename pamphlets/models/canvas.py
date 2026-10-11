@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextvars import ContextVar
+
 import datetime as dt
 from typing import Optional
 
@@ -55,6 +57,18 @@ LEAFLET_LABELS: dict[str, str] = {
     "leaflet-text": "Text leaflet",
     "leaflet-link": "Link leaflet",
 }
+
+
+#: The canvas a request is working in: a Canvas node's id, or None for the
+#: top of the canvas. Set for the length of one request to the canvas's API
+#: (web/app.py), and read by a new box as where it is put — so every way of
+#: making a box puts it in the canvas being looked at, without each having
+#: to be told.
+CURRENT_INSIDE: ContextVar[Optional[int]] = ContextVar("pamphlets_canvas_inside", default=None)
+
+
+def _current_inside() -> Optional[int]:
+    return CURRENT_INSIDE.get()
 
 
 class GraphNode(Base):
@@ -162,6 +176,10 @@ class GraphNode(Base):
     attached_to: Mapped[Optional[int]] = mapped_column(
         ForeignKey("graph_node.id", ondelete="CASCADE"), index=True
     )
+    # The Canvas node this box is inside, if any: a canvas of its own,
+    # opened by double-clicking that node. None is the top of the canvas.
+    # Boxes wire only to boxes in the same canvas, but every one of them runs.
+    inside_pk: Mapped[Optional[int]] = mapped_column(Integer, index=True, default=_current_inside)
     # Leaflets only: which edge of what it is attached to it hangs from —
     # "below", the next thing down its column, or "beside", the next column
     # to its right. Every other piece hangs below, and leaves this empty.
@@ -250,6 +268,10 @@ class GraphNode(Base):
             return "Schedule" if self.trigger_kind == "schedule" else "Pulse"
         if self.kind == "sort":
             return "Sort"
+        if self.kind == "canvas":
+            return "Canvas"
+        if self.kind == "relay":
+            return "Relay"
         if self.kind == "timer":
             return "Timer"
         if self.kind == "reset":

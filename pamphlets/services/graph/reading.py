@@ -40,10 +40,54 @@ def nodes(session: Session, owner: OwnerId = None) -> list[GraphNode]:
 FLOW = ("content", "signal")
 
 
-def edges(session: Session, owner: OwnerId = None, *, every: bool = False) -> list[GraphEdge]:
+def edges(
+    session: Session, owner: OwnerId = None, *, every: bool = False, raw: bool = False,
+) -> list[GraphEdge]:
     """The wires on the account's canvas that are paths — or, with `every`,
-    every wire, data and page wires among them."""
-    statement = owned(select(GraphEdge), GraphEdge, owner).order_by(GraphEdge.id)
+    every wire, data and page wires among them.
+
+    Relays are seen through: a wire into a Relay and on out of it is one wire,
+    from where it starts to where it ends, carrying what went in. Only the
+    canvas, drawing them, asks for the wires as drawn (`raw`)."""
+    found = list(session.scalars(owned(select(GraphEdge), GraphEdge, owner).order_by(GraphEdge.id)))
+    if not raw:
+        relays = set(session.scalars(
+            owned(select(GraphNode.id), GraphNode, owner).where(GraphNode.kind == "relay")
+        ))
+        found = through_relays(found, relays)
     if not every:
-        statement = statement.where(GraphEdge.carries.in_(FLOW))
-    return list(session.scalars(statement))
+        found = [edge for edge in found if edge.carries in FLOW]
+    return found
+
+
+def through_relays(found: list[GraphEdge], relays: set[int]) -> list[GraphEdge]:
+    """The wires with every Relay taken out of the middle of them: each wire
+    into a relay followed on, through any relays after it, to every box it
+    reaches. A relay nothing is wired into passes nothing on; a ring of relays
+    goes nowhere. What comes out is new wires, never saved — each keeps the
+    first wire's id, for ordering, and what it carries."""
+    if not relays:
+        return found
+    onward: dict[int, list[GraphEdge]] = {}
+    for edge in found:
+        onward.setdefault(edge.source_pk, []).append(edge)
+    seen_through: list[GraphEdge] = []
+    for edge in found:
+        if edge.source_pk in relays:
+            continue
+        if edge.target_pk not in relays:
+            seen_through.append(edge)
+            continue
+        waiting = [(edge.target_pk, {edge.target_pk})]
+        while waiting:
+            relay, passed = waiting.pop()
+            for nxt in onward.get(relay, []):
+                if nxt.target_pk in relays:
+                    if nxt.target_pk not in passed:
+                        waiting.append((nxt.target_pk, passed | {nxt.target_pk}))
+                    continue
+                seen_through.append(GraphEdge(
+                    id=edge.id, owner_pk=edge.owner_pk, source_pk=edge.source_pk,
+                    target_pk=nxt.target_pk, carries=edge.carries,
+                ))
+    return sorted(seen_through, key=lambda one: one.id)

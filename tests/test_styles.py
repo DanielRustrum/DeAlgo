@@ -6,6 +6,8 @@ edited without rebuilding would look fine in the tests and wrong in the app.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from ops import build_css as styles
@@ -173,8 +175,9 @@ def test_a_ports_dot_sits_on_the_edge_it_wires_from():
     css = squashed()
     assert ".port-in{left:-8px}" in css and ".port-out{right:-8px}" in css
     # Which means the dot is 16px across: half of it either side of the edge.
-    port = css.split(".graph-port{", 1)[1].split("}", 1)[0]
-    assert "width:16px" in port
+    # The port's own rule, not one about ports inside some other box.
+    port = re.search(r"(?:^|\})\.graph-port\{([^}]*)\}", css)
+    assert port is not None and "width:16px" in port.group(1)
 
 
 def test_a_numbered_list_keeps_its_numbers_inside_the_box():

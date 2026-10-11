@@ -1299,6 +1299,10 @@ function graphKindLabel(kind) {
         return "Count";
     if (kind === "aggregation")
         return "Aggregation";
+    if (kind === "canvas")
+        return "Canvas";
+    if (kind === "relay")
+        return "Relay";
     if (kind === "leaflet-feed")
         return "Feed leaflet";
     if (kind === "leaflet-bar")
@@ -1485,8 +1489,8 @@ function graphPadlock(shut) {
 }
 /** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
-    var _a, _b;
-    var _c, _d;
+    var _a, _b, _c;
+    var _d, _e, _f;
     const box = graphElement("div", `graph-node kind-${node.kind}`);
     box.dataset["node"] = String(node.id);
     box.style.left = `${node.x}px`;
@@ -1499,9 +1503,22 @@ function drawGraphNode(state, node) {
     if (!node.enabled)
         box.classList.add("is-off");
     // A source wears the colour its plugin chose (kinds.css reads it).
-    const colour = (_d = (_c = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _c !== void 0 ? _c : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _d !== void 0 ? _d : "";
+    const colour = (_e = (_d = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _d !== void 0 ? _d : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _e !== void 0 ? _e : "";
     if (colour !== "")
         box.dataset["colour"] = colour;
+    if (node.kind === "relay") {
+        // A point a wire passes through: a dot, with a way in and a way out of
+        // whatever kind is wired into it — or, with nothing yet, of any kind.
+        const carried = (_f = (_c = node.relay) === null || _c === void 0 ? void 0 : _c.carries) !== null && _f !== void 0 ? _f : "";
+        const carries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
+        box.classList.add("is-relay");
+        if (carried === "")
+            box.classList.add("is-empty");
+        box.title = carried === "" ? "A relay: wire anything into it, and on from it." : "A relay: it passes on what is wired into it.";
+        box.appendChild(graphPort("in", carries, "Takes one wire in, of any kind."));
+        box.appendChild(graphPort("out", carries, "Passes on what comes in, to as many boxes as you like."));
+        return box;
+    }
     if (node.piece !== null) {
         // A piece is slotted, not wired: nothing runs into or out of one, so it
         // has no ports at all.
@@ -1615,9 +1632,13 @@ function graphSpreadPorts(box) {
 /** What a wire carries, read off its kind and the box it starts from: which
  *  port at either end it belongs to. */
 function graphWireCarries(state, wire) {
+    var _a;
     if (wire.kind === "page" || wire.kind === "data")
         return wire.kind;
     const start = state.nodes.find((one) => one.id === wire.from);
+    // Out of a relay, a wire carries what went into it.
+    if ((start === null || start === void 0 ? void 0 : start.kind) === "relay" && ((_a = start.relay) === null || _a === void 0 ? void 0 : _a.carries) === "signal")
+        return "signal";
     return (start === null || start === void 0 ? void 0 : start.kind) === "trigger" ? "signal" : "content";
 }
 /** Fade a port with no wire, on a side where another port has one: the
@@ -1867,15 +1888,18 @@ function panGraph(state, x, y) {
     state.panY = y;
     showGraphView(state);
 }
-/** Where the view is kept between visits: this browser's, as a convenience. */
-function graphViewKey() {
-    return "pamphlets-canvas-view";
+/** Where the view is kept between visits: this browser's, as a convenience —
+ *  one for the top, and one for the inside of each Canvas node. */
+function graphViewKey(state) {
+    return state.inside === null || state.inside === undefined
+        ? "pamphlets-canvas-view"
+        : `pamphlets-canvas-view-${state.inside}`;
 }
 /** Note where the canvas is looked at, so leaving the tab and coming back
  *  — or reloading — finds it where it was rather than back at the start. */
 function keepGraphView(state) {
     try {
-        window.localStorage.setItem(graphViewKey(), JSON.stringify({ x: state.panX, y: state.panY, zoom: state.zoom }));
+        window.localStorage.setItem(graphViewKey(state), JSON.stringify({ x: state.panX, y: state.panY, zoom: state.zoom }));
     }
     catch (_a) {
         // Storage refused (a private window, say): the canvas still works.
@@ -1887,7 +1911,7 @@ function restoreGraphView(state) {
     var _a;
     let kept = null;
     try {
-        kept = JSON.parse((_a = window.localStorage.getItem(graphViewKey())) !== null && _a !== void 0 ? _a : "null");
+        kept = JSON.parse((_a = window.localStorage.getItem(graphViewKey(state))) !== null && _a !== void 0 ? _a : "null");
     }
     catch (_b) {
         kept = null;
@@ -1903,6 +1927,7 @@ function restoreGraphView(state) {
         panGraph(state, x, y);
         return;
     }
+    state.zoom = 1;
     panGraph(state, 0, 0);
 }
 /** Apply the pan and zoom to the drawing and its grid. */
@@ -1938,6 +1963,7 @@ function zoomGraph(state, factor, clientX, clientY) {
 }
 /** Redraw everything from the state: boxes, wires, panel, finder, run marks. */
 function renderGraph(state) {
+    renderGraphTrail(state);
     drawGraphNodes(state);
     drawGraphWires(state);
     renderGraphPopover(state);
@@ -1965,6 +1991,66 @@ function showGraphVerdict(state, message) {
         return;
     box.textContent = message !== null && message !== void 0 ? message : "";
     box.hidden = message === null;
+}
+/** The way back out of a Canvas node: the top, then each canvas down to
+ *  this one, each pressable but the one shown. Not drawn at the top. */
+function renderGraphTrail(state) {
+    var _a;
+    let bar = state.parts.canvas.querySelector(":scope > .graph-trail");
+    const trail = (_a = state.trail) !== null && _a !== void 0 ? _a : [];
+    if (trail.length < 2) {
+        bar === null || bar === void 0 ? void 0 : bar.remove();
+        return;
+    }
+    if (bar === null) {
+        bar = graphElement("nav", "graph-trail");
+        bar.setAttribute("aria-label", "Canvases");
+        state.parts.canvas.appendChild(bar);
+    }
+    const steps = [];
+    trail.forEach((step, index) => {
+        if (index > 0)
+            steps.push(graphElement("span", "graph-trail-gap", "›"));
+        if (index === trail.length - 1) {
+            const here = graphElement("strong", "graph-trail-here", step.title);
+            here.setAttribute("aria-current", "page");
+            steps.push(here);
+            return;
+        }
+        const back = graphElement("button", "graph-trail-step", step.title);
+        back.setAttribute("type", "button");
+        back.addEventListener("click", () => enterGraphCanvas(state, step.id));
+        steps.push(back);
+    });
+    bar.replaceChildren(...steps);
+}
+/** Show another canvas: the inside of a Canvas node, or (null) the top.
+ *  Where each was being looked at is kept, and which is open is kept too,
+ *  so leaving the tab and coming back finds the same canvas. */
+function enterGraphCanvas(state, inside) {
+    keepGraphView(state);
+    state.inside = inside;
+    if (inside === null)
+        delete state.parts.canvas.dataset["inside"];
+    else
+        state.parts.canvas.dataset["inside"] = String(inside);
+    try {
+        if (inside === null)
+            window.localStorage.removeItem("pamphlets-canvas-inside");
+        else
+            window.localStorage.setItem("pamphlets-canvas-inside", String(inside));
+    }
+    catch (_a) {
+        // Storage refused: the canvas still opens, just not here next time.
+    }
+    state.selectedNode = null;
+    state.selectedWire = null;
+    state.picked = new Set();
+    // An undo is about a canvas: putting back something in one not shown would
+    // be putting it back out of sight.
+    state.undo = [];
+    restoreGraphView(state);
+    void applyGraph(state, "/api/graph", null);
 }
 
 "use strict";
@@ -2026,6 +2112,11 @@ function openGraphEditor(state, nodeId) {
     const node = state.nodes.find((one) => one.id === nodeId);
     if (node === undefined)
         return;
+    // A Canvas node opens onto its inside rather than into an editor.
+    if (node.kind === "canvas") {
+        enterGraphCanvas(state, node.id);
+        return;
+    }
     const shape = graphEditorFor(node.kind);
     if (shape === null)
         return;
@@ -4000,6 +4091,12 @@ function graphNodeForm(state, node) {
         graphFeedFields(form, node);
     else if (node.trigger !== null)
         graphTriggerFields(form, node);
+    else if (node.kind === "canvas") {
+        form.appendChild(graphElement("p", "hint", "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs."));
+    }
+    else if (node.kind === "relay") {
+        form.appendChild(graphElement("p", "hint", "A point a wire passes through, to route it round other boxes. It takes one wire in and passes it on, unchanged, to as many boxes as you like."));
+    }
     else
         graphFilterFields(form, node);
     const buttons = graphElement("div", "graph-form-buttons");
@@ -4031,6 +4128,13 @@ function graphNodeForm(state, node) {
     // The editor: what comes in and goes out, and — for a data box — its
     // settings beside them. A double-click on the box opens it too.
     const editor = graphEditorFor(node.kind);
+    if (node.kind === "canvas") {
+        const open = graphElement("button", "btn btn-quiet", "Open");
+        open.setAttribute("type", "button");
+        open.title = "Or double-click the box";
+        open.dataset["editor"] = String(node.id);
+        buttons.appendChild(open);
+    }
     if (editor !== null) {
         const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");
         open.setAttribute("type", "button");
@@ -4114,6 +4218,9 @@ function graphRemovalWarning(node) {
     }
     if (node.kind === "feed") {
         return `Remove the feed ${node.title}? What it collected inside Pamphlets goes with it.`;
+    }
+    if (node.kind === "canvas" && !node.note.startsWith("empty")) {
+        return `Remove the canvas ${node.title}? Everything inside it goes too — sources and feeds included.`;
     }
     return "";
 }
@@ -4719,6 +4826,8 @@ function asGraphNodeKind(value) {
         value === "count" ||
         value === "aggregation" ||
         value === "leaflet-feed" ||
+        value === "canvas" ||
+        value === "relay" ||
         value === "leaflet-bar" ||
         value === "leaflet-line" ||
         value === "leaflet-pie" ||
@@ -4755,6 +4864,11 @@ function asGraphNodeKind(value) {
     return null;
 }
 /** One box or piece from the server, checked field by field; null if it has no id or kind. */
+/** A Relay's one fact: what is wired into it, which is what it passes on. */
+function asGraphRelay(value) {
+    const relay = asGraphRecord(value);
+    return relay === null ? null : { carries: typeof relay["carries"] === "string" ? relay["carries"] : "" };
+}
 function asGraphNode(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -4789,6 +4903,7 @@ function asGraphNode(value) {
         plugin: asGraphPlugin(raw["plugin"]),
         feed: asGraphFeed(raw["feed"]),
         leaflet: asGraphLeaflet(raw["leaflet"]),
+        relay: asGraphRelay(raw["relay"]),
         pamphlet: asGraphPamphlet(raw["pamphlet"]),
         format: asGraphFormat(raw["format"]),
         dataOnly: raw["dataOnly"] === true,
@@ -5116,7 +5231,25 @@ function asGraph(value) {
             });
         }
     }
-    return { nodes: readNodes, wires: readWires, sources: watched };
+    const trail = [];
+    if (Array.isArray(raw["trail"])) {
+        for (const entry of raw["trail"]) {
+            const step = asGraphRecord(entry);
+            if (step === null)
+                continue;
+            trail.push({
+                id: typeof step["id"] === "number" ? step["id"] : null,
+                title: typeof step["title"] === "string" ? step["title"] : "",
+            });
+        }
+    }
+    return {
+        inside: typeof raw["inside"] === "number" ? raw["inside"] : null,
+        trail,
+        nodes: readNodes,
+        wires: readWires,
+        sources: watched,
+    };
 }
 /** The error message in a refusal, or null. */
 function asGraphError(value) {
@@ -5311,6 +5444,12 @@ function graphPartsIn(canvas) {
 // Part of the Configuration canvas; see main.ts.
 /** GET (no body) or POST a form to the server, and read the JSON it answers with. */
 async function askGraph(url, body) {
+    var _a;
+    // Every request says which canvas it is about: the top, or a Canvas
+    // node's inside — what it makes goes there, and what comes back is that one.
+    const inside = (_a = document.querySelector("[data-graph]")) === null || _a === void 0 ? void 0 : _a.dataset["inside"];
+    if (inside !== undefined && inside !== "")
+        url += `${url.includes("?") ? "&" : "?"}inside=${encodeURIComponent(inside)}`;
     const init = body === null
         ? { headers: { Accept: "application/json" } }
         : { method: "POST", body, headers: { Accept: "application/json" } };
@@ -5331,7 +5470,16 @@ async function applyGraph(state, url, body) {
             showGraphError(state, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That change did not go through.");
             return false;
         }
-        // The server's answer is the new truth; redraw from it.
+        // The server's answer is the new truth; redraw from it. That includes
+        // which canvas this is: one that has gone, or is not ours, is the top.
+        if (view.inside !== state.inside) {
+            state.inside = view.inside;
+            if (view.inside === null)
+                delete state.parts.canvas.dataset["inside"];
+            else
+                state.parts.canvas.dataset["inside"] = String(view.inside);
+        }
+        state.trail = view.trail;
         state.nodes = view.nodes;
         state.wires = view.wires;
         state.sources = view.sources;
@@ -6121,7 +6269,21 @@ function startGraph(canvas) {
         tab: "settings",
         trial: null,
         undo: [],
+        inside: null,
+        trail: [],
     };
+    // The canvas that was open when the tab was left, if any: the server says
+    // the top instead if it has gone.
+    try {
+        const kept = window.localStorage.getItem("pamphlets-canvas-inside");
+        if (kept !== null && /^\d+$/.test(kept)) {
+            state.inside = Number(kept);
+            canvas.dataset["inside"] = kept;
+        }
+    }
+    catch (_a) {
+        // Storage refused: the top, then.
+    }
     listenToGraph(state);
     // Where it was left: leaving the tab does not send the view back to the start.
     restoreGraphView(state);

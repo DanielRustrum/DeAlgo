@@ -69,6 +69,7 @@ from .groups import (
 from .names import store_name, tag_name, tag_names
 from . import formatting, leaflets
 from .leaflets import LEAFLET_KINDS
+from .insides import MOST_DEPTH, add_canvas, add_relay
 from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, pieces_under
 from .reading import channels_of, edges, nodes
 from .report import Judged, filter_report
@@ -110,6 +111,9 @@ __all__ = [
     "add_transform",
     "only_data",
     "add_pamphlet",
+    "add_canvas",
+    "add_relay",
+    "MOST_DEPTH",
     "add_piece",
     "add_sort",
     "add_source",

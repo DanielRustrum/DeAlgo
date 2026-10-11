@@ -37,6 +37,10 @@ def connect(
     """
     if source.id == target.id:
         raise GraphError("A node cannot feed itself.")
+    if source.inside_pk != target.inside_pk:
+        raise GraphError("A canvas keeps to itself: a box inside one is wired only to boxes beside it.")
+    if "relay" in (source.kind, target.kind):
+        return _through_relay(session, source, target, owner, carries)
     said = carries in WIRING
     carries = carries if carries is not None and said else carries_between(source.kind, target.kind)
     if not said and carries == "content" and only_data(source):
@@ -79,9 +83,24 @@ def connect(
     if existing is not None:
         return existing
 
-    if target.kind in ("transform", "text"):
-        # One thing in, items or data: what it turns into data, or writes
-        # about, is that.
+    _make_room(session, target, carries)
+
+    edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id, carries=carries)
+    session.add(edge)
+    session.flush()
+    if carries == "page" and target.kind in WIRED_LEAFLETS and source.playlist_pk is not None:
+        leaflets.point_at(target, source.playlist_pk)
+    if fresh and source.channel is not None and target.playlist is not None:
+        refresh_membership(session, source.channel, owner)
+        _bring_back_what_it_can_now_hold(session, source.channel, target.playlist, owner)
+    return edge
+
+
+def _make_room(session: Session, target: GraphNode, carries: str) -> None:
+    """Take out what a new wire into `target` replaces, where it takes one thing in."""
+    if target.kind in ("transform", "text", "relay"):
+        # One thing in, of any kind: what it turns into data, writes about,
+        # or passes on, is that.
         for older in session.scalars(select(GraphEdge).where(GraphEdge.target_pk == target.id)):
             session.delete(older)
         session.flush()
@@ -93,15 +112,116 @@ def connect(
             session.delete(older)
         session.flush()
 
-    edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id, carries=carries)
+
+def relay_origin(session: Session, relay: GraphNode, owner: OwnerId = None) -> tuple[GraphNode | None, str]:
+    """Where what passes through a relay starts — back through any relays
+    before it — and what it carries. (None, "") if nothing is wired in."""
+    into = {edge.target_pk: edge for edge in edges(session, owner, every=True, raw=True)}
+    node: GraphNode | None = relay
+    carried = ""
+    seen: set[int] = set()
+    while node is not None and node.kind == "relay":
+        if node.id in seen:
+            return None, ""
+        seen.add(node.id)
+        wire = into.get(node.id)
+        if wire is None:
+            return None, ""
+        carried = wire.carries
+        node = session.get(GraphNode, wire.source_pk)
+    return node, carried
+
+
+def relay_ends(session: Session, relay: GraphNode, owner: OwnerId = None) -> list[GraphNode]:
+    """The boxes a relay passes on to — through any relays after it."""
+    onward: dict[int, list[int]] = {}
+    for edge in edges(session, owner, every=True, raw=True):
+        onward.setdefault(edge.source_pk, []).append(edge.target_pk)
+    found: list[GraphNode] = []
+    seen: set[int] = set()
+    waiting = [relay.id]
+    while waiting:
+        at = waiting.pop()
+        if at in seen:
+            continue
+        seen.add(at)
+        for target_pk in onward.get(at, []):
+            target = session.get(GraphNode, target_pk)
+            if target is None:
+                continue
+            if target.kind == "relay":
+                waiting.append(target.id)
+            else:
+                found.append(target)
+    return found
+
+
+def _gives(source: GraphNode, carries: str | None) -> str:
+    """What a box sends down a wire drawn from it into a relay: what its port
+    said, or else the one thing it gives."""
+    if carries in WIRING:
+        return str(carries)
+    if source.kind == "trigger":
+        return "signal"
+    if only_data(source) or source.kind in ("format", "transform"):
+        return "data"
+    if source.kind in ("feed", "text"):
+        return "page"
+    return "content"
+
+
+def _through_relay(
+    session: Session, source: GraphNode, target: GraphNode, owner: OwnerId, carries: str | None,
+) -> GraphEdge:
+    """A wire into or out of a Relay. A relay passes on what comes into it,
+    unchanged: so a wire out of one is allowed where a wire straight from
+    where that starts would be, and a wire into one that already passes
+    things on must still suit them."""
+    if source.kind == "relay":
+        origin, carried = relay_origin(session, source, owner)
+        if origin is None:
+            raise GraphError("Wire something into this relay first: it passes on what comes into it.")
+    else:
+        origin, carried = source, _gives(source, carries)
+        if not WIRING.get(carried, {}).get(source.kind) or (only_data(source) and carried != "data"):
+            raise GraphError(f"A {source.kind} has nothing to pass on that way.")
+    ends = [target] if target.kind != "relay" else relay_ends(session, target, owner)
+    for end in ends:
+        if end.kind not in WIRING[carried].get(origin.kind, ()):
+            raise GraphError(
+                f"What comes through here starts at a {origin.kind}, and a {origin.kind} cannot feed a {end.kind}."
+            )
+    if _reaches(session, target, source, owner, carried):
+        raise GraphError("That would make a loop, and nothing would ever come out of it.")
+    existing = session.scalar(select(GraphEdge).where(
+        GraphEdge.source_pk == source.id, GraphEdge.target_pk == target.id, GraphEdge.carries == carried,
+    ))
+    if existing is not None:
+        return existing
+    _make_room(session, target, carried)
+    edge = GraphEdge(owner_pk=owner, source_pk=source.id, target_pk=target.id, carries=carried)
     session.add(edge)
     session.flush()
-    if carries == "page" and target.kind in WIRED_LEAFLETS and source.playlist_pk is not None:
-        leaflets.point_at(target, source.playlist_pk)
-    if fresh and source.channel is not None and target.playlist is not None:
-        refresh_membership(session, source.channel, owner)
-        _bring_back_what_it_can_now_hold(session, source.channel, target.playlist, owner)
+    # What follows from the wire, as if it went straight from where it starts.
+    if carried == "page" and origin.playlist_pk is not None:
+        for end in ends:
+            if end.kind in WIRED_LEAFLETS:
+                leaflets.point_at(end, origin.playlist_pk)
+    if origin.kind == "source" and origin.channel is not None:
+        refresh_membership(session, origin.channel, owner)
     return edge
+
+
+def after_relay_change(session: Session, origin: GraphNode | None, ends: list[GraphNode], owner: OwnerId) -> None:
+    """Put right what a relay's wires said, once one of them has gone: the
+    feeds a source fills, and the feed a leaflet shows."""
+    for end in ends:
+        if end.kind in WIRED_LEAFLETS and not any(
+            edge.target_pk == end.id and edge.carries == "page" for edge in edges(session, owner, every=True)
+        ):
+            leaflets.point_at(end, None)
+    if origin is not None and origin.kind == "source" and origin.channel is not None:
+        refresh_membership(session, origin.channel, owner)
 
 
 def _bring_back_what_it_can_now_hold(
@@ -189,7 +309,8 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
     One kind now. A source's wire used to be synthesised from its channel's
     feeds, which is why two boxes for one channel showed the same wires.
     """
-    _, all_edges = load(session, owner, every=True)
+    # As drawn: relays and all.
+    _, all_edges = load(session, owner, every=True, raw=True)
 
     def kind_of(edge: GraphEdge) -> str:
         # The canvas draws paths alike, signal or items; page and data
@@ -218,6 +339,14 @@ def disconnect(session: Session, edge_pk: int, owner: OwnerId = None) -> bool:
     channel = start.channel if start is not None and start.kind == "source" else None
     end = session.get(GraphNode, edge.target_pk)
     was_page = edge.carries == "page"
+    if (start is not None and start.kind == "relay") or (end is not None and end.kind == "relay"):
+        # Through a relay: what it changes is where it starts and where it ends.
+        origin = relay_origin(session, start, owner)[0] if start is not None and start.kind == "relay" else start
+        ends = relay_ends(session, end, owner) if end is not None and end.kind == "relay" else [end] if end else []
+        session.delete(edge)
+        session.flush()
+        after_relay_change(session, origin, [one for one in ends if one is not None], owner)
+        return True
     session.delete(edge)
     session.flush()
     if was_page and end is not None and end.kind in WIRED_LEAFLETS:
@@ -241,8 +370,9 @@ def _reaches(
     Along wires of the same kind: items and data are separate flows, and a
     data wire back up a path makes no loop in it."""
     # Depth-first along the wires from `start`, looking for `goal`.
+    # As drawn, relays and all: a loop through a relay is still a loop.
     out: dict[int, list[int]] = {}
-    for edge in edges(session, owner, every=True):
+    for edge in edges(session, owner, every=True, raw=True):
         if edge.carries == carries:
             out.setdefault(edge.source_pk, []).append(edge.target_pk)
 

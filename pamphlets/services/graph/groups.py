@@ -752,6 +752,9 @@ def inside(session: Session, group: GraphNode, owner: OwnerId = None) -> list[Gr
         for node in nodes(session, owner)
         if node.id != group.id
         and node.kind != "group"  # a group inside a group would move twice
+        # Only in its own canvas: one inside a Canvas node at the same spot
+        # is somewhere else altogether.
+        and node.inside_pk == group.inside_pk
         and group.x <= node.x <= right
         and group.y <= node.y <= bottom
     ]
