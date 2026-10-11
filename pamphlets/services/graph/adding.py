@@ -270,8 +270,10 @@ def add_trigger(
             (every_minutes or DEFAULT_EVERY_MINUTES) if trigger_kind == "pulse" else None
         ),
         cron=(check_cron(cron or DEFAULT_CRON) if trigger_kind == "schedule" else None),
-        x=max(0, x),
-        y=max(0, y),
+        # Where it was put, as any box is: the canvas has no edges, so a
+        # trigger pasted up and to the left stays with what came with it.
+        x=x,
+        y=y,
     )
     session.add(node)
     session.flush()

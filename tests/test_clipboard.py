@@ -53,6 +53,39 @@ def test_a_copied_group_comes_with_what_it_surrounds(db):
         assert sorted(node.kind for node in made) == ["comment", "group"]
 
 
+def test_a_trigger_pastes_with_what_came_with_it_up_and_to_the_left(db):
+    build(db, channels=("UCone",), feeds=())
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        source.x, source.y = 400, 100
+        pulse = graph.add_trigger(session, trigger_kind="pulse", label="Pulse", every_minutes=300, x=40, y=280)
+        when = graph.add_trigger(session, trigger_kind="schedule", cron="30 7 * * 1", x=40, y=500)
+        graph.connect(session, pulse, source)
+        made = graph.clipboard.paste(
+            session, graph.clipboard.copy(session, [pulse.id, when.id, source.id]), x=-2000, y=-1500,
+        )
+        by_kind = {(node.kind, node.trigger_kind): node for node in made}
+        new_pulse, new_when = by_kind[("trigger", "pulse")], by_kind[("trigger", "schedule")]
+        new_source = by_kind[("source", None)]
+        # Where it was beside the source, not pushed to the canvas's middle.
+        assert (new_pulse.x - new_source.x, new_pulse.y - new_source.y) == (-360, 180)
+        assert (new_pulse.x, new_pulse.y) == (-2000, -1320)
+        assert (new_pulse.label, new_pulse.every_minutes, new_pulse.cron) == ("Pulse", 300, None)
+        assert (new_when.every_minutes, new_when.cron) == (None, "30 7 * * 1")
+
+
+def test_a_trigger_the_copy_says_little_of_keeps_its_defaults(db):
+    build(db, channels=(), feeds=())
+    with db.session_scope() as session:
+        clip = {"pamphlets_clip": 1, "nodes": [
+            {"ref": 0, "kind": "trigger", "trigger_kind": "pulse", "x": 0, "y": 0, "every_minutes": None},
+            {"ref": 1, "kind": "trigger", "trigger_kind": "schedule", "x": 0, "y": 200, "cron": None},
+        ], "wires": []}
+        pulse, when = graph.clipboard.paste(session, clip, x=0, y=0)
+        assert (pulse.every_minutes, pulse.cron) == (graph.DEFAULT_EVERY_MINUTES, None)
+        assert (when.every_minutes, when.cron) == (None, graph.DEFAULT_CRON)
+
+
 def test_a_cut_moves_the_boxes_themselves_into_another_canvas(db):
     build(db, channels=("UCone",), feeds=("PLone",))
     with db.session_scope() as session:

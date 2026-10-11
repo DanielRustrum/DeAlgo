@@ -34,10 +34,12 @@ from .adding import (
 )
 from .insides import add_canvas, add_relay
 from . import comments, formatting, leaflets, looks
+from .cron import check_cron
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, condition, conditions_for
 from .errors import GraphError
 from .leaflets import LEAFLET_KINDS
 from .pieces import attach
+from .units import DEFAULT_CRON, DEFAULT_EVERY_MINUTES
 from .reading import edges, nodes
 from .vocabulary import AUGMENTATIONS, GROUP_LEAST, GROUP_SIZE, STAMPS
 from .wiring import connect, refresh_membership
@@ -460,9 +462,23 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
         node.repository = str(entry.get("repository") or "")
         node.takes = entry.get("takes")
     elif kind == "trigger":
-        node.trigger_kind = str(entry.get("trigger_kind") or "pulse")
-        node.every_minutes = entry.get("every_minutes")
-        node.cron = entry.get("cron")
+        # Only what belongs to its kind, as making one keeps it: a pulse its
+        # gap, a schedule its time. One the file leaves out keeps the default.
+        node.trigger_kind = "schedule" if entry.get("trigger_kind") == "schedule" else "pulse"
+        every, cron = entry.get("every_minutes"), entry.get("cron")
+        if node.trigger_kind == "pulse":
+            node.cron = None
+            if isinstance(every, int) and every > 0:
+                node.every_minutes = every
+            node.every_minutes = node.every_minutes or DEFAULT_EVERY_MINUTES
+        else:
+            node.every_minutes = None
+            if isinstance(cron, str) and cron.strip():
+                try:
+                    node.cron = check_cron(cron)
+                except GraphError:
+                    pass  # a time this cannot read: the default, as made
+            node.cron = node.cron or DEFAULT_CRON
 
 
 @dataclass
