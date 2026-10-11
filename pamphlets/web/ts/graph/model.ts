@@ -25,6 +25,8 @@ type GraphNodeKind =
   // passes through, to be drawn round other boxes.
   | "canvas"
   | "relay"
+  // Words left on the canvas, wired to nothing.
+  | "comment"
   | "leaflet-bar"
   | "leaflet-line"
   | "leaflet-pie"
@@ -143,6 +145,8 @@ interface GraphNodeView {
   leaflet: GraphLeaflet | null;
   /** Relays only: what is wired into it, which is what it passes on. */
   relay: { carries: string } | null;
+  /** Comments only: its words, its colour, and the colours it could be. */
+  comment: { text: string; colour: string; colours: GraphChoice[] } | null;
   /** Pamphlet boxes: where its page is, and whether the tab opens on it. */
   pamphlet: GraphPamphlet | null;
   /** Format boxes: how it reshapes what is wired in. */

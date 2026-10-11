@@ -141,6 +141,8 @@ def graph_add_node(
                 return JSONResponse({"error": str(exc)}, status_code=400)
         elif kind == "relay":
             graph_service.add_relay(session, owner, x=x, y=y)
+        elif kind == "comment":
+            graph_service.add_comment(session, owner, text=title, x=x, y=y)
         elif kind == "pamphlet":
             graph_service.add_pamphlet(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "format":

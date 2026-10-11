@@ -868,6 +868,9 @@ function onGraphPointerDown(state, event) {
     // taking it as one starts a pan and swallows the fold.
     if (target instanceof Element && target.closest(".graph-palette"))
         return;
+    // A comment being written in: the press is for the words.
+    if (target instanceof Element && target.closest(".graph-comment-edit"))
+        return;
     // A group's padlock: hold it in place, or let it go.
     const lock = target instanceof Element ? target.closest("[data-lock]") : null;
     if (lock) {
@@ -993,8 +996,10 @@ function onGraphPointerMove(state, event) {
         const frame = state.boxes.get(drag.nodeId);
         if (node === undefined || frame === undefined || node.size === null)
             return;
-        node.size.width = Math.max(200, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
-        node.size.height = Math.max(140, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
+        // A comment shrinks further than a group: it only has to hold its words.
+        const least = node.kind === "comment" ? { width: 140, height: 60 } : { width: 200, height: 140 };
+        node.size.width = Math.max(least.width, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
+        node.size.height = Math.max(least.height, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
         frame.style.width = `${node.size.width}px`;
         frame.style.height = `${node.size.height}px`;
         return;
@@ -1303,6 +1308,8 @@ function graphKindLabel(kind) {
         return "Canvas";
     if (kind === "relay")
         return "Relay";
+    if (kind === "comment")
+        return "Comment";
     if (kind === "leaflet-feed")
         return "Feed leaflet";
     if (kind === "leaflet-bar")
@@ -1489,8 +1496,8 @@ function graphPadlock(shut) {
 }
 /** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
-    var _a, _b, _c;
-    var _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
+    var _h, _j, _k, _l, _m, _o, _p;
     const box = graphElement("div", `graph-node kind-${node.kind}`);
     box.dataset["node"] = String(node.id);
     box.style.left = `${node.x}px`;
@@ -1503,13 +1510,30 @@ function drawGraphNode(state, node) {
     if (!node.enabled)
         box.classList.add("is-off");
     // A source wears the colour its plugin chose (kinds.css reads it).
-    const colour = (_e = (_d = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _d !== void 0 ? _d : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _e !== void 0 ? _e : "";
+    const colour = (_j = (_h = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _h !== void 0 ? _h : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _j !== void 0 ? _j : "";
     if (colour !== "")
         box.dataset["colour"] = colour;
+    if (node.kind === "comment") {
+        // A note left on the canvas: its words, in its colour, as big as it was
+        // made — and a corner to make it bigger by. Double-clicked, written in.
+        const words = (_k = (_c = node.comment) === null || _c === void 0 ? void 0 : _c.text) !== null && _k !== void 0 ? _k : "";
+        box.classList.add("is-comment");
+        box.dataset["shade"] = (_l = (_d = node.comment) === null || _d === void 0 ? void 0 : _d.colour) !== null && _l !== void 0 ? _l : "paper";
+        box.style.width = `${(_m = (_e = node.size) === null || _e === void 0 ? void 0 : _e.width) !== null && _m !== void 0 ? _m : 260}px`;
+        box.style.height = `${(_o = (_f = node.size) === null || _f === void 0 ? void 0 : _f.height) !== null && _o !== void 0 ? _o : 140}px`;
+        box.setAttribute("aria-label", `Comment: ${words.slice(0, 80) || "empty"}`);
+        const said = graphElement("div", `graph-comment-text${words === "" ? " is-blank" : ""}`, words === "" ? "Double-click to write a comment." : words);
+        box.appendChild(said);
+        const grip = graphElement("span", "graph-group-grip graph-comment-grip");
+        grip.dataset["grip"] = String(node.id);
+        grip.title = "Drag to resize";
+        box.appendChild(grip);
+        return box;
+    }
     if (node.kind === "relay") {
         // A point a wire passes through: a dot, with a way in and a way out of
         // whatever kind is wired into it — or, with nothing yet, of any kind.
-        const carried = (_f = (_c = node.relay) === null || _c === void 0 ? void 0 : _c.carries) !== null && _f !== void 0 ? _f : "";
+        const carried = (_p = (_g = node.relay) === null || _g === void 0 ? void 0 : _g.carries) !== null && _p !== void 0 ? _p : "";
         const carries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
         box.classList.add("is-relay");
         if (carried === "")
@@ -1729,7 +1753,10 @@ function drawGraphNodes(state) {
         state.boxes.set(node.id, frame);
         state.parts.groups.appendChild(frame);
     }
-    for (const node of state.nodes) {
+    // Comments first, so the boxes drawn after sit over them: a note is never
+    // in the way of what it is about.
+    const notesFirst = [...state.nodes].sort((a, b) => Number(b.kind === "comment") - Number(a.kind === "comment"));
+    for (const node of notesFirst) {
         if (node.kind === "group")
             continue;
         const box = drawGraphNode(state, node);
@@ -2052,6 +2079,48 @@ function enterGraphCanvas(state, inside) {
     restoreGraphView(state);
     void applyGraph(state, "/api/graph", null);
 }
+/** Write in a comment where it is: its words become a text box until it
+ *  loses focus, which keeps them — or Esc, which puts them back. */
+function editGraphComment(state, node) {
+    var _a;
+    var _b;
+    const box = state.boxes.get(node.id);
+    const shown = box === null || box === void 0 ? void 0 : box.querySelector(".graph-comment-text");
+    if (box === undefined || shown === null || shown === undefined)
+        return;
+    const was = (_b = (_a = node.comment) === null || _a === void 0 ? void 0 : _a.text) !== null && _b !== void 0 ? _b : "";
+    const field = document.createElement("textarea");
+    field.className = "graph-comment-edit";
+    field.value = was;
+    field.setAttribute("aria-label", "Comment");
+    shown.replaceWith(field);
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
+    let done = false;
+    const finish = (keep) => {
+        if (done)
+            return;
+        done = true;
+        if (!keep || field.value === was) {
+            renderGraph(state);
+            return;
+        }
+        const words = field.value;
+        rememberGraphUndo(state, "the comment", async () => {
+            await applyGraph(state, `/graph/nodes/${node.id}`, new URLSearchParams({ label: "", comment_text: was }));
+        });
+        void applyGraph(state, `/graph/nodes/${node.id}`, new URLSearchParams({ label: "", comment_text: words }));
+    };
+    field.addEventListener("blur", () => finish(true));
+    field.addEventListener("keydown", (event) => {
+        // Its own keys: the canvas's Esc and Enter mean other things.
+        event.stopPropagation();
+        if (event.key === "Escape")
+            finish(false);
+        else if (event.key === "Enter" && (event.ctrlKey || event.metaKey))
+            finish(true);
+    });
+}
 
 "use strict";
 // The box editor: what came in, the box's settings, what it gives out.
@@ -2112,6 +2181,11 @@ function openGraphEditor(state, nodeId) {
     const node = state.nodes.find((one) => one.id === nodeId);
     if (node === undefined)
         return;
+    // A comment is written in where it is.
+    if (node.kind === "comment") {
+        editGraphComment(state, node);
+        return;
+    }
     // A Canvas node opens onto its inside rather than into an editor.
     if (node.kind === "canvas") {
         enterGraphCanvas(state, node.id);
@@ -4046,12 +4120,17 @@ function graphNodeForm(state, node) {
     // Says this form carried the switch, so the server can tell an unticked box
     // from a form that never showed one. Without it, an unticked box and an
     // absent one look the same and nothing could ever be switched off.
-    const carried = document.createElement("input");
-    carried.type = "hidden";
-    carried.name = "box_form";
-    carried.value = "1";
-    form.appendChild(carried);
-    form.appendChild(graphActive(node));
+    // Layout boxes do nothing to switch off: a comment, a relay, a canvas
+    // (whose insides run whatever it says). They carry no switch, and so no
+    // word that the form carried one — which would read as switching them off.
+    if (node.kind !== "comment" && node.kind !== "relay" && node.kind !== "canvas") {
+        const carried = document.createElement("input");
+        carried.type = "hidden";
+        carried.name = "box_form";
+        carried.value = "1";
+        form.appendChild(carried);
+        form.appendChild(graphActive(node));
+    }
     const name = document.createElement("input");
     name.type = "text";
     name.name = "label";
@@ -4093,6 +4172,15 @@ function graphNodeForm(state, node) {
         graphTriggerFields(form, node);
     else if (node.kind === "canvas") {
         form.appendChild(graphElement("p", "hint", "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs."));
+    }
+    else if (node.kind === "comment" && node.comment !== null) {
+        const words = document.createElement("textarea");
+        words.name = "comment_text";
+        words.rows = 6;
+        words.value = node.comment.text;
+        form.appendChild(graphLabelled("Words", words));
+        form.appendChild(graphLabelled("Colour", graphLeafletSelect("comment_colour", node.comment.colours, node.comment.colour)));
+        form.appendChild(graphElement("p", "hint", "Or double-click the comment to write in it where it is. It is wired to nothing, and changes nothing."));
     }
     else if (node.kind === "relay") {
         form.appendChild(graphElement("p", "hint", "A point a wire passes through, to route it round other boxes. It takes one wire in and passes it on, unchanged, to as many boxes as you like."));
@@ -4828,6 +4916,7 @@ function asGraphNodeKind(value) {
         value === "leaflet-feed" ||
         value === "canvas" ||
         value === "relay" ||
+        value === "comment" ||
         value === "leaflet-bar" ||
         value === "leaflet-line" ||
         value === "leaflet-pie" ||
@@ -4869,6 +4958,17 @@ function asGraphRelay(value) {
     const relay = asGraphRecord(value);
     return relay === null ? null : { carries: typeof relay["carries"] === "string" ? relay["carries"] : "" };
 }
+/** A comment's words and colour, and the colours it could be. */
+function asGraphComment(value) {
+    const comment = asGraphRecord(value);
+    if (comment === null)
+        return null;
+    return {
+        text: typeof comment["text"] === "string" ? comment["text"] : "",
+        colour: typeof comment["colour"] === "string" ? comment["colour"] : "paper",
+        colours: asGraphChoices(comment["colours"]),
+    };
+}
 function asGraphNode(value) {
     const raw = asGraphRecord(value);
     if (raw === null)
@@ -4904,6 +5004,7 @@ function asGraphNode(value) {
         feed: asGraphFeed(raw["feed"]),
         leaflet: asGraphLeaflet(raw["leaflet"]),
         relay: asGraphRelay(raw["relay"]),
+        comment: asGraphComment(raw["comment"]),
         pamphlet: asGraphPamphlet(raw["pamphlet"]),
         format: asGraphFormat(raw["format"]),
         dataOnly: raw["dataOnly"] === true,
@@ -6150,7 +6251,7 @@ function listenToGraph(state) {
     canvas.addEventListener("pointerdown", (event) => {
         var _a;
         const target = event.target;
-        const node = target instanceof Element && target.closest(".graph-pop") === null
+        const node = target instanceof Element && target.closest(".graph-pop, .graph-comment-edit") === null
             ? (_a = target.closest("[data-node]")) === null || _a === void 0 ? void 0 : _a.dataset["node"]
             : undefined;
         pressed = node === undefined || event.button !== 0 ? null : { node, x: event.clientX, y: event.clientY };

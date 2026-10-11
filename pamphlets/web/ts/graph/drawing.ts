@@ -39,6 +39,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "aggregation") return "Aggregation";
   if (kind === "canvas") return "Canvas";
   if (kind === "relay") return "Relay";
+  if (kind === "comment") return "Comment";
   if (kind === "leaflet-feed") return "Feed leaflet";
   if (kind === "leaflet-bar") return "Bar chart";
   if (kind === "leaflet-line") return "Line chart";
@@ -325,6 +326,24 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   const colour = node.channel?.colour ?? node.asks?.colour ?? "";
   if (colour !== "") box.dataset["colour"] = colour;
 
+  if (node.kind === "comment") {
+    // A note left on the canvas: its words, in its colour, as big as it was
+    // made — and a corner to make it bigger by. Double-clicked, written in.
+    const words = node.comment?.text ?? "";
+    box.classList.add("is-comment");
+    box.dataset["shade"] = node.comment?.colour ?? "paper";
+    box.style.width = `${node.size?.width ?? 260}px`;
+    box.style.height = `${node.size?.height ?? 140}px`;
+    box.setAttribute("aria-label", `Comment: ${words.slice(0, 80) || "empty"}`);
+    const said = graphElement("div", `graph-comment-text${words === "" ? " is-blank" : ""}`,
+      words === "" ? "Double-click to write a comment." : words);
+    box.appendChild(said);
+    const grip = graphElement("span", "graph-group-grip graph-comment-grip");
+    grip.dataset["grip"] = String(node.id);
+    grip.title = "Drag to resize";
+    box.appendChild(grip);
+    return box;
+  }
   if (node.kind === "relay") {
     // A point a wire passes through: a dot, with a way in and a way out of
     // whatever kind is wired into it — or, with nothing yet, of any kind.
@@ -539,7 +558,12 @@ function drawGraphNodes(state: GraphState): void {
     state.boxes.set(node.id, frame);
     state.parts.groups.appendChild(frame);
   }
-  for (const node of state.nodes) {
+  // Comments first, so the boxes drawn after sit over them: a note is never
+  // in the way of what it is about.
+  const notesFirst = [...state.nodes].sort(
+    (a, b): number => Number(b.kind === "comment") - Number(a.kind === "comment"),
+  );
+  for (const node of notesFirst) {
     if (node.kind === "group") continue;
     const box = drawGraphNode(state, node);
     state.boxes.set(node.id, box);
@@ -863,4 +887,41 @@ function enterGraphCanvas(state: GraphState, inside: number | null): void {
   state.undo = [];
   restoreGraphView(state);
   void applyGraph(state, "/api/graph", null);
+}
+
+/** Write in a comment where it is: its words become a text box until it
+ *  loses focus, which keeps them — or Esc, which puts them back. */
+function editGraphComment(state: GraphState, node: GraphNodeView): void {
+  const box = state.boxes.get(node.id);
+  const shown = box?.querySelector<HTMLElement>(".graph-comment-text");
+  if (box === undefined || shown === null || shown === undefined) return;
+  const was = node.comment?.text ?? "";
+  const field = document.createElement("textarea");
+  field.className = "graph-comment-edit";
+  field.value = was;
+  field.setAttribute("aria-label", "Comment");
+  shown.replaceWith(field);
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
+  let done = false;
+  const finish = (keep: boolean): void => {
+    if (done) return;
+    done = true;
+    if (!keep || field.value === was) {
+      renderGraph(state);
+      return;
+    }
+    const words = field.value;
+    rememberGraphUndo(state, "the comment", async (): Promise<void> => {
+      await applyGraph(state, `/graph/nodes/${node.id}`, new URLSearchParams({ label: "", comment_text: was }));
+    });
+    void applyGraph(state, `/graph/nodes/${node.id}`, new URLSearchParams({ label: "", comment_text: words }));
+  };
+  field.addEventListener("blur", (): void => finish(true));
+  field.addEventListener("keydown", (event: KeyboardEvent): void => {
+    // Its own keys: the canvas's Esc and Enter mean other things.
+    event.stopPropagation();
+    if (event.key === "Escape") finish(false);
+    else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) finish(true);
+  });
 }

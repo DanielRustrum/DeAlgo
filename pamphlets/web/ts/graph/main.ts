@@ -46,7 +46,7 @@ function listenToGraph(state: GraphState): void {
   let tapped: { node: string; at: number } | null = null;
   canvas.addEventListener("pointerdown", (event: PointerEvent): void => {
     const target = event.target;
-    const node = target instanceof Element && target.closest(".graph-pop") === null
+    const node = target instanceof Element && target.closest(".graph-pop, .graph-comment-edit") === null
       ? target.closest<HTMLElement>("[data-node]")?.dataset["node"]
       : undefined;
     pressed = node === undefined || event.button !== 0 ? null : { node, x: event.clientX, y: event.clientY };

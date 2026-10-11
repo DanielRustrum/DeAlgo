@@ -182,13 +182,17 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   // Says this form carried the switch, so the server can tell an unticked box
   // from a form that never showed one. Without it, an unticked box and an
   // absent one look the same and nothing could ever be switched off.
-  const carried = document.createElement("input");
-  carried.type = "hidden";
-  carried.name = "box_form";
-  carried.value = "1";
-  form.appendChild(carried);
-
-  form.appendChild(graphActive(node));
+  // Layout boxes do nothing to switch off: a comment, a relay, a canvas
+  // (whose insides run whatever it says). They carry no switch, and so no
+  // word that the form carried one — which would read as switching them off.
+  if (node.kind !== "comment" && node.kind !== "relay" && node.kind !== "canvas") {
+    const carried = document.createElement("input");
+    carried.type = "hidden";
+    carried.name = "box_form";
+    carried.value = "1";
+    form.appendChild(carried);
+    form.appendChild(graphActive(node));
+  }
 
   const name = document.createElement("input");
   name.type = "text";
@@ -220,6 +224,15 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.kind === "canvas") {
     form.appendChild(graphElement("p", "hint",
       "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs."));
+  }
+  else if (node.kind === "comment" && node.comment !== null) {
+    const words = document.createElement("textarea");
+    words.name = "comment_text";
+    words.rows = 6;
+    words.value = node.comment.text;
+    form.appendChild(graphLabelled("Words", words));
+    form.appendChild(graphLabelled("Colour", graphLeafletSelect("comment_colour", node.comment.colours, node.comment.colour)));
+    form.appendChild(graphElement("p", "hint", "Or double-click the comment to write in it where it is. It is wired to nothing, and changes nothing."));
   }
   else if (node.kind === "relay") {
     form.appendChild(graphElement("p", "hint",

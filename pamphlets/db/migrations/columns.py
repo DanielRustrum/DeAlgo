@@ -146,6 +146,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "marks", "VARCHAR(40)"),
     # Which Canvas node a box is inside: None for the top of the canvas.
     ("graph_node", "inside_pk", "INTEGER"),
+    # A Comment box's words and colour, as JSON.
+    ("graph_node", "comment", "TEXT"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

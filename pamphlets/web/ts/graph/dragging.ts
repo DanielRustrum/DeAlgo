@@ -176,6 +176,8 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   // the space between rows, is not a press on the drawing underneath — and
   // taking it as one starts a pan and swallows the fold.
   if (target instanceof Element && target.closest(".graph-palette")) return;
+  // A comment being written in: the press is for the words.
+  if (target instanceof Element && target.closest(".graph-comment-edit")) return;
   // A group's padlock: hold it in place, or let it go.
   const lock = target instanceof Element ? target.closest<HTMLElement>("[data-lock]") : null;
   if (lock) {
@@ -302,8 +304,10 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     const node = state.nodes.find((entry): boolean => entry.id === drag.nodeId);
     const frame = state.boxes.get(drag.nodeId);
     if (node === undefined || frame === undefined || node.size === null) return;
-    node.size.width = Math.max(200, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
-    node.size.height = Math.max(140, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
+    // A comment shrinks further than a group: it only has to hold its words.
+    const least = node.kind === "comment" ? { width: 140, height: 60 } : { width: 200, height: 140 };
+    node.size.width = Math.max(least.width, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
+    node.size.height = Math.max(least.height, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
     frame.style.width = `${node.size.width}px`;
     frame.style.height = `${node.size.height}px`;
     return;

@@ -184,6 +184,9 @@ class GraphNode(Base):
     # "below", the next thing down its column, or "beside", the next column
     # to its right. Every other piece hangs below, and leaves this empty.
     attached_side: Mapped[Optional[str]] = mapped_column(String(8))
+    # Comment boxes only: their words and colour, as JSON — see
+    # services/graph/comments.py, which is the only thing that reads it.
+    comment: Mapped[Optional[str]] = mapped_column(Text)
     # Leaflets only: what this block of the page shows, as JSON — which feed
     # and how many, which chart, what words, where a link goes. One column
     # for four kinds of leaflet, each with its own few settings: see
@@ -272,6 +275,8 @@ class GraphNode(Base):
             return "Canvas"
         if self.kind == "relay":
             return "Relay"
+        if self.kind == "comment":
+            return "Comment"
         if self.kind == "timer":
             return "Timer"
         if self.kind == "reset":

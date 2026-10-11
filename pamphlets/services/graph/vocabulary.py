@@ -89,6 +89,8 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # A relay passes on what comes into it; what it may be wired to is what
     # the box at the start of it may be (wiring.py, `_through_relay`).
     "relay": (),
+    # Words left on the canvas: wired to nothing.
+    "comment": (),
     # A page of its own, laid out by the leaflets slotted under it. Nothing
     # runs through it: what it shows, it reads when the page is opened.
     "pamphlet": (),

@@ -270,3 +270,34 @@
 .graph-trail-step:hover, .graph-trail-step:focus-visible { background: var(--panel-2); }
 .graph-trail-gap { color: var(--muted); }
 .graph-trail-here { font-weight: 600; padding: 2px 6px; }
+
+/* A Comment: a note on the canvas in one of the theme's colours, as big as
+   it was made, its words wrapped as they were written. Under the boxes it
+   sits among, so it never hides one. */
+.graph-node.kind-comment {
+  --comment: var(--panel-2);
+  z-index: 0; padding: 12px 14px 16px; gap: 0;
+  background: var(--comment); color: var(--text);
+  border: 1px solid color-mix(in oklab, var(--text) 12%, var(--comment));
+  border-radius: calc(var(--radius) * 0.5);
+  box-shadow: 0 2px 6px var(--shadow);
+  overflow: hidden;
+}
+.graph-node.kind-comment[data-shade="sage"] { --comment: var(--sage-soft); }
+.graph-node.kind-comment[data-shade="blush"] { --comment: var(--blush); }
+.graph-node.kind-comment[data-shade="ochre"] { --comment: color-mix(in oklab, var(--ochre) 30%, var(--panel)); }
+.graph-node.kind-comment[data-shade="sky"] { --comment: color-mix(in oklab, var(--plugin-sky) 22%, var(--panel)); }
+.graph-node.kind-comment:hover, .graph-node.kind-comment.is-picked { border-color: var(--accent); }
+.graph-comment-text {
+  flex: 1 1 auto; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: calc(13.5px * var(--text-scale)); line-height: 1.45;
+}
+.graph-comment-text.is-blank { color: var(--muted); font-style: italic; }
+.graph-comment-edit {
+  flex: 1 1 auto; width: 100%; resize: none; padding: 0; margin: 0;
+  border: 0; background: transparent; color: inherit;
+  font: inherit; font-size: calc(13.5px * var(--text-scale)); line-height: 1.45;
+}
+.graph-comment-edit:focus { outline: none; box-shadow: none; }
+.graph-node.kind-comment .graph-comment-grip { right: 2px; bottom: 2px; }

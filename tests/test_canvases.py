@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from pamphlets.models import CURRENT_INSIDE, GraphEdge, Playlist
+from pamphlets.models import CURRENT_INSIDE, GraphEdge, GraphNode, Playlist
 from pamphlets.services import graph
 from pamphlets.services.graph import formatting, insides, leaflets
 from tests.test_format import ANSWER, a_rest_source, client  # noqa: F401
@@ -183,3 +183,47 @@ def test_a_group_surrounds_only_boxes_in_its_own_canvas(db):
         assert [node.id for node in groups.inside(session, group)] == [here.id]
         graph.move_group(session, group.id, 50, 50)
         assert (elsewhere.x, elsewhere.y) == (100, 100)
+
+
+# -- comments -------------------------------------------------------------------------
+
+
+def test_a_comment_keeps_words_and_a_colour_and_is_wired_to_nothing(canvas, db):
+    made = canvas.post("/graph/nodes", data={"kind": "comment", "title": "", "x": 40, "y": 60}).json()
+    note = next(node for node in made["nodes"] if node["kind"] == "comment")
+    assert note["comment"]["text"] == "" and note["comment"]["colour"] == "paper"
+    assert note["size"] == {"width": 260, "height": 140}
+    assert [one["name"] for one in note["comment"]["colours"]] == ["paper", "sage", "blush", "ochre", "sky"]
+
+    saved = canvas.post(f"/graph/nodes/{note['id']}", data={
+        "label": "", "comment_text": "Everything below\\nis for the morning.", "comment_colour": "sage",
+    }).json()
+    again = next(node for node in saved["nodes"] if node["id"] == note["id"])
+    assert again["comment"] == {**again["comment"], "text": "Everything below\\nis for the morning.", "colour": "sage"}
+    assert canvas.post(f"/graph/nodes/{note['id']}", data={"comment_colour": "neon"}).status_code == 400
+
+    # Resized, down to a size of its own.
+    canvas.post(f"/graph/nodes/{note['id']}/resize", data={"width": 10, "height": 10})
+    with db.session_scope() as session:
+        node = session.get(GraphNode, note["id"])
+        assert (node.width, node.height) == graph.comments.LEAST
+        source = node_for(session, "source", "One Channel")
+        with pytest.raises(graph.GraphError):
+            graph.connect(session, source, node)
+
+
+def test_a_comment_travels_in_its_group(db):
+    from pamphlets.services.graph import groups
+
+    build(db, channels=(), feeds=())
+    with db.session_scope() as session:
+        group = graph.add_group(session, label="G", x=0, y=0, width=600, height=400)
+        note = graph.add_comment(session, text="Read me first", x=20, y=20)
+        graph.comments.save(note, {"comment_colour": "blush"})
+        note.width, note.height = 300, 90
+        packed = groups.export_group(session, group.id)
+        loaded = groups.import_group(session, packed, x=1000, y=1000)
+        copies = [node for node in graph.nodes(session) if node.kind == "comment" and node.id != note.id]
+        assert len(copies) == 1 and loaded is not None
+        assert graph.comments.settings(copies[0]) == {"text": "Read me first", "colour": "blush"}
+        assert (copies[0].width, copies[0].height) == (300, 90)

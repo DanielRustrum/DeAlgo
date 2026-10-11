@@ -72,6 +72,11 @@ function asGraphSide(value: unknown): GraphSide | null {
 function openGraphEditor(state: GraphState, nodeId: number): void {
   const node = state.nodes.find((one): boolean => one.id === nodeId);
   if (node === undefined) return;
+  // A comment is written in where it is.
+  if (node.kind === "comment") {
+    editGraphComment(state, node);
+    return;
+  }
   // A Canvas node opens onto its inside rather than into an editor.
   if (node.kind === "canvas") {
     enterGraphCanvas(state, node.id);

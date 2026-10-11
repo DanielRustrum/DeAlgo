@@ -117,6 +117,15 @@ async def graph_save_node(
                 except ValueError as exc:
                     return JSONResponse({"error": str(exc)}, status_code=400)
 
+        if node.kind == "comment":
+            given = await request.form()
+            try:
+                graph_service.comments.save(
+                    node, {key: str(value) for key, value in given.items() if key.startswith("comment_")}
+                )
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+
         if node.kind == "aggregation":
             given = await request.form()
             try:

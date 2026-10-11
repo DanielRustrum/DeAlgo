@@ -1,7 +1,7 @@
-# Canvases and Relays
+# Canvases, Relays and Comments
 
-Two boxes under **Layout** in the palette that change nothing about what is collected: they arrange
-the canvas. A [group](Groups.md) is the third.
+Three boxes under **Layout** in the palette that change nothing about what is collected: they arrange
+the canvas, and say what it is for. A [group](Groups.md) is the fourth.
 
 ## Canvas
 
@@ -40,5 +40,18 @@ many boxes as you like.
   which feed a leaflet shows, when a trigger polls — sees straight through a relay, as if the wire
   went from end to end. Relays can follow relays.
 - Its two ports show when you reach for it; at rest it is just a dot on the wire.
+
+## Comment
+
+A **Comment** is a note left on the canvas, for whoever reads it next — you, later. It is wired to
+nothing and changes nothing.
+
+- **Double-click it to write in it**, where it is. Click away, or press Ctrl+Enter, to keep what you
+  wrote; Esc puts back what was there. Its panel has the same words, and its colour.
+- **Five colours**, all the theme's own: paper, sage, blush, ochre and sky. They follow the theme,
+  light and dark.
+- **Resize it** from its corner, as a group is resized.
+- It sits under the boxes around it, so a note never hides what it is about. It travels with a
+  [group](Groups.md) it is in — in the group's file too — and can be left in any canvas.
 
 **Related:** [Groups](Groups.md) · [The Configuration Canvas](../The%20Configuration%20Canvas.md)

@@ -30,7 +30,7 @@ from .adding import (
     add_store,
     add_trigger,
 )
-from . import formatting, leaflets
+from . import comments, formatting, leaflets
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, condition, conditions_for
 from .errors import GraphError
 from .leaflets import LEAFLET_KINDS
@@ -116,6 +116,9 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             entry["under"] = refs[node.attached_to]
         if node.kind == "format":
             entry["format"] = formatting.settings(node)
+        if node.kind == "comment":
+            entry["comment"] = comments.settings(node)
+            entry["width"], entry["height"] = node.width, node.height
         if node.kind in LEAFLET_KINDS:
             entry["side"] = leaflets.side_of(node)
             shown = leaflets.settings(node)
@@ -597,6 +600,19 @@ def _unpack(
     if kind == "format":
         return add_format(session, owner, label=label, x=x, y=y)
 
+    if kind == "comment":
+        written = entry.get("comment")
+        words: dict[str, Any] = written if isinstance(written, dict) else {}
+        made = comments.add_comment(session, owner, text=str(words.get("text") or ""), x=x, y=y)
+        try:
+            comments.save(made, {"comment_colour": str(words.get("colour") or "paper")})
+        except GraphError:
+            pass  # a colour this install does not have: paper, then
+        for side in ("width", "height"):
+            if isinstance(entry.get(side), int):
+                setattr(made, side, max(comments.LEAST[0 if side == "width" else 1], entry[side]))
+        return made
+
     if kind in AUGMENTATIONS:
         return add_piece(
             session, owner, kind=kind, x=x, y=y,
@@ -789,10 +805,12 @@ def resize(
     group = session.scalar(
         owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
     )
-    if group is None or group.kind != "group" or group.locked:
+    if group is None or group.kind not in ("group", "comment") or group.locked:
         return False
-    group.width = max(GROUP_LEAST[0], int(width))
-    group.height = max(GROUP_LEAST[1], int(height))
+    # A comment is resized as a group is, down to a size of its own.
+    least = comments.LEAST if group.kind == "comment" else GROUP_LEAST
+    group.width = max(least[0], int(width))
+    group.height = max(least[1], int(height))
     session.flush()
     return True
 

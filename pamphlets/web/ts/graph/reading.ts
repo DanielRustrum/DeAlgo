@@ -30,6 +30,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "leaflet-feed" ||
     value === "canvas" ||
     value === "relay" ||
+    value === "comment" ||
     value === "leaflet-bar" ||
     value === "leaflet-line" ||
     value === "leaflet-pie" ||
@@ -74,6 +75,17 @@ function asGraphRelay(value: unknown): { carries: string } | null {
   return relay === null ? null : { carries: typeof relay["carries"] === "string" ? relay["carries"] : "" };
 }
 
+/** A comment's words and colour, and the colours it could be. */
+function asGraphComment(value: unknown): { text: string; colour: string; colours: GraphChoice[] } | null {
+  const comment = asGraphRecord(value);
+  if (comment === null) return null;
+  return {
+    text: typeof comment["text"] === "string" ? comment["text"] : "",
+    colour: typeof comment["colour"] === "string" ? comment["colour"] : "paper",
+    colours: asGraphChoices(comment["colours"]),
+  };
+}
+
 function asGraphNode(value: unknown): GraphNodeView | null {
   const raw = asGraphRecord(value);
   if (raw === null) return null;
@@ -107,6 +119,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     feed: asGraphFeed(raw["feed"]),
     leaflet: asGraphLeaflet(raw["leaflet"]),
     relay: asGraphRelay(raw["relay"]),
+    comment: asGraphComment(raw["comment"]),
     pamphlet: asGraphPamphlet(raw["pamphlet"]),
     format: asGraphFormat(raw["format"]),
     dataOnly: raw["dataOnly"] === true,
