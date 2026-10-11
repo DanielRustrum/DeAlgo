@@ -61,6 +61,8 @@ function shellUrls() {
         "/static/menu.js",
         "/static/focus.js",
         "/static/pwa.js",
+        "/static/charts.js",
+        "/static/vendor/chart.umd.min.js",
         "/manifest.webmanifest",
         "/static/icons/icon-192.png",
         "/static/icons/icon-512.png",

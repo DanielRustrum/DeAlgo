@@ -1,6 +1,7 @@
-{#- A Chart leaflet's chart (services/charting.py): one scale, the six series
-    colours in fixed order, a legend for two series or more, and what a mark
-    says on hover and focus. -#}
+{#- A chart leaflet's chart (services/charting.py). A drawn chart is a canvas
+    Chart.js fills in (web/ts/charts.ts), from the JSON beside it, in the
+    theme's chart colours: one scale, a legend for two series or more, and
+    what a mark says on hover and focus. One number and a table are set here. -#}
 {% set c = chart %}
 {% if c is none %}
   <p class="paper-note">Nothing to count yet.</p>
@@ -8,106 +9,10 @@
   {#- One number, set large, as a paper sets a figure it is proud of. -#}
   <p class="paper-figure">{{ chart_number(c.figure) }}</p>
   {% if c.measure %}<p class="paper-note chart-measure">{{ c.measure }}</p>{% endif %}
-{% elif c.error and not c.series %}
+{% elif c.error and not c.drawn %}
   <p class="paper-note">{{ c.error }}</p>
-{% elif not c.series or c.total == 0 %}
-  <p class="paper-note">Nothing to count yet.</p>
-{% else %}
-{% set many = c.series | length > 1 %}
-<div class="chart is-{{ c.kind }}">
-  {% if many and c.kind != 'pie' %}
-  <ul class="chart-legend">
-    {% for s in c.series %}<li><span class="chart-key series-{{ s.slot }}"></span>{{ s.name }}</li>{% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if c.kind == 'column' %}
-  <div class="leaflet-chart" role="img" aria-label="{{ chart_label }}: {{ c.categories | length }} columns">
-    <span class="chart-top" aria-hidden="true">{{ chart_number(c.top) }}</span>
-    <div class="chart-bars" aria-hidden="true">
-      {% for cat in c.categories %}{% set i = loop.index0 %}
-      <span class="chart-group">
-        {% for s in c.series %}
-        <span class="chart-bar" tabindex="0" style="--share: {{ c.share(s.values[i]) }}%"
-              data-tip="{{ cat.long }}{{ ' · ' ~ s.name if many }} · {{ chart_number(s.values[i]) }}{{ ' ' ~ c.unit if c.unit }}">
-          <span class="chart-fill series-{{ s.slot }}"></span>
-        </span>
-        {% endfor %}
-      </span>
-      {% endfor %}
-    </div>
-    <div class="chart-axis" aria-hidden="true">
-      {% for cat in c.categories %}<span>{{ cat.short if loop.index0 % c.every == 0 else '' }}</span>{% endfor %}
-    </div>
-  </div>
-
-  {% elif c.kind == 'bar' %}
-  <ul class="leaflet-chart-rows">
-    {% for cat in c.categories %}{% set i = loop.index0 %}
-    <li class="chart-row-group">
-      <span class="chart-row-name">{{ cat.short }}</span>
-      <span class="chart-row-bars">
-      {% for s in c.series %}
-        <span class="chart-row" tabindex="0" data-tip="{{ cat.long }}{{ ' · ' ~ s.name if many }} · {{ chart_number(s.values[i]) }}{{ ' ' ~ c.unit if c.unit }}">
-          <span class="chart-row-track"><span class="chart-row-fill series-{{ s.slot }}" style="--share: {{ c.share(s.values[i]) }}%"></span></span>
-          <span class="chart-row-value">{{ chart_number(s.values[i]) }}</span>
-        </span>
-      {% endfor %}
-      </span>
-    </li>
-    {% endfor %}
-  </ul>
-
-  {% elif c.kind in ('line', 'area') %}
-  <div class="leaflet-chart" role="img" aria-label="{{ chart_label }}: {{ c.series | length }} {{ 'lines' if c.kind == 'line' else 'bands' }} over {{ c.categories | length }} points">
-    <span class="chart-top" aria-hidden="true">{{ chart_number(c.top) }}</span>
-    <div class="chart-plot" aria-hidden="true">
-      <svg class="chart-svg" viewBox="0 0 {{ chart_width }} {{ chart_height }}" preserveAspectRatio="none">
-        {% if c.kind == 'area' %}
-          {% for s in c.series %}<path class="chart-band series-{{ s.slot }}" d="{{ c.area_path(loop.index0) }}"/>{% endfor %}
-        {% else %}
-          {% for s in c.series %}{% for points in c.line_segments(s) %}
-          <polyline class="chart-line series-{{ s.slot }}" points="{{ points }}"/>
-          {% endfor %}{% endfor %}
-        {% endif %}
-      </svg>
-      {#- Hover columns over the plot, one per point, each saying every series there. -#}
-      <div class="chart-hover">
-        {% for cat in c.categories %}{% set i = loop.index0 %}
-        <span class="chart-spot" tabindex="0"
-              data-tip="{{ cat.long }}{% for s in c.series %} · {{ s.name ~ ' ' if many }}{{ chart_number(s.values[i]) }}{% endfor %}">
-          {% if c.kind == 'line' %}{% for s in c.series %}{% if s.values[i] is not none %}
-          <span class="chart-dot series-{{ s.slot }}{{ ' is-alone' if c.alone(s, i) }}" style="--share: {{ c.share(s.values[i]) }}%"></span>
-          {% endif %}{% endfor %}{% endif %}
-        </span>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="chart-axis" aria-hidden="true">
-      {% for cat in c.categories %}<span>{{ cat.short if loop.index0 % c.every == 0 else '' }}</span>{% endfor %}
-    </div>
-  </div>
-
-  {% elif c.kind == 'pie' %}
-  {% set slices = c.slices() %}
-  <div class="chart-pie">
-    <svg class="chart-donut" viewBox="0 0 100 100" role="img" aria-label="{{ chart_label }}: {{ slices | length }} slices">
-      {% for one in slices %}
-      <path class="chart-slice series-{{ one.slot }}" d="{{ one.path }}" tabindex="0"><title>{{ one.name }} · {{ chart_number(one.value) }} ({{ one.share }}%)</title></path>
-      {% endfor %}
-      <text class="chart-donut-total" x="50" y="53" text-anchor="middle">{{ chart_number(c.total) }}</text>
-    </svg>
-    <ul class="chart-legend is-list">
-      {% for one in slices %}
-      <li><span class="chart-key series-{{ one.slot }}"></span><span class="chart-legend-name">{{ one.name }}</span>
-        <span class="chart-legend-value">{{ chart_number(one.value) }} · {{ one.share }}%</span></li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-
-  {#- Drawn as a table, the table is the chart. -#}
-  {% if c.kind == 'table' %}
+{% elif c.kind == 'table' and c.series %}
+  {% set many = c.series | length > 1 %}
   <table class="chart-plain">
     <thead><tr><th scope="col"></th>
       {% for s in c.series %}<th scope="col">{{ s.name if many else (c.measure or 'Value') }}</th>{% endfor %}</tr></thead>
@@ -117,6 +22,17 @@
       {% endfor %}
     </tbody>
   </table>
-  {% endif %}
-</div>
+{% elif c.drawn %}
+  {% set many = (c.series | length) if c.series else (c.placed | length) %}
+  <figure class="chart-js is-{{ c.kind }}" data-chart>
+    <div class="chart-js-box">
+      <canvas role="img"
+              aria-label="{{ chart_label or 'A chart' }}: {% if c.placed %}{{ c.placed | map(attribute='points') | map('length') | sum }} points{% else %}{{ c.categories | length }} {{ 'slices' if c.kind in ('pie', 'polar') else 'points' }}{% endif %}{{ ', ' ~ many ~ ' series' if many > 1 }}">
+        {{ chart_label }}
+      </canvas>
+    </div>
+    <script type="application/json" data-chart-config>{{ c.config() | tojson }}</script>
+  </figure>
+{% else %}
+  <p class="paper-note">Nothing to count yet.</p>
 {% endif %}

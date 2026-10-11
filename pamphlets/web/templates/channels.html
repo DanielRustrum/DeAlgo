@@ -331,11 +331,29 @@
           <ul class="palette-list">
             {{ node_row('pamphlet', 'Pamphlet', 'A page of your own under the Pamphlets tab, laid out by the leaflets under it.') }}
             {{ node_row('leaflet-feed', 'Feed leaflet', 'The newest few items of one feed, as cards.') }}
-            {{ node_row('leaflet-chart', 'Chart leaflet', 'What you watched, what arrived, what each feed holds.') }}
             {{ node_row('leaflet-text', 'Text leaflet', 'A heading and words of your own.') }}
             {{ node_row('leaflet-link', 'Link leaflet', 'A button: Focus on a feed, open one, or go to an address.') }}
           </ul>
           <p class="hint">Below another leaflet is the next thing down its column; beside one is the next column.</p>
+        </details>
+
+        {# A leaflet for each kind of chart, drawn by Chart.js in the theme's
+           chart colours. Each takes data down its { } port; with none, the
+           drawn ones show one of the built-in counts. #}
+        <details class="palette-group">
+          <summary>Charts</summary>
+          <ul class="palette-list">
+            {{ node_row('leaflet-bar', 'Bar chart', 'Compares amounts: a bar for each, up the page or across it, side by side or stacked.') }}
+            {{ node_row('leaflet-line', 'Line chart', 'Change over time: a line for each series, or filled areas, stacked or not.') }}
+            {{ node_row('leaflet-pie', 'Pie chart', 'Parts of a whole, as a pie or a doughnut: the largest five, and Other.') }}
+            {{ node_row('leaflet-radar', 'Radar chart', 'A few things measured the same ways, as shapes round a centre.') }}
+            {{ node_row('leaflet-polar', 'Polar area chart', 'Parts of a whole as wedges that reach as far as their size.') }}
+            {{ node_row('leaflet-scatter', 'Scatter chart', 'A dot for each row, placed by two of its numbers.') }}
+            {{ node_row('leaflet-bubble', 'Bubble chart', 'A dot for each row by two numbers, as big as a third.') }}
+            {{ node_row('leaflet-number', 'Number leaflet', 'One number, set large: a count, a total, an average.') }}
+            {{ node_row('leaflet-table', 'Table leaflet', 'The numbers as a table, a row for each.') }}
+          </ul>
+          <p class="hint">Wire data into a chart's { } port, then double-click it to say what it shows.</p>
         </details>
 
         <details class="palette-group">

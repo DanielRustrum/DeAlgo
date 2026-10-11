@@ -142,7 +142,7 @@
       <p class="paper-note">This leaflet has no feed yet. On the canvas, wire a Feed box into it.</p>
     {% endif %}
 
-  {% elif node.kind == 'leaflet-chart' %}
+  {% elif node.kind in chart_kinds %}
     <h2 class="paper-section">{{ said.chart_label }}</h2>
     {% if said.counts %}
       {% with counts=said.counts.counts, enabled_channels=said.counts.enabled_channels,

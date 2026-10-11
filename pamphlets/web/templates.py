@@ -36,7 +36,8 @@ def _asset_version() -> str:
     """
     static = BASE_DIR / "static"
     try:
-        newest = max(path.stat().st_mtime for path in static.iterdir() if path.is_file())
+        # Every file, in folders too: a new Chart.js in static/vendor counts.
+        newest = max(path.stat().st_mtime for path in static.rglob("*") if path.is_file())
     except (OSError, ValueError):  # pragma: no cover - no static dir at all
         return __version__
     return f"{int(newest):x}"
@@ -216,8 +217,8 @@ def publishing_offline(owner: OwnerId = None) -> Context | None:
         return {"feeds": feeds, "stale": token is not None}
 
 
-# A Chart leaflet's numbers as a person writes them, and the box its lines
-# are drawn in — the same on the pamphlet and in the canvas's preview.
+# A chart's numbers as a person writes them — the same on the pamphlet and
+# in the canvas's editor.
 TEMPLATES.env.globals["chart_number"] = charting.shown
-TEMPLATES.env.globals["chart_width"] = charting.WIDTH
-TEMPLATES.env.globals["chart_height"] = charting.HEIGHT
+# Which leaflets are charts: one for each kind of chart.
+TEMPLATES.env.globals["chart_kinds"] = graph_service.leaflets.CHART_KINDS

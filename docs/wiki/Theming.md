@@ -174,6 +174,11 @@ two tabs also switches the preview. The colours are grouped:
 - **Stat blocks:** the quiet block on the dashboard.
 - **Canvas boxes:** one colour for each kind of box on the [canvas](The%20Configuration%20Canvas.md).
 - **Plugin colours:** the seven colours a plugin can choose for its sources, and the letter on a plugin's badge.
+- **Charts:** the six colours a pamphlet's charts draw their series in, in order — the sixth is also
+  **Other**. They start as the theme's own hues (the accent, the sorts' blue, the filters' amber, the
+  triggers' purple, moss and pink), ordered so neighbours stay apart for colour-blind readers, and by
+  night held dark enough for the night panel. Lines, labels and type in a chart follow the theme's
+  text and line colours and its typeface.
 
 The background's and drawings' colours are in their own sections, above.
 

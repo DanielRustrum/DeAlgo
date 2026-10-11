@@ -38,7 +38,15 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "count") return "Count";
   if (kind === "aggregation") return "Aggregation";
   if (kind === "leaflet-feed") return "Feed leaflet";
-  if (kind === "leaflet-chart") return "Chart leaflet";
+  if (kind === "leaflet-bar") return "Bar chart";
+  if (kind === "leaflet-line") return "Line chart";
+  if (kind === "leaflet-pie") return "Pie chart";
+  if (kind === "leaflet-radar") return "Radar chart";
+  if (kind === "leaflet-polar") return "Polar area chart";
+  if (kind === "leaflet-scatter") return "Scatter chart";
+  if (kind === "leaflet-bubble") return "Bubble chart";
+  if (kind === "leaflet-number") return "Number leaflet";
+  if (kind === "leaflet-table") return "Table leaflet";
   if (kind === "leaflet-text") return "Text leaflet";
   if (kind === "leaflet-link") return "Link leaflet";
   if (kind === "carrying") return "Has tag";

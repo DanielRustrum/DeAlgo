@@ -554,6 +554,13 @@ def _unpack(
 ) -> GraphNode | None:
     """One node out of a group file."""
     kind = entry.get("kind")
+    if kind == leaflets.OLD_CHART:
+        # A file from before each chart had its own leaflet: the chart it drew.
+        found = entry.get("leaflet")
+        said: dict[str, Any] = found if isinstance(found, dict) else {}
+        kind, style = leaflets.current_kind(kind, said)
+        entry["kind"] = kind
+        entry["leaflet"] = {**{k: v for k, v in said.items() if k != "kind"}, **style}
     label = str(entry.get("label") or "")
     x, y = at
 

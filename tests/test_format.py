@@ -123,7 +123,7 @@ def test_a_source_wires_into_a_format_box_and_that_into_a_chart(db):
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)
         box = graph.add_format(session)
-        chart = graph.add_piece(session, kind="leaflet-chart", host=graph.add_pamphlet(session))
+        chart = graph.add_piece(session, kind="leaflet-bar", host=graph.add_pamphlet(session))
         graph.connect(session, source, box)
         graph.connect(session, box, chart)
         kinds = {(wire["from"], wire["to"]): wire["kind"] for wire in graph.wires(session)}
@@ -182,14 +182,14 @@ def test_a_chart_leaflet_draws_what_its_format_box_shapes(client, db):
         formatting.save(box, {"format_label": "data.author", "format_value": "data.score",
                               "format_combine": "sum"})
         pamphlet = graph.add_pamphlet(session, label="Stats")
-        chart = graph.add_piece(session, kind="leaflet-chart", host=pamphlet)
+        chart = graph.add_piece(session, kind="leaflet-bar", host=pamphlet)
         graph.connect(session, source, box)
         graph.connect(session, box, chart)
         pamphlet_pk = pamphlet.id
 
     page = client.get(f"/pamphlets/{pamphlet_pk}").text
     assert "Posts by author" in page
-    assert "ana · 16" in page and "ben · 4" in page
+    assert '"labels": ["ana", "ben", "cy"]' in page and '"values": [16.0, 4.0, 2.0]' in page
 
 
 def test_the_canvas_makes_tries_and_saves_a_format_box(client, db):
@@ -417,7 +417,7 @@ def test_a_count_shows_as_a_figure_on_a_page(client, db):
         box = graph.add_transform(session, label="Videos in")
         graph.add_piece(session, kind="count", host=box)
         pamphlet = graph.add_pamphlet(session, label="Numbers")
-        chart = graph.add_piece(session, kind="leaflet-chart", host=pamphlet)
+        chart = graph.add_piece(session, kind="leaflet-bar", host=pamphlet)
         graph.connect(session, source, box)
         graph.connect(session, box, chart)
         pamphlet_pk = pamphlet.id

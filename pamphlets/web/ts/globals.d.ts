@@ -43,9 +43,24 @@ interface YouTubeApi {
   PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };
 }
 
-/** What the page's scripts find on `window`: htmx, and YouTube's API. */
+/** One chart Chart.js has drawn: only what Pamphlets does with one. */
+interface ChartJsChart {
+  destroy(): void;
+}
+
+/** Chart.js, vendored into static/vendor/. Configurations are built as plain
+ *  objects in charts.ts and handed over whole, so only these are declared. */
+interface ChartJs {
+  new (canvas: HTMLCanvasElement, config: object): ChartJsChart;
+  getChart(canvas: HTMLCanvasElement): ChartJsChart | undefined;
+}
+
+/** What the page's scripts find on `window`: htmx, Chart.js, YouTube's API,
+ *  and what charts.ts gives the canvas's editor to draw its charts with. */
 interface Window {
   htmx?: Htmx;
+  Chart?: ChartJs;
+  drawCharts?: (root: ParentNode) => void;
   YT?: YouTubeApi;
   /** Called once per document, by the API itself, when it has loaded. */
   onYouTubeIframeAPIReady?: () => void;

@@ -1,7 +1,7 @@
 // The box editor: what came in, the box's settings, what it gives out.
 //
 // Opened by double-clicking a box, or from its panel. On a data box —
-// Transform, Format, Text, a Chart leaflet — it has three panes, the way a
+// Transform, Format, Text, a chart leaflet — it has three panes, the way a
 // flow tool lays a node out: input on the left, settings in the middle,
 // output on the right, the output worked out again as the settings change,
 // before anything is saved. On a source, an operation, a repository or a
@@ -32,7 +32,7 @@ interface GraphSide {
 
 /** Which editor a kind opens: all three panes, the two sides, or none. */
 function graphEditorFor(kind: GraphNodeKind): "settings" | "sides" | null {
-  if (kind === "transform" || kind === "format" || kind === "text" || kind === "leaflet-chart") return "settings";
+  if (kind === "transform" || kind === "format" || kind === "text" || graphIsChart(kind)) return "settings";
   if (
     kind === "source" || kind === "filter" || kind === "sort" || kind === "tag" ||
     kind === "decay" || kind === "expire" || kind === "deposit" || kind === "withdraw" || kind === "feed"
@@ -160,7 +160,7 @@ function openGraphEditor(state: GraphState, nodeId: number): void {
     graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw);
     if (node.kind === "feed") output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
     graphShowFilled(takers, asGraphRecord(raw["filled"]));
-    if (node.kind === "leaflet-chart") {
+    if (graphIsChart(node.kind)) {
       const out = asGraphRecord(raw["output"]);
       graphChartTry(form, out?.["suggested"], typeof out?.["guessed"] === "string" ? out["guessed"] : "");
     }
@@ -269,9 +269,9 @@ function graphEditorSettings(form: HTMLFormElement, node: GraphNodeView): void {
 
   if (node.kind === "format") graphFormatFields(form, node, true);
   else if (node.kind === "text") graphTextBoxFields(form, node, true);
-  else if (node.kind === "leaflet-chart" && node.leaflet !== null) {
+  else if (graphIsChart(node.kind) && node.leaflet !== null) {
     const leaflet = node.leaflet;
-    graphChartEditorFields(form, leaflet, (key: string): string => {
+    graphChartEditorFields(form, node.kind, leaflet, (key: string): string => {
       const value = leaflet.settings[key];
       return value === null || value === undefined ? "" : String(value);
     });
@@ -369,7 +369,7 @@ function graphShowFilled(takers: (HTMLInputElement | HTMLTextAreaElement)[], fil
 /** The settings that are paths into a row: where a field can go. */
 function graphEditorPathFields(form: HTMLFormElement): HTMLInputElement[] {
   return Array.from(form.querySelectorAll<HTMLInputElement>("input[type='text']")).filter(
-    (field): boolean => /^(format|leaflet)_(rows|label|value|series)$/.test(field.name),
+    (field): boolean => /^(format|leaflet)_(rows|label|value|series|x|y|size)$/.test(field.name),
   );
 }
 
@@ -429,6 +429,8 @@ function graphEditorPane(
     parts.push(shown);
   }
   pane.replaceChildren(...parts);
+  // A chart is drawn once it is on the page, at the size it has there.
+  window.drawCharts?.(pane);
 }
 
 /** A field that can be dragged into a setting, or pressed to fill the last one. */

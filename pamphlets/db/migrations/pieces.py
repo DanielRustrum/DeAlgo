@@ -392,3 +392,34 @@ def leaflets_are_wired_to_their_feeds() -> None:
             drawn += 1
     if drawn:
         log.info("Wired %d leaflet(s) to the feed each was showing", drawn)
+
+
+def charts_have_their_own_leaflets() -> None:
+    """There was one Chart leaflet, set to draw columns, bars, a line… Each
+    chart is a leaflet of its own now: turn every old one into the chart it
+    was drawing, with what it showed and how, so a pamphlet looks the same."""
+    from ...services.graph.leaflets import OLD_CHART, current_kind
+
+    engine = get_engine()
+    if "leaflet" not in {column["name"] for column in inspect(engine).get_columns("graph_node")}:
+        return
+    turned = 0
+    with engine.begin() as connection:
+        old = connection.execute(text(
+            "SELECT id, leaflet FROM graph_node WHERE kind = :old"), {"old": OLD_CHART}
+        ).all()
+        for pk, said in old:
+            try:
+                stored: Any = json.loads(said or "{}")
+            except ValueError:
+                stored = {}
+            stored = stored if isinstance(stored, dict) else {}
+            kind, style = current_kind(OLD_CHART, stored)
+            kept = {**{key: value for key, value in stored.items() if key != "kind"}, **style}
+            connection.execute(
+                text("UPDATE graph_node SET kind = :kind, leaflet = :said WHERE id = :pk"),
+                {"kind": kind, "said": json.dumps(kept, sort_keys=True), "pk": pk},
+            )
+            turned += 1
+    if turned:
+        log.info("Charts have their own leaflets: %d Chart leaflet(s) turned into the chart each drew", turned)

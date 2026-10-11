@@ -81,6 +81,16 @@
   --plugin-slate: #5b6b78;
   --on-plugin: #ffffff;
 
+  /* A chart's series, in order; the sixth is Other too. The theme's own
+     hues, ordered so neighbours stay apart for colour-blind readers
+     (THEMING tokens "charts"). */
+  --chart-1: #c04f2c;
+  --chart-2: #3f73a8;
+  --chart-3: #b8820f;
+  --chart-4: #7a5aa6;
+  --chart-5: #697d21;
+  --chart-6: #b8487c;
+
   /* The background (backdrop.css): the two lights, where a gradient ends,
      and the pattern. Each is another colour until a theme says otherwise. */
   --wash-1: var(--sage);
@@ -213,6 +223,12 @@
 
     /* The night colours are light, so their initial is dark. */
     --on-plugin: #131d1a;
+
+    /* The same hues, as dark as the night panel needs. */
+    --chart-2: #3778b8;
+    --chart-3: #b7810b;
+    --chart-4: #8262af;
+    --chart-5: #6a7f20;
 
     /* The scenes at night: deeper water and sky, darker sand and rock. */
     --art-water: #3f7391;

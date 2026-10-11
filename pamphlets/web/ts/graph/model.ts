@@ -21,7 +21,15 @@ type GraphNodeKind =
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
   // hang beside each other as well as below — beside is the next column.
   | "leaflet-feed"
-  | "leaflet-chart"
+  | "leaflet-bar"
+  | "leaflet-line"
+  | "leaflet-pie"
+  | "leaflet-radar"
+  | "leaflet-polar"
+  | "leaflet-scatter"
+  | "leaflet-bubble"
+  | "leaflet-number"
+  | "leaflet-table"
   | "leaflet-text"
   | "leaflet-link"
   // The two ends of a named repository. A deposit ends a path the way a feed

@@ -1,7 +1,7 @@
 {
   "name": "pamphlets-frontend",
   "private": true,
-  "description": "Build tools for Pamphlets's browser side: TypeScript for the scripts, Tailwind for the stylesheet, and the typefaces. Everything they produce is committed under pamphlets/web/static/, so running Pamphlets needs no Node \u2014 only editing the scripts or styles does.",
+  "description": "Build tools for Pamphlets's browser side: TypeScript for the scripts, Tailwind for the stylesheet, the typefaces, and Chart.js (copied into static/vendor by `make vendor`). Everything they produce is committed under pamphlets/web/static/, so running Pamphlets needs no Node — only editing the scripts or styles does.",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
@@ -11,6 +11,7 @@
     "@fontsource-variable/dm-sans": "5.3.0",
     "@fontsource-variable/fraunces": "5.3.0",
     "@tailwindcss/cli": "4.3.3",
+    "chart.js": "4.5.1",
     "tailwindcss": "4.3.3",
     "typescript": "^7.0.0"
   }

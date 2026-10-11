@@ -1,10 +1,10 @@
 # Format
 
-A **Format** box reshapes raw JSON into the bars a [Chart leaflet](Pamphlets.md#leaflets) draws. It
+A **Format** box reshapes raw JSON into the bars a [chart leaflet](Pamphlets.md#charts) draws. It
 sits on no path and changes nothing about what is collected.
 
-A Chart leaflet can also organise data itself, with series, lines and pies — see
-[Charting data](Pamphlets.md#charting-data). A Format box is for shaping it once and drawing the same
+A chart leaflet can also organise data itself, with series, lines and pies — see
+[Charts](Pamphlets.md#charts). A Format box is for shaping it once and drawing the same
 bars in more than one place.
 
 Wire it **from** a source box — straight, or through operation boxes — and **into** a Chart

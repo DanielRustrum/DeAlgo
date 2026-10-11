@@ -57,7 +57,7 @@ Each kind of wire has its own port, marked inside the dot:
 | ⚡ bolt | A signal to run | Trigger → source or Withdraw |
 | ▶ play | Items, down a path | Source → filter, sort, feed… |
 | Sheet of print | A feed or words, onto a page | Feed → Feed or Link leaflet; [Text](Nodes/Text.md) → Text leaflet |
-| `{ }` braces | JSON, to be drawn | Source → operations → Chart leaflet, or through a [Format](Nodes/Format.md) box |
+| `{ }` braces | JSON, to be drawn | Source → operations → a chart leaflet, or through a [Format](Nodes/Format.md) box |
 
 A [REST API](Nodes/REST%20API.md) source gives data only: its one output is `{ }`.
 
@@ -83,13 +83,13 @@ one box, renaming or switching it off renames or pauses the source or feed itsel
 
 **Double-click** a box, or press **Open editor** in its panel, to see what goes through it.
 
-On a **Transform**, **Format** or **Text** box, or a **Chart** leaflet, the editor has three panes:
+On a **Transform**, **Format** or **Text** box, or a chart leaflet, the editor has three panes:
 
 - **Input** on the left: what reaches the box — the data down its `{ }` wire, or the items down its
   ▶ wires read as rows.
 - **Settings** in the middle.
 - **Output** on the right: what the box gives out with those settings, worked out again as you
-  change them, before anything is saved. A Format box or Chart leaflet shows its chart here; a
+  change them, before anything is saved. A Format box or chart leaflet shows its chart here; a
   Text box shows what it last wrote, with **Write now**.
 
 Each side can be shown as **Fields** (every path in the rows, what kind of thing is there, and an
@@ -105,7 +105,7 @@ comes to with the data on the left.
 
 - In a setting that names one field (a chart's or Format box's rows, label, number or series), the
   field replaces what was there. A bare path, as settings were written before, still works.
-- In words — a Chart leaflet's heading, what a Text box is told — it goes in where the cursor is,
+- In words — a chart leaflet's heading, what a Text box is told — it goes in where the cursor is,
   among the rest: `Videos this week: {{ count }}`. Each field is filled from the data as it is,
   or else from its first row; one that is not there is left blank.
 

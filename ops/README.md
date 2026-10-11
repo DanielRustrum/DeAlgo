@@ -7,6 +7,7 @@ tests run them.
 | --- | --- | --- |
 | `build_css.py` | Runs Tailwind over `pamphlets/web/styles/` (and the templates' utility classes) into `pamphlets/web/static/app.css` | `make css` |
 | `vendor_fonts.py` | Copies the typefaces from `node_modules` into `pamphlets/web/static/fonts/` | `make fonts` |
+| `vendor_libraries.py` | Copies the browser libraries (Chart.js) from `node_modules` into `pamphlets/web/static/vendor/`, with their licences | `make vendor` |
 | `join_scripts.py` | Joins scripts written as parts (`web/ts/graph/`, `web/ts/focus/`) into one file each, after `tsc` | `make js` |
 | `build_toc.py` | Writes the Table of Contents for `docs/wiki` and `docs/internal` | `make toc` |
 | `publish_wiki.py` | Builds `docs/wiki` into Forgejo wiki pages, and publishes them | `make wiki` (preview), `.gitea/workflows/wiki.yml` |

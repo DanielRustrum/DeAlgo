@@ -101,6 +101,8 @@ GROUPS: tuple[Group, ...] = (
     Group("stats", "Stat blocks", "The quiet block on the dashboard."),
     Group("canvas", "Canvas boxes", "One colour per kind of box on the Configuration canvas."),
     Group("plugins", "Plugin colours", "The seven colours a plugin may give its sources."),
+    Group("charts", "Charts", "The colours a pamphlet's charts draw in, in order: the first series, "
+          "the second… The sixth is Other too."),
     Group("background", "Background", "The light on the page behind everything."),
     Group("gradient", "Gradient", "A gradient background's colours."),
     Group("texture", "Pattern and texture", "The pattern's ink."),
@@ -168,6 +170,16 @@ COLOURS: tuple[Colour, ...] = (
     Colour("plugin-slate", "Slate", "plugins", "#5b6b78", "#a5b3bf"),
     Colour("on-plugin", "On a plugin colour", "plugins", "#ffffff", "#131d1a",
            "The initial on a plugin's mark."),
+    # The theme's own hues, in an order checked to stay apart for colour-blind
+    # readers on the panel, light and dark: by night the same hues, held to the
+    # lightness the dark panel needs (the theme's night colours are lighter).
+    Colour("chart-1", "First", "charts", "#c04f2c", None, "The first series — the accent's hue."),
+    Colour("chart-2", "Second", "charts", "#3f73a8", "#3778b8", "The sorts' blue."),
+    Colour("chart-3", "Third", "charts", "#b8820f", "#b7810b", "The filters' amber."),
+    Colour("chart-4", "Fourth", "charts", "#7a5aa6", "#8262af", "The triggers' purple."),
+    Colour("chart-5", "Fifth", "charts", "#697d21", "#6a7f20", "Moss."),
+    Colour("chart-6", "Sixth, and Other", "charts", "#b8487c", None,
+           "Pink: the sixth series, and everything past the fifth."),
     Colour("wash-1", "First light", "background", "#9fb8a1", None,
            "The wash in the first corner, or the glow.", follows="sage"),
     Colour("wash-2", "Second light", "background", "#f2b196", None,

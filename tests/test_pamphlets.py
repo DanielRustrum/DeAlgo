@@ -52,7 +52,7 @@ def test_below_is_a_column_and_beside_is_the_next_one(db):
         heading = named(leaflet(session, "text", pamphlet), "heading")
         left = named(leaflet(session, "feed", heading), "left")
         named(leaflet(session, "feed", left, side="beside"), "right")
-        named(leaflet(session, "chart", left), "under left")
+        named(leaflet(session, "bar", left), "under left")
 
         assert page_of(session, pamphlet) == [
             ("heading", [("left", ["under left"]), "right"]),
@@ -113,7 +113,7 @@ def test_a_leaflet_takes_only_what_makes_sense(db):
         link = leaflet(session, "link")
         with pytest.raises(graph.GraphError, match="http"):
             leaflets.save(link, {"leaflet_goes": "url", "leaflet_url": "javascript:alert(1)"}, set())
-        chart = leaflet(session, "chart")
+        chart = leaflet(session, "bar")
         with pytest.raises(graph.GraphError, match="no chart"):
             leaflets.save(chart, {"leaflet_chart": "pie"}, set())
 
@@ -191,7 +191,7 @@ def test_a_pamphlet_page_shows_every_leaflet(client, db):
         leaflets.save(text, {"leaflet_heading": "Good morning", "leaflet_body": "One.\n\nTwo."}, set())
         cards = leaflet(session, "feed", text)
         leaflets.save(cards, {"leaflet_feed": str(feed.id)}, {feed.id})
-        chart = leaflet(session, "chart", cards, side="beside")
+        chart = leaflet(session, "bar", cards, side="beside")
         leaflets.save(chart, {"leaflet_chart": "feeds-held"}, set())
         link = leaflet(session, "link", chart)
         leaflets.save(link, {"leaflet_goes": "focus", "leaflet_feed": str(feed.id)}, {feed.id})
@@ -201,7 +201,9 @@ def test_a_pamphlet_page_shows_every_leaflet(client, db):
     assert "Good morning" in page and "<p class=\"leaflet-words\">Two.</p>" in page
     assert "pamphlet-row is-columns" in page
     assert "A Science video" in page  # the feed's card
-    assert "What each feed holds" in page and "Science · 1 waiting" in page
+    # The chart's data, for Chart.js to draw: each feed, and what it holds.
+    assert "What each feed holds" in page
+    assert '"labels": ["Science"]' in page and '"unit": "waiting"' in page
     assert f'href="/focus?playlist={feed_pk}"' in page and "Read Science in Focus" in page
     # Set as a paper: a masthead with a dateline, the feed's items as stories.
     assert 'class="paper-title">Morning<' in page and "paper-dateline" in page

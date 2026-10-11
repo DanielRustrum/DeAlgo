@@ -1,15 +1,19 @@
-"""Chart leaflets: wired data organised in their dialog, drawn as they say.
+"""Chart leaflets: a leaflet for each kind of chart, drawn by Chart.js.
 
 Data comes straight from a source, an operation or a Transform box — or as
 bars from a Format box — and the leaflet's own settings say where the rows
 are, what labels a point, what number it shows and what splits it into
-series; and whether it is columns, bars, a line, a stacked area, a pie, one
-number or a table.
+series. Which chart it is, is which leaflet it is; how it is drawn — across
+or up, stacked, filled, a doughnut — is its own few choices. The page carries
+each chart's data as JSON for Chart.js to draw in the theme's chart colours.
 """
 
 from __future__ import annotations
 
 import json
+import re
+
+import pytest
 
 from pamphlets.models import GraphNode
 from pamphlets.services import charting, graph
@@ -79,19 +83,28 @@ def test_it_says_what_is_missing():
     assert "Nothing has come in" in charting.from_data(None, said()).error
 
 
-def test_lines_break_at_gaps_and_areas_stack():
-    gappy = charting.from_data(ROWS, said(kind="line", label="day", value="score",
-                                          combine="average", series="who"))
-    assert len(gappy.line_segments(gappy.series[0])) == 1
-    assert gappy.line_segments(gappy.series[2]) == [f"{gappy.x(2):.1f},{gappy.y(2)}"]
-    assert gappy.alone(gappy.series[2], 2) and not gappy.alone(gappy.series[0], 0)
-    chart = charting.from_data(ROWS, said(kind="line", label="day", value="score",
-                                          combine="sum", series="who"))
-    assert chart.top == 10
-    # Stacked, the top is the tallest stack: 10 + 4 on the first day.
-    chart.kind = "area"
-    assert chart.top == 20
-    assert chart.area_path(0).startswith("M") and chart.area_path(0).endswith("Z")
+def test_a_chart_is_handed_to_chart_js_as_data_with_its_colours_as_slots():
+    chart = charting.from_data(ROWS, said(kind="line", label="day", value="score", combine="sum",
+                                          series="who", fill="area", stacking="stacked"))
+    config = chart.config()
+    assert config["type"] == "line" and config["style"] == {"fill": "area", "stacking": "stacked"}
+    assert config["labels"] == ["2026-10-01", "2026-10-02", "2026-10-03"]
+    assert config["series"][0] == {"name": "ana", "slot": 1, "values": [10, 6, 0]}
+    # A slot, not a colour: the browser reads the theme's chart colour for it.
+    assert "#" not in json.dumps(config)
+
+
+def test_scatter_and_bubble_charts_place_a_point_for_each_row():
+    rows = [{"when": f"2026-10-0{n}", "views": n * 10, "likes": n, "who": "ana" if n % 2 else "ben"}
+            for n in range(1, 6)]
+    scatter = charting.from_data(rows, said(kind="scatter", x="{{ views }}", y="likes", series="who"))
+    assert [one.name for one in scatter.placed] == ["ana", "ben"]
+    assert scatter.placed[0].points[0] == {"x": 10.0, "y": 1.0}
+    bubble = charting.from_data(rows, said(kind="bubble", x="when", y="views", size="likes"))
+    assert bubble.x_dates and bubble.placed[0].points[-1]["r"] == 20.0
+    # Nothing chosen: the likeliest two, as a guess.
+    guessed = charting.from_data(rows, said(kind="scatter"))
+    assert guessed.guessed == "when along, views up" and guessed.drawn
 
 
 def test_a_pie_is_the_largest_five_and_other():
@@ -116,46 +129,72 @@ def drawn_node(db, pk):
         return next(n for n in graph_payload(session, None)["nodes"] if n["id"] == pk)
 
 
-def a_chart_from(session, source, **settings):
+def a_chart_from(session, source, kind="leaflet-bar", **settings):
     pamphlet = graph.add_pamphlet(session, label="Stats")
-    chart = graph.add_piece(session, kind="leaflet-chart", host=pamphlet)
+    chart = graph.add_piece(session, kind=kind, host=pamphlet)
     leaflets.save(chart, {f"leaflet_{k}": str(v) for k, v in settings.items()}, set())
     graph.connect(session, source, chart)
     return pamphlet, chart
 
 
+def configs(page):
+    """Every chart's data on a page, as Chart.js is handed it."""
+    return [json.loads(found) for found in
+            re.findall(r'<script type="application/json" data-chart-config>(.*?)</script>', page, re.S)]
+
+
 def test_a_source_wires_straight_into_a_chart_and_is_drawn_as_it_says(client, db):
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)
-        pamphlet, _ = a_chart_from(session, source, kind="pie", label="data.author",
-                                   value="data.score", combine="sum")
+        pamphlet, _ = a_chart_from(session, source, "leaflet-pie", label="data.author",
+                                   value="data.score", combine="sum", shape="doughnut")
         pamphlet_pk = pamphlet.id
 
     page = client.get(f"/pamphlets/{pamphlet_pk}").text
-    assert 'class="chart is-pie"' in page
-    assert "ana · 16 (72.7%)" in page
-    assert "pie of sum data.score by data.author" in page
+    assert 'class="chart-js is-pie"' in page and "<canvas" in page
+    [config] = configs(page)
+    assert config["type"] == "pie" and config["style"]["shape"] == "doughnut"
+    assert config["labels"] == ["ana", "ben", "cy"] and config["series"][0]["values"] == [16, 4, 2]
+    assert config["series"][0]["slots"] == [1, 2, 3]
+    assert "sum data.score by data.author" in page
 
 
-def test_every_kind_draws(client, db):
+@pytest.mark.parametrize("kind", ["leaflet-bar", "leaflet-line", "leaflet-pie", "leaflet-radar",
+                                  "leaflet-polar", "leaflet-scatter", "leaflet-bubble"])
+def test_every_drawn_chart_hands_its_data_to_chart_js(client, db, kind):
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)
-        pamphlet, chart = a_chart_from(session, source, label="data.author",
-                                       series="data.flair")
-        pamphlet_pk, chart_pk = pamphlet.id, chart.id
+        pamphlet, _ = a_chart_from(session, source, kind, label="data.author", series="data.flair",
+                                   x="data.created_utc", y="data.score")
+        pamphlet_pk = pamphlet.id
+    page = client.get(f"/pamphlets/{pamphlet_pk}").text
+    [config] = configs(page)
+    assert config["type"] == charting.kind_of(kind)
+    assert "As a table" not in page
 
-    for kind, mark in (("column", "chart-bar"), ("bar", "chart-row"), ("line", "chart-line"),
-                       ("area", "chart-band"), ("pie", "chart-slice"), ("table", "chart-plain")):
-        with db.session_scope() as session:
-            node = session.get(GraphNode, chart_pk)
-            leaflets.save(node, {"leaflet_kind": kind}, set())
-        page = client.get(f"/pamphlets/{pamphlet_pk}").text
-        assert mark in page, kind
-        # Only the chart: no table folded under it unless drawn as one.
-        assert ("As a table" in page) is False, kind
-        # More than one series: always a legend.
-        if kind != "pie":
-            assert "chart-legend" in page, kind
+
+def test_a_number_and_a_table_are_set_not_drawn(client, db):
+    with db.session_scope() as session:
+        source = a_rest_source(session, ANSWER)
+        number, _ = a_chart_from(session, source, "leaflet-number", value="data.score", combine="sum")
+        table, _ = a_chart_from(session, source, "leaflet-table", label="data.author")
+        number_pk, table_pk = number.id, table.id
+    assert '<p class="paper-figure">22</p>' in client.get(f"/pamphlets/{number_pk}").text
+    page = client.get(f"/pamphlets/{table_pk}").text
+    assert 'class="chart-plain"' in page and "<canvas" not in page
+
+
+def test_a_chart_s_own_choices_are_kept_and_others_refused(db):
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session, label="Stats")
+        bar = graph.add_piece(session, kind="leaflet-bar", host=pamphlet)
+        leaflets.save(bar, {"leaflet_direction": "horizontal", "leaflet_stacking": "stacked"}, set())
+        assert leaflets.settings(bar)["direction"] == "horizontal"
+        with pytest.raises(graph.GraphError):
+            leaflets.save(bar, {"leaflet_direction": "sideways"}, set())
+        # A bar chart has no doughnut to choose: the setting is not one of its own.
+        leaflets.save(bar, {"leaflet_shape": "doughnut"}, set())
+        assert "shape" not in leaflets.settings(bar)
 
 
 def test_the_editor_shows_the_data_and_the_chart_with_unsaved_settings(client, db):
@@ -166,24 +205,25 @@ def test_the_editor_shows_the_data_and_the_chart_with_unsaved_settings(client, d
 
     drawn = drawn_node(db, chart_pk)
     assert drawn["leaflet"]["wired"] and not drawn["leaflet"]["shapedBy"]
-    assert {"name": "line", "label": "Line"} in drawn["leaflet"]["kinds"]
-    assert "organise the data" in drawn["note"]
+    assert [one["name"] for one in drawn["leaflet"]["styles"]] == ["direction", "stacking"]
+    assert "say what each one is" in drawn["note"]
 
     seen = client.post(f"/graph/nodes/{chart_pk}/inspect", data={
-        "leaflet_kind": "bar", "leaflet_label": "data.author",
+        "leaflet_direction": "horizontal", "leaflet_label": "data.author",
     }).json()
     assert seen["input"]["count"] == 4 and seen["input"]["found_at"] == "data.children"
     assert "data.score" in [field["path"] for field in seen["input"]["fields"]]
-    assert "chart-row" in seen["output"]["html"] and "ana · 2" in seen["output"]["html"]
+    [config] = configs(seen["output"]["html"])
+    assert config["style"]["direction"] == "horizontal" and config["labels"] == ["ana", "ben", "cy"]
     assert seen["output"]["rows"][0] == {"label": "ana", "how many": 2.0}
     assert not seen["output"]["error"]
 
     saved = client.post(f"/graph/nodes/{chart_pk}", data={
-        "label": "", "leaflet_kind": "line", "leaflet_label": "data.author", "leaflet_limit": "5",
+        "label": "", "leaflet_label": "data.author", "leaflet_limit": "5",
     }).json()
     note = next(n for n in saved["nodes"] if n["id"] == chart_pk)["note"]
-    assert note == "line of how many by data.author"
-    refused = client.post(f"/graph/nodes/{chart_pk}", data={"leaflet_kind": "radar"})
+    assert note == "how many by data.author"
+    refused = client.post(f"/graph/nodes/{chart_pk}", data={"leaflet_direction": "sideways"})
     assert refused.status_code == 400
 
 
@@ -193,24 +233,58 @@ def test_a_format_box_still_shapes_and_the_chart_draws_its_bars_as_chosen(client
         box = graph.add_format(session, label="Posts by author")
         formatting.save(box, {"format_label": "data.author"})
         graph.connect(session, source, box)
-        pamphlet, chart = a_chart_from(session, box, kind="line")
+        pamphlet, chart = a_chart_from(session, box, "leaflet-line")
         pamphlet_pk, chart_pk = pamphlet.id, chart.id
 
     page = client.get(f"/pamphlets/{pamphlet_pk}").text
-    assert "Posts by author" in page and "chart-line" in page
+    assert "Posts by author" in page and configs(page)[0]["type"] == "line"
     drawn = drawn_node(db, chart_pk)
     assert drawn["leaflet"]["shapedBy"]
-    assert drawn["note"] == "Line drawn as the Format box shapes it"
+    assert drawn["note"] == "drawn as the Format box shapes it"
 
 
-def test_with_nothing_wired_in_the_built_in_counts_take_a_type_too(client, db):
+def test_with_nothing_wired_in_a_chart_draws_a_built_in_count(client, db):
     with db.session_scope() as session:
         pamphlet = graph.add_pamphlet(session, label="Stats")
-        chart = graph.add_piece(session, kind="leaflet-chart", host=pamphlet)
-        chart.leaflet = json.dumps({"chart": "feeds-held"})
-        assert leaflets.settings(chart)["kind"] == "bar"
-        leaflets.save(chart, {"leaflet_kind": "pie"}, set())
-        assert leaflets.settings(chart)["kind"] == "pie"
+        chart = graph.add_piece(session, kind="leaflet-pie", host=pamphlet)
+        leaflets.save(chart, {"leaflet_chart": "feeds-held"}, set())
+        number = graph.add_piece(session, kind="leaflet-number", host=pamphlet)
+        pamphlet_pk = pamphlet.id
+        assert leaflets.settings(number)["chart"] == "counts"
+    page = client.get(f"/pamphlets/{pamphlet_pk}").text
+    assert "What each feed holds" in page
+
+
+def test_an_old_chart_leaflet_becomes_the_chart_it_drew(db):
+    from pamphlets.db.migrations import charts_have_their_own_leaflets
+
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session, label="Stats")
+        made = {}
+        for drawn in ("column", "bar", "area", "pie", "number", "table"):
+            node = GraphNode(kind="leaflet-chart", attached_to=pamphlet.id, attached_side="below",
+                             leaflet=json.dumps({"kind": drawn, "label": "who", "title": drawn}))
+            session.add(node)
+            session.flush()
+            made[drawn] = node.id
+        counts = GraphNode(kind="leaflet-chart", attached_to=pamphlet.id, leaflet=json.dumps({"chart": "counts"}))
+        session.add(counts)
+        session.flush()
+        made["counts"] = counts.id
+
+    charts_have_their_own_leaflets()
+    with db.session_scope() as session:
+        turned = {drawn: session.get(GraphNode, pk) for drawn, pk in made.items()}
+        assert turned["column"].kind == "leaflet-bar"
+        assert leaflets.settings(turned["column"])["direction"] == "vertical"
+        assert leaflets.settings(turned["bar"])["direction"] == "horizontal"
+        area = leaflets.settings(turned["area"])
+        assert turned["area"].kind == "leaflet-line" and area["fill"] == "area" and area["stacking"] == "stacked"
+        assert [turned[k].kind for k in ("pie", "number", "table", "counts")] == [
+            "leaflet-pie", "leaflet-number", "leaflet-table", "leaflet-number"]
+        # What it showed is kept.
+        assert leaflets.settings(turned["pie"])["label"] == "who"
+        assert leaflets.settings(turned["pie"])["title"] == "pie"
 
 
 def test_it_suggests_fields_that_repeat_and_dates_by_day_and_guesses_one():

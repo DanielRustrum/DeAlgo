@@ -29,14 +29,14 @@ def test_charts_and_format_boxes_read_fields_in_braces():
     assert [c.long for c in chart.categories] == ["ana", "ben", "cy"]
     shaped = formatting.shape(ANSWER, spec(label="{{ data.author }}"))
     assert [(bar.label, bar.value) for bar in shaped.bars] == [("ana", 2), ("ben", 1), ("cy", 1)]
-    assert charting.words({"label": "{{ data.author }}"}) == "columns of how many by data.author"
+    assert charting.words({"label": "{{ data.author }}"}) == "how many by data.author"
 
 
 def test_a_chart_heading_says_what_the_data_says(client, db):
     with db.session_scope() as session:
         source = a_rest_source(session, ANSWER)
         pamphlet = graph.add_pamphlet(session, label="P")
-        chart = graph.add_piece(session, kind="leaflet-chart", host=pamphlet)
+        chart = graph.add_piece(session, kind="leaflet-bar", host=pamphlet)
         leaflets.save(chart, {"leaflet_title": "First up: {{ data.author }}",
                               "leaflet_label": "{{ data.author }}"}, set())
         graph.connect(session, source, chart)

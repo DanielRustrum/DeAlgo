@@ -9,6 +9,7 @@ from .migrations import (
     rest_sources_give_data,
     wires_say_what_they_carry,
     after_watching_is_its_own_condition,
+    charts_have_their_own_leaflets,
     leaflets_are_wired_to_their_feeds,
     add_missing_columns,
     drop_removed_columns,
@@ -50,6 +51,7 @@ def init_db() -> None:
     leaflets_are_wired_to_their_feeds()
     wires_say_what_they_carry()
     rest_sources_give_data()
+    charts_have_their_own_leaflets()
     # After the migrations above, not before: they read columns this drops,
     # and they are the last things that need them.
     drop_removed_columns()

@@ -28,7 +28,15 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "count" ||
     value === "aggregation" ||
     value === "leaflet-feed" ||
-    value === "leaflet-chart" ||
+    value === "leaflet-bar" ||
+    value === "leaflet-line" ||
+    value === "leaflet-pie" ||
+    value === "leaflet-radar" ||
+    value === "leaflet-polar" ||
+    value === "leaflet-scatter" ||
+    value === "leaflet-bubble" ||
+    value === "leaflet-number" ||
+    value === "leaflet-table" ||
     value === "leaflet-text" ||
     value === "leaflet-link" ||
     value === "deposit" ||

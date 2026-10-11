@@ -42,7 +42,15 @@ CONDITION_LABELS: dict[str, str] = {
 #: names are: a row has to be able to say what it is on its own.
 LEAFLET_LABELS: dict[str, str] = {
     "leaflet-feed": "Feed leaflet",
-    "leaflet-chart": "Chart leaflet",
+    "leaflet-bar": "Bar chart",
+    "leaflet-line": "Line chart",
+    "leaflet-pie": "Pie chart",
+    "leaflet-radar": "Radar chart",
+    "leaflet-polar": "Polar area chart",
+    "leaflet-scatter": "Scatter chart",
+    "leaflet-bubble": "Bubble chart",
+    "leaflet-number": "Number leaflet",
+    "leaflet-table": "Table leaflet",
     "leaflet-text": "Text leaflet",
     "leaflet-link": "Link leaflet",
 }

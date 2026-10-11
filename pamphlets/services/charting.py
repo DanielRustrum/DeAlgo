@@ -1,24 +1,26 @@
-"""Charts for a Chart leaflet: data in, organised, drawn as the leaflet says.
+"""Charts for the chart leaflets: data in, organised, handed to Chart.js.
 
-A Chart leaflet is wired data — JSON from a source, from an operation box,
-from a repository, a Transform or a Format box — and its own settings say
-how to organise it:
+Each chart is a leaflet of its own — Bar, Line, Pie, Radar, Polar area,
+Scatter and Bubble, drawn in the browser by Chart.js (web/ts/charts.ts); a
+Number leaflet and a Table leaflet show the same data undrawn. What comes in
+down the data wire — JSON from a source, an operation, a repository, a
+Transform or a Format box — is organised by the leaflet's settings:
 
 * **Rows** — where the list is; blank finds it.
-* **Label** — what each point is called, a path in each row; a date can be
-  grouped by day, week, month, weekday or hour, and a list gives a point for
-  each thing in it.
-* **Value** — the number to show, a path, and how rows sharing a label are
-  combined: counted, added up, averaged, the smallest, largest or last.
-* **Series** — optionally, a path to split by: one line, or one bar of each
-  group, per value found there. Five at most are named; the rest are Other.
+* **Label** — what each point is, a path in each row; a date can be grouped
+  by day, week, month, weekday or hour, and a list gives a point for each
+  thing in it. Left blank, the likeliest field is guessed, and said to be.
+* **Value** — the number to show, and how rows sharing a label are combined:
+  counted, added up, averaged, the smallest, largest or last.
+* **Series** — optionally, a field to split by. Five are named; the rest
+  are Other.
 * **Order** and **limit** — which points, in what order.
 
-And how to draw it: columns, bars, a line, a stacked area, a pie, one number
-or a table. Every chart is one scale: never two axes.
+A Scatter or Bubble chart places a point for each row instead, by its x and
+y — and, for a bubble, its size.
 
-Everything here is worked out in Python — scales, line points, pie arcs —
-so the template only has to set it.
+Everything is worked out here; the browser only draws it, in the theme's
+chart colours. Every chart has one scale: never two axes.
 """
 
 from __future__ import annotations
@@ -32,30 +34,34 @@ from ..sources import rest
 from .graph import formatting
 from .graph.templating import path_of
 
-KINDS: tuple[tuple[str, str], ...] = (
-    ("column", "Columns"),
-    ("bar", "Bars"),
-    ("line", "Line"),
-    ("area", "Stacked area"),
-    ("pie", "Pie"),
-    ("number", "One number"),
-    ("table", "Table"),
-)
+#: The kinds of chart, by the leaflet that draws each: its leaflet kind
+#: without "leaflet-". Drawn ones go to Chart.js; number and table do not.
+DRAWN = ("bar", "line", "pie", "radar", "polar", "scatter", "bubble")
+KINDS = (*DRAWN, "number", "table")
 
 #: Series named before the rest are folded into Other: six colours in all,
-#: the six validated on this app's surfaces, light and dark.
+#: the theme's six chart colours.
 MOST_SERIES = 5
-#: Slices a pie names before the rest are Other.
+#: Slices a pie (or polar area) names before the rest are Other.
 MOST_SLICES = 5
 MOST_POINTS = 60
-
-#: Line and area charts are drawn in a box this size, stretched to fit.
-WIDTH, HEIGHT = 1000.0, 300.0
+#: Rows a Scatter or Bubble chart places, at most.
+MOST_PLACED = 500
 
 SPEC_DEFAULTS: dict[str, Any] = {
-    "kind": "column", "rows": "", "label": "", "group": "none", "value": "",
+    "kind": "bar", "rows": "", "label": "", "group": "none", "value": "",
     "combine": "count", "series": "", "sort": "label-asc", "limit": 30,
+    "x": "", "y": "", "size": "",
 }
+
+#: How a chart can be drawn, past what it shows (leaflets.STYLES' names).
+STYLE_KEYS = ("direction", "stacking", "fill", "curve", "shape")
+
+
+def kind_of(leaflet_kind: str) -> str:
+    """The chart a leaflet draws: "leaflet-bar" draws a bar chart."""
+    kind = leaflet_kind.removeprefix("leaflet-")
+    return kind if kind in KINDS else "bar"
 
 
 @dataclass(frozen=True)
@@ -76,24 +82,36 @@ class Series:
         return sum(value for value in self.values if value is not None)
 
 
+@dataclass
+class Placed:
+    """One series of a Scatter or Bubble chart: a point a row."""
+
+    name: str
+    slot: int
+    points: list[dict[str, float]] = field(default_factory=list)
+
+
 @dataclass(frozen=True)
 class Slice:
     name: str
     value: float
     share: float
-    path: str
     slot: int
 
 
 @dataclass
 class Chart:
-    kind: str = "column"
+    kind: str = "bar"
+    #: How it is drawn: direction, stacking, fill, curve, shape.
+    style: dict[str, str] = field(default_factory=dict)
     categories: list[Category] = field(default_factory=list)
     series: list[Series] = field(default_factory=list)
-    #: One number, for kind "number" — or what a Transform gave.
+    #: A Scatter or Bubble chart's points, by series.
+    placed: list[Placed] = field(default_factory=list)
+    #: One number, for a Number leaflet — or what a Transform gave.
     figure: float | None = None
     error: str = ""
-    #: What was found, for the dialog to offer.
+    #: What was found, for the editor to offer.
     rows: int = 0
     rows_path: str = ""
     fields: list[str] = field(default_factory=list)
@@ -106,74 +124,25 @@ class Chart:
     suggested: list[dict[str, str]] = field(default_factory=list)
     #: When no label was chosen, the one used instead, said in words.
     guessed: str = ""
-
-    # -- scale -------------------------------------------------------------
-
-    @property
-    def stacked(self) -> bool:
-        return self.kind == "area"
-
-    @property
-    def top(self) -> float:
-        """The top of the one axis: the largest point, or largest stack,
-        rounded up to a readable number."""
-        if self.stacked:
-            most = max((sum(s.values[i] or 0 for s in self.series)
-                        for i in range(len(self.categories))), default=0.0)
-        else:
-            most = max((value or 0 for s in self.series for value in s.values), default=0.0)
-        return nice_top(most)
-
-    def share(self, value: float | None) -> float:
-        """A value as a percentage of the top, for bar lengths."""
-        return 0.0 if not value else round(100.0 * value / self.top, 2)
-
-    # -- for the template --------------------------------------------------
+    #: A Scatter or Bubble chart's axes: what they are, and whether x is a date.
+    x_name: str = ""
+    y_name: str = ""
+    x_dates: bool = False
 
     @property
     def single(self) -> bool:
         return len(self.series) == 1
 
     @property
-    def every(self) -> int:
-        """Label every nth category on an axis, so they do not collide."""
-        return max(1, math.ceil(len(self.categories) / 8))
+    def total(self) -> float:
+        return sum(s.total for s in self.series)
 
-    def x(self, index: int) -> float:
-        return (index + 0.5) * WIDTH / max(1, len(self.categories))
-
-    def y(self, value: float) -> float:
-        return round(HEIGHT - HEIGHT * value / self.top, 2)
-
-    def line_segments(self, series: Series) -> list[str]:
-        """A line's points, split where it has no value, as SVG point lists."""
-        segments: list[list[str]] = [[]]
-        for index, value in enumerate(series.values):
-            if value is None:
-                if segments[-1]:
-                    segments.append([])
-                continue
-            segments[-1].append(f"{self.x(index):.1f},{self.y(value)}")
-        return [" ".join(points) for points in segments if points]
-
-    def alone(self, series: Series, index: int) -> bool:
-        """A point with a gap either side: no line reaches it, so it is a dot."""
-        values = series.values
-        before = index > 0 and values[index - 1] is not None
-        after = index + 1 < len(values) and values[index + 1] is not None
-        return values[index] is not None and not before and not after
-
-    def area_path(self, position: int) -> str:
-        """A stacked band: the series' own top, back along the one below."""
-        def level(upto: int, index: int) -> float:
-            return sum(self.series[k].values[index] or 0 for k in range(upto + 1)) if upto >= 0 else 0.0
-
-        count = len(self.categories)
-        if count == 0:
-            return ""
-        upper = [f"{self.x(i):.1f},{self.y(level(position, i))}" for i in range(count)]
-        lower = [f"{self.x(i):.1f},{self.y(level(position - 1, i))}" for i in reversed(range(count))]
-        return "M" + " L".join(upper + lower) + " Z"
+    @property
+    def drawn(self) -> bool:
+        """Whether Chart.js draws it, and there is something to draw."""
+        if self.kind in ("scatter", "bubble"):
+            return any(one.points for one in self.placed)
+        return self.kind in DRAWN and bool(self.series) and self.total != 0
 
     def slices(self) -> list[Slice]:
         """A pie of the categories' totals: the largest five, and Other."""
@@ -186,31 +155,33 @@ class Chart:
         if rest_of:
             named.append(("Other", sum(value for _, value in rest_of)))
         whole = sum(value for _, value in named)
-        found: list[Slice] = []
-        turned = 0.0
-        for index, (name, value) in enumerate(named):
-            share = value / whole if whole else 0.0
-            slot = 6 if name == "Other" and rest_of else min(index + 1, 6)
-            found.append(Slice(name, value, round(share * 100, 1), _arc(turned, share), slot))
-            turned += share
-        return found
+        return [
+            Slice(name, value, round(100 * value / whole, 1) if whole else 0.0,
+                  6 if name == "Other" and rest_of else min(index + 1, 6))
+            for index, (name, value) in enumerate(named)
+        ]
 
-    @property
-    def total(self) -> float:
-        return sum(s.total for s in self.series)
-
-
-def nice_top(most: float) -> float:
-    """The largest value rounded up to 1, 2, 2.5 or 5 of its power of ten."""
-    if most <= 0:
-        return 1.0
-    if most <= 4:
-        return float(math.ceil(most))
-    step = 10 ** math.floor(math.log10(most))
-    for nice in (1, 2, 2.5, 5, 10):
-        if nice * step >= most:
-            return float(nice * step)
-    return most
+    def config(self) -> dict[str, Any]:
+        """What the browser needs to draw it with Chart.js. Colours are left
+        as slots: the browser reads the theme's chart colours for them."""
+        said: dict[str, Any] = {
+            "type": self.kind, "style": self.style, "measure": self.measure, "unit": self.unit,
+        }
+        if self.kind in ("pie", "polar"):
+            slices = self.slices()
+            said["labels"] = [one.name for one in slices]
+            said["titles"] = said["labels"]
+            said["series"] = [{"name": self.measure or "how many", "values": [one.value for one in slices],
+                               "slots": [one.slot for one in slices]}]
+            return said
+        if self.kind in ("scatter", "bubble"):
+            said["points"] = [{"name": one.name, "slot": one.slot, "data": one.points} for one in self.placed]
+            said.update(xName=self.x_name, yName=self.y_name, xDates=self.x_dates)
+            return said
+        said["labels"] = [category.short for category in self.categories]
+        said["titles"] = [category.long for category in self.categories]
+        said["series"] = [{"name": s.name, "slot": s.slot, "values": s.values} for s in self.series]
+        return said
 
 
 def shown(value: float | None) -> str:
@@ -222,28 +193,6 @@ def shown(value: float | None) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
-def _arc(start: float, share: float) -> str:
-    """A ring segment in a 100×100 box, from `start` round `share` of the way."""
-    outer, inner, centre = 48.0, 30.0, 50.0
-    if share >= 0.9999:
-        # A whole ring: two halves, since one arc cannot end where it starts.
-        return (f"M{centre},{centre - outer} A{outer},{outer} 0 1 1 {centre},{centre + outer} "
-                f"A{outer},{outer} 0 1 1 {centre},{centre - outer} "
-                f"M{centre},{centre - inner} A{inner},{inner} 0 1 0 {centre},{centre + inner} "
-                f"A{inner},{inner} 0 1 0 {centre},{centre - inner} Z")
-
-    def point(radius: float, turn: float) -> tuple[float, float]:
-        angle = 2 * math.pi * turn - math.pi / 2
-        return round(centre + radius * math.cos(angle), 3), round(centre + radius * math.sin(angle), 3)
-
-    end = start + share
-    large = 1 if share > 0.5 else 0
-    (ax, ay), (bx, by) = point(outer, start), point(outer, end)
-    (cx, cy), (dx, dy) = point(inner, end), point(inner, start)
-    return (f"M{ax},{ay} A{outer},{outer} 0 {large} 1 {bx},{by} "
-            f"L{cx},{cy} A{inner},{inner} 0 {large} 0 {dx},{dy} Z")
-
-
 # -- building one -------------------------------------------------------------
 
 
@@ -252,9 +201,15 @@ def spec_of(said: Mapping[str, Any]) -> dict[str, Any]:
     spec = dict(SPEC_DEFAULTS)
     spec.update({key: value for key, value in said.items() if key in SPEC_DEFAULTS and value is not None})
     # Fields are written {{ like.this }}; what is between the braces is the path.
-    for key in ("rows", "label", "value", "series"):
+    for key in ("rows", "label", "value", "series", "x", "y", "size"):
         spec[key] = path_of(spec[key])
+    spec["kind"] = spec["kind"] if spec["kind"] in KINDS else "bar"
     return spec
+
+
+def style_of(said: Mapping[str, Any]) -> dict[str, str]:
+    """How a chart is drawn, from its settings: only the choices it has."""
+    return {key: str(said[key]) for key in STYLE_KEYS if said.get(key)}
 
 
 def from_data(data: Any, said: Mapping[str, Any]) -> Chart:
@@ -271,7 +226,10 @@ def from_data(data: Any, said: Mapping[str, Any]) -> Chart:
     except rest.RestError as exc:
         return Chart(kind=kind, error=str(exc))
     rows = rows[: formatting.MOST_ROWS]
-    chart = Chart(kind=kind, rows=len(rows), rows_path=rows_path, fields=formatting._fields(rows))
+    chart = Chart(kind=kind, style=style_of(said), rows=len(rows), rows_path=rows_path,
+                  fields=formatting._fields(rows))
+    if kind in ("scatter", "bubble"):
+        return _placed(chart, rows, spec)
 
     combine = str(spec["combine"])
     value_path, label_path = str(spec["value"] or ""), str(spec["label"] or "")
@@ -285,7 +243,7 @@ def from_data(data: Any, said: Mapping[str, Any]) -> Chart:
             return None
         return formatting._number(rest.walk(row, value_path) if isinstance(row, (dict, list)) else None)
 
-    if kind == "number" and not label_path:
+    if kind == "number":
         numbers = [n for n in (number_of(row) for row in rows) if n is not None]
         if not numbers:
             chart.error = "No row had a number at that path." if value_path else "Say which field holds the number."
@@ -431,13 +389,84 @@ def _series_name(row: Any, path: str) -> str:
     return str(said)[:40]
 
 
-def from_bars(bars: Sequence[Any], kind: str, measure: str = "", unit: str = "") -> Chart:
+def _placed(chart: Chart, rows: list[Any], spec: Mapping[str, Any]) -> Chart:
+    """A Scatter or Bubble chart: a point for each row, at its x and y, sized
+    by its size for a bubble, coloured by its series. A date along the
+    bottom is placed by when it was."""
+    x_path, y_path, size_path = str(spec["x"]), str(spec["y"]), str(spec["size"])
+    series_path = str(spec["series"])
+    if not x_path or not y_path:
+        # Nothing chosen yet: the likeliest two, said to be a guess.
+        dates, numbers = _measurable(rows)
+        x_path = x_path or (dates[0] if dates else numbers[0] if numbers else "")
+        y_path = y_path or next((one for one in numbers if one != x_path), "")
+        if x_path and y_path:
+            chart.guessed = f"{x_path} along, {y_path} up"
+    if not x_path or not y_path:
+        chart.error = "Say which field goes along the bottom and which goes up the side."
+        return chart
+    chart.x_name, chart.y_name = x_path, y_path
+
+    found: list[tuple[str, float, float, float | None]] = []
+    for row in rows[:MOST_PLACED]:
+        if not isinstance(row, (dict, list)):
+            continue
+        across, up = rest.walk(row, x_path), formatting._number(rest.walk(row, y_path))
+        x = formatting._number(across)
+        if x is None and (when := rest.when(across)) is not None:
+            x, chart.x_dates = when.timestamp() * 1000, True
+        if x is None or up is None:
+            continue
+        size = formatting._number(rest.walk(row, size_path)) if size_path else None
+        found.append((_series_name(row, series_path) if series_path else chart.y_name, x, up, size))
+    if not found:
+        chart.error = "No row had a number at both of those fields."
+        return chart
+
+    # Bubbles from 4 to 20 pixels across, by the square root, so area tells size.
+    largest = max((abs(size) for *_, size in found if size is not None), default=0.0)
+    counts: dict[str, int] = {}
+    for name, *_ in found:
+        counts[name] = counts.get(name, 0) + 1
+    ranked = sorted(counts, key=lambda name: -counts[name])
+    kept = ranked[:MOST_SERIES]
+    by_name = {name: Placed(name, index + 1) for index, name in enumerate(kept)}
+    if len(ranked) > MOST_SERIES:
+        by_name["Other"] = Placed("Other", 6)
+    for name, x, up, size in found:
+        point = {"x": x, "y": up}
+        if chart.kind == "bubble":
+            point["r"] = 4 + 16 * math.sqrt(abs(size) / largest) if size is not None and largest else 6.0
+        by_name[name if name in by_name else "Other"].points.append(point)
+    chart.placed = list(by_name.values())
+    return chart
+
+
+def _measurable(rows: list[Any]) -> tuple[list[str], list[str]]:
+    """The fields in the rows that hold dates, and those that hold numbers."""
+    sample = [row for row in rows[:50] if isinstance(row, (dict, list))]
+    dates: list[str] = []
+    numbers: list[str] = []
+    for path in formatting._fields(sample):
+        present = [one for one in (rest.walk(row, path) for row in sample) if one not in (None, "")]
+        if not present or any(isinstance(one, bool) for one in present):
+            continue
+        if all(isinstance(one, (int, float)) for one in present):
+            numbers.append(path)
+        elif all(_dated(one) for one in present):
+            dates.append(path)
+    return dates, numbers
+
+
+def from_bars(bars: Sequence[Any], kind: str, measure: str = "", unit: str = "",
+              style: Mapping[str, str] | None = None) -> Chart:
     """A chart from bars already worked out — a Format box's, or one of the
     built-in counts: one series."""
     if not bars:
         return Chart(kind=kind, error="Nothing to count yet.")
     return Chart(
         kind=kind,
+        style=dict(style or {}),
         categories=[Category(bar.label, bar.long) for bar in bars],
         series=[Series(measure or "how many", [float(bar.value) for bar in bars], 1)],
         measure=measure,
@@ -445,13 +474,24 @@ def from_bars(bars: Sequence[Any], kind: str, measure: str = "", unit: str = "")
     )
 
 
+#: Each chart as the canvas names it.
+NAMES = {"bar": "bar chart", "line": "line chart", "pie": "pie chart", "radar": "radar chart",
+         "polar": "polar area chart", "scatter": "scatter chart", "bubble": "bubble chart",
+         "number": "one number", "table": "table"}
+
+
 def words(said: Mapping[str, Any]) -> str:
     """What a chart shows, said on the canvas."""
     spec = spec_of(said)
-    kind = dict(KINDS).get(str(spec["kind"]), "Chart").lower()
-    if not spec["label"]:
-        return f"{kind}: open it and organise the data" if spec["kind"] != "number" else "one number"
+    kind = str(spec["kind"])
+    if kind in ("scatter", "bubble"):
+        if not (spec["x"] and spec["y"]):
+            return "open it and say what goes along and up"
+        return f"{spec['y']} against {spec['x']}" + (f", sized by {spec['size']}" if spec["size"] else "")
     what = "how many" if spec["combine"] == "count" else f"{spec['combine']} {spec['value']}"
-    by = f" by {spec['label']}"
+    if kind == "number":
+        return what if spec["combine"] != "count" else "how many rows there are"
+    if not spec["label"]:
+        return "open it and say what each one is"
     split = f", per {spec['series']}" if spec["series"] else ""
-    return f"{kind} of {what}{by}{split}"
+    return f"{what} by {spec['label']}{split}"

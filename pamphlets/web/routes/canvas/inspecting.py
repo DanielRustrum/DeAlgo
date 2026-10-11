@@ -31,7 +31,7 @@ from ...templates import TEMPLATES
 router = APIRouter()
 
 #: Boxes the editor opens on, and whether their settings are in it.
-WITH_SETTINGS = ("transform", "format", "text", "leaflet-chart")
+WITH_SETTINGS = ("transform", "format", "text", *graph_service.leaflets.CHART_KINDS)
 WITHOUT_SETTINGS = ("source", *inspecting.OPERATIONS, "deposit", "withdraw", "feed")
 
 
@@ -66,7 +66,7 @@ def raw_input(session: Session, node: GraphNode, owner: OwnerId) -> Any:
         return formatting.data_for(session, node)
     if node.kind == "format":
         return formatting.data_into(session, node, owner)
-    if node.kind == "leaflet-chart":
+    if node.kind in graph_service.leaflets.CHART_KINDS:
         from ..pamphlets import wired_into
 
         box = wired_into(session, owner, node)
@@ -165,7 +165,8 @@ def _format(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, 
     value = formatting.data_into(session, node, owner)
     shaped = formatting.shape(value, spec)
     across = spec.get("draw") == "across" or (spec.get("draw") == "auto" and shaped.across)
-    chart = charting.from_bars(shaped.bars, "column" if across else "bar", formatting.words(node))
+    chart = charting.from_bars(shaped.bars, "bar", formatting.words(node),
+                               style={"direction": "vertical" if across else "horizontal"})
     output = side([{"label": bar.long, "value": bar.value} for bar in shaped.bars], "data")
     output["error"] = shaped.error
     output["html"] = _drawn(chart, "") if shaped.bars else ""
@@ -216,6 +217,10 @@ def _chart_rows(chart: charting.Chart | None) -> Any:
         return None
     if chart.figure is not None and not chart.series:
         return chart.figure
+    if chart.placed:
+        return [{"series": one.name, chart.x_name: point["x"], chart.y_name: point["y"],
+                 **({"size": point["r"]} if "r" in point else {})}
+                for one in chart.placed for point in one.points]
     return [
         {"label": category.long, **{series.name: series.values[index] for series in chart.series}}
         for index, category in enumerate(chart.categories)

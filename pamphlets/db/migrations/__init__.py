@@ -14,6 +14,7 @@ from .feeds import migrate_single_playlist, rename_local_feed_prefix
 from .edges import rebuild_edge_uniqueness, rest_sources_give_data, wires_say_what_they_carry
 from .pieces import (
     after_watching_is_its_own_condition,
+    charts_have_their_own_leaflets,
     feed_windows_become_pieces,
     leaflets_are_wired_to_their_feeds,
     plugin_boxes_become_pieces,
@@ -27,6 +28,7 @@ __all__ = [
     "rest_sources_give_data",
     "wires_say_what_they_carry",
     "after_watching_is_its_own_condition",
+    "charts_have_their_own_leaflets",
     "leaflets_are_wired_to_their_feeds",
     "add_missing_columns",
     "drop_removed_columns",

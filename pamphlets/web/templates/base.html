@@ -29,6 +29,10 @@
   <script src="/static/menu.js?v={{ asset_version }}" defer></script>
   <script src="/static/pwa.js?v={{ asset_version }}" defer></script>
   <script src="/static/toast.js?v={{ asset_version }}" defer></script>
+  {# Draws the chart leaflets; fetches Chart.js from static/vendor the first
+     time a page has a chart on it, rather than on every page. #}
+  <script src="/static/charts.js?v={{ asset_version }}" defer
+          data-chartjs="/static/vendor/chart.umd.min.js?v={{ asset_version }}"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
 </head>
 {# hx-boost turns ordinary links and forms into partial page swaps, so the

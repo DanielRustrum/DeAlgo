@@ -26,12 +26,39 @@ from urllib.parse import urlparse
 from ...models import GraphNode
 from .errors import GraphError
 
-LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", "leaflet-chart", "leaflet-text", "leaflet-link")
+#: The charts: a leaflet each, drawn by Chart.js — and the two that show
+#: data without drawing it, one number and a table. Each takes a data wire.
+CHART_KINDS: tuple[str, ...] = (
+    "leaflet-bar", "leaflet-line", "leaflet-pie", "leaflet-radar", "leaflet-polar",
+    "leaflet-scatter", "leaflet-bubble", "leaflet-number", "leaflet-table",
+)
+
+LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", *CHART_KINDS, "leaflet-text", "leaflet-link")
+
+#: The one Chart leaflet there was before each chart had its own, read only
+#: to turn it into one of those (`current_kind`).
+OLD_CHART = "leaflet-chart"
+
+#: How each chart can be drawn, past what it shows: its few choices, the
+#: first of each the default.
+STYLES: dict[str, dict[str, tuple[tuple[str, str], ...]]] = {
+    "leaflet-bar": {
+        "direction": (("vertical", "Up the page"), ("horizontal", "Across the page")),
+        "stacking": (("side", "Side by side"), ("stacked", "Stacked")),
+    },
+    "leaflet-line": {
+        "fill": (("none", "Lines"), ("area", "Filled areas")),
+        "stacking": (("side", "Each on its own"), ("stacked", "Stacked")),
+        "curve": (("straight", "Straight"), ("smooth", "Smooth")),
+    },
+    "leaflet-pie": {"shape": (("pie", "A pie"), ("doughnut", "A doughnut"))},
+    "leaflet-radar": {"fill": (("area", "Filled"), ("none", "Lines"))},
+}
 
 #: The two edges a leaflet can hang from.
 SIDES = ("below", "beside")
 
-#: What a Chart leaflet can draw: its name, and what it is called.
+#: What a chart shows with no data wired in: its name, and what it is called.
 CHARTS: tuple[tuple[str, str], ...] = (
     ("watched-daily", "Watched each day"),
     ("arrived-daily", "Arrived each day"),
@@ -59,17 +86,45 @@ MOST_DAYS = 90
 
 DEFAULTS: dict[str, dict[str, Any]] = {
     "leaflet-feed": {"title": "", "feed": None, "count": 8, "shape": "stories"},
-    # A chart: with data wired in, organised by the second half — what each
-    # point is, what number it shows, split how, drawn how (services/charting.py);
-    # with nothing wired in, one of the built-in counts.
-    "leaflet-chart": {
-        "title": "", "chart": "watched-daily", "days": 14,
-        "kind": "column", "rows": "", "label": "", "group": "none", "value": "",
-        "combine": "count", "series": "", "sort": "label-asc", "limit": 30,
+    # The charts (services/charting.py): with data wired in, organised as
+    # the second line says — what each point is, what number it shows, split
+    # how; a Scatter or Bubble chart places a point a row by its x and y (and
+    # size). With nothing wired in, one of the built-in counts.
+    **{
+        kind: {
+            "title": "", "chart": "counts" if kind == "leaflet-number" else "watched-daily", "days": 14,
+            "rows": "", "label": "", "group": "none", "value": "", "combine": "count",
+            "series": "", "sort": "label-asc", "limit": 30, "x": "", "y": "", "size": "",
+            **{name: choices[0][0] for name, choices in STYLES.get(kind, {}).items()},
+        }
+        for kind in CHART_KINDS
     },
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
 }
+
+
+def current_kind(kind: str, said: Mapping[str, Any]) -> tuple[str, dict[str, str]]:
+    """What a Chart leaflet from before each chart had its own leaflet is now,
+    and how it is drawn, from the type it was set to draw."""
+    if kind != OLD_CHART:
+        return kind, {}
+    drawn = str(said.get("kind") or ("bar" if said.get("chart") == "feeds-held" else "column"))
+    if said.get("chart") == "counts" and drawn == "column":
+        return "leaflet-number", {}
+    return {
+        "column": ("leaflet-bar", {"direction": "vertical"}),
+        "bar": ("leaflet-bar", {"direction": "horizontal"}),
+        "line": ("leaflet-line", {}),
+        "area": ("leaflet-line", {"fill": "area", "stacking": "stacked"}),
+        "pie": ("leaflet-pie", {}),
+        "number": ("leaflet-number", {}),
+        "table": ("leaflet-table", {}),
+    }.get(drawn, ("leaflet-bar", {}))
+
+
+def is_chart(node: GraphNode) -> bool:
+    return node.kind in CHART_KINDS
 
 
 def is_leaflet(node: GraphNode) -> bool:
@@ -90,10 +145,6 @@ def settings(node: GraphNode) -> dict[str, Any]:
         stored = {}
     if isinstance(stored, dict):
         said.update({key: value for key, value in stored.items() if key in said})
-    # A feed-by-feed chart from before charts had a type was drawn as bars.
-    if node.kind == "leaflet-chart" and "kind" not in (stored if isinstance(stored, dict) else {}) \
-            and said["chart"] == "feeds-held":
-        said["kind"] = "bar"
     return said
 
 
@@ -130,22 +181,22 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
             raise GraphError("That feed is not one of yours.")
 
     def organise() -> None:
-        """How wired data is organised and drawn: the chart dialog's fields."""
-        from ..charting import KINDS
+        """How wired data is organised and drawn: the editor's fields."""
         from .formatting import COMBINES, GROUPS, SORTS
 
-        for name, choices in (("kind", KINDS), ("group", GROUPS), ("combine", COMBINES), ("sort", SORTS)):
+        for name, choices in (("group", GROUPS), ("combine", COMBINES), ("sort", SORTS),
+                              *STYLES.get(node.kind, {}).items()):
             value = given(name)
             if value is None:
                 continue
             if value not in dict(choices):
-                raise GraphError(f"“{value}” is not something a chart can do.")
+                raise GraphError(f"“{value}” is not something this chart can do.")
             said[name] = value
-        for name in ("rows", "label", "value", "series"):
+        for name in ("rows", "label", "value", "series", "x", "y", "size"):
             value = given(name)
             if value is not None:
                 said[name] = value[:200]
-        number("limit", 1, 60)
+        number("limit", 1, 500 if node.kind in ("leaflet-scatter", "leaflet-bubble") else 60)
 
     def title() -> None:
         value = given("title")
@@ -161,7 +212,7 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
             if shape not in dict(SHAPES):
                 raise GraphError("A feed shows as stories or as a tile.")
             said["shape"] = shape
-    elif node.kind == "leaflet-chart":
+    elif node.kind in CHART_KINDS:
         title()
         chart = given("chart")
         if chart is not None:
@@ -215,7 +266,7 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
         if not named:
             return "wire a feed into it"
         return f"“{named}” as a tile" if said["shape"] == "tile" else f"{said['count']} from “{named}”"
-    if node.kind == "leaflet-chart":
+    if node.kind in CHART_KINDS:
         chart = dict(CHARTS).get(str(said["chart"]), "a chart")
         daily = str(said["chart"]).endswith("-daily")
         return f"{chart}, {said['days']} days" if daily else chart

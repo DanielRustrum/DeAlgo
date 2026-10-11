@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts docs toc wiki release-image release push-release dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts vendor docs toc wiki release-image release push-release dev clean
 
 help: ## Show this help
 	@echo "Pamphlets — usage: make <target>"
@@ -103,6 +103,9 @@ css: ## Compile web/styles with Tailwind into the stylesheet the app serves (nee
 fonts: ## Copy the typefaces from node_modules into static/fonts (needs npm install)
 	$(PY) ops/vendor_fonts.py
 
+vendor: ## Copy the browser libraries (Chart.js) from node_modules into static/vendor (needs npm install)
+	$(PY) ops/vendor_libraries.py
+
 js: ## Compile web/ts into the scripts the app serves
 	npx tsc
 	npx tsc -p tsconfig.sw.json
@@ -113,7 +116,7 @@ js: ## Compile web/ts into the scripts the app serves
 watch-js: ## Recompile the page scripts on save (the worker and the scripts written as parts need `make js`)
 	npx tsc --watch
 
-assets: fonts css js ## Rebuild the fonts, the stylesheet and the scripts
+assets: fonts vendor css js ## Rebuild the fonts, the libraries, the stylesheet and the scripts
 
 watch-css: ## Recompile the stylesheet on every save to web/styles or a template (run `make css` before committing)
 	npx tailwindcss --input pamphlets/web/styles/app.css --output pamphlets/web/static/app.css --watch

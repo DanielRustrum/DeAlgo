@@ -37,7 +37,7 @@ beside.
 | Leaflet | Shows | Set in its panel |
 | --- | --- | --- |
 | **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order — or the feed as one tile: a small stack of papers, its newest item on the front page and a sheet behind for every few more waiting | Shows as (stories or a tile), how many (up to 60), a heading |
-| **Chart** | The data wired into it, organised as you say — or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | Draw as (columns, bars, line, stacked area, pie, one number or a table), a heading; with data wired in, the rest in its editor; without, which built-in chart and how many days (2–90) |
+| **Charts** | A leaflet for each kind of chart — see [Charts](#charts) below — showing the data wired into it, or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | A heading; with data wired in, the rest in its editor; without, which built-in chart and how many days (2–90) |
 | **Text** | A heading and your own words. A blank line starts a new paragraph — or, with a [Text](Text.md) box wired in, what its model wrote | Heading, words |
 | **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |
 
@@ -52,33 +52,51 @@ A Link leaflet set to Focus with no feed wired in goes through everything.
 A Feed leaflet follows the feed's [reading windows](Reading%20Windows.md): a shut feed shows as shut.
 Opening a pamphlet does **not** start a reading window's sitting; opening the feed itself does.
 
-## Charting data
+## Charts
 
-A Chart leaflet has a `{ }` port on its left. Wire data into it from a source box, an operation, a
+Each kind of chart is a leaflet of its own, under **Charts** in the canvas's palette. The drawn ones
+are drawn by [Chart.js](https://www.chartjs.org/), which comes with Pamphlets — nothing is fetched
+from elsewhere — in the [theme's chart colours](../Theming.md#colours).
+
+| Leaflet | Shows | How it can be drawn |
+| --- | --- | --- |
+| **Bar chart** | Amounts side by side: a bar for each | Up the page or across it; series side by side or stacked |
+| **Line chart** | Change over time: a line for each series | Lines or filled areas; series each on their own or stacked; straight or smooth |
+| **Pie chart** | Parts of a whole: the largest five, and Other | A pie or a doughnut |
+| **Radar chart** | A few things measured the same ways, as shapes round a centre | Filled or lines |
+| **Polar area chart** | Parts of a whole, as wedges reaching as far as their size | — |
+| **Scatter chart** | A dot for each row, placed by two of its numbers (or a date along the bottom) | — |
+| **Bubble chart** | A dot for each row by two numbers, as big as a third | — |
+| **Number leaflet** | One number, set large: a count, a total, an average | — |
+| **Table leaflet** | The numbers as a table, a row for each | — |
+
+A chart leaflet has a `{ }` port on its left. Wire data into it from a source box, an operation, a
 Deposit or Withdraw, a [Transform](Transform.md) or a [Format](Format.md) box. Then double-click it
 for the [editor](../The%20Configuration%20Canvas.md#the-editor): the wired data on the left, how to
 organise it in the middle, and the chart as the page will show it on the right, redrawn as you
-change:
-
-The settings are worded for the chart chosen, and a sentence above them says what it will show —
+change. The settings are worded for the chart, and a sentence above them says what it will show —
 "A line: one for each **published (by day)**, as high as **the total of views**, split by
 **source**."
 
 | Setting | Says |
 | --- | --- |
-| **Draw as** | Columns, bars, line, stacked area, pie, one number or a table. |
-| **One bar (column, slice, point…) for each** | The field that says what each one is. **Try:** offers fields from the data that make a good chart — words that repeat, like a source or a status, and dates. A date is grouped by day, week, month, weekday or hour, or each moment is its own point. A list gives a point for each thing in it. |
+| **One bar (slice, spoke, row…) for each** | The field that says what each one is. **Try:** offers fields from the data that make a good chart — words that repeat, like a source or a status, and dates. A date is grouped by day, week, month, weekday or hour, or each moment is its own point. A list gives a point for each thing in it. Not for one number. |
 | **Bar length (height, slice size…) is** | How many rows there are, or the total, average, smallest, largest or last value of a number field. |
-| **Split by** *(optional)* | A field whose every value gets its own colour, line or band, with a legend. The five largest are named and the rest are **Other**. Not for a pie or one number. |
+| **Split by** *(optional)* | A field whose every value gets its own colour, line, band or shape, with a legend. The five largest are named and the rest are **Other**. Not for a pie, a polar area or one number. |
 | **Order, how many, where the rows are** | Folded away, since they are usually right: the order, at most how many (up to 60), and where the list is in the data — blank finds it. |
 
-Until a field is chosen, the chart shows a guess — the first of **Try:** — and says so.
+A Scatter or Bubble chart asks instead what goes **along the bottom** (a number or a date), **up the
+side** (a number), a bubble's **size**, and optionally what to **colour by** — up to 500 rows.
 
-Drag a field from the input onto a step to use it. **Save** keeps it all; ✕ or Esc leaves it as it
-was.
+Until a field is chosen, the chart shows a guess — the first of **Try:**, or for a scatter the
+likeliest two numbers — and says so. Drag a field from the input onto a setting to use it. **Save**
+keeps it all; ✕ or Esc leaves it as it was.
+
+Chart leaflets from before each chart had its own were turned into the chart each was drawing:
+columns and bars into a Bar chart, a stacked area into a filled, stacked Line chart, and so on.
 
 A Format box wired in has already said which rows, labels and numbers there are, so its chart
-offers only **Draw as**. A Transform giving one number shows it large, whatever it is drawn as.
+offers only how it is drawn. A Transform giving one number shows it large, whichever chart it is.
 
 Every chart has one scale. Each mark shows its number on hover or focus, and two series or more
 always have a legend. To show every number, draw it as a **Table**. Counted or added up, a point with nothing in

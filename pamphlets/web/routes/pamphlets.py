@@ -166,7 +166,7 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             )
             shown["section"] = section
             shown["videos"] = section["videos"][: int(said["count"])]
-    elif node.kind == "leaflet-chart":
+    elif node.kind in graph_service.leaflets.CHART_KINDS:
         label, chart, counts = chart_for(session, owner, node, said)
         shown["chart_label"] = label
         shown["chart"] = chart
@@ -184,21 +184,24 @@ def _feed(session: Session, owner: OwnerId, pk: Any) -> Playlist | None:
 def chart_for(
     session: Session, owner: OwnerId, node: GraphNode, said: Mapping[str, Any]
 ) -> tuple[str, charting.Chart | None, Context | None]:
-    """A Chart leaflet's heading and chart, as its settings `said` say.
+    """A chart leaflet's heading and chart, as its settings `said` say.
 
-    With data wired in, the leaflet organises it — or, from a Format box,
-    draws the bars that box shaped. With nothing wired in, one of the
-    built-in counts. `said` is passed rather than read, so the canvas can
-    preview settings not yet saved.
+    Which chart is the leaflet's kind: a Bar chart leaflet draws bars. With
+    data wired in, the leaflet organises it — or, from a Format box, draws
+    the bars that box shaped. With nothing wired in, one of the built-in
+    counts. `said` is passed rather than read, so the canvas's editor can
+    show settings not yet saved.
     """
     box = wired_into(session, owner, node)
     title = str(said.get("title") or "")
-    kind = str(said.get("kind") or "column")
+    kind = charting.kind_of(node.kind)
+    style = charting.style_of(said)
+    said = {**said, "kind": kind}
     if box is not None and box.kind == "format":
         spec = graph_service.formatting.settings(box)
         arriving = graph_service.formatting.data_into(session, box, owner)
         shaped = graph_service.formatting.shape(arriving, spec)
-        chart = charting.from_bars(shaped.bars, kind, graph_service.formatting.words(box))
+        chart = charting.from_bars(shaped.bars, kind, graph_service.formatting.words(box), style=style)
         chart.error = shaped.error if not shaped.bars else ""
         named = box.title if box.label else graph_service.formatting.words(box)
         return fill(title, arriving) or named, chart, None
@@ -209,6 +212,9 @@ def chart_for(
         # A heading can say what the data says: "Videos this week: {{ count }}".
         return fill(title, data) or named, chart, None
 
+    if kind in ("scatter", "bubble"):
+        # Placed by two numbers of each row: there is no built-in to place.
+        return title, charting.Chart(kind=kind, error="Wire data into it — its { } port — to place a point for each row."), None
     built = str(said.get("chart") or "watched-daily")
     named = title or dict(graph_service.leaflets.CHARTS).get(built, "")
     if built == "counts":
@@ -217,9 +223,13 @@ def chart_for(
         charts.feeds_held(session, owner) if built == "feeds-held"
         else charts.daily(session, owner, built, int(said.get("days") or 14))
     )
-    if built == "feeds-held":
-        return named, charting.from_bars(bars, kind, "waiting", "waiting"), None
-    return named, charting.from_bars(bars, kind), None
+    held = built == "feeds-held"
+    chart = charting.from_bars(bars, kind, "waiting" if held else "", "waiting" if held else "", style=style)
+    if kind == "number":
+        # One number from a built-in count: all of it, added up.
+        chart.figure = float(sum(bar.value for bar in bars))
+        chart.measure = named.lower()
+    return named, chart, None
 
 
 def wired_into(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | None:

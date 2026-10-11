@@ -215,45 +215,31 @@ function graphFilterFields(form, node) {
 }
 
 "use strict";
-// Chart leaflets: what one draws, and how it organises the data wired in.
+// Chart leaflets: one for each kind of chart — bar, line, pie, radar, polar
+// area, scatter, bubble — and the two that show data undrawn, one number and
+// a table. What each draws, and how it organises the data wired into it.
 //
 // The organising is done in the box editor (editor.ts), beside the data it
 // organises and the chart it makes; the panel says what is drawn and opens
-// the editor.
+// the editor. The chart itself is drawn by Chart.js (ts/charts.ts).
 //
 // Part of the Configuration canvas; see main.ts.
-/** A Chart leaflet's panel: what it draws, and from what. */
-function graphChartFields(form, node, leaflet, said) {
-    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
-    form.appendChild(graphLabelled("Draw as", graphLeafletSelect("leaflet_kind", leaflet.kinds, said("kind"))));
-    if (leaflet.wired && leaflet.shapedBy) {
-        form.appendChild(graphElement("p", "hint", "A Format box is wired in, and says which rows, labels and numbers there are. Draw as says how they look."));
-    }
-    else if (leaflet.wired) {
-        form.appendChild(graphElement("p", "hint", node.note !== "" ? `Shows ${node.note}.` : "Data is wired in."));
-    }
-    else {
-        form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
-        form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
-        form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only. Or wire data in — the { } port — from a source, an operation or a Transform box, and organise that in the editor."));
-    }
-}
 /** How a chart of each kind talks about its parts: what one of them is,
- *  what sets its size, and what a series makes. */
+ *  what sets its size, what a series makes, and how it says what it shows. */
 function graphChartWords(kind) {
-    if (kind === "bar")
-        return { each: "One bar for each", size: "Bar length is", series: "Split each bar by", says: "Bars", sized: "as long as" };
-    if (kind === "line")
+    if (kind === "leaflet-line")
         return { each: "Along the bottom, a point for each", size: "Height of the line is", series: "One line for each", says: "A line", sized: "as high as" };
-    if (kind === "area")
-        return { each: "Along the bottom, a point for each", size: "Height of each band is", series: "One band for each", says: "Stacked bands", sized: "as high as" };
-    if (kind === "pie")
+    if (kind === "leaflet-pie")
         return { each: "One slice for each", size: "Slice size is", series: "", says: "A pie", sized: "as big as" };
-    if (kind === "number")
+    if (kind === "leaflet-polar")
+        return { each: "One wedge for each", size: "How far a wedge reaches is", series: "", says: "Wedges", sized: "reaching as far as" };
+    if (kind === "leaflet-radar")
+        return { each: "Round the edge, a spoke for each", size: "How far out is", series: "One shape for each", says: "A radar", sized: "out as far as" };
+    if (kind === "leaflet-number")
         return { each: "", size: "The number is", series: "", says: "One number", sized: "" };
-    if (kind === "table")
+    if (kind === "leaflet-table")
         return { each: "One row for each", size: "Its value is", series: "One column for each", says: "A table", sized: "showing" };
-    return { each: "One column for each", size: "Column height is", series: "Split each column by", says: "Columns", sized: "as tall as" };
+    return { each: "One bar for each", size: "Bar length is", series: "Split each bar by", says: "Bars", sized: "as long as" };
 }
 /** What sets a point's size, said the way a person would. */
 function graphChartMeasure(combine, value) {
@@ -272,44 +258,82 @@ function graphChartMeasure(combine, value) {
         return `the last ${of} seen`;
     return of;
 }
-/** A Chart leaflet's settings in the editor, in the chart's own terms:
- *  what each bar (or slice, or point) is, what sets its size, and what
- *  splits it — said back as one sentence, and worded for the chart chosen. */
-function graphChartEditorFields(form, leaflet, said) {
-    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows — can include {{ fields }}")));
-    // What it is drawn as, as buttons over one field.
-    const kind = document.createElement("input");
-    kind.type = "hidden";
-    kind.name = "leaflet_kind";
-    kind.value = said("kind");
-    form.appendChild(kind);
-    const kinds = graphElement("div", "graph-chart-kinds");
-    kinds.setAttribute("role", "radiogroup");
-    kinds.setAttribute("aria-label", "Draw as");
+/** The field a setting names: what is between its braces. */
+function graphChartNamed(field) {
+    return field.value.replace(/\{\{\s*|\s*\}\}/g, "").trim();
+}
+/** A chart leaflet's panel: what it shows, and that the editor organises it. */
+function graphChartFields(form, node, leaflet, said) {
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
+    if (leaflet.wired && leaflet.shapedBy) {
+        form.appendChild(graphElement("p", "hint", "A Format box is wired in, and says which rows, labels and numbers there are. Double-click for how it is drawn."));
+    }
+    else if (leaflet.wired) {
+        form.appendChild(graphElement("p", "hint", node.note !== "" ? `Shows ${node.note}. Double-click to change it.` : "Data is wired in."));
+    }
+    else if (node.kind === "leaflet-scatter" || node.kind === "leaflet-bubble") {
+        form.appendChild(graphElement("p", "hint", "Wire data in — the { } port — from a source, an operation or a Transform box: a point for each row."));
+    }
+    else {
+        form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
+        form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
+        form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only. Or wire data in — the { } port — from a source, an operation or a Transform box, and organise that in the editor."));
+    }
+}
+/** A choice of how a chart is drawn, as a row of buttons over one field. */
+function graphChartStyle(form, name, choices, picked) {
+    var _a;
+    var _b;
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = `leaflet_${name}`;
+    field.value = picked !== "" ? picked : ((_b = (_a = choices[0]) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : "");
+    form.appendChild(field);
+    const row = graphElement("div", "graph-chart-kinds");
+    row.setAttribute("role", "radiogroup");
     const press = () => {
-        kinds.querySelectorAll("button").forEach((one) => {
-            one.setAttribute("aria-checked", String(one.dataset["kind"] === kind.value));
+        row.querySelectorAll("button").forEach((one) => {
+            one.setAttribute("aria-checked", String(one.dataset["choice"] === field.value));
         });
     };
-    for (const choice of leaflet.kinds) {
+    for (const choice of choices) {
         const one = graphElement("button", "graph-chart-kind", choice.label);
         one.setAttribute("type", "button");
         one.setAttribute("role", "radio");
-        one.dataset["kind"] = choice.name;
+        one.dataset["choice"] = choice.name;
         one.addEventListener("click", () => {
-            kind.value = choice.name;
+            field.value = choice.name;
             press();
             form.dispatchEvent(new Event("change", { bubbles: true }));
         });
-        kinds.appendChild(one);
+        row.appendChild(one);
     }
     press();
-    form.appendChild(graphLabelled("Draw as", kinds));
+    return row;
+}
+/** A chart leaflet's settings in the editor, in the chart's own terms:
+ *  what each bar (or slice, or point) is, what sets its size, and what
+ *  splits it — said back as one sentence, and worded for the chart. */
+function graphChartEditorFields(form, kind, leaflet, said) {
+    var _a;
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows — can include {{ fields }}")));
+    // How it is drawn: this chart's own choices.
+    const names = {
+        direction: "Bars run", stacking: "Series are", fill: "Drawn as", curve: "Lines are", shape: "Shape",
+    };
+    for (const style of leaflet.styles) {
+        form.appendChild(graphLabelled((_a = names[style.name]) !== null && _a !== void 0 ? _a : style.name, graphChartStyle(form, style.name, style.choices, said(style.name))));
+    }
     if (leaflet.wired && leaflet.shapedBy) {
         form.appendChild(graphElement("p", "hint", "The Format box wired in says which rows, labels and numbers there are: change them there."));
         return;
     }
+    const placed = kind === "leaflet-scatter" || kind === "leaflet-bubble";
     if (!leaflet.wired) {
+        if (placed) {
+            form.appendChild(graphElement("p", "hint", "Wire data into it — its { } port — to place a point for each row."));
+            return;
+        }
         form.appendChild(graphLabelled("Shows", graphLeafletSelect("leaflet_chart", leaflet.charts, said("chart"))));
         form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
         return;
@@ -318,21 +342,70 @@ function graphChartEditorFields(form, leaflet, said) {
     const says = graphElement("p", "graph-chart-says");
     says.setAttribute("aria-live", "polite");
     form.appendChild(says);
-    const step = (...rows) => {
+    const step = (title, ...rows) => {
         const set = graphElement("fieldset", "graph-chart-step");
-        const legend = graphElement("legend", "");
-        set.appendChild(legend);
+        set.appendChild(graphElement("legend", "", title));
         for (const row of rows)
             set.appendChild(row);
         form.appendChild(set);
-        return { set, legend };
     };
+    const more = (title, ...rows) => {
+        const folded = document.createElement("details");
+        folded.className = "graph-chart-more";
+        folded.appendChild(graphElement("summary", "", title));
+        for (const row of rows)
+            folded.appendChild(row);
+        form.appendChild(folded);
+    };
+    const strong = (text) => graphElement("strong", "", text);
+    const plain = (text) => document.createTextNode(text);
+    const series = graphLeafletText("leaflet_series", said("series"), "optional — leave empty for one colour");
+    const seriesHint = graphElement("p", "hint", "Each value of this field gets its own colour and a place in the legend.");
+    const rows = graphLabelled("Rows are at", graphLeafletText("leaflet_rows", said("rows"), "found by itself — or a path like data.children"));
+    const retellOn = (retell) => {
+        form.addEventListener("input", retell);
+        form.addEventListener("change", retell);
+        form.addEventListener("graph-chart-guess", retell);
+        retell();
+    };
+    if (placed) {
+        // A point for each row, placed by two of its numbers — sized by a third.
+        const x = graphLeafletText("leaflet_x", said("x"), "drag a number or a date here");
+        const y = graphLeafletText("leaflet_y", said("y"), "drag a number here");
+        const size = graphLeafletText("leaflet_size", said("size"), "drag a number here — bigger is bigger");
+        step("Along the bottom", graphLabelled("Field", x));
+        step("Up the side", graphLabelled("Field", y));
+        if (kind === "leaflet-bubble")
+            step("Bubble size", graphLabelled("Field", size));
+        step("Colour by (optional)", graphLabelled("Field", series), seriesHint);
+        more("How many, where the rows are", graphLabelled("At most", graphLeafletNumber("leaflet_limit", said("limit"), 1, 500)), rows);
+        retellOn(() => {
+            var _a;
+            const guess = (_a = says.dataset["guessed"]) !== null && _a !== void 0 ? _a : "";
+            const parts = [plain(kind === "leaflet-bubble" ? "Bubbles: " : "Dots: ")];
+            if (graphChartNamed(x) === "" && graphChartNamed(y) === "" && guess !== "") {
+                parts.push(strong(guess), plain(" (a guess)"));
+            }
+            else {
+                parts.push(plain("one for each row, "), strong(graphChartNamed(x) || "…"), plain(" along and "), strong(graphChartNamed(y) || "…"), plain(" up"));
+                if (kind === "leaflet-bubble" && graphChartNamed(size) !== "")
+                    parts.push(plain(", as big as "), strong(graphChartNamed(size)));
+                if (graphChartNamed(series) !== "")
+                    parts.push(plain(", coloured by "), strong(graphChartNamed(series)));
+            }
+            parts.push(plain("."));
+            says.replaceChildren(...parts);
+        });
+        return;
+    }
     // Each: what one bar, slice or point is.
+    const words = graphChartWords(kind);
     const label = graphLeafletText("leaflet_label", said("label"), "drag a field here, or press one below");
     const group = graphLeafletSelect("leaflet_group", leaflet.groups, said("group"));
     const tryThese = graphElement("div", "graph-chart-try");
     tryThese.dataset["chartTry"] = "1";
-    const each = step(graphLabelled("Field", label), tryThese, graphLabelled("If it is a date, one for each", group));
+    if (words.each !== "")
+        step(words.each, graphLabelled("Field", label), tryThese, graphLabelled("If it is a date, one for each", group));
     // Size: what sets how big each one is.
     const measured = {
         count: "How many rows there are", sum: "The total of a field", average: "The average of a field",
@@ -343,67 +416,54 @@ function graphChartEditorFields(form, leaflet, said) {
     }); }), said("combine"));
     const value = graphLeafletText("leaflet_value", said("value"), "drag a number field here, like views");
     const valueRow = graphLabelled("Of the field", value);
-    const size = step(graphLabelled("Measured by", combine), valueRow);
+    step(words.size, graphLabelled("Measured by", combine), valueRow);
     // Series: optional, what splits each one.
-    const series = graphLeafletText("leaflet_series", said("series"), "optional — leave empty for one colour");
-    const split = step(graphLabelled("Field", series), graphElement("p", "hint", "Each value of this field gets its own colour and a place in the legend."));
-    // The rest, which is right as it is more often than not.
-    const more = document.createElement("details");
-    more.className = "graph-chart-more";
-    more.appendChild(graphElement("summary", "", "Order, how many, where the rows are"));
-    more.appendChild(graphLabelled("Order", graphLeafletSelect("leaflet_sort", leaflet.sorts, said("sort"))));
-    more.appendChild(graphLabelled("At most", graphLeafletNumber("leaflet_limit", said("limit"), 1, 60)));
-    more.appendChild(graphLabelled("Rows are at", graphLeafletText("leaflet_rows", said("rows"), "found by itself — or a path like data.children")));
-    form.appendChild(more);
-    const retitle = () => {
-        var _a;
-        var _b, _c;
-        const words = graphChartWords(kind.value);
-        each.legend.textContent = words.each;
-        each.set.hidden = words.each === "";
-        size.legend.textContent = words.size;
-        valueRow.hidden = combine.value === "count";
-        split.legend.textContent = words.series !== "" ? `${words.series} (optional)` : "";
-        split.set.hidden = words.series === "";
-        const named = (field) => field.value.replace(/\{\{\s*|\s*\}\}/g, "").trim();
-        const grouped = group.value !== "none" ? ` (${((_b = (_a = group.selectedOptions[0]) === null || _a === void 0 ? void 0 : _a.textContent) !== null && _b !== void 0 ? _b : "").toLowerCase()})` : "";
-        const measure = graphChartMeasure(combine.value, named(value));
-        const parts = [`${words.says}: `];
-        if (words.each !== "") {
-            // Nothing chosen yet: the chart shows a guess, and the sentence says which.
-            const guess = (_c = says.dataset["guessed"]) !== null && _c !== void 0 ? _c : "";
-            if (named(label) === "" && guess !== "")
-                parts.push("one for each ", graphElement("strong", "", guess), " (a guess)");
-            else
-                parts.push("one for each ", graphElement("strong", "", (named(label) || "…") + grouped));
-            parts.push(`, ${words.sized} `, graphElement("strong", "", measure));
-            if (words.series !== "" && named(series) !== "")
-                parts.push(", split by ", graphElement("strong", "", named(series)));
-        }
-        else {
-            parts.push(graphElement("strong", "", measure));
-        }
-        parts.push(".");
-        says.replaceChildren(...parts.map((part) => (typeof part === "string" ? document.createTextNode(part) : part)));
-    };
-    form.addEventListener("input", retitle);
-    form.addEventListener("change", retitle);
-    form.addEventListener("graph-chart-guess", retitle);
+    if (words.series !== "")
+        step(`${words.series} (optional)`, graphLabelled("Field", series), seriesHint);
+    if (words.each !== "") {
+        more("Order, how many, where the rows are", graphLabelled("Order", graphLeafletSelect("leaflet_sort", leaflet.sorts, said("sort"))), graphLabelled("At most", graphLeafletNumber("leaflet_limit", said("limit"), 1, 60)), rows);
+    }
+    else {
+        more("Where the rows are", rows);
+    }
     // A date as it is makes a point of every moment: one dropped in is
     // grouped by day, unless a grouping was already chosen.
     label.addEventListener("input", () => {
         var _a;
         const dates = ((_a = tryThese.dataset["dates"]) !== null && _a !== void 0 ? _a : "").split("\n");
-        const named = label.value.replace(/\{\{\s*|\s*\}\}/g, "").trim();
+        const named = graphChartNamed(label);
         if (group.value === "none" && named !== "" && dates.includes(named)) {
             group.value = "day";
             group.dispatchEvent(new Event("change", { bubbles: true }));
         }
     });
-    retitle();
+    retellOn(() => {
+        var _a;
+        var _b, _c;
+        valueRow.hidden = combine.value === "count";
+        const grouped = group.value !== "none" ? ` (${((_b = (_a = group.selectedOptions[0]) === null || _a === void 0 ? void 0 : _a.textContent) !== null && _b !== void 0 ? _b : "").toLowerCase()})` : "";
+        const measure = graphChartMeasure(combine.value, graphChartNamed(value));
+        const parts = [plain(`${words.says}: `)];
+        if (words.each !== "") {
+            const guess = (_c = says.dataset["guessed"]) !== null && _c !== void 0 ? _c : "";
+            if (graphChartNamed(label) === "" && guess !== "")
+                parts.push(plain("one for each "), strong(guess), plain(" (a guess)"));
+            else
+                parts.push(plain("one for each "), strong((graphChartNamed(label) || "…") + grouped));
+            parts.push(plain(`, ${words.sized} `), strong(measure));
+            if (words.series !== "" && graphChartNamed(series) !== "")
+                parts.push(plain(", split by "), strong(graphChartNamed(series)));
+        }
+        else {
+            parts.push(strong(measure));
+        }
+        parts.push(plain("."));
+        says.replaceChildren(...parts);
+    });
 }
 /** Fields worth labelling a chart by, from what came in, offered as
- *  buttons under its Field: pressed, one goes in, grouped by day if a date. */
+ *  buttons under its Field: pressed, one goes in, grouped by day if a date.
+ *  And, when nothing is chosen yet, which one the chart has guessed. */
 function graphChartTry(form, suggested, guessed) {
     const says = form.querySelector(".graph-chart-says");
     if (says !== null && says.dataset["guessed"] !== guessed) {
@@ -1241,8 +1301,24 @@ function graphKindLabel(kind) {
         return "Aggregation";
     if (kind === "leaflet-feed")
         return "Feed leaflet";
-    if (kind === "leaflet-chart")
-        return "Chart leaflet";
+    if (kind === "leaflet-bar")
+        return "Bar chart";
+    if (kind === "leaflet-line")
+        return "Line chart";
+    if (kind === "leaflet-pie")
+        return "Pie chart";
+    if (kind === "leaflet-radar")
+        return "Radar chart";
+    if (kind === "leaflet-polar")
+        return "Polar area chart";
+    if (kind === "leaflet-scatter")
+        return "Scatter chart";
+    if (kind === "leaflet-bubble")
+        return "Bubble chart";
+    if (kind === "leaflet-number")
+        return "Number leaflet";
+    if (kind === "leaflet-table")
+        return "Table leaflet";
     if (kind === "leaflet-text")
         return "Text leaflet";
     if (kind === "leaflet-link")
@@ -1854,7 +1930,7 @@ function showGraphVerdict(state, message) {
 // The box editor: what came in, the box's settings, what it gives out.
 //
 // Opened by double-clicking a box, or from its panel. On a data box —
-// Transform, Format, Text, a Chart leaflet — it has three panes, the way a
+// Transform, Format, Text, a chart leaflet — it has three panes, the way a
 // flow tool lays a node out: input on the left, settings in the middle,
 // output on the right, the output worked out again as the settings change,
 // before anything is saved. On a source, an operation, a repository or a
@@ -1866,7 +1942,7 @@ function showGraphVerdict(state, message) {
 // Part of the Configuration canvas; see main.ts.
 /** Which editor a kind opens: all three panes, the two sides, or none. */
 function graphEditorFor(kind) {
-    if (kind === "transform" || kind === "format" || kind === "text" || kind === "leaflet-chart")
+    if (kind === "transform" || kind === "format" || kind === "text" || graphIsChart(kind))
         return "settings";
     if (kind === "source" || kind === "filter" || kind === "sort" || kind === "tag" ||
         kind === "decay" || kind === "expire" || kind === "deposit" || kind === "withdraw" || kind === "feed")
@@ -2002,7 +2078,7 @@ function openGraphEditor(state, nodeId) {
         if (node.kind === "feed")
             output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
         graphShowFilled(takers, asGraphRecord(raw["filled"]));
-        if (node.kind === "leaflet-chart") {
+        if (graphIsChart(node.kind)) {
             const out = asGraphRecord(raw["output"]);
             graphChartTry(form, out === null || out === void 0 ? void 0 : out["suggested"], typeof (out === null || out === void 0 ? void 0 : out["guessed"]) === "string" ? out["guessed"] : "");
         }
@@ -2113,9 +2189,9 @@ function graphEditorSettings(form, node) {
         graphFormatFields(form, node, true);
     else if (node.kind === "text")
         graphTextBoxFields(form, node, true);
-    else if (node.kind === "leaflet-chart" && node.leaflet !== null) {
+    else if (graphIsChart(node.kind) && node.leaflet !== null) {
         const leaflet = node.leaflet;
-        graphChartEditorFields(form, leaflet, (key) => {
+        graphChartEditorFields(form, node.kind, leaflet, (key) => {
             const value = leaflet.settings[key];
             return value === null || value === undefined ? "" : String(value);
         });
@@ -2212,12 +2288,12 @@ function graphShowFilled(takers, filled) {
 }
 /** The settings that are paths into a row: where a field can go. */
 function graphEditorPathFields(form) {
-    return Array.from(form.querySelectorAll("input[type='text']")).filter((field) => /^(format|leaflet)_(rows|label|value|series)$/.test(field.name));
+    return Array.from(form.querySelectorAll("input[type='text']")).filter((field) => /^(format|leaflet)_(rows|label|value|series|x|y|size)$/.test(field.name));
 }
 /** Draw one side: its heading, its count, its views, and the view chosen. */
 function graphEditorPane(pane, title, side, views, which, usePath, problem, redraw) {
-    var _a;
-    var _b;
+    var _a, _b;
+    var _c;
     const parts = [];
     const head = graphElement("div", "graph-editor-pane-head");
     head.appendChild(graphElement("h3", "graph-editor-title", title));
@@ -2232,7 +2308,7 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
     if (side !== null && side.how !== "text" && !side.empty) {
         offered.push(["fields", "Fields"], ["table", "Table"], ["json", "JSON"]);
     }
-    const chosen = offered.some(([name]) => name === views[which]) ? views[which] : ((_b = (_a = offered[0]) === null || _a === void 0 ? void 0 : _a[0]) !== null && _b !== void 0 ? _b : "");
+    const chosen = offered.some(([name]) => name === views[which]) ? views[which] : ((_c = (_a = offered[0]) === null || _a === void 0 ? void 0 : _a[0]) !== null && _c !== void 0 ? _c : "");
     if (offered.length > 1) {
         const tabs = graphElement("div", "graph-editor-views");
         tabs.setAttribute("role", "tablist");
@@ -2278,6 +2354,8 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
         parts.push(shown);
     }
     pane.replaceChildren(...parts);
+    // A chart is drawn once it is on the page, at the size it has there.
+    (_b = window.drawCharts) === null || _b === void 0 ? void 0 : _b.call(window, pane);
 }
 /** A field that can be dragged into a setting, or pressed to fill the last one. */
 function graphEditorDraggable(element, path, usePath) {
@@ -2741,8 +2819,20 @@ function graphFormatFields(form, node, inEditor = false) {
 // Part of the Configuration canvas; see main.ts.
 /** Whether this kind is a leaflet. */
 function graphIsLeaflet(kind) {
-    return (kind === "leaflet-feed" || kind === "leaflet-chart" ||
+    return (kind === "leaflet-feed" || graphIsChart(kind) ||
         kind === "leaflet-text" || kind === "leaflet-link");
+}
+/** Whether this kind is a chart leaflet: one for each kind of chart. */
+function graphIsChart(kind) {
+    return (kind === "leaflet-bar" ||
+        kind === "leaflet-line" ||
+        kind === "leaflet-pie" ||
+        kind === "leaflet-radar" ||
+        kind === "leaflet-polar" ||
+        kind === "leaflet-scatter" ||
+        kind === "leaflet-bubble" ||
+        kind === "leaflet-number" ||
+        kind === "leaflet-table");
 }
 function asGraphChoices(value) {
     if (!Array.isArray(value))
@@ -2788,11 +2878,23 @@ function asGraphLeaflet(value) {
         shapes: asGraphChoices(raw["shapes"]),
         wired: raw["wired"] === true,
         shapedBy: raw["shapedBy"] === true,
-        kinds: asGraphChoices(raw["kinds"]),
+        styles: asGraphStyles(raw["styles"]),
         groups: asGraphChoices(raw["groups"]),
         combines: asGraphChoices(raw["combines"]),
         sorts: asGraphChoices(raw["sorts"]),
     };
+}
+function asGraphStyles(value) {
+    if (!Array.isArray(value))
+        return [];
+    const found = [];
+    for (const entry of value) {
+        const raw = asGraphRecord(entry);
+        if (raw === null || typeof raw["name"] !== "string")
+            continue;
+        found.push({ name: raw["name"], choices: asGraphChoices(raw["choices"]) });
+    }
+    return found;
 }
 function asGraphPamphlet(value) {
     const raw = asGraphRecord(value);
@@ -2992,8 +3094,8 @@ function drawGraphLeafletParts(box, node) {
     if (node.kind === "leaflet-text") {
         box.appendChild(graphPort("in", "page", "Takes words: wire a Text box here to show what it wrote."));
     }
-    if (node.kind === "leaflet-chart") {
-        box.appendChild(graphPort("in", "data", "Takes data: wire a source, an operation, a Transform or a Format box here, then organise it in the panel."));
+    if (graphIsChart(node.kind)) {
+        box.appendChild(graphPort("in", "data", "Takes data: wire a source, an operation, a Transform or a Format box here, then double-click to organise it."));
     }
     box.appendChild(graphElement("span", "leaflet-notch is-below"));
     box.appendChild(graphElement("span", "leaflet-notch is-beside"));
@@ -3067,7 +3169,7 @@ function graphLeafletFields(form, node) {
         form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
         form.appendChild(graphElement("p", "hint", "As a tile, it is the feed's tile from the Feeds tab, one cell wide; How many and Heading are for stories."));
     }
-    else if (node.kind === "leaflet-chart") {
+    else if (graphIsChart(node.kind)) {
         graphChartFields(form, node, leaflet, said);
     }
     else if (node.kind === "leaflet-text") {
@@ -4378,7 +4480,15 @@ function asGraphNodeKind(value) {
         value === "count" ||
         value === "aggregation" ||
         value === "leaflet-feed" ||
-        value === "leaflet-chart" ||
+        value === "leaflet-bar" ||
+        value === "leaflet-line" ||
+        value === "leaflet-pie" ||
+        value === "leaflet-radar" ||
+        value === "leaflet-polar" ||
+        value === "leaflet-scatter" ||
+        value === "leaflet-bubble" ||
+        value === "leaflet-number" ||
+        value === "leaflet-table" ||
         value === "leaflet-text" ||
         value === "leaflet-link" ||
         value === "deposit" ||
