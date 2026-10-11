@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Float,
     Integer,
     String,
     Text,
@@ -396,6 +397,9 @@ class GraphEdge(Base):
     # Its colour, one of the theme's (services/graph/looks.py); empty for the
     # colour of what it carries. Drawing only.
     colour: Mapped[Optional[str]] = mapped_column(String(12))
+    # A square wire's free middle segment, moved by hand: how far from where
+    # it would be drawn, in pixels along the way it moves. Drawing only.
+    bend: Mapped[Optional[float]] = mapped_column(Float)
 
     source: Mapped[GraphNode] = relationship(foreign_keys=[source_pk])
     target: Mapped[GraphNode] = relationship(foreign_keys=[target_pk])

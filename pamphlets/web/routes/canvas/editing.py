@@ -358,6 +358,21 @@ def graph_route(request: Request, edge_pk: int, route: str = Form("curve")) -> J
         return JSONResponse(graph_payload(session, owner))
 
 
+@router.post("/graph/wires/{edge_pk}/bend")
+def graph_wire_bend(request: Request, edge_pk: int, bend: float = Form(0.0)) -> JSONResponse:
+    """Move a square wire's middle segment: how far from its usual place."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        edge = session.scalar(owned(select(GraphEdge), GraphEdge, owner).where(GraphEdge.id == edge_pk))
+        if edge is None:
+            return JSONResponse({"error": "That wire is no longer there."}, status_code=404)
+        try:
+            graph_service.looks.set_bend(edge, bend)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(graph_payload(session, owner))
+
+
 @router.post("/graph/wires/{edge_pk}/colour")
 def graph_wire_colour(request: Request, edge_pk: int, colour: str = Form("default")) -> JSONResponse:
     """Colour a wire one of the theme's colours, or back to its own."""

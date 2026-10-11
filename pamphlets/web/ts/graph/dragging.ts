@@ -199,6 +199,25 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   // Buttons and links inside the canvas do their own thing.
   if (target instanceof Element && target.closest("a, button")) return;
 
+  // A square wire's middle, taken hold of: it moves across, or up and down.
+  const grip = target instanceof Element ? target.closest<SVGElement>("[data-bend]") : null;
+  if (grip !== null) {
+    const wireId = grip.dataset["bend"] ?? "";
+    const held = state.wires.find((one): boolean => one.id === wireId);
+    if (held !== undefined) {
+      state.drag = {
+        ...graphGrab(state, event),
+        kind: "bend",
+        wire: wireId,
+        axis: grip.dataset["axis"] === "y" ? "y" : "x",
+        startBend: held.bend,
+      };
+      state.parts.canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
+  }
+
   const wire = graphWireIdFrom(target);
   if (wire !== null) {
     pickGraphWire(state, wire);
@@ -284,6 +303,15 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
   if (drag.kind === "pan") {
     panGraph(state, drag.scrollX + (event.clientX - drag.fromX),
              drag.scrollY + (event.clientY - drag.fromY));
+    return;
+  }
+
+  if (drag.kind === "bend") {
+    const held = state.wires.find((one): boolean => one.id === drag.wire);
+    if (held === undefined) return;
+    const moved = drag.axis === "y" ? event.clientY - drag.fromY : event.clientX - drag.fromX;
+    held.bend = Math.round((drag.startBend ?? 0) + moved / state.zoom);
+    drawGraphWires(state);
     return;
   }
 
@@ -377,6 +405,23 @@ function onGraphPointerUp(state: GraphState, event: PointerEvent): void {
   state.drag = null;
   if (state.parts.canvas.hasPointerCapture(event.pointerId)) {
     state.parts.canvas.releasePointerCapture(event.pointerId);
+  }
+
+  if (drag.kind === "bend") {
+    const wireId = drag.wire ?? "";
+    const held = state.wires.find((one): boolean => one.id === wireId);
+    // Pressed and let go without moving: a click on the wire, which picks it.
+    if (!drag.moved || held === undefined) {
+      pickGraphWire(state, wireId);
+      return;
+    }
+    const was = drag.startBend ?? 0;
+    const edge = wireId.replace(/^edge:/, "");
+    rememberGraphUndo(state, "where the wire bends", async (): Promise<void> => {
+      await applyGraph(state, `/graph/wires/${edge}/bend`, new URLSearchParams({ bend: String(was) }));
+    });
+    void applyGraph(state, `/graph/wires/${edge}/bend`, new URLSearchParams({ bend: String(held.bend) }));
+    return;
   }
 
   if (drag.kind === "pan") {

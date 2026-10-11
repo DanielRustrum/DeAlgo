@@ -101,3 +101,13 @@
 .graph-swatch.line-slate { background: var(--plugin-slate); }
 .graph-swatch.line-default { background: linear-gradient(135deg, var(--muted) 50%, var(--ochre) 50%); }
 .graph-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text); }
+
+/* A square wire's middle, ready to be taken hold of: invisible, wider than
+   the line, over the one segment that can move — with a cursor that says
+   which way it goes. Drawn over the wire's own hit area, so it wins. */
+.graph-wire-bend {
+  fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke;
+}
+.graph-wire-bend.is-x { cursor: ew-resize; }
+.graph-wire-bend.is-y { cursor: ns-resize; }
+.graph-wire-bend:hover { stroke: color-mix(in oklab, var(--accent) 25%, transparent); }

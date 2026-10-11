@@ -197,31 +197,33 @@ def pack_nodes(
             entry["cron"] = node.cron
         packed.append(entry)
     # A path wire drawn the usual way is a pair; any other kind says what it
-    # carries, one drawn another way says how after that, and one coloured
-    # says which after that.
+    # carries, one drawn another way says how after that, one coloured says
+    # which after that, and one bent by hand says how far, last.
     wires: list[list[Any]] = []
-    for start, end, carries, route, colour in _wires_within(session, carried, owner):
+    for start, end, carries, route, colour, bend in _wires_within(session, carried, owner):
         if start not in refs or end not in refs:
             continue
         wire: list[Any] = [refs[start], refs[end]]
-        if carries != "content" or route or colour:
+        if carries != "content" or route or colour or bend:
             wire.append(carries)
-        if route or colour:
+        if route or colour or bend:
             wire.append(route or "curve")
-        if colour:
-            wire.append(colour)
+        if colour or bend:
+            wire.append(colour or "default")
+        if bend:
+            wire.append(bend)
         wires.append(wire)
     return packed, wires
 
 
 def _wires_within(
     session: Session, carried: list[GraphNode], owner: OwnerId
-) -> list[tuple[int, int, str, str, str]]:
+) -> list[tuple[int, int, str, str, str, float]]:
     """Every wire with both ends inside the group, and what it carries. A
     wire out of it is not the group's to give away."""
     held = {node.id for node in carried}
     return [
-        (edge.source_pk, edge.target_pk, edge.carries, edge.route or "", edge.colour or "")
+        (edge.source_pk, edge.target_pk, edge.carries, edge.route or "", edge.colour or "", edge.bend or 0.0)
         # As drawn: a relay travels as a relay, with its wires.
         for edge in edges(session, owner, every=True, raw=True)
         if edge.source_pk in held and edge.target_pk in held
@@ -347,7 +349,7 @@ def slot_and_wire(
         session.flush()
     # Round again while any go in: a wire out of a relay can only be drawn
     # once the wire into it is, and the file need not list that one first.
-    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and len(pair) in (2, 3, 4, 5)]
+    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and 2 <= len(pair) <= 6]
     while waiting:
         refused = []
         for pair in waiting:
@@ -359,8 +361,10 @@ def slot_and_wire(
                 edge = connect(session, start, end, owner, carries=carries)
                 if edge is not None and len(pair) >= 4:
                     looks.set_route(edge, str(pair[3]))
-                if edge is not None and len(pair) == 5:
+                if edge is not None and len(pair) >= 5:
                     looks.set_colour(edge, str(pair[4]))
+                if edge is not None and len(pair) == 6 and isinstance(pair[5], (int, float)):
+                    looks.set_bend(edge, float(pair[5]))
             except GraphError:
                 refused.append(pair)
         if len(refused) == len(waiting):

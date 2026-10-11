@@ -1052,6 +1052,7 @@ function beginGraphResize(state, event, node) {
 /** Decide what a press on the canvas starts: a wire, a move, a resize, a marquee or a pan. */
 function onGraphPointerDown(state, event) {
     var _a, _b, _c;
+    var _d;
     if (event.button !== 0)
         return;
     const target = event.target;
@@ -1089,6 +1090,18 @@ function onGraphPointerDown(state, event) {
     // Buttons and links inside the canvas do their own thing.
     if (target instanceof Element && target.closest("a, button"))
         return;
+    // A square wire's middle, taken hold of: it moves across, or up and down.
+    const grip = target instanceof Element ? target.closest("[data-bend]") : null;
+    if (grip !== null) {
+        const wireId = (_d = grip.dataset["bend"]) !== null && _d !== void 0 ? _d : "";
+        const held = state.wires.find((one) => one.id === wireId);
+        if (held !== undefined) {
+            state.drag = Object.assign(Object.assign({}, graphGrab(state, event)), { kind: "bend", wire: wireId, axis: grip.dataset["axis"] === "y" ? "y" : "x", startBend: held.bend });
+            state.parts.canvas.setPointerCapture(event.pointerId);
+            event.preventDefault();
+            return;
+        }
+    }
     const wire = graphWireIdFrom(target);
     if (wire !== null) {
         pickGraphWire(state, wire);
@@ -1166,7 +1179,7 @@ function onGraphPointerDown(state, event) {
 /** Carry on whatever the press started, following the pointer. */
 function onGraphPointerMove(state, event) {
     var _a;
-    var _b;
+    var _b, _c;
     const drag = state.drag;
     if (drag === null || drag.pointerId !== event.pointerId)
         return;
@@ -1176,13 +1189,22 @@ function onGraphPointerMove(state, event) {
         panGraph(state, drag.scrollX + (event.clientX - drag.fromX), drag.scrollY + (event.clientY - drag.fromY));
         return;
     }
+    if (drag.kind === "bend") {
+        const held = state.wires.find((one) => one.id === drag.wire);
+        if (held === undefined)
+            return;
+        const moved = drag.axis === "y" ? event.clientY - drag.fromY : event.clientX - drag.fromX;
+        held.bend = Math.round(((_b = drag.startBend) !== null && _b !== void 0 ? _b : 0) + moved / state.zoom);
+        drawGraphWires(state);
+        return;
+    }
     if (drag.kind === "move") {
         const held = state.nodes.find((one) => one.id === drag.nodeId);
         if (held !== undefined && held.piece !== null && graphIsLeaflet(held.kind)) {
             markGraphSlotFor(state, event, held.id, "pamphlet");
         }
         else if (held !== undefined && held.piece !== null && held.piece.under === null) {
-            markGraphSlotFor(state, event, held.id, (_b = (_a = held.piece) === null || _a === void 0 ? void 0 : _a.hosts) !== null && _b !== void 0 ? _b : "");
+            markGraphSlotFor(state, event, held.id, (_c = (_a = held.piece) === null || _a === void 0 ? void 0 : _a.hosts) !== null && _c !== void 0 ? _c : "");
         }
     }
     if (drag.kind === "pick") {
@@ -1256,13 +1278,29 @@ function graphDropTarget(event) {
 /** Finish what the press started: save a move, draw a wire, or pick. */
 function onGraphPointerUp(state, event) {
     var _a, _b, _c;
-    var _d;
+    var _d, _e, _f;
     const drag = state.drag;
     if (drag === null || drag.pointerId !== event.pointerId)
         return;
     state.drag = null;
     if (state.parts.canvas.hasPointerCapture(event.pointerId)) {
         state.parts.canvas.releasePointerCapture(event.pointerId);
+    }
+    if (drag.kind === "bend") {
+        const wireId = (_d = drag.wire) !== null && _d !== void 0 ? _d : "";
+        const held = state.wires.find((one) => one.id === wireId);
+        // Pressed and let go without moving: a click on the wire, which picks it.
+        if (!drag.moved || held === undefined) {
+            pickGraphWire(state, wireId);
+            return;
+        }
+        const was = (_e = drag.startBend) !== null && _e !== void 0 ? _e : 0;
+        const edge = wireId.replace(/^edge:/, "");
+        rememberGraphUndo(state, "where the wire bends", async () => {
+            await applyGraph(state, `/graph/wires/${edge}/bend`, new URLSearchParams({ bend: String(was) }));
+        });
+        void applyGraph(state, `/graph/wires/${edge}/bend`, new URLSearchParams({ bend: String(held.bend) }));
+        return;
     }
     if (drag.kind === "pan") {
         state.parts.canvas.classList.remove("is-panning");
@@ -1315,7 +1353,7 @@ function onGraphPointerUp(state, event) {
             }
         }
         if (drag.moved && loose !== undefined && loose.piece !== null && loose.piece.under === null) {
-            const slot = graphSlotFor(state, event, true, (_d = (_c = loose.piece) === null || _c === void 0 ? void 0 : _c.hosts) !== null && _d !== void 0 ? _d : "");
+            const slot = graphSlotFor(state, event, true, (_f = (_c = loose.piece) === null || _c === void 0 ? void 0 : _c.hosts) !== null && _f !== void 0 ? _f : "");
             if (slot !== null && slot.under !== loose.id) {
                 void applyGraph(state, `/graph/nodes/${loose.id}/attach`, new URLSearchParams({ under: String(slot.under), side: slot.side }));
                 return;
@@ -2107,7 +2145,7 @@ function drawGraphWires(state) {
         // Both ends folded into the one group: nothing of it shows.
         if (from.folded !== null && from.folded === to.folded)
             continue;
-        const d = graphWirePath(state, wire.route, from, to);
+        const d = graphWirePath(state, wire.route, from, to, wire.bend);
         let classes = `graph-wire wire-${wire.kind}`;
         if (wire.colour !== "default")
             classes += ` line-${wire.colour}`;
@@ -2124,6 +2162,18 @@ function drawGraphWires(state) {
         // working the day something else is appended between them.
         line.setAttribute("data-line", wire.id);
         state.parts.wires.appendChild(line);
+        // Drawn square, its middle can be taken hold of and moved: a strip over
+        // that one segment, wider than the line, with a cursor saying which way.
+        if (wire.route === "square") {
+            const free = graphSquare(from, to, wire.bend).free;
+            const length = Math.hypot(free.to[0] - free.from[0], free.to[1] - free.from[1]);
+            if (length > 6) {
+                const grip = graphSvgPath(`graph-wire-bend is-${free.axis}`, `M ${free.from[0]} ${free.from[1]} L ${free.to[0]} ${free.to[1]}`);
+                grip.dataset["bend"] = wire.id;
+                grip.dataset["axis"] = free.axis;
+                state.parts.wires.appendChild(grip);
+            }
+        }
         if (wire.kind !== "edge")
             drawGraphWireIntoPage(state, over, wire, d, classes);
         if (wire.id === state.selectedWire) {
@@ -5729,7 +5779,8 @@ function asGraphWire(value) {
     const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
     const route = typeof raw["route"] === "string" ? raw["route"] : "curve";
     const colour = typeof raw["colour"] === "string" ? raw["colour"] : "default";
-    return { id, from, to, kind, route, colour };
+    const bend = typeof raw["bend"] === "number" ? raw["bend"] : 0;
+    return { id, from, to, kind, route, colour, bend };
 }
 /** The graph, or null if this is not one — an error body, say. */
 function asGraph(value) {
@@ -5843,12 +5894,12 @@ function graphWireEnd(state, nodeId, where, carries) {
     return { x: point.x, y: point.y, dx: where === "out" ? 1 : -1, dy: 0, folded: null };
 }
 /** A wire's path, drawn the way it was told to be. */
-function graphWirePath(state, route, a, b) {
+function graphWirePath(state, route, a, b, bend = 0) {
     var _a;
     if (route === "straight")
         return `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
     if (route === "square")
-        return graphRounded(graphSquarePoints(a, b));
+        return graphRounded(graphSquare(a, b, bend).points);
     if (route === "astar")
         return graphRounded((_a = graphFoundPoints(state, a, b)) !== null && _a !== void 0 ? _a : graphSquarePoints(a, b));
     return graphBend(a, b);
@@ -5865,28 +5916,46 @@ function graphBend(a, b) {
 function graphLead() {
     return 18;
 }
-/** Square elbows: straight out of each port, then across and along. */
-function graphSquarePoints(a, b) {
+/** Square elbows: straight out of each port, then across and along — and
+ *  the one segment free to move, between the two that hang off the ports,
+ *  where `bend` has moved it from its usual place: across, for a vertical
+ *  one; up and down, for a horizontal one. */
+function graphSquare(a, b, bend = 0) {
     const lead = graphLead();
     const a1 = [a.x + a.dx * lead, a.y + a.dy * lead];
     const b1 = [b.x + b.dx * lead, b.y + b.dy * lead];
     const across = (end) => end.dx !== 0;
     let middle;
+    let free;
     if (across(a) && across(b)) {
-        const mx = (a1[0] + b1[0]) / 2;
+        // Out sideways, in sideways: the upright between them moves across.
+        const mx = (a1[0] + b1[0]) / 2 + bend;
         middle = [[mx, a1[1]], [mx, b1[1]]];
+        free = { from: [mx, a1[1]], to: [mx, b1[1]], axis: "x" };
     }
     else if (!across(a) && !across(b)) {
-        const my = (a1[1] + b1[1]) / 2;
+        // Out up or down, in up or down: the level between them moves up and down.
+        const my = (a1[1] + b1[1]) / 2 + bend;
         middle = [[a1[0], my], [b1[0], my]];
+        free = { from: [a1[0], my], to: [b1[0], my], axis: "y" };
     }
     else if (across(a)) {
-        middle = [[b1[0], a1[1]]];
+        // Out sideways, in from above or below: an L, whose upright can move
+        // across — a segment more, once it has.
+        const x = b1[0] + bend;
+        middle = [[x, a1[1]], [x, b1[1]]];
+        free = { from: [x, a1[1]], to: [x, b1[1]], axis: "x" };
     }
     else {
-        middle = [[a1[0], b1[1]]];
+        const y = b1[1] + bend;
+        middle = [[a1[0], y], [b1[0], y]];
+        free = { from: [a1[0], y], to: [b1[0], y], axis: "y" };
     }
-    return [[a.x, a.y], a1, ...middle, b1, [b.x, b.y]];
+    return { points: [[a.x, a.y], a1, ...middle, b1, [b.x, b.y]], free };
+}
+/** The square path's points, for the paths that fall back on it. */
+function graphSquarePoints(a, b) {
+    return graphSquare(a, b).points;
 }
 /** A path round the boxes in the way: A* over a grid, every box an
  *  obstacle with a margin round it, turning costing more than going on so

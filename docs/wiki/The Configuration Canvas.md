@@ -119,7 +119,11 @@ Click a wire to pick it. Beside its ✕ is how it is drawn:
 
 - **Curve** — a smooth S from port to port, the way wires start out.
 - **Straight** — a straight line.
-- **Square** — straight out of each port, then across in right angles.
+- **Square** — straight out of each port, then across in right angles. Its middle segment — the one
+  not hanging off a port — can be **dragged**: across, if it runs up and down, or up and down, if it
+  runs across; the cursor says which. Where it was dragged to is kept as a distance from its usual
+  place, so it keeps its shape when the boxes move. A wire that leaves sideways and arrives from
+  above (an L) gains a segment once its upright is dragged. Ctrl+Z puts it back.
 - **Around boxes** — a path found round every box in its way (A\* over a grid), keeping to as few
   corners as it can. Where there is no way round within reach, it is drawn square.
 

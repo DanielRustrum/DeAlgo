@@ -53,9 +53,9 @@ function graphWireEnd(
 }
 
 /** A wire's path, drawn the way it was told to be. */
-function graphWirePath(state: GraphState, route: string, a: GraphWireEnd, b: GraphWireEnd): string {
+function graphWirePath(state: GraphState, route: string, a: GraphWireEnd, b: GraphWireEnd, bend = 0): string {
   if (route === "straight") return `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
-  if (route === "square") return graphRounded(graphSquarePoints(a, b));
+  if (route === "square") return graphRounded(graphSquare(a, b, bend).points);
   if (route === "astar") return graphRounded(graphFoundPoints(state, a, b) ?? graphSquarePoints(a, b));
   return graphBend(a, b);
 }
@@ -75,25 +75,47 @@ function graphLead(): number {
   return 18;
 }
 
-/** Square elbows: straight out of each port, then across and along. */
-function graphSquarePoints(a: GraphWireEnd, b: GraphWireEnd): [number, number][] {
+/** Square elbows: straight out of each port, then across and along — and
+ *  the one segment free to move, between the two that hang off the ports,
+ *  where `bend` has moved it from its usual place: across, for a vertical
+ *  one; up and down, for a horizontal one. */
+function graphSquare(a: GraphWireEnd, b: GraphWireEnd, bend = 0): {
+  points: [number, number][];
+  free: { from: [number, number]; to: [number, number]; axis: "x" | "y" };
+} {
   const lead = graphLead();
   const a1: [number, number] = [a.x + a.dx * lead, a.y + a.dy * lead];
   const b1: [number, number] = [b.x + b.dx * lead, b.y + b.dy * lead];
   const across = (end: GraphWireEnd): boolean => end.dx !== 0;
   let middle: [number, number][];
+  let free: { from: [number, number]; to: [number, number]; axis: "x" | "y" };
   if (across(a) && across(b)) {
-    const mx = (a1[0] + b1[0]) / 2;
+    // Out sideways, in sideways: the upright between them moves across.
+    const mx = (a1[0] + b1[0]) / 2 + bend;
     middle = [[mx, a1[1]], [mx, b1[1]]];
+    free = { from: [mx, a1[1]], to: [mx, b1[1]], axis: "x" };
   } else if (!across(a) && !across(b)) {
-    const my = (a1[1] + b1[1]) / 2;
+    // Out up or down, in up or down: the level between them moves up and down.
+    const my = (a1[1] + b1[1]) / 2 + bend;
     middle = [[a1[0], my], [b1[0], my]];
+    free = { from: [a1[0], my], to: [b1[0], my], axis: "y" };
   } else if (across(a)) {
-    middle = [[b1[0], a1[1]]];
+    // Out sideways, in from above or below: an L, whose upright can move
+    // across — a segment more, once it has.
+    const x = b1[0] + bend;
+    middle = [[x, a1[1]], [x, b1[1]]];
+    free = { from: [x, a1[1]], to: [x, b1[1]], axis: "x" };
   } else {
-    middle = [[a1[0], b1[1]]];
+    const y = b1[1] + bend;
+    middle = [[a1[0], y], [b1[0], y]];
+    free = { from: [a1[0], y], to: [b1[0], y], axis: "y" };
   }
-  return [[a.x, a.y], a1, ...middle, b1, [b.x, b.y]];
+  return { points: [[a.x, a.y], a1, ...middle, b1, [b.x, b.y]], free };
+}
+
+/** The square path's points, for the paths that fall back on it. */
+function graphSquarePoints(a: GraphWireEnd, b: GraphWireEnd): [number, number][] {
+  return graphSquare(a, b).points;
 }
 
 /** A path round the boxes in the way: A* over a grid, every box an

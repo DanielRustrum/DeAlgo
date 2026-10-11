@@ -126,3 +126,23 @@ def test_a_canvas_file_that_would_go_too_deep_is_refused(db):
         ], "wires": []}
         with in_canvas(holder), pytest.raises(graph.GraphError, match="deep"):
             canvas_files.import_canvas(session, file)
+
+
+def test_a_square_wire_s_middle_is_moved_and_kept(canvas, db):
+    with db.session_scope() as session:
+        one, two = graph.add_filter(session, x=0, y=0), graph.add_filter(session, x=400, y=300)
+        edge = graph.connect(session, one, two)
+        looks.set_route(edge, "square")
+        edge_pk, ids = edge.id, [one.id, two.id]
+    drawn = canvas.post(f"/graph/wires/{edge_pk}/bend", data={"bend": "-72.5"}).json()
+    assert next(w for w in drawn["wires"] if w["id"] == f"edge:{edge_pk}")["bend"] == -72.5
+    # Back where it would be is no bend at all.
+    canvas.post(f"/graph/wires/{edge_pk}/bend", data={"bend": "0"})
+    with db.session_scope() as session:
+        assert session.get(GraphEdge, edge_pk).bend is None
+        looks.set_bend(session.get(GraphEdge, edge_pk), 40)
+        made = graph.clipboard.paste(session, graph.clipboard.copy(session, ids), x=0, y=800)
+        made_ids = {node.id for node in made}
+        copied = [e for e in graph.edges(session, every=True, raw=True)
+                  if e.source_pk in made_ids and e.target_pk in made_ids]
+        assert [(e.route, e.bend) for e in copied] == [("square", 40.0)]

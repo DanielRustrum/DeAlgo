@@ -325,6 +325,7 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
             "kind": kind_of(edge),
             "route": looks.route_of(edge),
             "colour": looks.colour_of(edge),
+            "bend": looks.bend_of(edge),
         }
         for edge in all_edges
     ]

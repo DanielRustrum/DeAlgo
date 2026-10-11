@@ -706,7 +706,7 @@ function drawGraphWires(state: GraphState): void {
     // Both ends folded into the one group: nothing of it shows.
     if (from.folded !== null && from.folded === to.folded) continue;
 
-    const d = graphWirePath(state, wire.route, from, to);
+    const d = graphWirePath(state, wire.route, from, to, wire.bend);
     let classes = `graph-wire wire-${wire.kind}`;
     if (wire.colour !== "default") classes += ` line-${wire.colour}`;
     if (wire.id === state.selectedWire) classes += " is-picked";
@@ -723,6 +723,19 @@ function drawGraphWires(state: GraphState): void {
     // working the day something else is appended between them.
     line.setAttribute("data-line", wire.id);
     state.parts.wires.appendChild(line);
+    // Drawn square, its middle can be taken hold of and moved: a strip over
+    // that one segment, wider than the line, with a cursor saying which way.
+    if (wire.route === "square") {
+      const free = graphSquare(from, to, wire.bend).free;
+      const length = Math.hypot(free.to[0] - free.from[0], free.to[1] - free.from[1]);
+      if (length > 6) {
+        const grip = graphSvgPath(`graph-wire-bend is-${free.axis}`,
+          `M ${free.from[0]} ${free.from[1]} L ${free.to[0]} ${free.to[1]}`);
+        grip.dataset["bend"] = wire.id;
+        grip.dataset["axis"] = free.axis;
+        state.parts.wires.appendChild(grip);
+      }
+    }
     if (wire.kind !== "edge") drawGraphWireIntoPage(state, over, wire, d, classes);
 
     if (wire.id === state.selectedWire) {

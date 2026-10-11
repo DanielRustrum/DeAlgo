@@ -432,7 +432,8 @@ function asGraphWire(value: unknown): GraphWireView | null {
   const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
   const route = typeof raw["route"] === "string" ? raw["route"] : "curve";
   const colour = typeof raw["colour"] === "string" ? raw["colour"] : "default";
-  return { id, from, to, kind, route, colour };
+  const bend = typeof raw["bend"] === "number" ? raw["bend"] : 0;
+  return { id, from, to, kind, route, colour, bend };
 }
 
 /** The graph, or null if this is not one — an error body, say. */

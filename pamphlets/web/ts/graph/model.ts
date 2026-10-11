@@ -289,6 +289,8 @@ interface GraphWireView {
   route: string;
   /** Its colour, one of the theme's; "default" for the colour of what it carries. */
   colour: string;
+  /** Drawn square: how far its middle segment was dragged from its usual place. */
+  bend: number;
 }
 
 /** The whole canvas as the server sent it. */
@@ -311,7 +313,7 @@ interface GraphView {
 
 /** A drag in progress — moving a box, or pulling a new wire out of one. */
 interface GraphDrag {
-  kind: "move" | "wire" | "pan" | "resize" | "pick";
+  kind: "move" | "wire" | "pan" | "resize" | "pick" | "bend";
   /** Which box is being dragged. Zero while panning: a pan holds no box. */
   nodeId: number;
   /** Which box was actually pressed. Different from `nodeId` when an
@@ -335,6 +337,10 @@ interface GraphDrag {
   carried: { node: GraphNodeView; x: number; y: number }[];
   /** Drawing a wire: which of the box's out ports it is drawn from. */
   carries?: GraphCarries | undefined;
+  /** Bending a square wire: which wire, the way its middle moves, and where it began. */
+  wire?: string | undefined;
+  axis?: "x" | "y" | undefined;
+  startBend?: number | undefined;
 }
 
 /** The page elements the canvas draws into. */

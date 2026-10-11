@@ -6,7 +6,7 @@
   be folded up to its name, hiding what it surrounds; a lock holds where it
   is, not whether it is folded.
 * A **wire** is drawn as a curve, a straight line, square elbows, or a path
-  found round the boxes in its way.
+  found round the boxes in its way; drawn square, its middle can be dragged.
 
 Kept as JSON on the box (`GraphNode.look`) and a word on the wire
 (`GraphEdge.route`), read and written only here.
@@ -125,3 +125,18 @@ def set_colour(edge: GraphEdge, colour: str) -> None:
     if colour not in dict(LINE_COLOURS):
         raise GraphError("That is not one of the theme's colours.")
     edge.colour = None if colour == "default" else colour
+
+
+#: How far a square wire's middle can be dragged from its usual place.
+MOST_BEND = 5000.0
+
+
+def bend_of(edge: GraphEdge) -> float:
+    return float(edge.bend or 0.0)
+
+
+def set_bend(edge: GraphEdge, bend: float) -> None:
+    """Move a square wire's middle segment this far from its usual place."""
+    if bend != bend:  # not a number
+        raise GraphError("That is not somewhere a wire can bend to.")
+    edge.bend = max(-MOST_BEND, min(MOST_BEND, round(bend, 1))) or None
