@@ -2074,7 +2074,9 @@ function openGraphEditor(state, nodeId) {
         const inSide = asGraphSide(raw["input"]);
         const outSide = asGraphSide(raw["output"]);
         graphEditorPane(input, "Input", inSide, views, "input", usePath, problem, draw);
-        graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw);
+        // A chart leaflet's output is its chart, and only that: what it is made
+        // of is on the input side.
+        graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw, graphIsChart(node.kind));
         if (node.kind === "feed")
             output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
         graphShowFilled(takers, asGraphRecord(raw["filled"]));
@@ -2291,13 +2293,13 @@ function graphEditorPathFields(form) {
     return Array.from(form.querySelectorAll("input[type='text']")).filter((field) => /^(format|leaflet)_(rows|label|value|series|x|y|size)$/.test(field.name));
 }
 /** Draw one side: its heading, its count, its views, and the view chosen. */
-function graphEditorPane(pane, title, side, views, which, usePath, problem, redraw) {
+function graphEditorPane(pane, title, side, views, which, usePath, problem, redraw, chartOnly = false) {
     var _a, _b;
     var _c;
     const parts = [];
     const head = graphElement("div", "graph-editor-pane-head");
     head.appendChild(graphElement("h3", "graph-editor-title", title));
-    if (side !== null && !side.empty && side.how !== "text") {
+    if (side !== null && !side.empty && side.how !== "text" && !chartOnly) {
         const many = side.value !== null && side.rows.length === 0 ? "1 value" : `${side.count} ${side.how === "items" ? "item" : "row"}${side.count === 1 ? "" : "s"}`;
         head.appendChild(graphElement("span", "graph-editor-count", many));
     }
@@ -2305,7 +2307,7 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
     const offered = [];
     if (side !== null && side.html !== "")
         offered.push(["chart", "Chart"]);
-    if (side !== null && side.how !== "text" && !side.empty) {
+    if (side !== null && side.how !== "text" && !side.empty && !chartOnly) {
         offered.push(["fields", "Fields"], ["table", "Table"], ["json", "JSON"]);
     }
     const chosen = offered.some(([name]) => name === views[which]) ? views[which] : ((_c = (_a = offered[0]) === null || _a === void 0 ? void 0 : _a[0]) !== null && _c !== void 0 ? _c : "");
@@ -2345,6 +2347,8 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
             shown.appendChild(graphElement("p", "hint", side.note === "" ? "Nothing yet." : ""));
         else if (chosen === "chart")
             graphEditorChart(shown, side);
+        else if (chartOnly)
+            shown.appendChild(graphElement("p", "hint", "Nothing to draw here: on the page it shows the counts."));
         else if (chosen === "table")
             graphEditorTable(shown, side, usePath);
         else if (chosen === "json")
