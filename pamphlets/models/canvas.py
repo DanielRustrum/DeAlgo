@@ -51,6 +51,7 @@ LEAFLET_LABELS: dict[str, str] = {
     "leaflet-bubble": "Bubble chart",
     "leaflet-number": "Number leaflet",
     "leaflet-table": "Table leaflet",
+    "leaflet-map": "Map leaflet",
     "leaflet-text": "Text leaflet",
     "leaflet-link": "Link leaflet",
 }

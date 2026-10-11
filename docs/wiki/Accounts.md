@@ -47,6 +47,14 @@ Each account's algorithm learns and predicts on this machine's processor, on eve
 machine that can be more than it should carry. Switched off, Aggregation pieces do nothing and nothing
 is learned. What Focus mode remembers is kept, so switching back on picks up where it was.
 
+## Maps
+
+A [Map leaflet](Nodes/Pamphlets.md#maps)'s map is pictures, called tiles, that the reader's browser
+fetches from a tile server — so that server sees who opens the page, and when. They come from
+OpenStreetMap unless, under **Admin → Maps**, the admin names another: an `https://` address with
+`{z}`, `{x}` and `{y}` where each picture's zoom and place go, and the credit to show on each map.
+Empty goes back to OpenStreetMap.
+
 ## How it is secured
 
 - Passwords are stored as **scrypt** hashes with a per-password salt.

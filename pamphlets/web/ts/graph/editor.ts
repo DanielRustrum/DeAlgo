@@ -32,7 +32,7 @@ interface GraphSide {
 
 /** Which editor a kind opens: all three panes, the two sides, or none. */
 function graphEditorFor(kind: GraphNodeKind): "settings" | "sides" | null {
-  if (kind === "transform" || kind === "format" || kind === "text" || graphIsChart(kind)) return "settings";
+  if (kind === "transform" || kind === "format" || kind === "text" || graphTakesData(kind)) return "settings";
   if (
     kind === "source" || kind === "filter" || kind === "sort" || kind === "tag" ||
     kind === "decay" || kind === "expire" || kind === "deposit" || kind === "withdraw" || kind === "feed"
@@ -160,10 +160,10 @@ function openGraphEditor(state: GraphState, nodeId: number): void {
     // A chart leaflet's output is its chart, and only that: what it is made
     // of is on the input side.
     graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw,
-      graphIsChart(node.kind));
+      graphTakesData(node.kind));
     if (node.kind === "feed") output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
     graphShowFilled(takers, asGraphRecord(raw["filled"]));
-    if (graphIsChart(node.kind)) {
+    if (graphTakesData(node.kind)) {
       const out = asGraphRecord(raw["output"]);
       graphChartTry(form, out?.["suggested"], typeof out?.["guessed"] === "string" ? out["guessed"] : "");
     }
@@ -272,6 +272,13 @@ function graphEditorSettings(form: HTMLFormElement, node: GraphNodeView): void {
 
   if (node.kind === "format") graphFormatFields(form, node, true);
   else if (node.kind === "text") graphTextBoxFields(form, node, true);
+  else if (node.kind === "leaflet-map" && node.leaflet !== null) {
+    const leaflet = node.leaflet;
+    graphMapEditorFields(form, leaflet, (key: string): string => {
+      const value = leaflet.settings[key];
+      return value === null || value === undefined ? "" : String(value);
+    });
+  }
   else if (graphIsChart(node.kind) && node.leaflet !== null) {
     const leaflet = node.leaflet;
     graphChartEditorFields(form, node.kind, leaflet, (key: string): string => {
@@ -372,7 +379,7 @@ function graphShowFilled(takers: (HTMLInputElement | HTMLTextAreaElement)[], fil
 /** The settings that are paths into a row: where a field can go. */
 function graphEditorPathFields(form: HTMLFormElement): HTMLInputElement[] {
   return Array.from(form.querySelectorAll<HTMLInputElement>("input[type='text']")).filter(
-    (field): boolean => /^(format|leaflet)_(rows|label|value|series|x|y|size)$/.test(field.name),
+    (field): boolean => /^(format|leaflet)_(rows|label|value|series|x|y|size|lat|lng)$/.test(field.name),
   );
 }
 
@@ -426,7 +433,7 @@ function graphEditorPane(
     if (side.how === "text") graphEditorText(shown, side);
     else if (side.empty) shown.appendChild(graphElement("p", "hint", side.note === "" ? "Nothing yet." : ""));
     else if (chosen === "chart") graphEditorChart(shown, side);
-    else if (chartOnly) shown.appendChild(graphElement("p", "hint", "Nothing to draw here: on the page it shows the counts."));
+    else if (chartOnly) shown.appendChild(graphElement("p", "hint", "Nothing to draw yet."));
     else if (chosen === "table") graphEditorTable(shown, side, usePath);
     else if (chosen === "json") graphEditorJson(shown, side);
     else graphEditorFieldList(shown, side, usePath);
@@ -435,6 +442,7 @@ function graphEditorPane(
   pane.replaceChildren(...parts);
   // A chart is drawn once it is on the page, at the size it has there.
   window.drawCharts?.(pane);
+  window.drawMaps?.(pane);
 }
 
 /** A field that can be dragged into a setting, or pressed to fill the last one. */

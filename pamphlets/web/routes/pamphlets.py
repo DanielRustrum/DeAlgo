@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ...db import get_settings, session_scope
 from ...models import GraphNode, Playlist, utcnow
 from ...services import graph as graph_service
-from ...services import charting
+from ...services import charting, mapping
 from ...services import pamphlet_charts as charts
 from ...services import playlists as playlist_service
 from ...services import writing
@@ -166,6 +166,10 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             )
             shown["section"] = section
             shown["videos"] = section["videos"][: int(said["count"])]
+    elif node.kind == graph_service.leaflets.MAP:
+        heading, placed = map_for(session, owner, node, said)
+        shown["map_label"] = heading
+        shown["map"] = placed
     elif node.kind in graph_service.leaflets.CHART_KINDS:
         label, chart, counts = chart_for(session, owner, node, said)
         shown["chart_label"] = label
@@ -230,6 +234,23 @@ def chart_for(
         chart.figure = float(sum(bar.value for bar in bars))
         chart.measure = named.lower()
     return named, chart, None
+
+
+def map_for(
+    session: Session, owner: OwnerId, node: GraphNode, said: Mapping[str, Any]
+) -> tuple[str, mapping.Map]:
+    """A Map leaflet's heading and map, as its settings `said` say — passed
+    rather than read, so the canvas's editor can show them unsaved."""
+    box = wired_into(session, owner, node)
+    title = str(said.get("title") or "")
+    if box is None:
+        placed = mapping.Map(error="Wire data into it — its { } port — to place a dot for each row.")
+        data: Any = None
+    else:
+        data = graph_service.formatting.data_out(session, box, owner)
+        placed = mapping.from_data(data, said)
+    placed.tiles, placed.credit = mapping.tiles(session)
+    return fill(title, data) if title else "", placed
 
 
 def wired_into(session: Session, owner: OwnerId, chart: GraphNode) -> GraphNode | None:

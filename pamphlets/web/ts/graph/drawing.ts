@@ -47,6 +47,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "leaflet-bubble") return "Bubble chart";
   if (kind === "leaflet-number") return "Number leaflet";
   if (kind === "leaflet-table") return "Table leaflet";
+  if (kind === "leaflet-map") return "Map leaflet";
   if (kind === "leaflet-text") return "Text leaflet";
   if (kind === "leaflet-link") return "Link leaflet";
   if (kind === "carrying") return "Has tag";

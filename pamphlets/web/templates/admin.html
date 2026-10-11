@@ -59,6 +59,35 @@
   </p>
 </section>
 
+<section class="panel" id="maps">
+  <div class="panel-head">
+    <h2>Maps</h2>
+    <span class="pill">{{ 'OpenStreetMap' if map_tiles_default else 'your own tiles' }}</span>
+  </div>
+  <p>
+    A <strong>Map leaflet</strong> on a pamphlet places dots on a map. The dots are drawn here; the
+    map under them is pictures, called tiles, that the reader's browser fetches from a tile server —
+    so that server sees who opens the page, and when. They come from OpenStreetMap unless you name
+    another: your own, or a provider you have an account with.
+  </p>
+  <form method="post" action="/admin/maps" class="stack-form">
+    <label class="field">Tile address
+      <input type="text" name="tiles" value="{{ '' if map_tiles_default else map_tiles }}"
+             placeholder="{{ map_tiles_fallback }}">
+    </label>
+    <label class="field">Credit shown on each map
+      <input type="text" name="credit" value="{{ '' if map_tiles_default else map_credit }}"
+             placeholder="{{ map_credit_fallback }}">
+    </label>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+  <p class="hint">
+    An https address with <code>{z}</code>, <code>{x}</code> and <code>{y}</code> where each picture's
+    zoom and place go, as tile servers give it. Leave it empty for OpenStreetMap. Most providers ask
+    to be credited: say how on the second line.
+  </p>
+</section>
+
 {% if auth_enabled %}
 <section class="panel">
   <h2>Move this instance</h2>

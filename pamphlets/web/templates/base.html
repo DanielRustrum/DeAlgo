@@ -33,6 +33,10 @@
      time a page has a chart on it, rather than on every page. #}
   <script src="/static/charts.js?v={{ asset_version }}" defer
           data-chartjs="/static/vendor/chart.umd.min.js?v={{ asset_version }}"></script>
+  {# Draws Map leaflets; fetches Leaflet the first time a page has a map. #}
+  <script src="/static/maps.js?v={{ asset_version }}" defer
+          data-leaflet-js="/static/vendor/leaflet.js?v={{ asset_version }}"
+          data-leaflet-css="/static/vendor/leaflet.css?v={{ asset_version }}"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
 </head>
 {# hx-boost turns ordinary links and forms into partial page swaps, so the

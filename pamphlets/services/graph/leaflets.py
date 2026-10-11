@@ -33,7 +33,14 @@ CHART_KINDS: tuple[str, ...] = (
     "leaflet-scatter", "leaflet-bubble", "leaflet-number", "leaflet-table",
 )
 
-LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", *CHART_KINDS, "leaflet-text", "leaflet-link")
+#: A map: wired rows placed as dots, drawn by the Leaflet map library
+#: (services/mapping.py) — a library that only shares this module's name.
+MAP = "leaflet-map"
+
+#: The leaflets a data wire goes into: the charts, and the map.
+DATA_LEAFLETS: tuple[str, ...] = (*CHART_KINDS, MAP)
+
+LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", *DATA_LEAFLETS, "leaflet-text", "leaflet-link")
 
 #: The one Chart leaflet there was before each chart had its own, read only
 #: to turn it into one of those (`current_kind`).
@@ -99,6 +106,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         }
         for kind in CHART_KINDS
     },
+    MAP: {"title": "", "rows": "", "lat": "", "lng": "", "popup": "", "series": "", "size": "", "limit": 500},
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
 }
@@ -221,6 +229,16 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
             said["chart"] = chart
         number("days", 2, MOST_DAYS)
         organise()
+    elif node.kind == MAP:
+        title()
+        for name in ("rows", "lat", "lng", "series", "size"):
+            value = given(name)
+            if value is not None:
+                said[name] = value[:200]
+        popup = given("popup")
+        if popup is not None:
+            said["popup"] = popup[:500]
+        number("limit", 1, 1000)
     elif node.kind == "leaflet-text":
         if given("heading") is not None:
             said["heading"] = str(given("heading"))[:200]
@@ -270,6 +288,10 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
         chart = dict(CHARTS).get(str(said["chart"]), "a chart")
         daily = str(said["chart"]).endswith("-daily")
         return f"{chart}, {said['days']} days" if daily else chart
+    if node.kind == MAP:
+        from ..mapping import words as map_words
+
+        return map_words(said)
     if node.kind == "leaflet-text":
         heading = str(said["heading"]).strip()
         body = str(said["body"]).strip()

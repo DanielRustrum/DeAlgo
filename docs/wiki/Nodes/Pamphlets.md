@@ -40,6 +40,7 @@ beside.
 | **Charts** | A leaflet for each kind of chart — see [Charts](#charts) below — showing the data wired into it, or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | A heading; with data wired in, the rest in its editor; without, which built-in chart and how many days (2–90) |
 | **Text** | A heading and your own words. A blank line starts a new paragraph — or, with a [Text](Text.md) box wired in, what its model wrote | Heading, words |
 | **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |
+| **Map** | A dot on a map for each row of the data wired into it that has a latitude and a longitude — see [Maps](#maps) | A heading; the rest in its editor |
 
 ## Wiring a feed in
 
@@ -103,6 +104,31 @@ always have a legend. To show every number, draw it as a **Table**. Counted or a
 it is zero; averaged, it is a gap in the line. Built-in charts count in UTC days.
 
 A switched-off leaflet is left off the page.
+
+## Maps
+
+A **Map leaflet** places the data wired into its `{ }` port on a map: a dot for each row with a
+latitude and a longitude. The map is drawn by [Leaflet](https://leafletjs.com/) — a map library that
+only shares a name with these leaflets — which comes with Pamphlets, like Chart.js.
+
+Double-click it for the [editor](../The%20Configuration%20Canvas.md#the-editor):
+
+| Setting | Says |
+| --- | --- |
+| **Where each row is** | The fields holding its latitude and longitude. Left empty, fields called `lat` / `latitude` and `lng` / `lon` / `longitude` are guessed — and said to be. A row without both, or with one off the globe, is left off. |
+| **Pressed, a dot says** | Words, with [`{{ fields }}`](../The%20Configuration%20Canvas.md#fields-in-settings) of its row: `{{ name }} — {{ visits }} visits`. Set as plain text. |
+| **Colour by** *(optional)* | A field whose every value gets its own colour, with a key under the map. Five are named; the rest are Other. |
+| **Size by** *(optional)* | A number: the biggest dot is the biggest number. |
+| **How many, where the rows are** | At most 1,000 dots; where the list is in the data — blank finds it. |
+
+The map fits itself round the dots. It does not catch the page's scrolling: zoom with its buttons,
+or with the wheel once you have clicked into it.
+
+It follows the theme. The dots are the [theme's chart colours](../Theming.md#colours), ringed in the
+panel's colour; the buttons, credit and the words a dot says are in the panel and text colours. The
+map's pictures are muted to greys — a little warm by day, turned dark by night — so the dots are
+what stands out. The pictures come from OpenStreetMap unless the admin names another tile server
+under [Admin → Maps](../Accounts.md#maps).
 
 ## The page
 

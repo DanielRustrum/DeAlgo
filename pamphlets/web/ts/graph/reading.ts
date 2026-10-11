@@ -37,6 +37,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "leaflet-bubble" ||
     value === "leaflet-number" ||
     value === "leaflet-table" ||
+    value === "leaflet-map" ||
     value === "leaflet-text" ||
     value === "leaflet-link" ||
     value === "deposit" ||

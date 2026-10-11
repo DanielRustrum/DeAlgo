@@ -152,6 +152,56 @@
 .chart-js.is-pie .chart-js-box, .chart-js.is-polar .chart-js-box, .chart-js.is-radar .chart-js-box { height: 300px; }
 .chart-js canvas { display: block; }
 
+/* A map: a box Leaflet draws in (web/ts/maps.ts), given a height of its
+   own as a chart is. The dots are the theme's chart colours, ringed in the
+   panel's; the pictures under them are muted towards the theme's surfaces —
+   grey and a little warm by day, turned dark by night — so the dots are what
+   stands out. Leaflet's own stylesheet is loaded first; these win over it. */
+.map-js { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.map-js-box {
+  position: relative; width: 100%; height: 340px; z-index: 0;
+  border-radius: calc(var(--radius) * 0.6); overflow: hidden;
+  border: 1px solid var(--line); background: var(--panel-2);
+  font-family: inherit;
+}
+/* Leaflet's stylesheet is not in a layer, and this one is (components):
+   an unlayered rule beats a layered one whatever its weight, so the few
+   colours that must be the theme's say so with !important. */
+.map-js .leaflet-container { background: var(--panel-2) !important; font: inherit; font-size: calc(12px * var(--text-scale)); }
+.map-js .leaflet-tile-pane { filter: grayscale(0.85) sepia(0.18) contrast(0.92) brightness(1.04); }
+.map-js .leaflet-control-zoom a,
+.map-js .leaflet-control-attribution,
+.map-js .leaflet-popup-content-wrapper,
+.map-js .leaflet-popup-tip {
+  background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important;
+}
+.map-js .leaflet-popup-content-wrapper, .map-js .leaflet-popup-tip { box-shadow: 0 2px 8px var(--shadow) !important; }
+.map-js .leaflet-control-zoom { border: 1px solid var(--line) !important; box-shadow: none !important; }
+.map-js .leaflet-control-zoom a:hover { background: var(--panel-2) !important; color: var(--accent) !important; }
+.map-js .leaflet-control-attribution { color: var(--muted) !important; }
+.map-js .leaflet-control-attribution a, .map-js .leaflet-popup-content a { color: var(--accent) !important; }
+.map-js .leaflet-popup-content { margin: 8px 12px; line-height: 1.4; }
+.map-js .leaflet-popup-close-button { color: var(--muted) !important; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) .map-js .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) grayscale(0.75) brightness(0.8) contrast(0.9);
+  }
+}
+:root[data-mode="dark"] .map-js .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) grayscale(0.75) brightness(0.8) contrast(0.9);
+}
+.map-js-legend {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px;
+  color: var(--muted); font-size: calc(12px * var(--text-scale));
+}
+.map-js-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.map-js-key { width: 10px; height: 10px; border-radius: 50%; background: var(--chart-1); }
+.map-js-key[data-slot="2"] { background: var(--chart-2); }
+.map-js-key[data-slot="3"] { background: var(--chart-3); }
+.map-js-key[data-slot="4"] { background: var(--chart-4); }
+.map-js-key[data-slot="5"] { background: var(--chart-5); }
+.map-js-key[data-slot="6"] { background: var(--chart-6); }
+
 /* A table, and one number's words: set rather than drawn. */
 .chart-plain { font-size: calc(13px * var(--text-scale)); }
 .chart-plain td + td { font-variant-numeric: tabular-nums; }

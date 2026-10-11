@@ -4,8 +4,11 @@ Each comes from npm at the exact version package.json names, and is committed
 under static/vendor with its licence beside it, so the app serves it itself:
 an installed copy then has it offline, and nothing is fetched from a CDN.
 
-- Chart.js draws the Chart leaflets, on a pamphlet and in the canvas's editor
+- Chart.js draws the chart leaflets, on a pamphlet and in the canvas's editor
   (web/ts/charts.ts sets it up with the theme's colours).
+- Leaflet draws the Map leaflet's map (web/ts/maps.ts). Only its script and
+  stylesheet: the map's dots are drawn, not pictures, so its images are not
+  needed.
 """
 
 from __future__ import annotations
@@ -21,6 +24,9 @@ MODULES = ROOT / "node_modules"
 LIBRARIES = {
     "chart.js/dist/chart.umd.min.js": "chart.umd.min.js",
     "chart.js/LICENSE.md": "chart.js.LICENSE.md",
+    "leaflet/dist/leaflet.js": "leaflet.js",
+    "leaflet/dist/leaflet.css": "leaflet.css",
+    "leaflet/LICENSE": "leaflet.LICENSE",
 }
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .conditions import CONDITION_KINDS, RULE
-from .leaflets import CHART_KINDS, LEAFLET_KINDS
+from .leaflets import CHART_KINDS, DATA_LEAFLETS, LEAFLET_KINDS
 
 #: The box kinds that read what is slotted under them. A feed reads a Timer
 #: as a sitting and a Reset as when it comes back; a Decay reads a Timer as
@@ -27,7 +27,7 @@ WIRED_LEAFLETS = ("leaflet-feed", "leaflet-link")
 #: What takes one wire in only — a second wired in replaces the first: a
 #: leaflet shows one feed, a Format box reshapes one source, a chart draws
 #: one box's data.
-ONE_INPUT = WIRED_LEAFLETS + ("format", *CHART_KINDS)
+ONE_INPUT = WIRED_LEAFLETS + ("format", *DATA_LEAFLETS)
 
 
 #: What a Transform box can be told to do, one augmentation each. It turns
@@ -142,7 +142,7 @@ DATA_OPS = ("filter", "sort", "tag", "decay", "expire")
 #: Where data may go from each box: through the operations, into a Format
 #: box, and from a Format box into a Chart leaflet. A repository gives what
 #: is waiting in it.
-_ONWARD = DATA_OPS + ("format", "transform", "text", *CHART_KINDS)
+_ONWARD = DATA_OPS + ("format", "transform", "text", *DATA_LEAFLETS)
 
 DATA_ALLOWED: dict[str, tuple[str, ...]] = {
     "source": _ONWARD,
@@ -166,7 +166,7 @@ WIRING: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 #: Boxes a data wire may come into. Each takes one: a second replaces it.
-DATA_TAKERS = DATA_OPS + ("format", *CHART_KINDS, "transform", "text")
+DATA_TAKERS = DATA_OPS + ("format", *DATA_LEAFLETS, "transform", "text")
 
 
 def carries_between(source_kind: str, target_kind: str) -> str:

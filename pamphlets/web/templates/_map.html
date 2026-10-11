@@ -1,0 +1,20 @@
+{#- A Map leaflet's map (services/mapping.py): a box Leaflet fills in
+    (web/ts/maps.ts) from the JSON beside it — a dot for each row, in the
+    theme's chart colours, on a map muted towards the theme's surfaces. -#}
+{% set m = map %}
+{% if m is none %}
+  <p class="paper-note">Nothing to place yet.</p>
+{% elif m.error and not m.dots %}
+  <p class="paper-note">{{ m.error }}</p>
+{% else %}
+  <figure class="map-js" data-map>
+    <div class="map-js-box" role="region"
+         aria-label="{{ map_label or 'A map' }}: {{ m.dots | length }} {{ 'place' if m.dots | length == 1 else 'places' }}"></div>
+    {% if m.series %}
+    <ul class="map-js-legend" aria-label="Colours">
+      {% for name, slot in m.series %}<li><span class="map-js-key" data-slot="{{ slot }}"></span>{{ name }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <script type="application/json" data-map-config>{{ m.config() | tojson }}</script>
+  </figure>
+{% endif %}

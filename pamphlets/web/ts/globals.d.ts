@@ -55,12 +55,38 @@ interface ChartJs {
   getChart(canvas: HTMLCanvasElement): ChartJsChart | undefined;
 }
 
-/** What the page's scripts find on `window`: htmx, Chart.js, YouTube's API,
- *  and what charts.ts gives the canvas's editor to draw its charts with. */
+/** One map Leaflet has drawn: only what maps.ts does with one. */
+interface LeafletMap {
+  remove(): void;
+  setView(at: [number, number], zoom: number): LeafletMap;
+  fitBounds(bounds: [number, number][], options: object): LeafletMap;
+  on(event: string, handler: () => void): LeafletMap;
+  scrollWheelZoom: { enable(): void };
+  attributionControl: { setPrefix(prefix: string | false): void };
+}
+
+/** A tile layer or a dot, once made. */
+interface LeafletLayer {
+  addTo(map: LeafletMap): LeafletLayer;
+  bindPopup(content: HTMLElement): LeafletLayer;
+}
+
+/** Leaflet, the map library, vendored into static/vendor/. Only what is used. */
+interface LeafletLibrary {
+  map(element: HTMLElement, options: object): LeafletMap;
+  tileLayer(address: string, options: object): LeafletLayer;
+  circleMarker(at: [number, number], options: object): LeafletLayer;
+}
+
+/** What the page's scripts find on `window`: htmx, Chart.js, Leaflet,
+ *  YouTube's API, and what charts.ts and maps.ts give the canvas's editor
+ *  to draw with. */
 interface Window {
   htmx?: Htmx;
   Chart?: ChartJs;
+  L?: LeafletLibrary;
   drawCharts?: (root: ParentNode) => void;
+  drawMaps?: (root: ParentNode) => void;
   YT?: YouTubeApi;
   /** Called once per document, by the API itself, when it has loaded. */
   onYouTubeIframeAPIReady?: () => void;

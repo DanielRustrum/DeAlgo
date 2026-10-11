@@ -31,7 +31,7 @@ from ...templates import TEMPLATES
 router = APIRouter()
 
 #: Boxes the editor opens on, and whether their settings are in it.
-WITH_SETTINGS = ("transform", "format", "text", *graph_service.leaflets.CHART_KINDS)
+WITH_SETTINGS = ("transform", "format", "text", *graph_service.leaflets.DATA_LEAFLETS)
 WITHOUT_SETTINGS = ("source", *inspecting.OPERATIONS, "deposit", "withdraw", "feed")
 
 
@@ -66,7 +66,7 @@ def raw_input(session: Session, node: GraphNode, owner: OwnerId) -> Any:
         return formatting.data_for(session, node)
     if node.kind == "format":
         return formatting.data_into(session, node, owner)
-    if node.kind in graph_service.leaflets.CHART_KINDS:
+    if node.kind in graph_service.leaflets.DATA_LEAFLETS:
         from ..pamphlets import wired_into
 
         box = wired_into(session, owner, node)
@@ -148,7 +148,32 @@ def inspect(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, 
 
     if kind == "format":
         return _format(session, node, owner, given)
+    if kind == graph_service.leaflets.MAP:
+        return _map(session, node, owner, given)
     return _chart(session, node, owner, given)
+
+
+def _map(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, str]) -> dict[str, Any]:
+    """A Map leaflet: the wired rows, and the map they make with the settings sent."""
+    from ..pamphlets import map_for, wired_into
+
+    said = graph_service.leaflets.settings(node)
+    for key, wanted in given.items():
+        if key.startswith("leaflet_") and key[8:] in said:
+            said[key[8:]] = wanted
+    if not str(said.get("limit", "")).isdigit():
+        said["limit"] = 500
+    box = wired_into(session, owner, node)
+    value = formatting.data_out(session, box, owner) if box is not None else None
+    heading, placed = map_for(session, owner, node, said)
+    output = side([{"lat": dot.lat, "lng": dot.lng, "says": dot.says} for dot in placed.dots], "data")
+    output["html"] = TEMPLATES.get_template("_map.html").render(map=placed, map_label=heading)
+    output["error"] = placed.error if not placed.dots else ""
+    output["guessed"] = placed.guessed
+    if placed.guessed:
+        output["note"] = (f"A guess, while nothing is chosen: {placed.guessed} as latitude and "
+                          "longitude. Say which they are in the settings.")
+    return {"input": side(value, "data", "" if box is not None else "Nothing is wired in."), "output": output}
 
 
 def _nothing(how: str) -> str:

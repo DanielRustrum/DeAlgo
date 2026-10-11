@@ -103,7 +103,7 @@ css: ## Compile web/styles with Tailwind into the stylesheet the app serves (nee
 fonts: ## Copy the typefaces from node_modules into static/fonts (needs npm install)
 	$(PY) ops/vendor_fonts.py
 
-vendor: ## Copy the browser libraries (Chart.js) from node_modules into static/vendor (needs npm install)
+vendor: ## Copy the browser libraries (Chart.js, Leaflet) from node_modules into static/vendor (needs npm install)
 	$(PY) ops/vendor_libraries.py
 
 js: ## Compile web/ts into the scripts the app serves

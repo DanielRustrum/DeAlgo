@@ -41,9 +41,14 @@ interface GraphPamphlet {
 /** Whether this kind is a leaflet. */
 function graphIsLeaflet(kind: GraphNodeKind): boolean {
   return (
-    kind === "leaflet-feed" || graphIsChart(kind) ||
+    kind === "leaflet-feed" || graphTakesData(kind) ||
     kind === "leaflet-text" || kind === "leaflet-link"
   );
+}
+
+/** Whether this kind of leaflet shows the data wired into it: a chart, or the map. */
+function graphTakesData(kind: GraphNodeKind): boolean {
+  return graphIsChart(kind) || kind === "leaflet-map";
 }
 
 /** Whether this kind is a chart leaflet: one for each kind of chart. */
@@ -314,7 +319,7 @@ function drawGraphLeafletParts(box: HTMLElement, node: GraphNodeView): void {
   if (node.kind === "leaflet-text") {
     box.appendChild(graphPort("in", "page", "Takes words: wire a Text box here to show what it wrote."));
   }
-  if (graphIsChart(node.kind)) {
+  if (graphTakesData(node.kind)) {
     box.appendChild(graphPort("in", "data", "Takes data: wire a source, an operation, a Transform or a Format box here, then double-click to organise it."));
   }
   box.appendChild(graphElement("span", "leaflet-notch is-below"));
@@ -409,6 +414,8 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphLabelled("How many", graphLeafletNumber("leaflet_count", said("count"), 1, 60)));
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
     form.appendChild(graphElement("p", "hint", "As a tile, it is the feed's tile from the Feeds tab, one cell wide; How many and Heading are for stories."));
+  } else if (node.kind === "leaflet-map") {
+    graphMapFields(form, node, leaflet, said);
   } else if (graphIsChart(node.kind)) {
     graphChartFields(form, node, leaflet, said);
   } else if (node.kind === "leaflet-text") {

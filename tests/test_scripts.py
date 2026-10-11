@@ -161,6 +161,7 @@ def test_every_script_ends_with_one_named_entry_point():
         "theming": "initTheming();",
         "shelf": "initShelf();",
         "charts": "initCharts();",
+        "maps": "initMaps();",
         "ai": "initAiSettings();",
         "graph": "initGraph();",
         # A worker has no page to start on: registering its handlers is the

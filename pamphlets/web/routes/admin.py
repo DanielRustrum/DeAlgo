@@ -6,6 +6,7 @@ Accounts have a page of their own (admin_accounts.py), as plugins do (plugins.py
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 from ...config import CONFIG
 from ...db import session_scope
 from ...plugins import registry
-from ...services import accounts, algorithm, migration
+from ...services import accounts, algorithm, mapping, migration
 from ..responses import redirect, render
 from ..templates import Context
 
@@ -49,14 +50,15 @@ def admin_page(request: Request) -> HTMLResponse:
     # list of them would explain nothing. Say what would turn it on instead.
     with session_scope() as session:
         allowed = algorithm.site_allows(session)
+        maps = _maps_context(session)
         if not CONFIG.auth_enabled:
             return render(
                 request,
                 "admin.html",
                 {"account_count": 0, "accounts_off": 0, "algorithms_allowed": allowed,
-                 "min_passphrase": migration.MIN_PASSPHRASE, **_plugin_tally()},
+                 "min_passphrase": migration.MIN_PASSPHRASE, **_plugin_tally(), **maps},
             )
-        context = {**_admin_context(session), "algorithms_allowed": allowed}
+        context = {**_admin_context(session), "algorithms_allowed": allowed, **maps}
     return render(request, "admin.html", context)
 
 
@@ -73,6 +75,30 @@ def switch_algorithms(request: Request, allowed: str = Form("")) -> Response:
         "/admin",
         ok="Algorithms are allowed." if allowed == "1"
         else "Algorithms are switched off: Aggregation pieces do nothing, and nothing is learned.",
+    )
+
+
+def _maps_context(session: Session) -> dict[str, Any]:
+    """Where maps' pictures come from, for the Maps section."""
+    address, credit = mapping.tiles(session)
+    return {
+        "map_tiles": address, "map_credit": credit,
+        "map_tiles_default": address == mapping.DEFAULT_TILES,
+        "map_tiles_fallback": mapping.DEFAULT_TILES, "map_credit_fallback": mapping.DEFAULT_CREDIT,
+    }
+
+
+@router.post("/admin/maps")
+def choose_map_tiles(request: Request, tiles: str = Form(""), credit: str = Form("")) -> Response:
+    """Point every map at another tile server, or back at OpenStreetMap."""
+    problem = mapping.tiles_problem(tiles.strip())
+    if problem:
+        return redirect("/admin#maps", err=problem)
+    with session_scope() as session:
+        mapping.set_tiles(session, tiles, credit)
+    return redirect(
+        "/admin#maps",
+        ok="Maps draw from your tile server." if tiles.strip() else "Maps draw from OpenStreetMap.",
     )
 
 

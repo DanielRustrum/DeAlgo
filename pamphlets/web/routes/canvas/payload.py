@@ -134,7 +134,7 @@ class _Canvas:
                 for edge in graph_service.edges(session, owner, every=True)
                 if edge.carries in ("data", "page")
                 and edge.source_pk in by_id and edge.target_pk in by_id
-                and by_id[edge.target_pk].kind in (*graph_service.leaflets.CHART_KINDS, "leaflet-text")
+                and by_id[edge.target_pk].kind in (*graph_service.leaflets.DATA_LEAFLETS, "leaflet-text")
             },
         )
 
@@ -148,6 +148,8 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
             by = canvas.shaped.get(node.id)
             if by is not None and node.kind == "leaflet-text":
                 drawn["note"] = "written by the Text box wired in"
+            elif by is not None and node.kind == graph_service.leaflets.MAP:
+                drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)
             elif by is not None and by.kind == "format":
                 drawn["note"] = "drawn as the Format box shapes it"
             elif by is not None and by.kind == "transform" and not graph_service.leaflets.settings(node)["label"]:

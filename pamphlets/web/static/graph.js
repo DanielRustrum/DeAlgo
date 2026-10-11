@@ -1319,6 +1319,8 @@ function graphKindLabel(kind) {
         return "Number leaflet";
     if (kind === "leaflet-table")
         return "Table leaflet";
+    if (kind === "leaflet-map")
+        return "Map leaflet";
     if (kind === "leaflet-text")
         return "Text leaflet";
     if (kind === "leaflet-link")
@@ -1981,7 +1983,7 @@ function showGraphVerdict(state, message) {
 // Part of the Configuration canvas; see main.ts.
 /** Which editor a kind opens: all three panes, the two sides, or none. */
 function graphEditorFor(kind) {
-    if (kind === "transform" || kind === "format" || kind === "text" || graphIsChart(kind))
+    if (kind === "transform" || kind === "format" || kind === "text" || graphTakesData(kind))
         return "settings";
     if (kind === "source" || kind === "filter" || kind === "sort" || kind === "tag" ||
         kind === "decay" || kind === "expire" || kind === "deposit" || kind === "withdraw" || kind === "feed")
@@ -2115,11 +2117,11 @@ function openGraphEditor(state, nodeId) {
         graphEditorPane(input, "Input", inSide, views, "input", usePath, problem, draw);
         // A chart leaflet's output is its chart, and only that: what it is made
         // of is on the input side.
-        graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw, graphIsChart(node.kind));
+        graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw, graphTakesData(node.kind));
         if (node.kind === "feed")
             output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
         graphShowFilled(takers, asGraphRecord(raw["filled"]));
-        if (graphIsChart(node.kind)) {
+        if (graphTakesData(node.kind)) {
             const out = asGraphRecord(raw["output"]);
             graphChartTry(form, out === null || out === void 0 ? void 0 : out["suggested"], typeof (out === null || out === void 0 ? void 0 : out["guessed"]) === "string" ? out["guessed"] : "");
         }
@@ -2230,6 +2232,13 @@ function graphEditorSettings(form, node) {
         graphFormatFields(form, node, true);
     else if (node.kind === "text")
         graphTextBoxFields(form, node, true);
+    else if (node.kind === "leaflet-map" && node.leaflet !== null) {
+        const leaflet = node.leaflet;
+        graphMapEditorFields(form, leaflet, (key) => {
+            const value = leaflet.settings[key];
+            return value === null || value === undefined ? "" : String(value);
+        });
+    }
     else if (graphIsChart(node.kind) && node.leaflet !== null) {
         const leaflet = node.leaflet;
         graphChartEditorFields(form, node.kind, leaflet, (key) => {
@@ -2329,12 +2338,12 @@ function graphShowFilled(takers, filled) {
 }
 /** The settings that are paths into a row: where a field can go. */
 function graphEditorPathFields(form) {
-    return Array.from(form.querySelectorAll("input[type='text']")).filter((field) => /^(format|leaflet)_(rows|label|value|series|x|y|size)$/.test(field.name));
+    return Array.from(form.querySelectorAll("input[type='text']")).filter((field) => /^(format|leaflet)_(rows|label|value|series|x|y|size|lat|lng)$/.test(field.name));
 }
 /** Draw one side: its heading, its count, its views, and the view chosen. */
 function graphEditorPane(pane, title, side, views, which, usePath, problem, redraw, chartOnly = false) {
-    var _a, _b;
-    var _c;
+    var _a, _b, _c;
+    var _d;
     const parts = [];
     const head = graphElement("div", "graph-editor-pane-head");
     head.appendChild(graphElement("h3", "graph-editor-title", title));
@@ -2349,7 +2358,7 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
     if (side !== null && side.how !== "text" && !side.empty && !chartOnly) {
         offered.push(["fields", "Fields"], ["table", "Table"], ["json", "JSON"]);
     }
-    const chosen = offered.some(([name]) => name === views[which]) ? views[which] : ((_c = (_a = offered[0]) === null || _a === void 0 ? void 0 : _a[0]) !== null && _c !== void 0 ? _c : "");
+    const chosen = offered.some(([name]) => name === views[which]) ? views[which] : ((_d = (_a = offered[0]) === null || _a === void 0 ? void 0 : _a[0]) !== null && _d !== void 0 ? _d : "");
     if (offered.length > 1) {
         const tabs = graphElement("div", "graph-editor-views");
         tabs.setAttribute("role", "tablist");
@@ -2387,7 +2396,7 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
         else if (chosen === "chart")
             graphEditorChart(shown, side);
         else if (chartOnly)
-            shown.appendChild(graphElement("p", "hint", "Nothing to draw here: on the page it shows the counts."));
+            shown.appendChild(graphElement("p", "hint", "Nothing to draw yet."));
         else if (chosen === "table")
             graphEditorTable(shown, side, usePath);
         else if (chosen === "json")
@@ -2399,6 +2408,7 @@ function graphEditorPane(pane, title, side, views, which, usePath, problem, redr
     pane.replaceChildren(...parts);
     // A chart is drawn once it is on the page, at the size it has there.
     (_b = window.drawCharts) === null || _b === void 0 ? void 0 : _b.call(window, pane);
+    (_c = window.drawMaps) === null || _c === void 0 ? void 0 : _c.call(window, pane);
 }
 /** A field that can be dragged into a setting, or pressed to fill the last one. */
 function graphEditorDraggable(element, path, usePath) {
@@ -2862,8 +2872,12 @@ function graphFormatFields(form, node, inEditor = false) {
 // Part of the Configuration canvas; see main.ts.
 /** Whether this kind is a leaflet. */
 function graphIsLeaflet(kind) {
-    return (kind === "leaflet-feed" || graphIsChart(kind) ||
+    return (kind === "leaflet-feed" || graphTakesData(kind) ||
         kind === "leaflet-text" || kind === "leaflet-link");
+}
+/** Whether this kind of leaflet shows the data wired into it: a chart, or the map. */
+function graphTakesData(kind) {
+    return graphIsChart(kind) || kind === "leaflet-map";
 }
 /** Whether this kind is a chart leaflet: one for each kind of chart. */
 function graphIsChart(kind) {
@@ -3137,7 +3151,7 @@ function drawGraphLeafletParts(box, node) {
     if (node.kind === "leaflet-text") {
         box.appendChild(graphPort("in", "page", "Takes words: wire a Text box here to show what it wrote."));
     }
-    if (graphIsChart(node.kind)) {
+    if (graphTakesData(node.kind)) {
         box.appendChild(graphPort("in", "data", "Takes data: wire a source, an operation, a Transform or a Format box here, then double-click to organise it."));
     }
     box.appendChild(graphElement("span", "leaflet-notch is-below"));
@@ -3212,6 +3226,9 @@ function graphLeafletFields(form, node) {
         form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "the feed's name")));
         form.appendChild(graphElement("p", "hint", "As a tile, it is the feed's tile from the Feeds tab, one cell wide; How many and Heading are for stories."));
     }
+    else if (node.kind === "leaflet-map") {
+        graphMapFields(form, node, leaflet, said);
+    }
     else if (graphIsChart(node.kind)) {
         graphChartFields(form, node, leaflet, said);
     }
@@ -3274,6 +3291,81 @@ function drawGraphWireIntoPage(state, over, wire, d, classes) {
     const line = graphSvgPath(classes, d);
     line.setAttribute("clip-path", `url(#${named})`);
     over.appendChild(line);
+}
+
+"use strict";
+// The Map leaflet: wired rows placed as dots on a map, drawn by the Leaflet
+// map library (ts/maps.ts) — which only shares a name with these leaflets.
+// Its panel, and its settings in the box editor (editor.ts).
+//
+// Part of the Configuration canvas; see main.ts.
+/** A Map leaflet's panel: what it shows, and that the editor places it. */
+function graphMapFields(form, node, leaflet, said) {
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "none")));
+    form.appendChild(graphElement("p", "hint", leaflet.wired
+        ? `Shows ${node.note !== "" ? node.note : "the data wired in"}. Double-click to change it.`
+        : "Wire data in — the { } port — from a source, an operation or a Transform box: a dot for each row with a latitude and a longitude."));
+}
+/** A Map leaflet's settings in the editor: where each row is, what its dot
+ *  says, and what colours and sizes the dots — said back as one sentence. */
+function graphMapEditorFields(form, leaflet, said) {
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "none — or words, with {{ fields }}")));
+    if (!leaflet.wired) {
+        form.appendChild(graphElement("p", "hint", "Wire data into it — its { } port — to place a dot for each row."));
+        return;
+    }
+    const says = graphElement("p", "graph-chart-says");
+    says.setAttribute("aria-live", "polite");
+    form.appendChild(says);
+    const step = (title, ...rows) => {
+        const set = graphElement("fieldset", "graph-chart-step");
+        set.appendChild(graphElement("legend", "", title));
+        for (const row of rows)
+            set.appendChild(row);
+        form.appendChild(set);
+    };
+    const lat = graphLeafletText("leaflet_lat", said("lat"), "drag the latitude here, like lat");
+    const lng = graphLeafletText("leaflet_lng", said("lng"), "drag the longitude here, like lng");
+    step("Where each row is", graphLabelled("Latitude", lat), graphLabelled("Longitude", lng));
+    const popup = document.createElement("textarea");
+    popup.name = "leaflet_popup";
+    popup.rows = 2;
+    popup.value = said("popup");
+    popup.placeholder = "words, with {{ fields }} of the row — like {{ title }}";
+    step("Pressed, a dot says", graphLabelled("Words", popup));
+    const series = graphLeafletText("leaflet_series", said("series"), "optional — leave empty for one colour");
+    step("Colour by (optional)", graphLabelled("Field", series), graphElement("p", "hint", "Each value of this field gets its own colour, and a place in the key under the map."));
+    const size = graphLeafletText("leaflet_size", said("size"), "optional — a number: bigger is bigger");
+    step("Size by (optional)", graphLabelled("Field", size));
+    const more = document.createElement("details");
+    more.className = "graph-chart-more";
+    more.appendChild(graphElement("summary", "", "How many, where the rows are"));
+    more.appendChild(graphLabelled("At most", graphLeafletNumber("leaflet_limit", said("limit"), 1, 1000)));
+    more.appendChild(graphLabelled("Rows are at", graphLeafletText("leaflet_rows", said("rows"), "found by itself — or a path like data.children")));
+    form.appendChild(more);
+    const retell = () => {
+        var _a;
+        const strong = (text) => graphElement("strong", "", text);
+        const plain = (text) => document.createTextNode(text);
+        const guess = (_a = says.dataset["guessed"]) !== null && _a !== void 0 ? _a : "";
+        const parts = [plain("A map: a dot for each row, at ")];
+        if (graphChartNamed(lat) === "" && graphChartNamed(lng) === "" && guess !== "") {
+            parts.push(strong(guess), plain(" (a guess)"));
+        }
+        else {
+            parts.push(strong(graphChartNamed(lat) || "…"), plain(" and "), strong(graphChartNamed(lng) || "…"));
+        }
+        if (graphChartNamed(series) !== "")
+            parts.push(plain(", coloured by "), strong(graphChartNamed(series)));
+        if (graphChartNamed(size) !== "")
+            parts.push(plain(", as big as "), strong(graphChartNamed(size)));
+        parts.push(plain("."));
+        says.replaceChildren(...parts);
+    };
+    form.addEventListener("input", retell);
+    form.addEventListener("change", retell);
+    form.addEventListener("graph-chart-guess", retell);
+    retell();
 }
 
 "use strict";
@@ -4532,6 +4624,7 @@ function asGraphNodeKind(value) {
         value === "leaflet-bubble" ||
         value === "leaflet-number" ||
         value === "leaflet-table" ||
+        value === "leaflet-map" ||
         value === "leaflet-text" ||
         value === "leaflet-link" ||
         value === "deposit" ||

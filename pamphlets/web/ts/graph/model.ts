@@ -30,6 +30,7 @@ type GraphNodeKind =
   | "leaflet-bubble"
   | "leaflet-number"
   | "leaflet-table"
+  | "leaflet-map"
   | "leaflet-text"
   | "leaflet-link"
   // The two ends of a named repository. A deposit ends a path the way a feed
