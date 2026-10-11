@@ -160,6 +160,10 @@ function openGraphEditor(state: GraphState, nodeId: number): void {
     graphEditorPane(output, node.kind === "feed" ? "Holds" : "Output", outSide, views, "output", usePath, "", draw);
     if (node.kind === "feed") output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
     graphShowFilled(takers, asGraphRecord(raw["filled"]));
+    if (node.kind === "leaflet-chart") {
+      const out = asGraphRecord(raw["output"]);
+      graphChartTry(form, out?.["suggested"], typeof out?.["guessed"] === "string" ? out["guessed"] : "");
+    }
   };
 
   let asked = 0;

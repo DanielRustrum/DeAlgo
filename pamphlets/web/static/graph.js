@@ -238,11 +238,45 @@ function graphChartFields(form, node, leaflet, said) {
         form.appendChild(graphElement("p", "hint", "Days count for the day-by-day charts only. Or wire data in — the { } port — from a source, an operation or a Transform box, and organise that in the editor."));
     }
 }
-/** A Chart leaflet's settings in the editor: what it is drawn as, and —
- *  with data wired in — where its rows are, what labels a point, what
- *  number it shows and what splits it into series. */
+/** How a chart of each kind talks about its parts: what one of them is,
+ *  what sets its size, and what a series makes. */
+function graphChartWords(kind) {
+    if (kind === "bar")
+        return { each: "One bar for each", size: "Bar length is", series: "Split each bar by", says: "Bars", sized: "as long as" };
+    if (kind === "line")
+        return { each: "Along the bottom, a point for each", size: "Height of the line is", series: "One line for each", says: "A line", sized: "as high as" };
+    if (kind === "area")
+        return { each: "Along the bottom, a point for each", size: "Height of each band is", series: "One band for each", says: "Stacked bands", sized: "as high as" };
+    if (kind === "pie")
+        return { each: "One slice for each", size: "Slice size is", series: "", says: "A pie", sized: "as big as" };
+    if (kind === "number")
+        return { each: "", size: "The number is", series: "", says: "One number", sized: "" };
+    if (kind === "table")
+        return { each: "One row for each", size: "Its value is", series: "One column for each", says: "A table", sized: "showing" };
+    return { each: "One column for each", size: "Column height is", series: "Split each column by", says: "Columns", sized: "as tall as" };
+}
+/** What sets a point's size, said the way a person would. */
+function graphChartMeasure(combine, value) {
+    const of = value !== "" ? value : "…";
+    if (combine === "count")
+        return "how many rows there are";
+    if (combine === "sum")
+        return `the total of ${of}`;
+    if (combine === "average")
+        return `the average ${of}`;
+    if (combine === "min")
+        return `the smallest ${of}`;
+    if (combine === "max")
+        return `the largest ${of}`;
+    if (combine === "latest")
+        return `the last ${of} seen`;
+    return of;
+}
+/** A Chart leaflet's settings in the editor, in the chart's own terms:
+ *  what each bar (or slice, or point) is, what sets its size, and what
+ *  splits it — said back as one sentence, and worded for the chart chosen. */
 function graphChartEditorFields(form, leaflet, said) {
-    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows")));
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "what it shows — can include {{ fields }}")));
     // What it is drawn as, as buttons over one field.
     const kind = document.createElement("input");
     kind.type = "hidden";
@@ -280,20 +314,129 @@ function graphChartEditorFields(form, leaflet, said) {
         form.appendChild(graphLabelled("Days", graphLeafletNumber("leaflet_days", said("days"), 2, 90)));
         return;
     }
-    const step = (title, ...rows) => {
+    // What the chart will show, as a sentence, kept up to date as it is set.
+    const says = graphElement("p", "graph-chart-says");
+    says.setAttribute("aria-live", "polite");
+    form.appendChild(says);
+    const step = (...rows) => {
         const set = graphElement("fieldset", "graph-chart-step");
-        set.appendChild(graphElement("legend", "", title));
+        const legend = graphElement("legend", "");
+        set.appendChild(legend);
         for (const row of rows)
             set.appendChild(row);
         form.appendChild(set);
+        return { set, legend };
     };
-    const path = (name, label, placeholder) => graphLabelled(label, graphLeafletText(`leaflet_${name}`, said(name), placeholder));
-    const pick = (name, label, choices) => graphLabelled(label, graphLeafletSelect(`leaflet_${name}`, choices, said(name)));
-    step("Rows", path("rows", "The list", "found by itself — or a path like data.children"));
-    step("Points", path("label", "Label each by", "drag a field here, like published"), pick("group", "Group labels", leaflet.groups));
-    step("Numbers", pick("combine", "Combine rows", leaflet.combines), path("value", "The number", "drag a field here — not needed to count"));
-    step("Series", path("series", "Split by", "optional: a field, like author — a line or bar for each"));
-    step("Which", pick("sort", "Order", leaflet.sorts), graphLabelled("How many points", graphLeafletNumber("leaflet_limit", said("limit"), 1, 60)));
+    // Each: what one bar, slice or point is.
+    const label = graphLeafletText("leaflet_label", said("label"), "drag a field here, or press one below");
+    const group = graphLeafletSelect("leaflet_group", leaflet.groups, said("group"));
+    const tryThese = graphElement("div", "graph-chart-try");
+    tryThese.dataset["chartTry"] = "1";
+    const each = step(graphLabelled("Field", label), tryThese, graphLabelled("If it is a date, one for each", group));
+    // Size: what sets how big each one is.
+    const measured = {
+        count: "How many rows there are", sum: "The total of a field", average: "The average of a field",
+        min: "The smallest value of a field", max: "The largest value of a field", latest: "The last value of a field seen",
+    };
+    const combine = graphLeafletSelect("leaflet_combine", leaflet.combines.map((one) => { var _a; return ({
+        name: one.name, label: (_a = measured[one.name]) !== null && _a !== void 0 ? _a : one.label,
+    }); }), said("combine"));
+    const value = graphLeafletText("leaflet_value", said("value"), "drag a number field here, like views");
+    const valueRow = graphLabelled("Of the field", value);
+    const size = step(graphLabelled("Measured by", combine), valueRow);
+    // Series: optional, what splits each one.
+    const series = graphLeafletText("leaflet_series", said("series"), "optional — leave empty for one colour");
+    const split = step(graphLabelled("Field", series), graphElement("p", "hint", "Each value of this field gets its own colour and a place in the legend."));
+    // The rest, which is right as it is more often than not.
+    const more = document.createElement("details");
+    more.className = "graph-chart-more";
+    more.appendChild(graphElement("summary", "", "Order, how many, where the rows are"));
+    more.appendChild(graphLabelled("Order", graphLeafletSelect("leaflet_sort", leaflet.sorts, said("sort"))));
+    more.appendChild(graphLabelled("At most", graphLeafletNumber("leaflet_limit", said("limit"), 1, 60)));
+    more.appendChild(graphLabelled("Rows are at", graphLeafletText("leaflet_rows", said("rows"), "found by itself — or a path like data.children")));
+    form.appendChild(more);
+    const retitle = () => {
+        var _a;
+        var _b, _c;
+        const words = graphChartWords(kind.value);
+        each.legend.textContent = words.each;
+        each.set.hidden = words.each === "";
+        size.legend.textContent = words.size;
+        valueRow.hidden = combine.value === "count";
+        split.legend.textContent = words.series !== "" ? `${words.series} (optional)` : "";
+        split.set.hidden = words.series === "";
+        const named = (field) => field.value.replace(/\{\{\s*|\s*\}\}/g, "").trim();
+        const grouped = group.value !== "none" ? ` (${((_b = (_a = group.selectedOptions[0]) === null || _a === void 0 ? void 0 : _a.textContent) !== null && _b !== void 0 ? _b : "").toLowerCase()})` : "";
+        const measure = graphChartMeasure(combine.value, named(value));
+        const parts = [`${words.says}: `];
+        if (words.each !== "") {
+            // Nothing chosen yet: the chart shows a guess, and the sentence says which.
+            const guess = (_c = says.dataset["guessed"]) !== null && _c !== void 0 ? _c : "";
+            if (named(label) === "" && guess !== "")
+                parts.push("one for each ", graphElement("strong", "", guess), " (a guess)");
+            else
+                parts.push("one for each ", graphElement("strong", "", (named(label) || "…") + grouped));
+            parts.push(`, ${words.sized} `, graphElement("strong", "", measure));
+            if (words.series !== "" && named(series) !== "")
+                parts.push(", split by ", graphElement("strong", "", named(series)));
+        }
+        else {
+            parts.push(graphElement("strong", "", measure));
+        }
+        parts.push(".");
+        says.replaceChildren(...parts.map((part) => (typeof part === "string" ? document.createTextNode(part) : part)));
+    };
+    form.addEventListener("input", retitle);
+    form.addEventListener("change", retitle);
+    form.addEventListener("graph-chart-guess", retitle);
+    // A date as it is makes a point of every moment: one dropped in is
+    // grouped by day, unless a grouping was already chosen.
+    label.addEventListener("input", () => {
+        var _a;
+        const dates = ((_a = tryThese.dataset["dates"]) !== null && _a !== void 0 ? _a : "").split("\n");
+        const named = label.value.replace(/\{\{\s*|\s*\}\}/g, "").trim();
+        if (group.value === "none" && named !== "" && dates.includes(named)) {
+            group.value = "day";
+            group.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+    });
+    retitle();
+}
+/** Fields worth labelling a chart by, from what came in, offered as
+ *  buttons under its Field: pressed, one goes in, grouped by day if a date. */
+function graphChartTry(form, suggested, guessed) {
+    const says = form.querySelector(".graph-chart-says");
+    if (says !== null && says.dataset["guessed"] !== guessed) {
+        says.dataset["guessed"] = guessed;
+        form.dispatchEvent(new Event("graph-chart-guess"));
+    }
+    const holder = form.querySelector("[data-chart-try]");
+    const label = form.querySelector("input[name='leaflet_label']");
+    const group = form.querySelector("select[name='leaflet_group']");
+    if (holder === null || label === null || group === null || !Array.isArray(suggested))
+        return;
+    const picks = [];
+    for (const entry of suggested) {
+        const one = asGraphRecord(entry);
+        if (one === null || typeof one["path"] !== "string")
+            continue;
+        const path = one["path"];
+        const by = typeof one["group"] === "string" ? one["group"] : "none";
+        const chip = graphElement("button", "graph-tag-choice", typeof one["label"] === "string" ? one["label"] : path);
+        chip.setAttribute("type", "button");
+        chip.addEventListener("click", () => {
+            group.value = by;
+            graphPutField(label, path, true);
+            group.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        picks.push(chip);
+    }
+    holder.dataset["dates"] = suggested
+        .map((entry) => asGraphRecord(entry))
+        .filter((one) => one !== null && one["group"] === "day")
+        .map((one) => { var _a; return String((_a = one === null || one === void 0 ? void 0 : one["path"]) !== null && _a !== void 0 ? _a : ""); })
+        .join("\n");
+    holder.replaceChildren(...(picks.length > 0 ? [graphElement("span", "graph-chart-try-name", "Try:"), ...picks] : []));
 }
 
 "use strict";
@@ -1859,6 +2002,10 @@ function openGraphEditor(state, nodeId) {
         if (node.kind === "feed")
             output.replaceChildren(graphElement("p", "hint", "A feed is where items end up: nothing goes on from it."));
         graphShowFilled(takers, asGraphRecord(raw["filled"]));
+        if (node.kind === "leaflet-chart") {
+            const out = asGraphRecord(raw["output"]);
+            graphChartTry(form, out === null || out === void 0 ? void 0 : out["suggested"], typeof (out === null || out === void 0 ? void 0 : out["guessed"]) === "string" ? out["guessed"] : "");
+        }
     };
     let asked = 0;
     let timer = 0;

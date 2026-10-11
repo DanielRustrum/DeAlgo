@@ -60,14 +60,19 @@ for the [editor](../The%20Configuration%20Canvas.md#the-editor): the wired data 
 organise it in the middle, and the chart as the page will show it on the right, redrawn as you
 change:
 
-| Step | Says |
+The settings are worded for the chart chosen, and a sentence above them says what it will show —
+"A line: one for each **published (by day)**, as high as **the total of views**, split by
+**source**."
+
+| Setting | Says |
 | --- | --- |
-| **Rows** | Where the list is. Blank finds it — `data.children` in a Reddit answer, say. |
 | **Draw as** | Columns, bars, line, stacked area, pie, one number or a table. |
-| **Points** | The field each point is labelled by, as a path like `published` or `data.author`. Dates can be grouped by day, week, month, weekday or hour; a list gives a point for each thing in it. |
-| **Numbers** | How rows sharing a label combine — counted, added up, averaged, the smallest, largest or last — and, unless counting, the field holding the number. |
-| **Series** | Optionally, a field to split by: a line, a band or a column per value found there. The five largest are named and the rest are **Other**. |
-| **Which** | The order, and how many points (up to 60). |
+| **One bar (column, slice, point…) for each** | The field that says what each one is. **Try:** offers fields from the data that make a good chart — words that repeat, like a source or a status, and dates. A date is grouped by day, week, month, weekday or hour, or each moment is its own point. A list gives a point for each thing in it. |
+| **Bar length (height, slice size…) is** | How many rows there are, or the total, average, smallest, largest or last value of a number field. |
+| **Split by** *(optional)* | A field whose every value gets its own colour, line or band, with a legend. The five largest are named and the rest are **Other**. Not for a pie or one number. |
+| **Order, how many, where the rows are** | Folded away, since they are usually right: the order, at most how many (up to 60), and where the list is in the data — blank finds it. |
+
+Until a field is chosen, the chart shows a guess — the first of **Try:** — and says so.
 
 Drag a field from the input onto a step to use it. **Save** keeps it all; ✕ or Esc leaves it as it
 was.

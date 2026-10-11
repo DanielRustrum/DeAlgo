@@ -72,7 +72,9 @@ def test_one_number_from_rows_or_from_a_count():
 
 
 def test_it_says_what_is_missing():
-    assert "label" in charting.from_data(ROWS, said()).error
+    # Nothing worth guessing a label from — every row its own title — says so.
+    unique = [{"title": f"t{n}"} for n in range(6)]
+    assert "each point is" in charting.from_data(unique, said()).error
     assert "number" in charting.from_data(ROWS, said(label="who", combine="sum")).error
     assert "Nothing has come in" in charting.from_data(None, said()).error
 
@@ -207,3 +209,29 @@ def test_with_nothing_wired_in_the_built_in_counts_take_a_type_too(client, db):
         assert leaflets.settings(chart)["kind"] == "bar"
         leaflets.save(chart, {"leaflet_kind": "pie"}, set())
         assert leaflets.settings(chart)["kind"] == "pie"
+
+
+def test_it_suggests_fields_that_repeat_and_dates_by_day_and_guesses_one():
+    rows = [{"id": f"v{n}", "title": f"Video {n}", "kind": "video" if n % 3 else "short",
+             "source": "Channel 5", "published": f"2026-10-0{n + 1}T18:50:37Z", "watched": n % 2 == 0}
+            for n in range(6)]
+    picks = [pick["label"] for pick in charting.suggest(rows)]
+    # Repeating words first, then dates by day; ids and titles never.
+    assert picks[0] == "kind" and "published by day" in picks
+    assert not {"id", "title"} & set(picks)
+
+    guessed = charting.from_data(rows, said())
+    assert guessed.guessed == "kind" and not guessed.error
+    assert [c.long for c in guessed.categories] == ["short", "video"]
+    # Chosen, it is not a guess.
+    assert charting.from_data(rows, said(label="{{ source }}")).guessed == ""
+
+
+def test_the_editor_says_when_the_chart_is_a_guess(client, db):
+    with db.session_scope() as session:
+        source = a_rest_source(session, ANSWER)
+        _, chart = a_chart_from(session, source)
+        chart_pk = chart.id
+    seen = client.post(f"/graph/nodes/{chart_pk}/inspect").json()["output"]
+    assert seen["guessed"] and "A guess" in seen["note"] and "chart" in seen["html"]
+    assert seen["suggested"] and not seen["error"]

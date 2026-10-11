@@ -197,9 +197,15 @@ def _chart(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, s
 
     label, chart, _counts = chart_for(session, owner, node, said)
     output = side(_chart_rows(chart), "data")
-    output["error"] = chart.error if chart is not None else ""
     output["html"] = _drawn(chart, label) if chart is not None else ""
+    # The chart says its own trouble; said again above it, it is said twice.
+    output["error"] = chart.error if chart is not None and not output["html"] else ""
     output["label"] = label
+    output["suggested"] = chart.suggested if chart is not None else []
+    output["guessed"] = chart.guessed if chart is not None else ""
+    if chart is not None and chart.guessed:
+        output["note"] = (f"A guess, while nothing is chosen: one for each {chart.guessed}. "
+                          "Say what each one is in the settings.")
     return {"input": side(value, "data", note), "output": output,
             "shaped": box is not None and box.kind == "format"}
 

@@ -101,6 +101,11 @@ class Chart:
     measure: str = ""
     #: A word said after a value on hover, like "waiting".
     unit: str = ""
+    #: Fields that would make a good label, best first, for the editor to
+    #: offer: {"path", "group", "label"}.
+    suggested: list[dict[str, str]] = field(default_factory=list)
+    #: When no label was chosen, the one used instead, said in words.
+    guessed: str = ""
 
     # -- scale -------------------------------------------------------------
 
@@ -287,8 +292,15 @@ def from_data(data: Any, said: Mapping[str, Any]) -> Chart:
             return chart
         chart.figure = formatting._combine(numbers, combine)
         return chart
+    chart.suggested = suggest(rows)
+    if not label_path and chart.suggested:
+        # Nothing chosen yet: draw the likeliest chart rather than nothing,
+        # and say it is a guess.
+        best = chart.suggested[0]
+        label_path, group = best["path"], best["group"]
+        chart.guessed = best["label"]
     if not label_path:
-        chart.error = "Say which field labels each point."
+        chart.error = "Say what each point is: drag a field into it."
         return chart
     if combine != "count" and not value_path:
         chart.error = "Say which field holds the number."
@@ -357,6 +369,55 @@ def from_data(data: Any, said: Mapping[str, Any]) -> Chart:
         for index, series in enumerate(kept)
     ]
     return chart
+
+
+#: Fields that name one thing each, which make a chart of one bar per row.
+_UNIQUE = ("id", "link", "url", "title", "name", "description", "summary", "image", "thumbnail")
+
+
+#: Fields that hold a date, even written as a number of seconds.
+_DATES = ("published", "created", "created_utc", "date", "arrived", "updated", "watched_at", "time")
+
+
+def _dated(value: Any) -> bool:
+    """A date written as a date — 2026-10-09, or with its time — not a
+    number that merely could be one."""
+    return isinstance(value, str) and value[4:5] == "-" and value[:4].isdigit() and rest.when(value) is not None
+
+
+def suggest(rows: list[Any]) -> list[dict[str, str]]:
+    """Fields that would make a good label for a point, best first.
+
+    Words that repeat — a source, a kind, a status — say what each point is;
+    a date, grouped by day, gives a point a day; a yes or no splits in two;
+    a list gives a point for each thing in it. A field that is different in
+    every row, like a title, makes a point of every row and is left out.
+    """
+    sample = [row for row in rows[:200] if isinstance(row, (dict, list))]
+    if not sample:
+        return []
+    found: list[tuple[int, dict[str, str]]] = []
+    for path in formatting._fields(sample):
+        values = [rest.walk(row, path) for row in sample]
+        present = [value for value in values if value not in (None, "", [])]
+        if not present:
+            continue
+        last = path.rsplit(".", 1)[-1].lower()
+        if all(isinstance(value, bool) for value in present):
+            found.append((3, {"path": path, "group": "none", "label": path}))
+        elif all(isinstance(value, list) for value in present):
+            found.append((4, {"path": path, "group": "none", "label": f"each of {path}"}))
+        elif all(_dated(value) for value in present) \
+                or (last in _DATES and all(rest.when(value) is not None for value in present)):
+            found.append((2, {"path": path, "group": "day", "label": f"{path} by day"}))
+        elif all(isinstance(value, str) for value in present) and last not in _UNIQUE:
+            distinct = len({str(value) for value in present})
+            if distinct == len(present) and len(present) > 3:
+                continue
+            # Words that repeat across a few values first; one value for all last.
+            found.append((1 if 1 < distinct <= 20 else 5, {"path": path, "group": "none", "label": path}))
+    found.sort(key=lambda pair: pair[0])
+    return [pick for _, pick in found][:6]
 
 
 def _series_name(row: Any, path: str) -> str:

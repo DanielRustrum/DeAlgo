@@ -369,7 +369,22 @@
 /* A setting a field is being dragged over. */
 .graph-editor input.is-dropping, .graph-editor textarea.is-dropping { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 
-/* A Chart leaflet's settings: its type as buttons, the steps in boxes. */
+/* A Chart leaflet's settings: its type as buttons, what it will show said
+   as a sentence, the steps in boxes worded for the chart, the rest folded. */
+.graph-chart-says {
+  margin: 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line);
+  font-size: calc(13.5px * var(--text-scale)); line-height: 1.45;
+}
+.graph-chart-says strong { color: var(--accent); font-weight: 600; }
+.graph-chart-try { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.graph-chart-try:empty { display: none; }
+.graph-chart-try-name { font-size: calc(12px * var(--text-scale)); color: var(--muted); }
+.graph-chart-more { display: flex; flex-direction: column; gap: 8px; }
+.graph-chart-more > summary { cursor: pointer; color: var(--muted); font-size: calc(12.5px * var(--text-scale)); }
+.graph-chart-more[open] > summary { margin-bottom: 8px; }
+.graph-chart-more[open] { display: flex; }
+.graph-chart-step[hidden], .graph-field[hidden] { display: none; }
 .graph-chart-step {
   margin: 0; padding: 10px 12px 12px; min-width: 0;
   border: 1px solid var(--line); border-radius: 8px;
