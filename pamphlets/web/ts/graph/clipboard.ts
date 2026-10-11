@@ -89,6 +89,7 @@ async function copyGraphPicked(state: GraphState): Promise<void> {
   const count = typeof raw["count"] === "number" ? raw["count"] : ids.length;
   keepGraphClip({ mode: "copy", clip: raw["clip"], count });
   renderGraph(state);
+  renderGraphPickedBar(state);
   sayGraphBriefly(state, `Copied ${graphBoxesWord(count)}. Paste with Ctrl+V.`);
 }
 

@@ -123,6 +123,10 @@ Click a wire to pick it. Beside its ✕ is how it is drawn:
 - **Around boxes** — a path found round every box in its way (A\* over a grid), keeping to as few
   corners as it can. Where there is no way round within reach, it is drawn square.
 
+Beside those are its **colours**: the colour of what it carries (default), or one of the theme's —
+accent, sage, ochre, sky, pink, plum or slate. A run still marks a wire it went down, or stopped at,
+over whatever colour it is.
+
 Each wire keeps its own, and **Ctrl+Z** puts back the last one changed. It changes only how the wire
 is drawn, never what it carries. Wires out of a [Relay](Nodes/Canvases%20and%20Relays.md#relay)
 leave and arrive the way the relay faces.
@@ -143,6 +147,9 @@ leave and arrive the way the relay faces.
   pointer is — here, or in another [canvas](Nodes/Canvases%20and%20Relays.md#canvas). It moves the
   boxes themselves, with their history and the wires between them; into another canvas, the wires
   to boxes left behind go, since a canvas keeps to itself. Nothing is lost if it is never pasted.
+- With several selected, the bar at the top of the canvas offers the same: **Copy**, **Cut**,
+  **Paste** (once something is waiting) and **Remove**.
+- An empty source box — never told which source it is — copies as an empty box of its kind.
 - What was copied or cut is kept in this browser, so it can be pasted into another canvas, or after
   leaving the tab. On a Mac, use ⌘ for Ctrl. The keys leave alone a field being typed in, and text
   you have chosen.

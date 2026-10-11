@@ -101,3 +101,11 @@ def test_the_canvas_copies_and_pastes_through_its_api(canvas, db):
     with db.session_scope() as session:
         assert (session.get(GraphNode, feed["id"]).x, session.get(GraphNode, feed["id"]).y) == (900, 50)
     assert canvas.post("/graph/paste", data={"clip": "nonsense"}).status_code == 400
+
+
+def test_an_empty_source_box_copies_as_an_empty_box_of_its_kind(db):
+    build(db, channels=(), feeds=())
+    with db.session_scope() as session:
+        empty = graph.add_source(session, source_kind="rest", x=10, y=10)
+        made = graph.clipboard.paste(session, graph.clipboard.copy(session, [empty.id]), x=500, y=500)
+        assert [(node.kind, node.channel_pk, node.source_kind) for node in made] == [("source", None, "rest")]

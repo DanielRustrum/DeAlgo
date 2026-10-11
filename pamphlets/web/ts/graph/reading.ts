@@ -70,13 +70,16 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
 
 /** One box or piece from the server, checked field by field; null if it has no id or kind. */
 /** A Relay's one fact: what is wired into it, which is what it passes on. */
-function asGraphRelay(value: unknown): { carries: string; faces: string; facings: GraphChoice[] } | null {
+function asGraphRelay(value: unknown): { carries: string; in: string; out: string; colour: string; colours: GraphChoice[] } | null {
   const relay = asGraphRecord(value);
   if (relay === null) return null;
+  const word = (key: string, fallback: string): string => (typeof relay[key] === "string" ? String(relay[key]) : fallback);
   return {
-    carries: typeof relay["carries"] === "string" ? relay["carries"] : "",
-    faces: typeof relay["faces"] === "string" ? relay["faces"] : "right",
-    facings: asGraphChoices(relay["facings"]),
+    carries: word("carries", ""),
+    in: word("in", "left"),
+    out: word("out", "right"),
+    colour: word("colour", "default"),
+    colours: asGraphChoices(relay["colours"]),
   };
 }
 
@@ -428,7 +431,8 @@ function asGraphWire(value: unknown): GraphWireView | null {
   if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number") return null;
   const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
   const route = typeof raw["route"] === "string" ? raw["route"] : "curve";
-  return { id, from, to, kind, route };
+  const colour = typeof raw["colour"] === "string" ? raw["colour"] : "default";
+  return { id, from, to, kind, route, colour };
 }
 
 /** The graph, or null if this is not one — an error body, say. */

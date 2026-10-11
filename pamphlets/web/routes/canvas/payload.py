@@ -160,8 +160,8 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
     if node.kind == "relay":
         drawn["relay"] = {
             "carries": canvas.relaying.get(node.id, ""),
-            "faces": graph_service.looks.look(node)["faces"],
-            "facings": [{"name": n, "label": l} for n, l in graph_service.looks.FACES],
+            **graph_service.looks.look(node),
+            "colours": [{"name": n, "label": l} for n, l in graph_service.looks.LINE_COLOURS],
         }
     elif node.kind == "group":
         drawn["look"] = {

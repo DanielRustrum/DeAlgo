@@ -393,6 +393,9 @@ class GraphEdge(Base):
     # How the wire is drawn: "curve" (the default, when empty), "straight",
     # "square", or "astar" — round the boxes in its way. Drawing only.
     route: Mapped[Optional[str]] = mapped_column(String(10))
+    # Its colour, one of the theme's (services/graph/looks.py); empty for the
+    # colour of what it carries. Drawing only.
+    colour: Mapped[Optional[str]] = mapped_column(String(12))
 
     source: Mapped[GraphNode] = relationship(foreign_keys=[source_pk])
     target: Mapped[GraphNode] = relationship(foreign_keys=[target_pk])

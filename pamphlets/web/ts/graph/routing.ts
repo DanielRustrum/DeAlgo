@@ -40,10 +40,8 @@ function graphWireEnd(
     // A relay faces as it was told: in on one side, out on the opposite.
     const w = box.offsetWidth;
     const h = box.offsetHeight;
-    const faces = node.relay?.faces ?? "right";
-    const side = where === "in"
-      ? { right: "left", left: "right", down: "top", up: "bottom" }[faces] ?? "left"
-      : { right: "right", left: "left", down: "bottom", up: "top" }[faces] ?? "right";
+    // On the sides chosen for it: any two of its four.
+    const side = where === "in" ? (node.relay?.in ?? "left") : (node.relay?.out ?? "right");
     if (side === "left") return { x: node.x, y: node.y + h / 2, dx: -1, dy: 0, folded: null };
     if (side === "right") return { x: node.x + w, y: node.y + h / 2, dx: 1, dy: 0, folded: null };
     if (side === "top") return { x: node.x + w / 2, y: node.y, dx: 0, dy: -1, folded: null };
@@ -290,7 +288,14 @@ function graphFoldedAway(state: GraphState): Map<number, number> {
   return hidden;
 }
 
-/** What a picked wire offers beside its ✕: the ways it can be drawn. */
+/** The colours a wire or a relay can be: the theme's own. */
+function graphLineColours(): [string, string][] {
+  return [["default", "Default"], ["accent", "Accent"], ["sage", "Sage"], ["ochre", "Ochre"],
+    ["sky", "Sky"], ["pink", "Pink"], ["plum", "Plum"], ["slate", "Slate"]];
+}
+
+/** What a picked wire offers beside its ✕: the ways it can be drawn, and
+ *  the colours it can be. */
 function graphRouteBar(wire: GraphWireView, x: number, y: number): HTMLElement {
   const bar = graphElement("div", "graph-route-bar");
   bar.style.left = `${x}px`;
@@ -304,6 +309,17 @@ function graphRouteBar(wire: GraphWireView, x: number, y: number): HTMLElement {
     button.dataset["route"] = wire.id;
     button.dataset["routeTo"] = name ?? "curve";
     bar.appendChild(button);
+  }
+  bar.appendChild(graphElement("span", "graph-route-gap"));
+  for (const [name, label] of graphLineColours()) {
+    const swatch = graphElement("button", `graph-swatch line-${name}`);
+    swatch.setAttribute("type", "button");
+    swatch.setAttribute("aria-label", `Colour it ${label}`);
+    swatch.title = label;
+    swatch.setAttribute("aria-pressed", String(wire.colour === name));
+    swatch.dataset["wireColour"] = wire.id;
+    swatch.dataset["colourTo"] = name;
+    bar.appendChild(swatch);
   }
   return bar;
 }

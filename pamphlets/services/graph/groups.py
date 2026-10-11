@@ -159,6 +159,10 @@ def pack_nodes(
         if node.kind == "source" and node.channel is not None:
             entry["channel_id"] = node.channel.channel_id
             entry["title"] = node.channel.title
+        elif node.kind == "source":
+            # Not told which source it is yet: it travels as the kind it was
+            # dragged out as, to be told on arrival.
+            entry["source_kind"] = node.source_kind or ""
         elif node.kind == "feed" and node.playlist is not None:
             entry["title"] = node.playlist.title
         elif node.kind in CONDITION_KINDS:
@@ -193,28 +197,31 @@ def pack_nodes(
             entry["cron"] = node.cron
         packed.append(entry)
     # A path wire drawn the usual way is a pair; any other kind says what it
-    # carries, and one drawn another way says how, after that.
+    # carries, one drawn another way says how after that, and one coloured
+    # says which after that.
     wires: list[list[Any]] = []
-    for start, end, carries, route in _wires_within(session, carried, owner):
+    for start, end, carries, route, colour in _wires_within(session, carried, owner):
         if start not in refs or end not in refs:
             continue
         wire: list[Any] = [refs[start], refs[end]]
-        if carries != "content" or route:
+        if carries != "content" or route or colour:
             wire.append(carries)
-        if route:
-            wire.append(route)
+        if route or colour:
+            wire.append(route or "curve")
+        if colour:
+            wire.append(colour)
         wires.append(wire)
     return packed, wires
 
 
 def _wires_within(
     session: Session, carried: list[GraphNode], owner: OwnerId
-) -> list[tuple[int, int, str, str]]:
+) -> list[tuple[int, int, str, str, str]]:
     """Every wire with both ends inside the group, and what it carries. A
     wire out of it is not the group's to give away."""
     held = {node.id for node in carried}
     return [
-        (edge.source_pk, edge.target_pk, edge.carries, edge.route or "")
+        (edge.source_pk, edge.target_pk, edge.carries, edge.route or "", edge.colour or "")
         # As drawn: a relay travels as a relay, with its wires.
         for edge in edges(session, owner, every=True, raw=True)
         if edge.source_pk in held and edge.target_pk in held
@@ -340,7 +347,7 @@ def slot_and_wire(
         session.flush()
     # Round again while any go in: a wire out of a relay can only be drawn
     # once the wire into it is, and the file need not list that one first.
-    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and len(pair) in (2, 3, 4)]
+    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and len(pair) in (2, 3, 4, 5)]
     while waiting:
         refused = []
         for pair in waiting:
@@ -350,8 +357,10 @@ def slot_and_wire(
             carries = str(pair[2]) if len(pair) >= 3 else None
             try:
                 edge = connect(session, start, end, owner, carries=carries)
-                if edge is not None and len(pair) == 4:
+                if edge is not None and len(pair) >= 4:
                     looks.set_route(edge, str(pair[3]))
+                if edge is not None and len(pair) == 5:
+                    looks.set_colour(edge, str(pair[4]))
             except GraphError:
                 refused.append(pair)
         if len(refused) == len(waiting):
@@ -754,10 +763,13 @@ def _unpack_source(
     session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
 ) -> GraphNode | None:
     """A source box from a group file, watching its channel by id."""
+    x, y = at
     channel = _channel_for(session, entry, owner)
     if channel is None:
-        return None
-    x, y = at
+        # An empty box — dragged out, never told which source — comes as one.
+        if entry.get("channel_id"):
+            return None
+        return add_source(session, owner, source_kind=str(entry.get("source_kind") or ""), x=x, y=y)
     return add_source(session, owner, channel=channel, x=x, y=y)
 
 

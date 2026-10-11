@@ -152,6 +152,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "look", "TEXT"),
     # How a wire is drawn: curve, straight, square, or round the boxes.
     ("graph_edge", "route", "VARCHAR(10)"),
+    # A wire's colour, one of the theme's.
+    ("graph_edge", "colour", "VARCHAR(12)"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

@@ -28,12 +28,35 @@ def test_a_wire_is_drawn_the_way_it_was_told(canvas, db):
     assert canvas.post(f"/graph/wires/{edge_pk}/route", data={"route": "zigzag"}).status_code == 400
 
 
-def test_a_relay_faces_any_way(canvas):
+def test_a_relay_takes_in_and_gives_out_on_any_two_sides_in_a_colour(canvas):
     relay = only(canvas.post("/graph/nodes", data={"kind": "relay"}).json(), "relay")
-    assert relay["relay"]["faces"] == "right"
-    saved = canvas.post(f"/graph/nodes/{relay['id']}", data={"label": "", "look_faces": "down"}).json()
-    assert only(saved, "relay")["relay"]["faces"] == "down"
-    assert canvas.post(f"/graph/nodes/{relay['id']}", data={"look_faces": "sideways"}).status_code == 400
+    assert (relay["relay"]["in"], relay["relay"]["out"], relay["relay"]["colour"]) == ("left", "right", "default")
+    saved = canvas.post(f"/graph/nodes/{relay['id']}", data={
+        "label": "", "look_in": "bottom", "look_out": "left", "look_colour": "plum"}).json()
+    assert (only(saved, "relay")["relay"]["in"], only(saved, "relay")["relay"]["out"]) == ("bottom", "left")
+    assert only(saved, "relay")["relay"]["colour"] == "plum"
+    # Never in and out on the one side, nor a side it does not have.
+    assert canvas.post(f"/graph/nodes/{relay['id']}", data={"look_in": "left"}).status_code == 400
+    assert canvas.post(f"/graph/nodes/{relay['id']}", data={"look_out": "middle"}).status_code == 400
+    # One that faced a way, before sides were chosen one by one, keeps its sides.
+    old = canvas.post(f"/graph/nodes/{relay['id']}", data={"look_faces": "down"}).json()
+    assert (only(old, "relay")["relay"]["in"], only(old, "relay")["relay"]["out"]) == ("top", "bottom")
+
+
+def test_a_wire_takes_a_colour_and_keeps_it_in_a_copy(canvas, db):
+    with db.session_scope() as session:
+        one, two = graph.add_filter(session, x=0, y=0), graph.add_filter(session, x=300, y=0)
+        edge_pk = graph.connect(session, one, two).id
+        ids = [one.id, two.id]
+    drawn = canvas.post(f"/graph/wires/{edge_pk}/colour", data={"colour": "sky"}).json()
+    assert next(w for w in drawn["wires"] if w["id"] == f"edge:{edge_pk}")["colour"] == "sky"
+    assert canvas.post(f"/graph/wires/{edge_pk}/colour", data={"colour": "neon"}).status_code == 400
+    with db.session_scope() as session:
+        made = graph.clipboard.paste(session, graph.clipboard.copy(session, ids), x=0, y=400)
+        made_ids = {node.id for node in made}
+        copied = [edge for edge in graph.edges(session, every=True, raw=True)
+                  if edge.source_pk in made_ids and edge.target_pk in made_ids]
+        assert [edge.colour for edge in copied] == ["sky"]
 
 
 def test_a_group_has_a_colour_and_folds_locked_or_not(canvas):
@@ -56,7 +79,7 @@ def test_a_canvas_file_carries_everything_inside_it_and_loads_as_a_canvas(db):
         with in_canvas(room.id):
             first = graph.add_filter(session, label="First", x=10, y=20)
             relay = graph.add_relay(session, x=200, y=20)
-            looks.save(relay, {"look_faces": "up"})
+            looks.save(relay, {"look_in": "bottom", "look_out": "top", "look_colour": "pink"})
             second = graph.add_sort(session, label="Second", x=400, y=20)
             graph.connect(session, first, relay)
             looks.set_route(graph.connect(session, relay, second), "square")
@@ -77,7 +100,7 @@ def test_a_canvas_file_carries_everything_inside_it_and_loads_as_a_canvas(db):
         inside = [node for node in graph.nodes(session) if node.inside_pk == loaded.id]
         by_title = {node.title: node for node in inside}
         assert {"First", "Relay", "Second", "Band", "Comment", "Writer", "Counter", "Deeper"} <= set(by_title)
-        assert looks.look(by_title["Relay"])["faces"] == "up"
+        assert looks.look(by_title["Relay"]) == {"in": "bottom", "out": "top", "colour": "pink"}
         assert looks.look(by_title["Band"]) == {"colour": "sage", "collapsed": True}
         assert (by_title["First"].x, by_title["First"].y) == (10, 20)
         assert graph.comments.settings(by_title["Comment"])["text"] == "Hello"

@@ -368,7 +368,9 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     const carried = node.relay?.carries ?? "";
     const carries: GraphCarries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
     box.classList.add("is-relay");
-    box.dataset["faces"] = node.relay?.faces ?? "right";
+    box.dataset["in"] = node.relay?.in ?? "left";
+    box.dataset["out"] = node.relay?.out ?? "right";
+    box.dataset["line"] = node.relay?.colour ?? "default";
     if (carried === "") box.classList.add("is-empty");
     box.title = carried === "" ? "A relay: wire anything into it, and on from it." : "A relay: it passes on what is wired into it.";
     box.appendChild(graphPort("in", carries, "Takes one wire in, of any kind."));
@@ -706,6 +708,7 @@ function drawGraphWires(state: GraphState): void {
 
     const d = graphWirePath(state, wire.route, from, to);
     let classes = `graph-wire wire-${wire.kind}`;
+    if (wire.colour !== "default") classes += ` line-${wire.colour}`;
     if (wire.id === state.selectedWire) classes += " is-picked";
 
     // A two-pixel line is impossible to click. The fat one is invisible and

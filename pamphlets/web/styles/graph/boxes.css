@@ -305,10 +305,53 @@
 /* Cut, and waiting to be pasted somewhere: still here, but on its way. */
 .graph-node.is-cut { opacity: 0.45; border-style: dashed; }
 
-/* A relay facing another way: its way in and way out on the sides it faces. */
-.graph-node.kind-relay[data-faces="left"] .port-in { left: auto; right: -8px; }
-.graph-node.kind-relay[data-faces="left"] .port-out { right: auto; left: -8px; }
-.graph-node.kind-relay[data-faces="down"] .port-in,
-.graph-node.kind-relay[data-faces="up"] .port-out { top: -8px; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
-.graph-node.kind-relay[data-faces="down"] .port-out,
-.graph-node.kind-relay[data-faces="up"] .port-in { top: auto; bottom: -8px; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
+/* A relay's way in and way out, on whichever of its four sides were chosen. */
+.graph-node.kind-relay .graph-port { margin: 0; }
+.graph-node.kind-relay[data-in="left"] .port-in { top: 50%; bottom: auto; left: -8px; right: auto; margin-top: -8px; margin-left: 0; }
+.graph-node.kind-relay[data-in="right"] .port-in { top: 50%; bottom: auto; right: -8px; left: auto; margin-top: -8px; margin-left: 0; }
+.graph-node.kind-relay[data-in="top"] .port-in { top: -8px; bottom: auto; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
+.graph-node.kind-relay[data-in="bottom"] .port-in { bottom: -8px; top: auto; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
+.graph-node.kind-relay[data-out="left"] .port-out { top: 50%; bottom: auto; left: -8px; right: auto; margin-top: -8px; margin-left: 0; }
+.graph-node.kind-relay[data-out="right"] .port-out { top: 50%; bottom: auto; right: -8px; left: auto; margin-top: -8px; margin-left: 0; }
+.graph-node.kind-relay[data-out="top"] .port-out { top: -8px; bottom: auto; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
+.graph-node.kind-relay[data-out="bottom"] .port-out { bottom: -8px; top: auto; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
+
+/* A relay coloured one of the theme's colours: its ring and its dot. */
+.graph-node.kind-relay[data-line="accent"] { border-color: var(--accent); }
+.graph-node.kind-relay[data-line="accent"]::after { background: var(--accent); }
+.graph-node.kind-relay[data-line="sage"] { border-color: var(--kind-source); }
+.graph-node.kind-relay[data-line="sage"]::after { background: var(--kind-source); }
+.graph-node.kind-relay[data-line="ochre"] { border-color: var(--ochre); }
+.graph-node.kind-relay[data-line="ochre"]::after { background: var(--ochre); }
+.graph-node.kind-relay[data-line="sky"] { border-color: var(--plugin-sky); }
+.graph-node.kind-relay[data-line="sky"]::after { background: var(--plugin-sky); }
+.graph-node.kind-relay[data-line="pink"] { border-color: var(--plugin-pink); }
+.graph-node.kind-relay[data-line="pink"]::after { background: var(--plugin-pink); }
+.graph-node.kind-relay[data-line="plum"] { border-color: var(--kind-trigger); }
+.graph-node.kind-relay[data-line="plum"]::after { background: var(--kind-trigger); }
+.graph-node.kind-relay[data-line="slate"] { border-color: var(--plugin-slate); }
+.graph-node.kind-relay[data-line="slate"]::after { background: var(--plugin-slate); }
+
+/* The drawing a relay's sides are chosen on: its dot in the middle, and a
+   side to press on each of its four edges, saying In, Out, or nothing. */
+.graph-relay-sides { display: flex; flex-direction: column; gap: 8px; }
+.graph-relay-drawing {
+  position: relative; width: 150px; height: 120px; margin: 4px auto;
+  border-radius: 12px; background: var(--panel-2); border: 1px dashed var(--line);
+}
+.graph-relay-dot {
+  position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  border-radius: 50%; border: 2px solid var(--muted); background: var(--panel);
+}
+.graph-relay-side {
+  position: absolute; width: 38px; height: 24px; padding: 0; cursor: pointer;
+  font: inherit; font-size: calc(11px * var(--text-scale)); font-weight: 600;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+}
+.graph-relay-side:hover { border-color: var(--accent); }
+.graph-relay-side.is-top { left: 50%; top: 10px; margin-left: -19px; }
+.graph-relay-side.is-bottom { left: 50%; bottom: 10px; margin-left: -19px; }
+.graph-relay-side.is-left { top: 50%; left: 6px; margin-top: -12px; }
+.graph-relay-side.is-right { top: 50%; right: 6px; margin-top: -12px; }
+.graph-relay-side[data-role="in"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.graph-relay-side[data-role="out"] { background: var(--ok); border-color: var(--ok); color: var(--on-accent); }

@@ -143,8 +143,9 @@ interface GraphNodeView {
   feed: GraphFeed | null;
   /** Leaflets: what this block of a pamphlet shows, and what it could. */
   leaflet: GraphLeaflet | null;
-  /** Relays only: what is wired into it, which way it faces, and the ways it could. */
-  relay: { carries: string; faces: string; facings: GraphChoice[] } | null;
+  /** Relays only: what is wired into it, the sides it takes in and gives out
+   *  on, its colour, and the colours it could be. */
+  relay: { carries: string; in: string; out: string; colour: string; colours: GraphChoice[] } | null;
   /** Groups only: its colour, the colours it could be, and whether it is folded. */
   look: { colour: string; collapsed: boolean; colours: GraphChoice[] } | null;
   /** Comments only: its words, its colour, and the colours it could be. */
@@ -286,6 +287,8 @@ interface GraphWireView {
   kind: GraphWireKind;
   /** How it is drawn: curve, straight, square, or astar — round the boxes. */
   route: string;
+  /** Its colour, one of the theme's; "default" for the colour of what it carries. */
+  colour: string;
 }
 
 /** The whole canvas as the server sent it. */

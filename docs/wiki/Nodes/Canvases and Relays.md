@@ -48,9 +48,11 @@ many boxes as you like.
 - **It changes nothing.** Everything that reads the canvas — what a run collects, what a chart draws,
   which feed a leaflet shows, when a trigger polls — sees straight through a relay, as if the wire
   went from end to end. Relays can follow relays.
-- **It faces any way.** Its panel chooses which side takes the wire in and which gives it out: in on
-  the left and out on the right, as boxes do, or the other way round, or top to bottom, or bottom to
-  top — so a wire can turn a corner at it.
+- **Any two sides.** Its panel has a drawing of it: choose **Placing the way in** or **Placing the
+  way out**, then press one of its four sides. Put one on the other's side and the two swap, so
+  there is always one way in and one way out. A wire can come in at the bottom and leave on the
+  left — turning any corner.
+- **A colour.** Default grey, or one of the theme's: accent, sage, ochre, sky, pink, plum or slate.
 - Its two ports show when you reach for it; at rest it is just a dot on the wire.
 
 ## Comment

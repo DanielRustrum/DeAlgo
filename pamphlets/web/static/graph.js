@@ -586,6 +586,7 @@ async function copyGraphPicked(state) {
     const count = typeof raw["count"] === "number" ? raw["count"] : ids.length;
     keepGraphClip({ mode: "copy", clip: raw["clip"], count });
     renderGraph(state);
+    renderGraphPickedBar(state);
     sayGraphBriefly(state, `Copied ${graphBoxesWord(count)}. Paste with Ctrl+V.`);
 }
 /** Cut what is picked: it fades, and moves when it is pasted. */
@@ -1720,8 +1721,8 @@ function graphPadlock(shut) {
 }
 /** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
-    var _j, _k, _l, _m, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _l, _m, _o, _p, _q, _r, _s, _t, _u, _v;
     const box = graphElement("div", `graph-node kind-${node.kind}`);
     box.dataset["node"] = String(node.id);
     box.style.left = `${node.x}px`;
@@ -1734,17 +1735,17 @@ function drawGraphNode(state, node) {
     if (!node.enabled)
         box.classList.add("is-off");
     // A source wears the colour its plugin chose (kinds.css reads it).
-    const colour = (_k = (_j = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _j !== void 0 ? _j : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _k !== void 0 ? _k : "";
+    const colour = (_m = (_l = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _l !== void 0 ? _l : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _m !== void 0 ? _m : "";
     if (colour !== "")
         box.dataset["colour"] = colour;
     if (node.kind === "comment") {
         // A note left on the canvas: its words, in its colour, as big as it was
         // made — and a corner to make it bigger by. Double-clicked, written in.
-        const words = (_l = (_c = node.comment) === null || _c === void 0 ? void 0 : _c.text) !== null && _l !== void 0 ? _l : "";
+        const words = (_o = (_c = node.comment) === null || _c === void 0 ? void 0 : _c.text) !== null && _o !== void 0 ? _o : "";
         box.classList.add("is-comment");
-        box.dataset["shade"] = (_m = (_d = node.comment) === null || _d === void 0 ? void 0 : _d.colour) !== null && _m !== void 0 ? _m : "paper";
-        box.style.width = `${(_o = (_e = node.size) === null || _e === void 0 ? void 0 : _e.width) !== null && _o !== void 0 ? _o : 260}px`;
-        box.style.height = `${(_p = (_f = node.size) === null || _f === void 0 ? void 0 : _f.height) !== null && _p !== void 0 ? _p : 140}px`;
+        box.dataset["shade"] = (_p = (_d = node.comment) === null || _d === void 0 ? void 0 : _d.colour) !== null && _p !== void 0 ? _p : "paper";
+        box.style.width = `${(_q = (_e = node.size) === null || _e === void 0 ? void 0 : _e.width) !== null && _q !== void 0 ? _q : 260}px`;
+        box.style.height = `${(_r = (_f = node.size) === null || _f === void 0 ? void 0 : _f.height) !== null && _r !== void 0 ? _r : 140}px`;
         box.setAttribute("aria-label", `Comment: ${words.slice(0, 80) || "empty"}`);
         const said = graphElement("div", `graph-comment-text${words === "" ? " is-blank" : ""}`, words === "" ? "Double-click to write a comment." : words);
         box.appendChild(said);
@@ -1757,10 +1758,12 @@ function drawGraphNode(state, node) {
     if (node.kind === "relay") {
         // A point a wire passes through: a dot, with a way in and a way out of
         // whatever kind is wired into it — or, with nothing yet, of any kind.
-        const carried = (_q = (_g = node.relay) === null || _g === void 0 ? void 0 : _g.carries) !== null && _q !== void 0 ? _q : "";
+        const carried = (_s = (_g = node.relay) === null || _g === void 0 ? void 0 : _g.carries) !== null && _s !== void 0 ? _s : "";
         const carries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
         box.classList.add("is-relay");
-        box.dataset["faces"] = (_r = (_h = node.relay) === null || _h === void 0 ? void 0 : _h.faces) !== null && _r !== void 0 ? _r : "right";
+        box.dataset["in"] = (_t = (_h = node.relay) === null || _h === void 0 ? void 0 : _h.in) !== null && _t !== void 0 ? _t : "left";
+        box.dataset["out"] = (_u = (_j = node.relay) === null || _j === void 0 ? void 0 : _j.out) !== null && _u !== void 0 ? _u : "right";
+        box.dataset["line"] = (_v = (_k = node.relay) === null || _k === void 0 ? void 0 : _k.colour) !== null && _v !== void 0 ? _v : "default";
         if (carried === "")
             box.classList.add("is-empty");
         box.title = carried === "" ? "A relay: wire anything into it, and on from it." : "A relay: it passes on what is wired into it.";
@@ -2106,6 +2109,8 @@ function drawGraphWires(state) {
             continue;
         const d = graphWirePath(state, wire.route, from, to);
         let classes = `graph-wire wire-${wire.kind}`;
+        if (wire.colour !== "default")
+            classes += ` line-${wire.colour}`;
         if (wire.id === state.selectedWire)
             classes += " is-picked";
         // A two-pixel line is impossible to click. The fat one is invisible and
@@ -4319,10 +4324,20 @@ function renderGraphPickedBar(state) {
         return;
     bar.textContent = "";
     bar.appendChild(graphElement("span", "", `${state.picked.size} picked`));
-    const remove = graphElement("button", "btn btn-danger", "Remove");
-    remove.setAttribute("type", "button");
-    remove.dataset["removePicked"] = "1";
-    bar.appendChild(remove);
+    // What can be done to all of them, as the keys do it: copy, cut, paste
+    // what is waiting, take them away.
+    const action = (label, data, keys, danger = false) => {
+        const button = graphElement("button", danger ? "btn btn-danger" : "btn btn-quiet", label);
+        button.setAttribute("type", "button");
+        button.dataset[data] = "1";
+        button.title = keys;
+        bar.appendChild(button);
+    };
+    action("Copy", "copyPicked", "Ctrl+C");
+    action("Cut", "cutPicked", "Ctrl+X — they move when pasted");
+    if (graphClip() !== null)
+        action("Paste", "pasteHere", "Ctrl+V");
+    action("Remove", "removePicked", "Delete", true);
 }
 /** Move the open panel to wherever its node is now.
  *
@@ -4420,7 +4435,8 @@ function graphNodeForm(state, node) {
     }
     else if (node.kind === "relay") {
         if (node.relay !== null) {
-            form.appendChild(graphLabelled("Faces", graphLeafletSelect("look_faces", node.relay.facings, node.relay.faces)));
+            form.appendChild(graphRelaySides(form, node.relay.in, node.relay.out));
+            form.appendChild(graphLabelled("Colour", graphLeafletSelect("look_colour", node.relay.colours, node.relay.colour)));
         }
         form.appendChild(graphElement("p", "hint", "A point a wire passes through, to route it round other boxes. It takes one wire in and passes it on, unchanged, to as many boxes as you like."));
     }
@@ -4665,6 +4681,71 @@ function graphMatches(name, query) {
     const against = name.toLowerCase();
     return terms.every((term) => against.includes(term));
 }
+/** A drawing of a relay to choose its sides on: the dot, and its four
+ *  sides. Choose whether you are placing the way in or the way out, then
+ *  press a side; placed on the other one's side, the two swap. */
+function graphRelaySides(form, taken, given) {
+    const sides = { in: taken, out: given };
+    const fields = { in: document.createElement("input"), out: document.createElement("input") };
+    for (const end of ["in", "out"]) {
+        fields[end].type = "hidden";
+        fields[end].name = `look_${end}`;
+        fields[end].value = sides[end];
+        form.appendChild(fields[end]);
+    }
+    let placing = "in";
+    const holder = graphElement("div", "graph-relay-sides");
+    const modes = graphElement("div", "graph-chart-kinds");
+    modes.setAttribute("role", "radiogroup");
+    modes.setAttribute("aria-label", "Placing");
+    const drawing = graphElement("div", "graph-relay-drawing");
+    drawing.appendChild(graphElement("span", "graph-relay-dot"));
+    const buttons = new Map();
+    const show = () => {
+        modes.querySelectorAll("button").forEach((one) => {
+            one.setAttribute("aria-checked", String(one.dataset["placing"] === placing));
+        });
+        for (const [side, button] of buttons) {
+            const role = side === sides.in ? "in" : side === sides.out ? "out" : "";
+            button.dataset["role"] = role;
+            button.textContent = role === "in" ? "In" : role === "out" ? "Out" : "";
+            button.setAttribute("aria-label", `${side}${role ? `: ${role}` : ""}`);
+        }
+        fields.in.value = sides.in;
+        fields.out.value = sides.out;
+    };
+    for (const [end, label] of [["in", "Placing the way in"], ["out", "Placing the way out"]]) {
+        const mode = graphElement("button", "graph-chart-kind", label);
+        mode.setAttribute("type", "button");
+        mode.setAttribute("role", "radio");
+        mode.dataset["placing"] = end;
+        mode.addEventListener("click", () => {
+            placing = end;
+            show();
+        });
+        modes.appendChild(mode);
+    }
+    for (const side of ["top", "left", "right", "bottom"]) {
+        const button = graphElement("button", `graph-relay-side is-${side}`);
+        button.setAttribute("type", "button");
+        button.title = `The ${side} side`;
+        button.addEventListener("click", () => {
+            const other = placing === "in" ? "out" : "in";
+            // Onto the other end's side: they swap, so there is always one of each.
+            if (sides[other] === side)
+                sides[other] = sides[placing];
+            sides[placing] = side;
+            show();
+        });
+        buttons.set(side, button);
+        drawing.appendChild(button);
+    }
+    holder.appendChild(graphElement("span", "graph-field-name", "Sides — where its wire comes in and goes out"));
+    holder.appendChild(modes);
+    holder.appendChild(drawing);
+    show();
+    return holder;
+}
 
 "use strict";
 // Picking boxes and wires, and what follows from it: keys, clicks and removing.
@@ -4712,8 +4793,8 @@ function clearGraphPick(state) {
 }
 /** Handle a click on the canvas: cut a wire, run a trigger, open a box or a wire. */
 function onGraphClick(state, event) {
-    var _a, _b;
-    var _c, _d, _e, _f, _g;
+    var _a, _b, _c;
+    var _d, _e, _f, _g, _h, _j, _k, _l;
     const target = event.target;
     if (!(target instanceof Element))
         return;
@@ -4734,16 +4815,46 @@ function onGraphClick(state, event) {
         void applyGraph(state, "/graph/disconnect", new URLSearchParams({ wire: cutId }));
         return;
     }
+    // A picked wire's colour: one of the swatches beside its ✕.
+    const coloured = target.closest("[data-wire-colour]");
+    if (coloured !== null) {
+        event.preventDefault();
+        const wire = ((_d = coloured.dataset["wireColour"]) !== null && _d !== void 0 ? _d : "").replace(/^edge:/, "");
+        const before = (_e = (_a = state.wires.find((one) => one.id === coloured.dataset["wireColour"])) === null || _a === void 0 ? void 0 : _a.colour) !== null && _e !== void 0 ? _e : "default";
+        rememberGraphUndo(state, "the wire's colour", async () => {
+            await applyGraph(state, `/graph/wires/${wire}/colour`, new URLSearchParams({ colour: before }));
+        });
+        void applyGraph(state, `/graph/wires/${wire}/colour`, new URLSearchParams({ colour: (_f = coloured.dataset["colourTo"]) !== null && _f !== void 0 ? _f : "default" }));
+        return;
+    }
     // How a picked wire is drawn: one of the buttons beside its ✕.
     const routed = target.closest("[data-route]");
     if (routed !== null) {
         event.preventDefault();
-        const wire = ((_c = routed.dataset["route"]) !== null && _c !== void 0 ? _c : "").replace(/^edge:/, "");
-        const before = (_d = (_a = state.wires.find((one) => one.id === routed.dataset["route"])) === null || _a === void 0 ? void 0 : _a.route) !== null && _d !== void 0 ? _d : "curve";
+        const wire = ((_g = routed.dataset["route"]) !== null && _g !== void 0 ? _g : "").replace(/^edge:/, "");
+        const before = (_h = (_b = state.wires.find((one) => one.id === routed.dataset["route"])) === null || _b === void 0 ? void 0 : _b.route) !== null && _h !== void 0 ? _h : "curve";
         rememberGraphUndo(state, "how the wire is drawn", async () => {
             await applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: before }));
         });
-        void applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: (_e = routed.dataset["routeTo"]) !== null && _e !== void 0 ? _e : "curve" }));
+        void applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: (_j = routed.dataset["routeTo"]) !== null && _j !== void 0 ? _j : "curve" }));
+        return;
+    }
+    // The picked bar's other actions, as their keys do them.
+    if (target.closest("[data-copy-picked]") !== null) {
+        event.preventDefault();
+        void copyGraphPicked(state);
+        return;
+    }
+    if (target.closest("[data-cut-picked]") !== null) {
+        event.preventDefault();
+        cutGraphPicked(state);
+        return;
+    }
+    if (target.closest("[data-paste-here]") !== null) {
+        event.preventDefault();
+        // Pressed on the bar, the pointer is on the bar: into the middle instead.
+        state.pointer = null;
+        void pasteGraph(state);
         return;
     }
     if (target.closest("[data-remove-picked]") !== null) {
@@ -4751,7 +4862,7 @@ function onGraphClick(state, event) {
         void removeGraphPicked(state);
         return;
     }
-    const editor = (_b = target.closest("[data-editor]")) === null || _b === void 0 ? void 0 : _b.dataset["editor"];
+    const editor = (_c = target.closest("[data-editor]")) === null || _c === void 0 ? void 0 : _c.dataset["editor"];
     if (editor !== undefined) {
         event.preventDefault();
         openGraphEditor(state, Number(editor));
@@ -4805,7 +4916,7 @@ function onGraphClick(state, event) {
         event.preventDefault();
         // A filter or a trigger stands for nothing else and just goes. A channel
         // or a feed takes its history with it, so that is said out loud first.
-        const warning = (_f = remove === null || remove === void 0 ? void 0 : remove.dataset["what"]) !== null && _f !== void 0 ? _f : "";
+        const warning = (_k = remove === null || remove === void 0 ? void 0 : remove.dataset["what"]) !== null && _k !== void 0 ? _k : "";
         void removeGraphNode(state, removeId, warning);
         return;
     }
@@ -4813,7 +4924,7 @@ function onGraphClick(state, event) {
     const wanted = tab === null || tab === void 0 ? void 0 : tab.dataset["tab"];
     if (wanted !== undefined) {
         event.preventDefault();
-        const whose = Number((_g = tab === null || tab === void 0 ? void 0 : tab.dataset["for"]) !== null && _g !== void 0 ? _g : "");
+        const whose = Number((_l = tab === null || tab === void 0 ? void 0 : tab.dataset["for"]) !== null && _l !== void 0 ? _l : "");
         const box = state.nodes.find((entry) => entry.id === whose);
         state.tab = wanted === "test" ? "test" : "settings";
         if (graphTabNeedsRun(box, state.trial, wanted)) {
@@ -5258,10 +5369,13 @@ function asGraphRelay(value) {
     const relay = asGraphRecord(value);
     if (relay === null)
         return null;
+    const word = (key, fallback) => (typeof relay[key] === "string" ? String(relay[key]) : fallback);
     return {
-        carries: typeof relay["carries"] === "string" ? relay["carries"] : "",
-        faces: typeof relay["faces"] === "string" ? relay["faces"] : "right",
-        facings: asGraphChoices(relay["facings"]),
+        carries: word("carries", ""),
+        in: word("in", "left"),
+        out: word("out", "right"),
+        colour: word("colour", "default"),
+        colours: asGraphChoices(relay["colours"]),
     };
 }
 /** A group's look: its colour, the colours it could be, and whether it is folded. */
@@ -5614,7 +5728,8 @@ function asGraphWire(value) {
         return null;
     const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
     const route = typeof raw["route"] === "string" ? raw["route"] : "curve";
-    return { id, from, to, kind, route };
+    const colour = typeof raw["colour"] === "string" ? raw["colour"] : "default";
+    return { id, from, to, kind, route, colour };
 }
 /** The graph, or null if this is not one — an error body, say. */
 function asGraph(value) {
@@ -5690,8 +5805,8 @@ function asGraphError(value) {
 // Part of the Configuration canvas; see main.ts.
 /** Where a wire starts or ends, and which way it faces there. */
 function graphWireEnd(state, nodeId, where, carries) {
-    var _a, _b;
-    var _c, _d, _e;
+    var _a, _b, _c;
+    var _d, _e;
     // Folded away: the wire ends on the edge of the group it is folded into.
     const group = (_a = state.hiddenIn) === null || _a === void 0 ? void 0 : _a.get(nodeId);
     if (group !== undefined) {
@@ -5712,9 +5827,8 @@ function graphWireEnd(state, nodeId, where, carries) {
         // A relay faces as it was told: in on one side, out on the opposite.
         const w = box.offsetWidth;
         const h = box.offsetHeight;
-        const faces = (_c = (_b = node.relay) === null || _b === void 0 ? void 0 : _b.faces) !== null && _c !== void 0 ? _c : "right";
-        const side = where === "in"
-            ? (_d = { right: "left", left: "right", down: "top", up: "bottom" }[faces]) !== null && _d !== void 0 ? _d : "left" : (_e = { right: "right", left: "left", down: "bottom", up: "top" }[faces]) !== null && _e !== void 0 ? _e : "right";
+        // On the sides chosen for it: any two of its four.
+        const side = where === "in" ? ((_d = (_b = node.relay) === null || _b === void 0 ? void 0 : _b.in) !== null && _d !== void 0 ? _d : "left") : ((_e = (_c = node.relay) === null || _c === void 0 ? void 0 : _c.out) !== null && _e !== void 0 ? _e : "right");
         if (side === "left")
             return { x: node.x, y: node.y + h / 2, dx: -1, dy: 0, folded: null };
         if (side === "right")
@@ -5986,7 +6100,13 @@ function graphFoldedAway(state) {
     }
     return hidden;
 }
-/** What a picked wire offers beside its ✕: the ways it can be drawn. */
+/** The colours a wire or a relay can be: the theme's own. */
+function graphLineColours() {
+    return [["default", "Default"], ["accent", "Accent"], ["sage", "Sage"], ["ochre", "Ochre"],
+        ["sky", "Sky"], ["pink", "Pink"], ["plum", "Plum"], ["slate", "Slate"]];
+}
+/** What a picked wire offers beside its ✕: the ways it can be drawn, and
+ *  the colours it can be. */
 function graphRouteBar(wire, x, y) {
     const bar = graphElement("div", "graph-route-bar");
     bar.style.left = `${x}px`;
@@ -6000,6 +6120,17 @@ function graphRouteBar(wire, x, y) {
         button.dataset["route"] = wire.id;
         button.dataset["routeTo"] = name !== null && name !== void 0 ? name : "curve";
         bar.appendChild(button);
+    }
+    bar.appendChild(graphElement("span", "graph-route-gap"));
+    for (const [name, label] of graphLineColours()) {
+        const swatch = graphElement("button", `graph-swatch line-${name}`);
+        swatch.setAttribute("type", "button");
+        swatch.setAttribute("aria-label", `Colour it ${label}`);
+        swatch.title = label;
+        swatch.setAttribute("aria-pressed", String(wire.colour === name));
+        swatch.dataset["wireColour"] = wire.id;
+        swatch.dataset["colourTo"] = name;
+        bar.appendChild(swatch);
     }
     return bar;
 }

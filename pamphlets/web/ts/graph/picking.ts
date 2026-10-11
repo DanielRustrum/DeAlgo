@@ -66,6 +66,19 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     return;
   }
 
+  // A picked wire's colour: one of the swatches beside its ✕.
+  const coloured = target.closest<HTMLElement>("[data-wire-colour]");
+  if (coloured !== null) {
+    event.preventDefault();
+    const wire = (coloured.dataset["wireColour"] ?? "").replace(/^edge:/, "");
+    const before = state.wires.find((one): boolean => one.id === coloured.dataset["wireColour"])?.colour ?? "default";
+    rememberGraphUndo(state, "the wire's colour", async (): Promise<void> => {
+      await applyGraph(state, `/graph/wires/${wire}/colour`, new URLSearchParams({ colour: before }));
+    });
+    void applyGraph(state, `/graph/wires/${wire}/colour`, new URLSearchParams({ colour: coloured.dataset["colourTo"] ?? "default" }));
+    return;
+  }
+
   // How a picked wire is drawn: one of the buttons beside its ✕.
   const routed = target.closest<HTMLElement>("[data-route]");
   if (routed !== null) {
@@ -76,6 +89,25 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
       await applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: before }));
     });
     void applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: routed.dataset["routeTo"] ?? "curve" }));
+    return;
+  }
+
+  // The picked bar's other actions, as their keys do them.
+  if (target.closest<HTMLElement>("[data-copy-picked]") !== null) {
+    event.preventDefault();
+    void copyGraphPicked(state);
+    return;
+  }
+  if (target.closest<HTMLElement>("[data-cut-picked]") !== null) {
+    event.preventDefault();
+    cutGraphPicked(state);
+    return;
+  }
+  if (target.closest<HTMLElement>("[data-paste-here]") !== null) {
+    event.preventDefault();
+    // Pressed on the bar, the pointer is on the bar: into the middle instead.
+    state.pointer = null;
+    void pasteGraph(state);
     return;
   }
 

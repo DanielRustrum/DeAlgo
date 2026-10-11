@@ -139,10 +139,19 @@ function renderGraphPickedBar(state: GraphState): void {
 
   bar.textContent = "";
   bar.appendChild(graphElement("span", "", `${state.picked.size} picked`));
-  const remove = graphElement("button", "btn btn-danger", "Remove");
-  remove.setAttribute("type", "button");
-  remove.dataset["removePicked"] = "1";
-  bar.appendChild(remove);
+  // What can be done to all of them, as the keys do it: copy, cut, paste
+  // what is waiting, take them away.
+  const action = (label: string, data: string, keys: string, danger = false): void => {
+    const button = graphElement("button", danger ? "btn btn-danger" : "btn btn-quiet", label);
+    button.setAttribute("type", "button");
+    button.dataset[data] = "1";
+    button.title = keys;
+    bar.appendChild(button);
+  };
+  action("Copy", "copyPicked", "Ctrl+C");
+  action("Cut", "cutPicked", "Ctrl+X — they move when pasted");
+  if (graphClip() !== null) action("Paste", "pasteHere", "Ctrl+V");
+  action("Remove", "removePicked", "Delete", true);
 }
 
 /** Move the open panel to wherever its node is now.
@@ -236,7 +245,8 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   }
   else if (node.kind === "relay") {
     if (node.relay !== null) {
-      form.appendChild(graphLabelled("Faces", graphLeafletSelect("look_faces", node.relay.facings, node.relay.faces)));
+      form.appendChild(graphRelaySides(form, node.relay.in, node.relay.out));
+      form.appendChild(graphLabelled("Colour", graphLeafletSelect("look_colour", node.relay.colours, node.relay.colour)));
     }
     form.appendChild(graphElement("p", "hint",
       "A point a wire passes through, to route it round other boxes. It takes one wire in and passes it on, unchanged, to as many boxes as you like."));
@@ -503,4 +513,69 @@ function graphMatches(name: string, query: string): boolean {
   const terms = query.toLowerCase().split(/\s+/).filter((term): boolean => term !== "");
   const against = name.toLowerCase();
   return terms.every((term): boolean => against.includes(term));
+}
+
+/** A drawing of a relay to choose its sides on: the dot, and its four
+ *  sides. Choose whether you are placing the way in or the way out, then
+ *  press a side; placed on the other one's side, the two swap. */
+function graphRelaySides(form: HTMLElement, taken: string, given: string): HTMLElement {
+  const sides = { in: taken, out: given };
+  const fields = { in: document.createElement("input"), out: document.createElement("input") };
+  for (const end of ["in", "out"] as const) {
+    fields[end].type = "hidden";
+    fields[end].name = `look_${end}`;
+    fields[end].value = sides[end];
+    form.appendChild(fields[end]);
+  }
+  let placing: "in" | "out" = "in";
+  const holder = graphElement("div", "graph-relay-sides");
+  const modes = graphElement("div", "graph-chart-kinds");
+  modes.setAttribute("role", "radiogroup");
+  modes.setAttribute("aria-label", "Placing");
+  const drawing = graphElement("div", "graph-relay-drawing");
+  drawing.appendChild(graphElement("span", "graph-relay-dot"));
+  const buttons = new Map<string, HTMLElement>();
+  const show = (): void => {
+    modes.querySelectorAll<HTMLElement>("button").forEach((one): void => {
+      one.setAttribute("aria-checked", String(one.dataset["placing"] === placing));
+    });
+    for (const [side, button] of buttons) {
+      const role = side === sides.in ? "in" : side === sides.out ? "out" : "";
+      button.dataset["role"] = role;
+      button.textContent = role === "in" ? "In" : role === "out" ? "Out" : "";
+      button.setAttribute("aria-label", `${side}${role ? `: ${role}` : ""}`);
+    }
+    fields.in.value = sides.in;
+    fields.out.value = sides.out;
+  };
+  for (const [end, label] of [["in", "Placing the way in"], ["out", "Placing the way out"]] as const) {
+    const mode = graphElement("button", "graph-chart-kind", label);
+    mode.setAttribute("type", "button");
+    mode.setAttribute("role", "radio");
+    mode.dataset["placing"] = end;
+    mode.addEventListener("click", (): void => {
+      placing = end;
+      show();
+    });
+    modes.appendChild(mode);
+  }
+  for (const side of ["top", "left", "right", "bottom"]) {
+    const button = graphElement("button", `graph-relay-side is-${side}`);
+    button.setAttribute("type", "button");
+    button.title = `The ${side} side`;
+    button.addEventListener("click", (): void => {
+      const other = placing === "in" ? "out" : "in";
+      // Onto the other end's side: they swap, so there is always one of each.
+      if (sides[other] === side) sides[other] = sides[placing];
+      sides[placing] = side;
+      show();
+    });
+    buttons.set(side, button);
+    drawing.appendChild(button);
+  }
+  holder.appendChild(graphElement("span", "graph-field-name", "Sides — where its wire comes in and goes out"));
+  holder.appendChild(modes);
+  holder.appendChild(drawing);
+  show();
+  return holder;
 }

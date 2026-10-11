@@ -76,3 +76,28 @@
 }
 .graph-route:hover { color: var(--text); background: var(--panel-2); }
 .graph-route[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }
+
+/* A wire coloured one of the theme's colours. A run's marks — through,
+   stopped — still say what happened over whatever colour it is. */
+.graph-wire.line-accent:not(.is-through):not(.is-stopped) { stroke: var(--accent); }
+.graph-wire.line-sage:not(.is-through):not(.is-stopped) { stroke: var(--kind-source); }
+.graph-wire.line-ochre:not(.is-through):not(.is-stopped) { stroke: var(--ochre); }
+.graph-wire.line-sky:not(.is-through):not(.is-stopped) { stroke: var(--plugin-sky); }
+.graph-wire.line-pink:not(.is-through):not(.is-stopped) { stroke: var(--plugin-pink); }
+.graph-wire.line-plum:not(.is-through):not(.is-stopped) { stroke: var(--kind-trigger); }
+.graph-wire.line-slate:not(.is-through):not(.is-stopped) { stroke: var(--plugin-slate); }
+.graph-route-gap { width: 1px; margin: 3px 4px; background: var(--line); }
+.graph-swatch {
+  width: 18px; height: 18px; margin: 2px 1px; padding: 0; cursor: pointer;
+  border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--line);
+  background: var(--muted);
+}
+.graph-swatch.line-accent { background: var(--accent); }
+.graph-swatch.line-sage { background: var(--kind-source); }
+.graph-swatch.line-ochre { background: var(--ochre); }
+.graph-swatch.line-sky { background: var(--plugin-sky); }
+.graph-swatch.line-pink { background: var(--plugin-pink); }
+.graph-swatch.line-plum { background: var(--kind-trigger); }
+.graph-swatch.line-slate { background: var(--plugin-slate); }
+.graph-swatch.line-default { background: linear-gradient(135deg, var(--muted) 50%, var(--ochre) 50%); }
+.graph-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text); }
