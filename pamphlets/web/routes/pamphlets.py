@@ -244,11 +244,13 @@ def map_for(
     box = wired_into(session, owner, node)
     title = str(said.get("title") or "")
     if box is None:
-        placed = mapping.Map(error="Wire data into it — its { } port — to place a dot for each row.")
+        # Nothing wired in: a map of the area it is focused on, or a word on what it needs.
+        placed = mapping.Map(error="Wire data into it — its { } port — or focus it on a place.")
         data: Any = None
     else:
         data = graph_service.formatting.data_out(session, box, owner)
         placed = mapping.from_data(data, said)
+    mapping.focus_on(placed, said)
     placed.tiles, placed.credit = mapping.tiles(session)
     return fill(title, data) if title else "", placed
 

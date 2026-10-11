@@ -79,8 +79,16 @@
       <input type="text" name="credit" value="{{ '' if map_tiles_default else map_credit }}"
              placeholder="{{ map_credit_fallback }}">
     </label>
+    <label class="field">Place search
+      <input type="text" name="search" value="{{ map_search }}" placeholder="{{ map_search_fallback }}">
+    </label>
     <button class="btn btn-primary" type="submit">Save</button>
   </form>
+  <p class="hint">
+    Focusing a map on a city, a state or a country looks the name up on a place search server —
+    OpenStreetMap's Nominatim unless you name another that answers the same way. This server asks
+    it, once a second at most, only when somebody presses Find; a reader's browser never does.
+  </p>
   <p class="hint">
     An https address with <code>{z}</code>, <code>{x}</code> and <code>{y}</code> where each picture's
     zoom and place go, as tile servers give it. Leave it empty for OpenStreetMap. Most providers ask

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 
+from pamphlets.models import GraphNode
 from pamphlets.services import graph, mapping
 from pamphlets.services.graph import leaflets
 from tests.test_charts import drawn_node
@@ -114,3 +115,110 @@ def test_the_editor_places_dots_with_unsaved_settings(client, db):
     assert "A guess" in seen["output"]["note"] and "data-map" in seen["output"]["html"]
     assert seen["output"]["rows"][0] == {"lat": 51.478, "lng": -0.295, "says": "Kew"}
     assert seen["filled"]["leaflet_popup"] == "Kew"
+
+
+# -- focusing on a place ----------------------------------------------------------------
+
+#: What Nominatim answers for "paris": its box is south, north, west, east.
+PARIS = [
+    {"display_name": "Paris, Île-de-France, France", "addresstype": "city",
+     "boundingbox": ["48.8155755", "48.9021560", "2.2241220", "2.4697602"]},
+    {"display_name": "Paris, Lamar County, Texas, United States", "addresstype": "town",
+     "boundingbox": ["33.6118", "33.7217", "-95.6279", "-95.4567"]},
+    {"display_name": "Nowhere useful", "boundingbox": "not a box"},
+]
+
+
+class FakeAnswer:
+    def __init__(self, found):
+        self.found = found
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.found
+
+
+class FakeClient:
+    asked: list = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def get(self, address, params):
+        FakeClient.asked.append((address, params["q"]))
+        return FakeAnswer(PARIS)
+
+
+def a_search_server(monkeypatch):
+    from pamphlets import outgoing
+
+    FakeClient.asked = []
+    mapping._found.clear()
+    monkeypatch.setattr(outgoing, "client", FakeClient)
+    monkeypatch.setattr(mapping.time, "sleep", lambda _: None)
+
+
+def test_a_place_is_found_by_name_with_its_edges_and_asked_once(monkeypatch):
+    a_search_server(monkeypatch)
+    places = mapping.find_places("  Paris ")
+    assert [place.name for place in places] == ["Paris, Île-de-France, France",
+                                                "Paris, Lamar County, Texas, United States"]
+    # South, west, north, east.
+    assert places[0].bounds == (48.8155755, 2.224122, 48.902156, 2.4697602)
+    assert places[0].said()["bounds"] == "48.8156,2.22412,48.9022,2.46976"
+    mapping.find_places("paris")
+    assert FakeClient.asked == [(mapping.DEFAULT_SEARCH, "Paris")]
+    assert mapping.find_places("   ") == []
+
+
+def test_edges_must_be_an_area_on_the_globe():
+    assert mapping.parse_bounds("48.8,2.2,48.9,2.5") == (48.8, 2.2, 48.9, 2.5)
+    assert mapping.parse_bounds("48.9,2.2,48.8,2.5") is None   # north below south
+    assert mapping.parse_bounds("95,0,96,1") is None
+    assert mapping.parse_bounds("") is None
+
+
+def test_a_map_focused_on_a_place_shows_it_with_or_without_data(client, db, monkeypatch):
+    a_search_server(monkeypatch)
+    with db.session_scope() as session:
+        pamphlet = graph.add_pamphlet(session, label="Paris")
+        node = graph.add_piece(session, kind="leaflet-map", host=pamphlet)
+        pamphlet_pk, map_pk = pamphlet.id, node.id
+
+    found = client.post(f"/graph/nodes/{map_pk}/map/find", data={"q": "paris"}).json()["places"]
+    first = found[0]
+    saved = client.post(f"/graph/nodes/{map_pk}", data={
+        "label": "", "leaflet_focus": first["name"], "leaflet_bounds": first["bounds"],
+    })
+    assert saved.status_code == 200
+    assert next(n for n in saved.json()["nodes"] if n["id"] == map_pk)["note"] == "a map of Paris"
+
+    # Nothing wired in, and still a map: of the place.
+    page = client.get(f"/pamphlets/{pamphlet_pk}").text
+    [config] = configs(page)
+    assert config["dots"] == [] and config["bounds"] == [[48.8156, 2.22412], [48.9022, 2.46976]]
+    assert config["focus"] == "Paris, Île-de-France, France"
+
+    refused = client.post(f"/graph/nodes/{map_pk}", data={"leaflet_bounds": "north of nowhere"})
+    assert refused.status_code == 400
+    client.post(f"/graph/nodes/{map_pk}", data={"leaflet_bounds": ""})
+    with db.session_scope() as session:
+        assert leaflets.settings(session.get(GraphNode, map_pk))["focus"] == ""
+
+
+def test_the_admin_names_the_place_search_server(client, db, monkeypatch):
+    a_search_server(monkeypatch)
+    client.post("/admin/maps", data={"tiles": "", "credit": "", "search": "https://places.example/search"})
+    with db.session_scope() as session:
+        assert mapping.search_address(session) == "https://places.example/search"
+        pamphlet = graph.add_pamphlet(session, label="P")
+        map_pk = graph.add_piece(session, kind="leaflet-map", host=pamphlet).id
+    client.post(f"/graph/nodes/{map_pk}/map/find", data={"q": "Lyon"})
+    assert FakeClient.asked == [("https://places.example/search", "Lyon")]
+    refused = client.post("/admin/maps", data={"search": "http://plain.example"}, follow_redirects=False)
+    assert refused.status_code in (302, 303)

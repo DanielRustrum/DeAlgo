@@ -50,10 +50,20 @@ function mapSpec(figure) {
             });
         }
     }
+    let bounds = null;
+    const box = given["bounds"];
+    if (Array.isArray(box) && box.length === 2) {
+        const corner = (one) => Array.isArray(one) && typeof one[0] === "number" && typeof one[1] === "number" ? [one[0], one[1]] : null;
+        const south = corner(box[0]);
+        const north = corner(box[1]);
+        if (south !== null && north !== null)
+            bounds = [south, north];
+    }
     return {
         dots,
         tiles: typeof given["tiles"] === "string" ? given["tiles"] : "",
         credit: typeof given["credit"] === "string" ? given["credit"] : "",
+        bounds,
     };
 }
 /** The theme's colours a map is drawn in, as the page has them now. */
@@ -70,7 +80,9 @@ function drawMap(figure) {
     const library = window.L;
     const box = figure.querySelector(".map-js-box");
     const spec = mapSpec(figure);
-    if (library === undefined || box === null || spec === null || spec.dots.length === 0)
+    if (library === undefined || box === null || spec === null)
+        return;
+    if (spec.dots.length === 0 && spec.bounds === null)
         return;
     const before = box.pamphletsMap;
     before === null || before === void 0 ? void 0 : before.remove();
@@ -106,7 +118,10 @@ function drawMap(figure) {
         }
         placed.push([dot.lat, dot.lng]);
     }
-    if (placed.length === 1 && placed[0] !== undefined)
+    // Focused on an area, it shows that area, dots or no; else it fits the dots.
+    if (spec.bounds !== null)
+        map.fitBounds(spec.bounds, { padding: [8, 8] });
+    else if (placed.length === 1 && placed[0] !== undefined)
         map.setView(placed[0], 12);
     else
         map.fitBounds(placed, { padding: [24, 24], maxZoom: 15 });

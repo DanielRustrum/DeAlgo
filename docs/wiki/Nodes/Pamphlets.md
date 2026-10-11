@@ -115,13 +115,14 @@ Double-click it for the [editor](../The%20Configuration%20Canvas.md#the-editor):
 
 | Setting | Says |
 | --- | --- |
+| **Focus on** | A place — a city, a state, a country, an address. Type it and press **Find**, then choose which of what was found you meant; the map shows that area, with whatever dots fall in it. **Fit the dots instead** goes back to showing wherever the dots are. A map focused on a place needs no data wired in at all. |
 | **Where each row is** | The fields holding its latitude and longitude. Left empty, fields called `lat` / `latitude` and `lng` / `lon` / `longitude` are guessed — and said to be. A row without both, or with one off the globe, is left off. |
 | **Pressed, a dot says** | Words, with [`{{ fields }}`](../The%20Configuration%20Canvas.md#fields-in-settings) of its row: `{{ name }} — {{ visits }} visits`. Set as plain text. |
 | **Colour by** *(optional)* | A field whose every value gets its own colour, with a key under the map. Five are named; the rest are Other. |
 | **Size by** *(optional)* | A number: the biggest dot is the biggest number. |
 | **How many, where the rows are** | At most 1,000 dots; where the list is in the data — blank finds it. |
 
-The map fits itself round the dots. It does not catch the page's scrolling: zoom with its buttons,
+Unless it is focused on a place, the map fits itself round the dots. It does not catch the page's scrolling: zoom with its buttons,
 or with the wheel once you have clicked into it.
 
 It follows the theme. The dots are the [theme's chart colours](../Theming.md#colours), ringed in the
@@ -129,6 +130,10 @@ panel's colour; the buttons, credit and the words a dot says are in the panel an
 map's pictures are muted to greys — a little warm by day, turned dark by night — so the dots are
 what stands out. The pictures come from OpenStreetMap unless the admin names another tile server
 under [Admin → Maps](../Accounts.md#maps).
+
+A place's name is looked up on OpenStreetMap's Nominatim — or the server the admin names — by
+Pamphlets itself, only when **Find** is pressed, and at most once a second. What is chosen is kept
+as the area's edges, so showing the map never looks anything up, and a reader's browser never asks.
 
 ## The page
 

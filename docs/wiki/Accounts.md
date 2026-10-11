@@ -55,6 +55,10 @@ OpenStreetMap unless, under **Admin → Maps**, the admin names another: an `htt
 `{z}`, `{x}` and `{y}` where each picture's zoom and place go, and the credit to show on each map.
 Empty goes back to OpenStreetMap.
 
+Focusing a map on a place looks its name up on a place search server: OpenStreetMap's Nominatim,
+unless **Place search** names another that answers the same way. Pamphlets asks it, at most once a
+second, only when somebody presses Find in a Map leaflet's editor.
+
 ## How it is secured
 
 - Passwords are stored as **scrypt** hashes with a per-password salt.

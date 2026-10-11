@@ -106,7 +106,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         }
         for kind in CHART_KINDS
     },
-    MAP: {"title": "", "rows": "", "lat": "", "lng": "", "popup": "", "series": "", "size": "", "limit": 500},
+    MAP: {"title": "", "rows": "", "lat": "", "lng": "", "popup": "", "series": "", "size": "", "limit": 500,
+          # The area it is focused on: a place's name, and its edges as found.
+          "focus": "", "bounds": ""},
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
 }
@@ -239,6 +241,14 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
         if popup is not None:
             said["popup"] = popup[:500]
         number("limit", 1, 1000)
+        from ..mapping import parse_bounds
+
+        bounds = given("bounds")
+        if bounds is not None:
+            if bounds and parse_bounds(bounds) is None:
+                raise GraphError("That is not an area on the map: find the place again.")
+            said["bounds"] = bounds
+            said["focus"] = (given("focus") or "")[:300] if bounds else ""
     elif node.kind == "leaflet-text":
         if given("heading") is not None:
             said["heading"] = str(given("heading"))[:200]

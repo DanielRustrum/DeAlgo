@@ -30,6 +30,8 @@ interface MapSpec {
   dots: MapSpecDot[];
   tiles: string;
   credit: string;
+  /** The area it is focused on — south-west and north-east corners — or null to fit the dots. */
+  bounds: [[number, number], [number, number]] | null;
 }
 
 /** A map's dots and where its pictures come from, from the JSON beside it. */
@@ -60,10 +62,20 @@ function mapSpec(figure: HTMLElement): MapSpec | null {
       });
     }
   }
+  let bounds: MapSpec["bounds"] = null;
+  const box = given["bounds"];
+  if (Array.isArray(box) && box.length === 2) {
+    const corner = (one: unknown): [number, number] | null =>
+      Array.isArray(one) && typeof one[0] === "number" && typeof one[1] === "number" ? [one[0], one[1]] : null;
+    const south = corner(box[0]);
+    const north = corner(box[1]);
+    if (south !== null && north !== null) bounds = [south, north];
+  }
   return {
     dots,
     tiles: typeof given["tiles"] === "string" ? given["tiles"] : "",
     credit: typeof given["credit"] === "string" ? given["credit"] : "",
+    bounds,
   };
 }
 
@@ -80,7 +92,8 @@ function drawMap(figure: HTMLElement): void {
   const library = window.L;
   const box = figure.querySelector<HTMLElement>(".map-js-box");
   const spec = mapSpec(figure);
-  if (library === undefined || box === null || spec === null || spec.dots.length === 0) return;
+  if (library === undefined || box === null || spec === null) return;
+  if (spec.dots.length === 0 && spec.bounds === null) return;
   const before = (box as HTMLElement & { pamphletsMap?: LeafletMap }).pamphletsMap;
   before?.remove();
 
@@ -117,7 +130,9 @@ function drawMap(figure: HTMLElement): void {
     }
     placed.push([dot.lat, dot.lng]);
   }
-  if (placed.length === 1 && placed[0] !== undefined) map.setView(placed[0], 12);
+  // Focused on an area, it shows that area, dots or no; else it fits the dots.
+  if (spec.bounds !== null) map.fitBounds(spec.bounds, { padding: [8, 8] });
+  else if (placed.length === 1 && placed[0] !== undefined) map.setView(placed[0], 12);
   else map.fitBounds(placed, { padding: [24, 24], maxZoom: 15 });
 
   (box as HTMLElement & { pamphletsMap?: LeafletMap }).pamphletsMap = map;

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .... import outgoing
 from ....db import session_scope
 from ....models import GraphNode
-from ....services import charting, writing
+from ....services import charting, mapping, writing
 from ....services import graph as graph_service
 from ....services.graph import formatting, inspecting
 from ....services.graph.inspecting import side
@@ -33,6 +33,27 @@ router = APIRouter()
 #: Boxes the editor opens on, and whether their settings are in it.
 WITH_SETTINGS = ("transform", "format", "text", *graph_service.leaflets.DATA_LEAFLETS)
 WITHOUT_SETTINGS = ("source", *inspecting.OPERATIONS, "deposit", "withdraw", "feed")
+
+
+@router.post("/graph/nodes/{node_pk}/map/find")
+async def graph_find_place(request: Request, node_pk: int) -> JSONResponse:
+    """Look a place up for a Map leaflet to focus on: what the words might
+    be, with each one's edges. Asked of the place search server, here, only
+    when somebody presses Find."""
+    owner = owner_of(request)
+    words = str((await request.form()).get("q") or "")
+    with session_scope() as session:
+        node = session.scalar(
+            owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
+        )
+        if node is None or node.kind != graph_service.leaflets.MAP:
+            return JSONResponse({"error": "That is not a Map leaflet."}, status_code=404)
+        address = mapping.search_address(session)
+    try:
+        places = mapping.find_places(words, address)
+    except mapping.SearchError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    return JSONResponse({"places": [place.said() for place in places]})
 
 
 @router.post("/graph/nodes/{node_pk}/inspect")
@@ -168,7 +189,7 @@ def _map(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, str
     heading, placed = map_for(session, owner, node, said)
     output = side([{"lat": dot.lat, "lng": dot.lng, "says": dot.says} for dot in placed.dots], "data")
     output["html"] = TEMPLATES.get_template("_map.html").render(map=placed, map_label=heading)
-    output["error"] = placed.error if not placed.dots else ""
+    output["error"] = placed.error if not placed.drawn else ""
     output["guessed"] = placed.guessed
     if placed.guessed:
         output["note"] = (f"A guess, while nothing is chosen: {placed.guessed} as latitude and "

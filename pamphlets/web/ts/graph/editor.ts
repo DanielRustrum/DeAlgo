@@ -274,7 +274,7 @@ function graphEditorSettings(form: HTMLFormElement, node: GraphNodeView): void {
   else if (node.kind === "text") graphTextBoxFields(form, node, true);
   else if (node.kind === "leaflet-map" && node.leaflet !== null) {
     const leaflet = node.leaflet;
-    graphMapEditorFields(form, leaflet, (key: string): string => {
+    graphMapEditorFields(form, node.id, leaflet, (key: string): string => {
       const value = leaflet.settings[key];
       return value === null || value === undefined ? "" : String(value);
     });

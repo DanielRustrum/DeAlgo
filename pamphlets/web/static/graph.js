@@ -2234,7 +2234,7 @@ function graphEditorSettings(form, node) {
         graphTextBoxFields(form, node, true);
     else if (node.kind === "leaflet-map" && node.leaflet !== null) {
         const leaflet = node.leaflet;
-        graphMapEditorFields(form, leaflet, (key) => {
+        graphMapEditorFields(form, node.id, leaflet, (key) => {
             const value = leaflet.settings[key];
             return value === null || value === undefined ? "" : String(value);
         });
@@ -3304,12 +3304,13 @@ function graphMapFields(form, node, leaflet, said) {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "none")));
     form.appendChild(graphElement("p", "hint", leaflet.wired
         ? `Shows ${node.note !== "" ? node.note : "the data wired in"}. Double-click to change it.`
-        : "Wire data in — the { } port — from a source, an operation or a Transform box: a dot for each row with a latitude and a longitude."));
+        : "Wire data in — the { } port — from a source, an operation or a Transform box: a dot for each row with a latitude and a longitude. Or double-click to focus it on a place."));
 }
 /** A Map leaflet's settings in the editor: where each row is, what its dot
  *  says, and what colours and sizes the dots — said back as one sentence. */
-function graphMapEditorFields(form, leaflet, said) {
+function graphMapEditorFields(form, nodeId, leaflet, said) {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_title", said("title"), "none — or words, with {{ fields }}")));
+    graphMapFocus(form, nodeId, said);
     if (!leaflet.wired) {
         form.appendChild(graphElement("p", "hint", "Wire data into it — its { } port — to place a dot for each row."));
         return;
@@ -3343,8 +3344,9 @@ function graphMapEditorFields(form, leaflet, said) {
     more.appendChild(graphLabelled("At most", graphLeafletNumber("leaflet_limit", said("limit"), 1, 1000)));
     more.appendChild(graphLabelled("Rows are at", graphLeafletText("leaflet_rows", said("rows"), "found by itself — or a path like data.children")));
     form.appendChild(more);
+    const focus = form.querySelector("input[name='leaflet_focus']");
     const retell = () => {
-        var _a;
+        var _a, _b, _c;
         const strong = (text) => graphElement("strong", "", text);
         const plain = (text) => document.createTextNode(text);
         const guess = (_a = says.dataset["guessed"]) !== null && _a !== void 0 ? _a : "";
@@ -3359,6 +3361,9 @@ function graphMapEditorFields(form, leaflet, said) {
             parts.push(plain(", coloured by "), strong(graphChartNamed(series)));
         if (graphChartNamed(size) !== "")
             parts.push(plain(", as big as "), strong(graphChartNamed(size)));
+        const over = (_c = ((_b = focus === null || focus === void 0 ? void 0 : focus.value) !== null && _b !== void 0 ? _b : "").split(",")[0]) !== null && _c !== void 0 ? _c : "";
+        if (over !== "")
+            parts.push(plain(", over "), strong(over));
         parts.push(plain("."));
         says.replaceChildren(...parts);
     };
@@ -3366,6 +3371,102 @@ function graphMapEditorFields(form, leaflet, said) {
     form.addEventListener("change", retell);
     form.addEventListener("graph-chart-guess", retell);
     retell();
+}
+/** Where a map looks: an area found by its name — a city, a state, a
+ *  country, an address — or, with none, wherever its dots are. The name is
+ *  looked up only when Find is pressed; what is chosen is kept as its edges. */
+function graphMapFocus(form, nodeId, said) {
+    const focus = document.createElement("input");
+    focus.type = "hidden";
+    focus.name = "leaflet_focus";
+    focus.value = said("focus");
+    const bounds = document.createElement("input");
+    bounds.type = "hidden";
+    bounds.name = "leaflet_bounds";
+    bounds.value = said("bounds");
+    form.appendChild(focus);
+    form.appendChild(bounds);
+    const set = graphElement("fieldset", "graph-chart-step");
+    set.appendChild(graphElement("legend", "", "Focus on"));
+    const now = graphElement("p", "graph-map-focus");
+    const words = document.createElement("input");
+    words.type = "search";
+    words.placeholder = "a city, a state, a country, an address";
+    words.setAttribute("aria-label", "Place to focus on");
+    const find = graphElement("button", "btn btn-quiet", "Find");
+    find.setAttribute("type", "button");
+    const row = graphElement("div", "graph-map-find");
+    row.appendChild(words);
+    row.appendChild(find);
+    const found = graphElement("div", "graph-map-found");
+    set.appendChild(now);
+    set.appendChild(row);
+    set.appendChild(found);
+    form.appendChild(set);
+    const choose = (name, edges) => {
+        focus.value = name;
+        bounds.value = edges;
+        show();
+        found.replaceChildren();
+        form.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const show = () => {
+        if (bounds.value === "") {
+            now.replaceChildren(document.createTextNode("Wherever its dots are."));
+            return;
+        }
+        const clear = graphElement("button", "graph-map-clear", "Fit the dots instead");
+        clear.setAttribute("type", "button");
+        clear.addEventListener("click", () => choose("", ""));
+        now.replaceChildren(graphElement("strong", "", focus.value || "The chosen area"), document.createTextNode(" "), clear);
+    };
+    const look = async () => {
+        const asked = words.value.trim();
+        if (asked === "")
+            return;
+        found.replaceChildren(graphElement("p", "hint", "Looking it up…"));
+        let answer;
+        try {
+            answer = await askGraph(`/graph/nodes/${nodeId}/map/find`, new URLSearchParams({ q: asked }));
+        }
+        catch (_a) {
+            found.replaceChildren(graphElement("p", "error-note", "No connection, so it could not be looked up."));
+            return;
+        }
+        const raw = asGraphRecord(answer);
+        if (raw !== null && typeof raw["error"] === "string") {
+            found.replaceChildren(graphElement("p", "error-note", raw["error"]));
+            return;
+        }
+        const places = raw !== null && Array.isArray(raw["places"]) ? raw["places"] : [];
+        const picks = [];
+        for (const entry of places) {
+            const place = asGraphRecord(entry);
+            if (place === null || typeof place["name"] !== "string" || typeof place["bounds"] !== "string")
+                continue;
+            const name = place["name"];
+            const edges = place["bounds"];
+            const pick = graphElement("button", "graph-map-place");
+            pick.setAttribute("type", "button");
+            pick.appendChild(graphElement("span", "", name));
+            if (typeof place["kind"] === "string" && place["kind"] !== "")
+                pick.appendChild(graphElement("small", "", place["kind"]));
+            pick.addEventListener("click", () => choose(name, edges));
+            picks.push(pick);
+        }
+        found.replaceChildren(...(picks.length > 0 ? picks : [graphElement("p", "hint", "Nowhere by that name was found.")]));
+    };
+    find.addEventListener("click", () => {
+        void look();
+    });
+    // Enter in the box finds, rather than saving the box's form.
+    words.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter")
+            return;
+        event.preventDefault();
+        void look();
+    });
+    show();
 }
 
 "use strict";

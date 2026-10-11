@@ -4,12 +4,12 @@
 {% set m = map %}
 {% if m is none %}
   <p class="paper-note">Nothing to place yet.</p>
-{% elif m.error and not m.dots %}
+{% elif not m.drawn %}
   <p class="paper-note">{{ m.error }}</p>
 {% else %}
   <figure class="map-js" data-map>
     <div class="map-js-box" role="region"
-         aria-label="{{ map_label or 'A map' }}: {{ m.dots | length }} {{ 'place' if m.dots | length == 1 else 'places' }}"></div>
+         aria-label="{{ map_label or 'A map' }}{{ ' of ' ~ m.focus if m.focus }}: {{ m.dots | length }} {{ 'place' if m.dots | length == 1 else 'places' }}"></div>
     {% if m.series %}
     <ul class="map-js-legend" aria-label="Colours">
       {% for name, slot in m.series %}<li><span class="map-js-key" data-slot="{{ slot }}"></span>{{ name }}</li>{% endfor %}

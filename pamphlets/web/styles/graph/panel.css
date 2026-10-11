@@ -385,6 +385,25 @@
 .graph-chart-more[open] > summary { margin-bottom: 8px; }
 .graph-chart-more[open] { display: flex; }
 .graph-chart-step[hidden], .graph-field[hidden] { display: none; }
+
+/* A Map leaflet's focus: the area it shows now, a box to find another by
+   name, and what that name was found to be, to choose from. */
+.graph-map-focus { margin: 0; font-size: calc(13px * var(--text-scale)); }
+.graph-map-clear {
+  font: inherit; font-size: calc(12px * var(--text-scale)); padding: 0; border: 0; background: none;
+  color: var(--accent); cursor: pointer; text-decoration: underline;
+}
+.graph-map-find { display: flex; gap: 6px; }
+.graph-map-find input { flex: 1 1 auto; min-width: 0; }
+.graph-map-found { display: flex; flex-direction: column; gap: 4px; }
+.graph-map-found:empty { display: none; }
+.graph-map-place {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left;
+  font: inherit; font-size: calc(12.5px * var(--text-scale)); padding: 6px 10px; cursor: pointer;
+  color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.graph-map-place:hover, .graph-map-place:focus-visible { border-color: var(--accent); }
+.graph-map-place small { color: var(--muted); }
 .graph-chart-step {
   margin: 0; padding: 10px 12px 12px; min-width: 0;
   border: 1px solid var(--line); border-radius: 8px;

@@ -81,7 +81,10 @@ def switch_algorithms(request: Request, allowed: str = Form("")) -> Response:
 def _maps_context(session: Session) -> dict[str, Any]:
     """Where maps' pictures come from, for the Maps section."""
     address, credit = mapping.tiles(session)
+    search = mapping.search_address(session)
     return {
+        "map_search": "" if search == mapping.DEFAULT_SEARCH else search,
+        "map_search_fallback": mapping.DEFAULT_SEARCH,
         "map_tiles": address, "map_credit": credit,
         "map_tiles_default": address == mapping.DEFAULT_TILES,
         "map_tiles_fallback": mapping.DEFAULT_TILES, "map_credit_fallback": mapping.DEFAULT_CREDIT,
@@ -89,13 +92,17 @@ def _maps_context(session: Session) -> dict[str, Any]:
 
 
 @router.post("/admin/maps")
-def choose_map_tiles(request: Request, tiles: str = Form(""), credit: str = Form("")) -> Response:
-    """Point every map at another tile server, or back at OpenStreetMap."""
-    problem = mapping.tiles_problem(tiles.strip())
+def choose_map_tiles(
+    request: Request, tiles: str = Form(""), credit: str = Form(""), search: str = Form(""),
+) -> Response:
+    """Point every map at another tile server — and its place search at
+    another server — or back at OpenStreetMap's."""
+    problem = mapping.tiles_problem(tiles.strip()) or mapping.search_problem(search.strip())
     if problem:
         return redirect("/admin#maps", err=problem)
     with session_scope() as session:
         mapping.set_tiles(session, tiles, credit)
+        mapping.set_search_address(session, search)
     return redirect(
         "/admin#maps",
         ok="Maps draw from your tile server." if tiles.strip() else "Maps draw from OpenStreetMap.",
