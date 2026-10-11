@@ -301,3 +301,6 @@
 }
 .graph-comment-edit:focus { outline: none; box-shadow: none; }
 .graph-node.kind-comment .graph-comment-grip { right: 2px; bottom: 2px; }
+
+/* Cut, and waiting to be pasted somewhere: still here, but on its way. */
+.graph-node.is-cut { opacity: 0.45; border-style: dashed; }

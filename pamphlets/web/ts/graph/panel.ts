@@ -322,23 +322,68 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
  *
  *  One question for the lot rather than one each: a person removing four
  *  nodes has decided once, and asking four times is a way of being ignored. */
-async function removeGraphPicked(state: GraphState): Promise<void> {
+async function removeGraphPicked(state: GraphState, fromKey = false): Promise<void> {
   const going = state.nodes.filter((node): boolean => state.picked.has(node.id));
   if (going.length === 0) return;
 
   const costly = going.filter((node): boolean => graphRemovalWarning(node) !== "");
-  const named = going.map((node): string => node.title).join(", ");
-  const asked =
-    costly.length === 0
-      ? `Remove ${going.length} node${going.length === 1 ? "" : "s"}? (${named})`
-      : `Remove ${named}? The channels and feeds among them go too, with their history; anything already in a feed stays put.`;
-  if (!(await askGraphSure(state, asked))) return;
+  // From the Delete key, with nothing at stake, it goes at once — and an undo
+  // puts it back, from a copy taken first. Where a channel's history or a
+  // feed's items would go too, it asks, as the Remove button does: that
+  // cannot be put back.
+  const putBack = fromKey && costly.length === 0 ? await graphTakeBackCopy(state, going) : null;
+  if (putBack === null) {
+    const named = going.map((node): string => node.title).join(", ");
+    const asked =
+      costly.length === 0
+        ? `Remove ${going.length} node${going.length === 1 ? "" : "s"}? (${named})`
+        : `Remove ${named}? The channels and feeds among them go too, with their history; anything already in a feed stays put.`;
+    if (!(await askGraphSure(state, asked))) return;
+  }
 
   state.selectedNode = null;
   state.picked = new Set<number>();
   for (const node of going) {
     await applyGraph(state, `/graph/nodes/${node.id}/delete`, new URLSearchParams());
   }
+  if (putBack !== null) rememberGraphUndo(state, "the boxes you took away", putBack);
+}
+
+/** A way to put boxes back once they are gone: a copy of them, pasted where
+ *  they were, and the wires to the boxes around them drawn again. Null if
+ *  no copy could be taken — then it is asked about instead. */
+async function graphTakeBackCopy(state: GraphState, going: GraphNodeView[]): Promise<(() => Promise<void>) | null> {
+  let answer: unknown;
+  try {
+    answer = await askGraph("/graph/copy", new URLSearchParams({ nodes: going.map((node): number => node.id).join(",") }));
+  } catch {
+    return null;
+  }
+  const clip = asGraphRecord(answer)?.["clip"];
+  if (clip === undefined) return null;
+  const ids = new Set(going.map((node): number => node.id));
+  const boxes = going.filter((node): boolean => node.piece === null);
+  const left = Math.min(...(boxes.length > 0 ? boxes : going).map((node): number => node.x));
+  const top = Math.min(...(boxes.length > 0 ? boxes : going).map((node): number => node.y));
+  // The wires out to boxes that stay; the ones between the boxes going travel in the copy.
+  const across = state.wires
+    .filter((wire): boolean => ids.has(wire.from) !== ids.has(wire.to))
+    .map((wire): { from: number; to: number; carries: GraphCarries } => ({
+      from: wire.from, to: wire.to, carries: graphWireCarries(state, wire),
+    }));
+  return async (): Promise<void> => {
+    const pasted = asGraphRecord(await askGraph("/graph/paste", new URLSearchParams({
+      clip: JSON.stringify(clip), x: String(left), y: String(top),
+    })));
+    const made = asGraphRecord(pasted?.["made"]) ?? {};
+    const now = (id: number): number => (typeof made[String(id)] === "number" ? (made[String(id)] as number) : id);
+    for (const wire of across) {
+      await askGraph("/graph/connect", new URLSearchParams({
+        source: String(now(wire.from)), target: String(now(wire.to)), carries: wire.carries,
+      }));
+    }
+    await applyGraph(state, "/api/graph", null);
+  };
 }
 
 /** The switch every box has: whether it is doing anything at all.

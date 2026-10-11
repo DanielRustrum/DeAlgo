@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Form, Request
@@ -88,6 +90,51 @@ def graph_disconnect(request: Request, wire: str = Form(...)) -> JSONResponse:
         if kind == "edge" and rest.isdigit():
             graph_service.disconnect(session, int(rest), owner)
         return JSONResponse(graph_payload(session, owner))
+
+
+def _picked(text: str) -> list[int]:
+    """Box ids, as a form sends them: "3,7,12"."""
+    return [int(one) for one in text.split(",") if one.strip().isdigit()]
+
+
+@router.post("/graph/copy")
+def graph_copy(request: Request, nodes: str = Form("")) -> JSONResponse:
+    """The picked boxes, packed to be pasted — kept by the browser, so a copy
+    can be pasted into another canvas, or after leaving the tab."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        try:
+            clip = graph_service.clipboard.copy(session, _picked(nodes), owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"clip": clip, "count": sum(1 for one in clip["nodes"] if "under" not in one)})
+
+
+@router.post("/graph/paste")
+def graph_paste(
+    request: Request, clip: str = Form(""), cut: str = Form(""), x: int = Form(40), y: int = Form(40),
+) -> JSONResponse:
+    """Paste here: what was copied, made again — or what was cut, moved."""
+    owner = owner_of(request)
+    copied_from: dict[int, int] = {}
+    with session_scope() as session:
+        try:
+            if cut:
+                placed = graph_service.clipboard.move(session, _picked(cut), owner, x=x, y=y)
+            else:
+                try:
+                    given = json.loads(clip)
+                except ValueError:
+                    given = None
+                placed = graph_service.clipboard.paste(session, given, owner, x=x, y=y, copied_from=copied_from)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        answer = graph_payload(session, owner)
+        # What landed, for the browser to pick: the boxes, not their pieces.
+        answer["pasted"] = [node.id for node in placed if node.attached_to is None]
+        # Which box each copy is of, for an undo to put wires back.
+        answer["made"] = {str(was): now for was, now in copied_from.items()}
+        return JSONResponse(answer)
 
 
 @router.post("/graph/nodes")

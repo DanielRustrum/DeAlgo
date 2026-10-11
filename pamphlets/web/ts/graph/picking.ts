@@ -227,12 +227,6 @@ function onGraphKeyDown(state: GraphState, event: KeyboardEvent): void {
     clearGraphPick(state);
     return;
   }
-  if (event.key === "Delete" || event.key === "Backspace") {
-    if (state.picked.size === 0 || !graphTakesTheKey(event.target)) return;
-    event.preventDefault();
-    void removeGraphPicked(state);
-    return;
-  }
   if (event.key !== "Enter" && event.key !== " ") return;
   const nodeId = graphNodeIdFrom(event.target);
   if (nodeId === null) return;

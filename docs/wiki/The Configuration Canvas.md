@@ -113,12 +113,25 @@ On a source, an operation (Filter, Sort, Tag, Decay, Expire), a Deposit or Withd
 **Input & output** shows the two sides only: those boxes are set in their panel. A source shows
 only what it gives out.
 
-## Selecting and removing
+## Selecting, copying and removing
 
-- **Shift-click** boxes, or **Shift-drag** across empty canvas, to select several.
-- **Delete** or **Backspace** removes the selection, after asking. **Escape** clears it.
-- Removing a source or feed box also removes the source or feed behind it — unless another box
-  still stands for it.
+- **Shift-click** boxes, or **Shift-drag** across empty canvas, to select several. **Escape** clears
+  the selection.
+- **Delete** or **Backspace** removes what is selected. With nothing at stake — filters, sorts,
+  pieces, comments, relays — it goes at once, and **Ctrl+Z** puts it back where it was, wires and
+  all. A source or feed box asks first: removing it also removes the source or feed behind it, with
+  its history, unless another box still stands for it, and that cannot be undone.
+- **Ctrl+C** copies what is selected — with the pieces slotted under it, whatever a selected group
+  surrounds, and the wires between them — and **Ctrl+V** pastes it where the pointer is, as new
+  boxes. A source or feed box pastes as another box for the *same* source or feed, as drawing one
+  twice does: a copy never duplicates a feed or what it has collected. Ctrl+Z takes a paste away.
+- **Ctrl+X** cuts what is selected: it fades, and stays until **Ctrl+V** moves it to where the
+  pointer is — here, or in another [canvas](Nodes/Canvases%20and%20Relays.md#canvas). It moves the
+  boxes themselves, with their history and the wires between them; into another canvas, the wires
+  to boxes left behind go, since a canvas keeps to itself. Nothing is lost if it is never pasted.
+- What was copied or cut is kept in this browser, so it can be pasted into another canvas, or after
+  leaving the tab. On a Mac, use ⌘ for Ctrl. The keys leave alone a field being typed in, and text
+  you have chosen.
 
 ## Moving around
 

@@ -80,7 +80,6 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
         raise GraphError("That node is not a group.")
 
     carried = inside(session, group, owner)
-    refs = {node.id: index for index, node in enumerate(carried)}
 
     # Keys last: a box keeps the key it was given, whether by an earlier
     # export or by the file it was loaded from, so the chain of copies of
@@ -92,6 +91,26 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             node.group_key = _new_key()
     session.flush()
 
+    packed, wires = pack_nodes(session, carried, group.x, group.y, owner)
+
+    return {
+        "pamphlets_group": GROUP_FORMAT,
+        "id": group.group_key,
+        "name": group.label or "Group",
+        "width": group.width or GROUP_SIZE[0],
+        "height": group.height or GROUP_SIZE[1],
+        "nodes": packed,
+        "wires": wires,
+    }
+
+
+def pack_nodes(
+    session: Session, carried: list[GraphNode], left: int, top: int, owner: OwnerId = None,
+) -> tuple[list[dict[str, Any]], list[list[Any]]]:
+    """Boxes as they travel in a file or a copy: each one's settings, where it
+    is from (`left`, `top`), what it is slotted under — and the wires between
+    them, a path wire as a pair and any other kind saying what it carries."""
+    refs = {node.id: index for index, node in enumerate(carried)}
     # A leaflet showing a feed in the group travels pointing at that feed's
     # box, since a feed's id means nothing to the account loading the file.
     feed_refs = {
@@ -105,8 +124,8 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             "ref": refs[node.id],
             "key": node.group_key,
             "kind": node.kind,
-            "x": node.x - group.x,
-            "y": node.y - group.y,
+            "x": node.x - left,
+            "y": node.y - top,
             "label": node.label,
             "enabled": node.enabled,
         }
@@ -162,21 +181,12 @@ def export_group(session: Session, node_pk: int, owner: OwnerId = None) -> dict[
             entry["every_minutes"] = node.every_minutes
             entry["cron"] = node.cron
         packed.append(entry)
-
-    return {
-        "pamphlets_group": GROUP_FORMAT,
-        "id": group.group_key,
-        "name": group.label or "Group",
-        "width": group.width or GROUP_SIZE[0],
-        "height": group.height or GROUP_SIZE[1],
-        "nodes": packed,
-        # A path wire is a pair; any other kind says what it carries.
-        "wires": [
-            [refs[start], refs[end]] if carries == "content" else [refs[start], refs[end], carries]
-            for start, end, carries in _wires_within(session, carried, owner)
-            if start in refs and end in refs
-        ],
-    }
+    wires = [
+        [refs[start], refs[end]] if carries == "content" else [refs[start], refs[end], carries]
+        for start, end, carries in _wires_within(session, carried, owner)
+        if start in refs and end in refs
+    ]
+    return packed, wires
 
 
 def _wires_within(
@@ -187,7 +197,8 @@ def _wires_within(
     held = {node.id for node in carried}
     return [
         (edge.source_pk, edge.target_pk, edge.carries)
-        for edge in edges(session, owner, every=True)
+        # As drawn: a relay travels as a relay, with its wires.
+        for edge in edges(session, owner, every=True, raw=True)
         if edge.source_pk in held and edge.target_pk in held
     ]
 
@@ -242,11 +253,11 @@ def import_group(
     for entry in payload.get("nodes") or []:
         if not isinstance(entry, dict):
             continue
-        node = _unpack(session, entry, owner, at=(x + int(entry.get("x") or 0),
+        node = unpack(session, entry, owner, at=(x + int(entry.get("x") or 0),
                                                   y + int(entry.get("y") or 0)))
         if node is not None:
             node.group_key = _key_of(entry)
-            _apply(session, node, entry, owner)
+            apply(session, node, entry, owner)
             made[int(entry.get("ref", -1))] = node
     session.flush()
 
@@ -258,7 +269,7 @@ def import_group(
             _slot(session, entry, made, owner)
     session.flush()
 
-    _slot_and_wire(session, payload, made, owner, slot=False)
+    slot_and_wire(session, payload, made, owner, slot=False)
     return group
 
 
@@ -289,7 +300,7 @@ def _slot(
         return
 
 
-def _slot_and_wire(
+def slot_and_wire(
     session: Session,
     payload: dict[str, Any],
     made: dict[int, GraphNode],
@@ -309,20 +320,26 @@ def _slot_and_wire(
             if isinstance(entry, dict):
                 _slot(session, entry, made, owner)
         session.flush()
-    for pair in payload.get("wires") or []:
-        if not isinstance(pair, list) or len(pair) not in (2, 3):
-            continue
-        start, end = made.get(pair[0]), made.get(pair[1])
-        if start is None or end is None:
-            continue
-        carries = str(pair[2]) if len(pair) == 3 else None
-        try:
-            connect(session, start, end, owner, carries=carries)
-        except GraphError:
-            continue
+    # Round again while any go in: a wire out of a relay can only be drawn
+    # once the wire into it is, and the file need not list that one first.
+    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and len(pair) in (2, 3)]
+    while waiting:
+        refused = []
+        for pair in waiting:
+            start, end = made.get(pair[0]), made.get(pair[1])
+            if start is None or end is None:
+                continue
+            carries = str(pair[2]) if len(pair) == 3 else None
+            try:
+                connect(session, start, end, owner, carries=carries)
+            except GraphError:
+                refused.append(pair)
+        if len(refused) == len(waiting):
+            break
+        waiting = refused
 
 
-def _apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: OwnerId) -> None:
+def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: OwnerId) -> None:
     """Write what a file says about one box onto it: its name, whether it is
     on, and the settings of its kind. The same for a box just made from the
     file and one the file is updating, so the two cannot come out different.
@@ -492,7 +509,7 @@ def update_group(
             node = None
             keyed.pop(key, None)
         if node is None:
-            node = _unpack(session, entry, owner, at=(
+            node = unpack(session, entry, owner, at=(
                 group.x + int(entry.get("x") or 0), group.y + int(entry.get("y") or 0)))
             if node is None:
                 continue
@@ -500,7 +517,7 @@ def update_group(
             result.added += 1
         else:
             result.updated += 1
-        _apply(session, node, entry, owner)
+        apply(session, node, entry, owner)
         made[int(entry.get("ref", -1))] = node
     session.flush()
 
@@ -515,7 +532,7 @@ def update_group(
             node.attached_to = None
             node.attached_side = None
     session.flush()
-    _slot_and_wire(session, payload, made, owner)
+    slot_and_wire(session, payload, made, owner)
 
     group.label = str(payload.get("name") or group.label or "Group")
     group.width = max(group.width or GROUP_SIZE[0], int(payload.get("width") or 0))
@@ -552,7 +569,7 @@ def _take_away(session: Session, node: GraphNode, owner: OwnerId, result: GroupU
     result.removed += 1
 
 
-def _unpack(
+def unpack(
     session: Session, entry: dict[str, Any], owner: OwnerId, *, at: tuple[int, int]
 ) -> GraphNode | None:
     """One node out of a group file."""
@@ -596,6 +613,13 @@ def _unpack(
 
     if kind == "pamphlet":
         return add_pamphlet(session, owner, label=label, x=x, y=y)
+
+    if kind == "group":
+        # Only in a copy: a group's own file is the group, not one of its boxes.
+        return add_group(
+            session, owner, label=label, x=x, y=y,
+            width=int(entry.get("width") or GROUP_SIZE[0]), height=int(entry.get("height") or GROUP_SIZE[1]),
+        )
 
     if kind == "format":
         return add_format(session, owner, label=label, x=x, y=y)

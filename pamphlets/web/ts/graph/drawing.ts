@@ -570,6 +570,7 @@ function drawGraphNodes(state: GraphState): void {
     state.parts.layer.appendChild(box);
   }
   placeGraphPieces(state);
+  markGraphCut(state);
 }
 
 /** Stack each slotted piece under whatever it is slotted into.

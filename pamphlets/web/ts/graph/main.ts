@@ -76,6 +76,14 @@ function listenToGraph(state: GraphState): void {
     void onGraphSubmit(state, event);
   });
 
+  // Copy, cut, paste and delete: on the document for the same reason as undo
+  // below — a press on a box does not give the canvas the keyboard.
+  document.addEventListener("keydown", (event: KeyboardEvent): void => onGraphClipboardKey(state, event));
+  // Where a paste lands: wherever the pointer last was over the drawing.
+  canvas.addEventListener("pointermove", (event: PointerEvent): void => {
+    state.pointer = pointInGraph(state, event);
+  });
+
   // On the document, not the canvas: after a drag the focus may be anywhere,
   // and an undo that only works while the canvas happens to be focused is an
   // undo nobody can rely on.
@@ -173,6 +181,7 @@ function startGraph(canvas: HTMLElement): void {
     undo: [],
     inside: null,
     trail: [],
+    pointer: null,
   };
   // The canvas that was open when the tab was left, if any: the server says
   // the top instead if it has gone.

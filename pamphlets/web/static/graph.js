@@ -500,6 +500,201 @@ function graphChartTry(form, suggested, guessed) {
 }
 
 "use strict";
+// Copy, cut, paste and delete on the canvas, from the keyboard.
+//
+// Ctrl+C (⌘C) copies what is picked; Ctrl+V pastes it where the pointer is,
+// in whatever canvas is open. Ctrl+X cuts: the boxes fade, and pasting moves
+// them there — nothing is taken away until then. Delete or Backspace takes
+// away what is picked, asking first where something is at stake.
+//
+// What was copied or cut is kept in this browser rather than this page, so
+// it can be pasted into another canvas, or after leaving the tab.
+//
+// Part of the Configuration canvas; see main.ts.
+/** Where the clipboard is kept. */
+function graphClipKey() {
+    return "pamphlets-canvas-clip";
+}
+/** What is waiting to be pasted, if anything is. */
+function graphClip() {
+    var _a;
+    let kept = null;
+    try {
+        kept = JSON.parse((_a = window.localStorage.getItem(graphClipKey())) !== null && _a !== void 0 ? _a : "null");
+    }
+    catch (_b) {
+        return null;
+    }
+    const raw = asGraphRecord(kept);
+    if (raw === null || (raw["mode"] !== "copy" && raw["mode"] !== "cut"))
+        return null;
+    const ids = Array.isArray(raw["ids"]) ? raw["ids"].filter((one) => typeof one === "number") : [];
+    return {
+        mode: raw["mode"],
+        clip: raw["clip"],
+        ids,
+        count: typeof raw["count"] === "number" ? raw["count"] : ids.length,
+    };
+}
+function keepGraphClip(clip) {
+    try {
+        if (clip === null)
+            window.localStorage.removeItem(graphClipKey());
+        else
+            window.localStorage.setItem(graphClipKey(), JSON.stringify(clip));
+    }
+    catch (_a) {
+        // Storage refused: nothing can wait to be pasted, then.
+    }
+}
+/** Say something briefly over the canvas. */
+function sayGraphBriefly(state, words) {
+    showGraphVerdict(state, words);
+    window.setTimeout(() => {
+        var _a;
+        if (((_a = state.parts.verdict) === null || _a === void 0 ? void 0 : _a.textContent) === words)
+            showGraphVerdict(state, null);
+    }, 2600);
+}
+/** "3 boxes", "1 box". */
+function graphBoxesWord(count) {
+    return `${count} box${count === 1 ? "" : "es"}`;
+}
+/** The boxes picked now, oldest pick first. */
+function graphPickedIds(state) {
+    return state.nodes.filter((node) => state.picked.has(node.id)).map((node) => node.id);
+}
+/** Copy what is picked, to be pasted — here, or in another canvas. */
+async function copyGraphPicked(state) {
+    var _a;
+    const ids = graphPickedIds(state);
+    if (ids.length === 0)
+        return;
+    let answer;
+    try {
+        answer = await askGraph("/graph/copy", new URLSearchParams({ nodes: ids.join(",") }));
+    }
+    catch (_b) {
+        showGraphError(state, "No connection, so nothing was copied.");
+        return;
+    }
+    const raw = asGraphRecord(answer);
+    if (raw === null || raw["clip"] === undefined) {
+        showGraphError(state, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That could not be copied.");
+        return;
+    }
+    const count = typeof raw["count"] === "number" ? raw["count"] : ids.length;
+    keepGraphClip({ mode: "copy", clip: raw["clip"], count });
+    renderGraph(state);
+    sayGraphBriefly(state, `Copied ${graphBoxesWord(count)}. Paste with Ctrl+V.`);
+}
+/** Cut what is picked: it fades, and moves when it is pasted. */
+function cutGraphPicked(state) {
+    const ids = graphPickedIds(state).filter((id) => {
+        const node = state.nodes.find((one) => one.id === id);
+        return node !== undefined && node.piece === null;
+    });
+    if (ids.length === 0)
+        return;
+    keepGraphClip({ mode: "cut", ids, count: ids.length });
+    renderGraph(state);
+    sayGraphBriefly(state, `Cut ${graphBoxesWord(ids.length)}. Paste with Ctrl+V to move them — here, or in another canvas.`);
+}
+/** Paste where the pointer is: a copy made again, or a cut moved. */
+async function pasteGraph(state) {
+    var _a, _b, _c, _d;
+    const clip = graphClip();
+    if (clip === null)
+        return;
+    const at = (_a = state.pointer) !== null && _a !== void 0 ? _a : graphMiddle(state);
+    const body = new URLSearchParams({ x: String(Math.round(at.x)), y: String(Math.round(at.y)) });
+    if (clip.mode === "cut")
+        body.set("cut", ((_b = clip.ids) !== null && _b !== void 0 ? _b : []).join(","));
+    else
+        body.set("clip", JSON.stringify(clip.clip));
+    const before = new Set(state.nodes.map((node) => node.id));
+    let answer;
+    try {
+        answer = await askGraph("/graph/paste", body);
+    }
+    catch (_e) {
+        showGraphError(state, "No connection, so nothing was pasted.");
+        return;
+    }
+    const view = asGraph(answer);
+    if (view === null) {
+        showGraphError(state, (_c = asGraphError(answer)) !== null && _c !== void 0 ? _c : "That could not be pasted here.");
+        return;
+    }
+    const raw = asGraphRecord(answer);
+    const pasted = raw !== null && Array.isArray(raw["pasted"])
+        ? raw["pasted"].filter((one) => typeof one === "number")
+        : [];
+    state.nodes = view.nodes;
+    state.wires = view.wires;
+    state.trail = view.trail;
+    // What landed is what is picked now, ready to be dragged into place.
+    state.selectedNode = pasted.length === 1 ? ((_d = pasted[0]) !== null && _d !== void 0 ? _d : null) : null;
+    state.picked = new Set(pasted);
+    state.selectedWire = null;
+    if (clip.mode === "cut") {
+        // A cut goes once: what it moved is where it was pasted.
+        keepGraphClip(null);
+    }
+    else {
+        const made = pasted.filter((id) => !before.has(id));
+        rememberGraphUndo(state, "the paste", async () => {
+            for (const id of made)
+                await applyGraph(state, `/graph/nodes/${id}/delete`, new URLSearchParams());
+        });
+    }
+    showGraphError(state, null);
+    renderGraph(state);
+}
+/** The middle of what is on screen, in the drawing's own coordinates. */
+function graphMiddle(state) {
+    const frame = state.parts.canvas.getBoundingClientRect();
+    return pointInGraph(state, { clientX: frame.left + frame.width / 2, clientY: frame.top + frame.height / 2 });
+}
+/** Fade the boxes a cut is waiting to move. */
+function markGraphCut(state) {
+    var _a;
+    const clip = graphClip();
+    const cut = new Set(clip !== null && clip.mode === "cut" ? ((_a = clip.ids) !== null && _a !== void 0 ? _a : []) : []);
+    for (const [id, box] of state.boxes)
+        box.classList.toggle("is-cut", cut.has(id));
+}
+/** The keys: copy, cut, paste and delete, whenever the canvas is open and
+ *  nothing else — a field being typed in, a dialog, chosen text — has them. */
+function onGraphClipboardKey(state, event) {
+    var _a, _b;
+    var _c;
+    if (!state.parts.canvas.isConnected || !graphTakesTheKey(event.target))
+        return;
+    if (document.querySelector("dialog[open]") !== null)
+        return;
+    const chosen = (_c = (_b = (_a = window.getSelection) === null || _a === void 0 ? void 0 : _a.call(window)) === null || _b === void 0 ? void 0 : _b.toString()) !== null && _c !== void 0 ? _c : "";
+    const key = event.key.toLowerCase();
+    const held = event.ctrlKey || event.metaKey;
+    if (held && key === "c" && chosen === "" && state.picked.size > 0) {
+        event.preventDefault();
+        void copyGraphPicked(state);
+    }
+    else if (held && key === "x" && chosen === "" && state.picked.size > 0) {
+        event.preventDefault();
+        cutGraphPicked(state);
+    }
+    else if (held && key === "v" && graphClip() !== null) {
+        event.preventDefault();
+        void pasteGraph(state);
+    }
+    else if (!held && (event.key === "Delete" || event.key === "Backspace") && state.picked.size > 0) {
+        event.preventDefault();
+        void removeGraphPicked(state, true);
+    }
+}
+
+"use strict";
 // The canvas's dialogs: the run log, reaching back, and loading a group.
 //
 // Part of the Configuration canvas; see main.ts.
@@ -1764,6 +1959,7 @@ function drawGraphNodes(state) {
         state.parts.layer.appendChild(box);
     }
     placeGraphPieces(state);
+    markGraphCut(state);
 }
 /** Stack each slotted piece under whatever it is slotted into.
  *
@@ -4261,22 +4457,71 @@ function graphNodeForm(state, node) {
  *
  *  One question for the lot rather than one each: a person removing four
  *  nodes has decided once, and asking four times is a way of being ignored. */
-async function removeGraphPicked(state) {
+async function removeGraphPicked(state, fromKey = false) {
     const going = state.nodes.filter((node) => state.picked.has(node.id));
     if (going.length === 0)
         return;
     const costly = going.filter((node) => graphRemovalWarning(node) !== "");
-    const named = going.map((node) => node.title).join(", ");
-    const asked = costly.length === 0
-        ? `Remove ${going.length} node${going.length === 1 ? "" : "s"}? (${named})`
-        : `Remove ${named}? The channels and feeds among them go too, with their history; anything already in a feed stays put.`;
-    if (!(await askGraphSure(state, asked)))
-        return;
+    // From the Delete key, with nothing at stake, it goes at once — and an undo
+    // puts it back, from a copy taken first. Where a channel's history or a
+    // feed's items would go too, it asks, as the Remove button does: that
+    // cannot be put back.
+    const putBack = fromKey && costly.length === 0 ? await graphTakeBackCopy(state, going) : null;
+    if (putBack === null) {
+        const named = going.map((node) => node.title).join(", ");
+        const asked = costly.length === 0
+            ? `Remove ${going.length} node${going.length === 1 ? "" : "s"}? (${named})`
+            : `Remove ${named}? The channels and feeds among them go too, with their history; anything already in a feed stays put.`;
+        if (!(await askGraphSure(state, asked)))
+            return;
+    }
     state.selectedNode = null;
     state.picked = new Set();
     for (const node of going) {
         await applyGraph(state, `/graph/nodes/${node.id}/delete`, new URLSearchParams());
     }
+    if (putBack !== null)
+        rememberGraphUndo(state, "the boxes you took away", putBack);
+}
+/** A way to put boxes back once they are gone: a copy of them, pasted where
+ *  they were, and the wires to the boxes around them drawn again. Null if
+ *  no copy could be taken — then it is asked about instead. */
+async function graphTakeBackCopy(state, going) {
+    var _a;
+    let answer;
+    try {
+        answer = await askGraph("/graph/copy", new URLSearchParams({ nodes: going.map((node) => node.id).join(",") }));
+    }
+    catch (_b) {
+        return null;
+    }
+    const clip = (_a = asGraphRecord(answer)) === null || _a === void 0 ? void 0 : _a["clip"];
+    if (clip === undefined)
+        return null;
+    const ids = new Set(going.map((node) => node.id));
+    const boxes = going.filter((node) => node.piece === null);
+    const left = Math.min(...(boxes.length > 0 ? boxes : going).map((node) => node.x));
+    const top = Math.min(...(boxes.length > 0 ? boxes : going).map((node) => node.y));
+    // The wires out to boxes that stay; the ones between the boxes going travel in the copy.
+    const across = state.wires
+        .filter((wire) => ids.has(wire.from) !== ids.has(wire.to))
+        .map((wire) => ({
+        from: wire.from, to: wire.to, carries: graphWireCarries(state, wire),
+    }));
+    return async () => {
+        var _a;
+        const pasted = asGraphRecord(await askGraph("/graph/paste", new URLSearchParams({
+            clip: JSON.stringify(clip), x: String(left), y: String(top),
+        })));
+        const made = (_a = asGraphRecord(pasted === null || pasted === void 0 ? void 0 : pasted["made"])) !== null && _a !== void 0 ? _a : {};
+        const now = (id) => (typeof made[String(id)] === "number" ? made[String(id)] : id);
+        for (const wire of across) {
+            await askGraph("/graph/connect", new URLSearchParams({
+                source: String(now(wire.from)), target: String(now(wire.to)), carries: wire.carries,
+            }));
+        }
+        await applyGraph(state, "/api/graph", null);
+    };
 }
 /** The switch every box has: whether it is doing anything at all.
  *
@@ -4577,13 +4822,6 @@ async function removeGraphNode(state, nodeId, warning) {
 function onGraphKeyDown(state, event) {
     if (event.key === "Escape") {
         clearGraphPick(state);
-        return;
-    }
-    if (event.key === "Delete" || event.key === "Backspace") {
-        if (state.picked.size === 0 || !graphTakesTheKey(event.target))
-            return;
-        event.preventDefault();
-        void removeGraphPicked(state);
         return;
     }
     if (event.key !== "Enter" && event.key !== " ")
@@ -6280,6 +6518,13 @@ function listenToGraph(state) {
     canvas.addEventListener("submit", (event) => {
         void onGraphSubmit(state, event);
     });
+    // Copy, cut, paste and delete: on the document for the same reason as undo
+    // below — a press on a box does not give the canvas the keyboard.
+    document.addEventListener("keydown", (event) => onGraphClipboardKey(state, event));
+    // Where a paste lands: wherever the pointer last was over the drawing.
+    canvas.addEventListener("pointermove", (event) => {
+        state.pointer = pointInGraph(state, event);
+    });
     // On the document, not the canvas: after a drag the focus may be anywhere,
     // and an undo that only works while the canvas happens to be focused is an
     // undo nobody can rely on.
@@ -6372,6 +6617,7 @@ function startGraph(canvas) {
         undo: [],
         inside: null,
         trail: [],
+        pointer: null,
     };
     // The canvas that was open when the tab was left, if any: the server says
     // the top instead if it has gone.

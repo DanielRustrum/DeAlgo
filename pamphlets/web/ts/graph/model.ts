@@ -382,6 +382,8 @@ interface GraphState {
   inside: number | null;
   /** The way back out of it, from the top down. */
   trail: GraphTrailStep[];
+  /** Where the pointer last was over the drawing: where a paste lands. */
+  pointer: { x: number; y: number } | null;
 }
 
 /** How to put one action back.
