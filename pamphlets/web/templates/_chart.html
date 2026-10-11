@@ -1,6 +1,6 @@
 {#- A Chart leaflet's chart (services/charting.py): one scale, the six series
-    colours in fixed order, a legend for two series or more, what a mark
-    says on hover and focus, and the same numbers as a table. -#}
+    colours in fixed order, a legend for two series or more, and what a mark
+    says on hover and focus. -#}
 {% set c = chart %}
 {% if c is none %}
   <p class="paper-note">Nothing to count yet.</p>
@@ -106,26 +106,17 @@
   </div>
   {% endif %}
 
-  {#- The same numbers as a table: the chart itself when drawn as one, else
-      folded under it — except in the canvas's editor, which has its own
-      Table view beside the chart (folded=false there). -#}
-  {% if c.kind == 'table' or folded is not defined or folded %}
+  {#- Drawn as a table, the table is the chart. -#}
   {% if c.kind == 'table' %}
   <table class="chart-plain">
-  {% else %}
-  <details class="chart-table">
-    <summary>As a table</summary>
-    <table>
-  {% endif %}
-      <thead><tr><th scope="col"></th>
-        {% for s in c.series %}<th scope="col">{{ s.name if many else (c.measure or 'Value') }}</th>{% endfor %}</tr></thead>
-      <tbody>
-        {% for cat in c.categories %}{% set i = loop.index0 %}
-        <tr><td>{{ cat.long }}</td>{% for s in c.series %}<td>{{ chart_number(s.values[i]) }}</td>{% endfor %}</tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% if c.kind != 'table' %}</details>{% endif %}
+    <thead><tr><th scope="col"></th>
+      {% for s in c.series %}<th scope="col">{{ s.name if many else (c.measure or 'Value') }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for cat in c.categories %}{% set i = loop.index0 %}
+      <tr><td>{{ cat.long }}</td>{% for s in c.series %}<td>{{ chart_number(s.values[i]) }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% endif %}
 </div>
 {% endif %}

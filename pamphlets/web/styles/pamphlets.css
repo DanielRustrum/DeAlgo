@@ -301,11 +301,8 @@
 .chart-row:hover::after, .chart-row:focus-visible::after,
 .chart-spot:hover::after, .chart-spot:focus-visible::after { opacity: 1; }
 
-.chart-table { margin-top: 10px; font-size: calc(12.5px * var(--text-scale)); }
-.chart-table summary { color: var(--muted); cursor: pointer; }
-.chart-table table { margin-top: 6px; }
 .chart-plain { font-size: calc(13px * var(--text-scale)); }
-.chart-plain td + td, .chart-table td + td { font-variant-numeric: tabular-nums; }
+.chart-plain td + td { font-variant-numeric: tabular-nums; }
 .chart-measure { margin-top: 4px; }
 
 @variant phone {

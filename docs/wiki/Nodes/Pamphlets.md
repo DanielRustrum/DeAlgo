@@ -80,8 +80,8 @@ was.
 A Format box wired in has already said which rows, labels and numbers there are, so its chart
 offers only **Draw as**. A Transform giving one number shows it large, whatever it is drawn as.
 
-Every chart has one scale. Each mark shows its number on hover or focus, two series or more always
-have a legend, and **As a table** shows every number. Counted or added up, a point with nothing in
+Every chart has one scale. Each mark shows its number on hover or focus, and two series or more
+always have a legend. To show every number, draw it as a **Table**. Counted or added up, a point with nothing in
 it is zero; averaged, it is a gap in the line. Built-in charts count in UTC days.
 
 A switched-off leaflet is left off the page.

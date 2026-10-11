@@ -151,6 +151,8 @@ def test_every_kind_draws(client, db):
             leaflets.save(node, {"leaflet_kind": kind}, set())
         page = client.get(f"/pamphlets/{pamphlet_pk}").text
         assert mark in page, kind
+        # Only the chart: no table folded under it unless drawn as one.
+        assert ("As a table" in page) is False, kind
         # More than one series: always a legend.
         if kind != "pie":
             assert "chart-legend" in page, kind
