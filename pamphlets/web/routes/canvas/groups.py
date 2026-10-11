@@ -1,4 +1,8 @@
-"""Handing a group to somebody else, and taking one in."""
+"""Handing a canvas to somebody else as a .pam file, and taking one in.
+
+A Canvas box is saved as a file — everything inside it. Groups are not any
+more; a group file saved before still loads, and a group loaded from one can
+still be brought up to date from a newer copy."""
 
 from __future__ import annotations
 
@@ -21,20 +25,20 @@ router = APIRouter()
 
 
 @router.get("/graph/nodes/{node_pk}/export")
-def graph_export_group(request: Request, node_pk: int) -> Response:
-    """A group as a file to hand somebody else."""
+def graph_export_canvas(request: Request, node_pk: int) -> Response:
+    """A Canvas box, and everything inside it, as a .pam file."""
     owner = owner_of(request)
     with session_scope() as session:
         try:
-            packed = graph_service.export_group(session, node_pk, owner)
+            packed = graph_service.canvas_files.export_canvas(session, node_pk, owner)
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
-    name = re.sub(r"[^A-Za-z0-9]+", "-", str(packed["name"])).strip("-").lower() or "group"
+    name = re.sub(r"[^A-Za-z0-9]+", "-", str(packed["name"])).strip("-").lower() or "canvas"
     return Response(
         content=json.dumps(packed, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="pamphlets-{name}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="{name}{graph_service.canvas_files.SUFFIX}"'},
     )
 
 
@@ -42,7 +46,9 @@ def graph_export_group(request: Request, node_pk: int) -> Response:
 async def graph_import_group(
     request: Request, file: UploadFile = File(...), x: int = Form(40), y: int = Form(40)
 ) -> JSONResponse:
-    """Load a group somebody else exported. Nothing existing is changed."""
+    """Load a .pam canvas file — or a group file saved before groups gave
+    way to canvases — into the canvas being worked in. Nothing existing is
+    changed."""
     owner = owner_of(request)
     raw = await file.read()
     try:
@@ -52,9 +58,12 @@ async def graph_import_group(
 
     with session_scope() as session:
         try:
-            graph_service.import_group(
-                session, payload, owner, x=x, y=y, file_name=file.filename or ""
-            )
+            if graph_service.canvas_files.is_canvas_file(payload):
+                graph_service.canvas_files.import_canvas(session, payload, owner, x=x, y=y)
+            else:
+                graph_service.import_group(
+                    session, payload, owner, x=x, y=y, file_name=file.filename or ""
+                )
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(graph_payload(session, owner))

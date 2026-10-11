@@ -22,8 +22,17 @@ A **Canvas** box is a canvas of its own: a room for part of your setup. **Double
 The box says how many boxes are inside it, and is drawn as a stack of sheets: there is more
 underneath.
 
-A Canvas box in a [group](Groups.md) travels in the group's file as an empty canvas: what is inside it
-does not go with it yet.
+### Saving a canvas as a file
+
+**Save as file** in a Canvas box's panel saves it, and everything inside it, as a **`.pam`** file to
+hand somebody else: each box with its settings, the pieces slotted under it, comments, relays and
+groups as they look, the canvases inside it and everything inside those, and the wires between —
+each drawn the way it was. See [what travels in a file](Groups.md#what-travels-in-a-file); no history
+and no credentials go with it.
+
+**Load a canvas** on the canvas (the arrow into a tray) takes a `.pam` file in as a new Canvas box,
+with all of that inside, in whichever canvas you have open. Nothing already here is changed. It is
+refused if it would take canvases more than five deep where it is loaded.
 
 ## Relay
 
@@ -39,6 +48,9 @@ many boxes as you like.
 - **It changes nothing.** Everything that reads the canvas — what a run collects, what a chart draws,
   which feed a leaflet shows, when a trigger polls — sees straight through a relay, as if the wire
   went from end to end. Relays can follow relays.
+- **It faces any way.** Its panel chooses which side takes the wire in and which gives it out: in on
+  the left and out on the right, as boxes do, or the other way round, or top to bottom, or bottom to
+  top — so a wire can turn a corner at it.
 - Its two ports show when you reach for it; at rest it is just a dot on the wire.
 
 ## Comment

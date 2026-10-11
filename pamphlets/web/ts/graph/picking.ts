@@ -66,6 +66,19 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     return;
   }
 
+  // How a picked wire is drawn: one of the buttons beside its ✕.
+  const routed = target.closest<HTMLElement>("[data-route]");
+  if (routed !== null) {
+    event.preventDefault();
+    const wire = (routed.dataset["route"] ?? "").replace(/^edge:/, "");
+    const before = state.wires.find((one): boolean => one.id === routed.dataset["route"])?.route ?? "curve";
+    rememberGraphUndo(state, "how the wire is drawn", async (): Promise<void> => {
+      await applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: before }));
+    });
+    void applyGraph(state, `/graph/wires/${wire}/route`, new URLSearchParams({ route: routed.dataset["routeTo"] ?? "curve" }));
+    return;
+  }
+
   if (target.closest<HTMLElement>("[data-remove-picked]") !== null) {
     event.preventDefault();
     void removeGraphPicked(state);

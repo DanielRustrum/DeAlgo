@@ -113,6 +113,20 @@ On a source, an operation (Filter, Sort, Tag, Decay, Expire), a Deposit or Withd
 **Input & output** shows the two sides only: those boxes are set in their panel. A source shows
 only what it gives out.
 
+## How wires are drawn
+
+Click a wire to pick it. Beside its ✕ is how it is drawn:
+
+- **Curve** — a smooth S from port to port, the way wires start out.
+- **Straight** — a straight line.
+- **Square** — straight out of each port, then across in right angles.
+- **Around boxes** — a path found round every box in its way (A\* over a grid), keeping to as few
+  corners as it can. Where there is no way round within reach, it is drawn square.
+
+Each wire keeps its own, and **Ctrl+Z** puts back the last one changed. It changes only how the wire
+is drawn, never what it carries. Wires out of a [Relay](Nodes/Canvases%20and%20Relays.md#relay)
+leave and arrive the way the relay faces.
+
 ## Selecting, copying and removing
 
 - **Shift-click** boxes, or **Shift-drag** across empty canvas, to select several. **Escape** clears

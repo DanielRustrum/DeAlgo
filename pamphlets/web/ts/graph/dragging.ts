@@ -178,6 +178,15 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   if (target instanceof Element && target.closest(".graph-palette")) return;
   // A comment being written in: the press is for the words.
   if (target instanceof Element && target.closest(".graph-comment-edit")) return;
+  // A group's fold: up to its name, or out again — locked or not.
+  const fold = target instanceof Element ? target.closest<HTMLElement>("[data-fold]") : null;
+  if (fold) {
+    const id = Number(fold.dataset["fold"]);
+    const folded = state.nodes.find((entry): boolean => entry.id === id)?.look?.collapsed === true;
+    void applyGraph(state, `/graph/nodes/${id}/fold`, new URLSearchParams({ folded: folded ? "0" : "1" }));
+    event.preventDefault();
+    return;
+  }
   // A group's padlock: hold it in place, or let it go.
   const lock = target instanceof Element ? target.closest<HTMLElement>("[data-lock]") : null;
   if (lock) {

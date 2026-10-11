@@ -166,7 +166,8 @@ function graphLoadTrouble(dialog: HTMLDialogElement, message: string | null): vo
   said.hidden = message === null;
 }
 
-/** Load a group somebody exported, into the middle of the view. */
+/** Load a .pam canvas file — or a group file from before — into the middle
+ *  of the view, in the canvas that is open. */
 async function loadGraphGroup(
   state: GraphState,
   file: File,
@@ -181,11 +182,11 @@ async function loadGraphGroup(
   body.append("y", String(Math.round(centre.y - 150)));
 
   try {
-    const response = await fetch("/graph/groups", { method: "POST", body });
+    const response = await fetch(graphAddress("/graph/groups"), { method: "POST", body });
     const answer = (await response.json()) as unknown;
     const view = asGraph(answer);
     if (view === null) {
-      graphLoadTrouble(dialog, asGraphError(answer) ?? "That group could not be loaded.");
+      graphLoadTrouble(dialog, asGraphError(answer) ?? "That file could not be loaded.");
       return;
     }
     state.nodes = view.nodes;
@@ -204,7 +205,7 @@ async function updateGraphGroup(state: GraphState, groupId: number, file: File):
   const body = new FormData();
   body.append("file", file);
   try {
-    const response = await fetch(`/graph/nodes/${groupId}/update`, { method: "POST", body });
+    const response = await fetch(graphAddress(`/graph/nodes/${groupId}/update`), { method: "POST", body });
     const answer = (await response.json()) as unknown;
     const view = asGraph(answer);
     if (view === null) {

@@ -70,9 +70,25 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
 
 /** One box or piece from the server, checked field by field; null if it has no id or kind. */
 /** A Relay's one fact: what is wired into it, which is what it passes on. */
-function asGraphRelay(value: unknown): { carries: string } | null {
+function asGraphRelay(value: unknown): { carries: string; faces: string; facings: GraphChoice[] } | null {
   const relay = asGraphRecord(value);
-  return relay === null ? null : { carries: typeof relay["carries"] === "string" ? relay["carries"] : "" };
+  if (relay === null) return null;
+  return {
+    carries: typeof relay["carries"] === "string" ? relay["carries"] : "",
+    faces: typeof relay["faces"] === "string" ? relay["faces"] : "right",
+    facings: asGraphChoices(relay["facings"]),
+  };
+}
+
+/** A group's look: its colour, the colours it could be, and whether it is folded. */
+function asGraphLook(value: unknown): { colour: string; collapsed: boolean; colours: GraphChoice[] } | null {
+  const look = asGraphRecord(value);
+  if (look === null) return null;
+  return {
+    colour: typeof look["colour"] === "string" ? look["colour"] : "paper",
+    collapsed: look["collapsed"] === true,
+    colours: asGraphChoices(look["colours"]),
+  };
 }
 
 /** A comment's words and colour, and the colours it could be. */
@@ -119,6 +135,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     feed: asGraphFeed(raw["feed"]),
     leaflet: asGraphLeaflet(raw["leaflet"]),
     relay: asGraphRelay(raw["relay"]),
+    look: asGraphLook(raw["look"]),
     comment: asGraphComment(raw["comment"]),
     pamphlet: asGraphPamphlet(raw["pamphlet"]),
     format: asGraphFormat(raw["format"]),
@@ -410,7 +427,8 @@ function asGraphWire(value: unknown): GraphWireView | null {
   const to = raw["to"];
   if (typeof id !== "string" || typeof from !== "number" || typeof to !== "number") return null;
   const kind = raw["kind"] === "page" || raw["kind"] === "data" ? raw["kind"] : "edge";
-  return { id, from, to, kind };
+  const route = typeof raw["route"] === "string" ? raw["route"] : "curve";
+  return { id, from, to, kind, route };
 }
 
 /** The graph, or null if this is not one — an error body, say. */

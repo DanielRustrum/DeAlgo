@@ -46,7 +46,7 @@
         <button class="graph-add" type="button" data-graph-palette aria-expanded="false"
                 aria-label="Add a node" title="Add a node">+</button>
         <button class="graph-add is-quiet" type="button" data-graph-load-open
-                aria-label="Load a group" title="Load a group somebody sent you">
+                aria-label="Load a canvas" title="Load a .pam canvas file somebody sent you">
           {# An arrow into a tray: something from outside coming in. #}
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M8 1.5 v6.5 M5 6 l3 3 3-3" fill="none" stroke="currentColor"
@@ -376,17 +376,18 @@
      nothing existing is touched. #}
   <dialog class="modal graph-load" data-graph-load>
     <div class="modal-head">
-      <h2>Load a group</h2>
+      <h2>Load a canvas</h2>
       <button class="modal-close" type="button" data-graph-load-close aria-label="Close">✕</button>
     </div>
     <form class="modal-body" data-graph-load-form>
       <p class="hint">
-        A group file somebody exported. It is added beside what you already
-        have — nothing here is changed or replaced. Channels it names are
+        A .pam file somebody saved from a Canvas box. It comes in as a new
+        Canvas box, with everything that was inside it, in the canvas you
+        have open — nothing here is changed or replaced. Channels it names are
         added paused, so somebody else's setup does not start fetching the
-        moment it lands.
+        moment it lands. A group file saved before still loads, as a group.
       </p>
-      <input type="file" name="file" accept="application/json,.json" required
+      <input type="file" name="file" accept=".pam,application/json,.json" required
              data-graph-load-file>
       <p class="error-note" data-graph-load-error hidden></p>
       <div class="modal-foot">

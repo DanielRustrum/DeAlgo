@@ -28,9 +28,12 @@ from .adding import (
     add_source,
     add_stamp,
     add_store,
+    add_text_box,
+    add_transform,
     add_trigger,
 )
-from . import comments, formatting, leaflets
+from .insides import add_canvas, add_relay
+from . import comments, formatting, leaflets, looks
 from .conditions import CONDITION_KINDS, DEFAULT_SORT_BY, RULE, condition, conditions_for
 from .errors import GraphError
 from .leaflets import LEAFLET_KINDS
@@ -138,6 +141,14 @@ def pack_nodes(
         if node.kind == "comment":
             entry["comment"] = comments.settings(node)
             entry["width"], entry["height"] = node.width, node.height
+        if node.kind == "text":
+            from .. import writing
+
+            entry["writing"] = writing.settings(node)
+        if node.kind in ("relay", "group"):
+            entry["look"] = looks.look(node)
+            if node.kind == "group":
+                entry["width"], entry["height"] = node.width, node.height
         if node.kind in LEAFLET_KINDS:
             entry["side"] = leaflets.side_of(node)
             shown = leaflets.settings(node)
@@ -181,22 +192,29 @@ def pack_nodes(
             entry["every_minutes"] = node.every_minutes
             entry["cron"] = node.cron
         packed.append(entry)
-    wires = [
-        [refs[start], refs[end]] if carries == "content" else [refs[start], refs[end], carries]
-        for start, end, carries in _wires_within(session, carried, owner)
-        if start in refs and end in refs
-    ]
+    # A path wire drawn the usual way is a pair; any other kind says what it
+    # carries, and one drawn another way says how, after that.
+    wires: list[list[Any]] = []
+    for start, end, carries, route in _wires_within(session, carried, owner):
+        if start not in refs or end not in refs:
+            continue
+        wire: list[Any] = [refs[start], refs[end]]
+        if carries != "content" or route:
+            wire.append(carries)
+        if route:
+            wire.append(route)
+        wires.append(wire)
     return packed, wires
 
 
 def _wires_within(
     session: Session, carried: list[GraphNode], owner: OwnerId
-) -> list[tuple[int, int, str]]:
+) -> list[tuple[int, int, str, str]]:
     """Every wire with both ends inside the group, and what it carries. A
     wire out of it is not the group's to give away."""
     held = {node.id for node in carried}
     return [
-        (edge.source_pk, edge.target_pk, edge.carries)
+        (edge.source_pk, edge.target_pk, edge.carries, edge.route or "")
         # As drawn: a relay travels as a relay, with its wires.
         for edge in edges(session, owner, every=True, raw=True)
         if edge.source_pk in held and edge.target_pk in held
@@ -322,16 +340,18 @@ def slot_and_wire(
         session.flush()
     # Round again while any go in: a wire out of a relay can only be drawn
     # once the wire into it is, and the file need not list that one first.
-    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and len(pair) in (2, 3)]
+    waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and len(pair) in (2, 3, 4)]
     while waiting:
         refused = []
         for pair in waiting:
             start, end = made.get(pair[0]), made.get(pair[1])
             if start is None or end is None:
                 continue
-            carries = str(pair[2]) if len(pair) == 3 else None
+            carries = str(pair[2]) if len(pair) >= 3 else None
             try:
-                connect(session, start, end, owner, carries=carries)
+                edge = connect(session, start, end, owner, carries=carries)
+                if edge is not None and len(pair) == 4:
+                    looks.set_route(edge, str(pair[3]))
             except GraphError:
                 refused.append(pair)
         if len(refused) == len(waiting):
@@ -350,6 +370,27 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
         # A source or feed is switched through its channel or playlist.
         node.enabled = bool(entry["enabled"])
     kind = node.kind
+    # How a relay or a group looks: which way it faces, its colour, folded.
+    if kind in ("relay", "group") and isinstance(entry.get("look"), dict):
+        said = {
+            f"look_{key}": ("1" if value else "0") if isinstance(value, bool) else str(value)
+            for key, value in entry["look"].items()
+        }
+        try:
+            looks.save(node, said)
+        except GraphError:
+            pass  # a look this install does not have: as it was, then
+    if kind == "group":
+        for side in ("width", "height"):
+            if isinstance(entry.get(side), int):
+                setattr(node, side, max(GROUP_LEAST[0 if side == "width" else 1], entry[side]))
+    if kind == "text" and isinstance(entry.get("writing"), dict):
+        from .. import writing
+
+        try:
+            writing.save(node, {f"writing_{key}": str(value) for key, value in entry["writing"].items()})
+        except writing.WritingError:
+            pass
     if kind == "source":
         channel_id = entry.get("channel_id")
         if channel_id and (node.channel is None or node.channel.channel_id != channel_id):
@@ -657,6 +698,19 @@ def unpack(
         return add_stamp(
             session, owner, kind=kind, marks=str(entry.get("marks") or ""), x=x, y=y
         )
+
+    if kind == "transform":
+        return add_transform(session, owner, label=label, x=x, y=y)
+
+    if kind == "text":
+        return add_text_box(session, owner, label=label, x=x, y=y)
+
+    if kind == "relay":
+        return add_relay(session, owner, x=x, y=y)
+
+    if kind == "canvas":
+        # Made in the canvas being worked in, as everything else is.
+        return add_canvas(session, owner, label=label, x=x, y=y)
 
     if kind == "trigger":
         return add_trigger(

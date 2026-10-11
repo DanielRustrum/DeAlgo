@@ -3545,16 +3545,16 @@ def test_a_group_can_be_made_moved_and_sized_from_the_canvas(canvas):
     assert (moved["x"], moved["y"]) == (30, 40)
 
 
-def test_a_group_is_exported_as_a_file_to_hand_over(canvas):
-    added = canvas.post("/graph/nodes", data={"kind": "group", "title": "My flow"}).json()
-    answer = canvas.get(f"/graph/nodes/{only(added, 'group')['id']}/export")
+def test_a_canvas_is_saved_as_a_pam_file_and_a_group_no_longer_is(canvas):
+    added = canvas.post("/graph/nodes", data={"kind": "canvas", "title": "My flow"}).json()
+    answer = canvas.get(f"/graph/nodes/{only(added, 'canvas')['id']}/export")
 
     assert answer.status_code == 200
-    assert "pamphlets-my-flow.json" in answer.headers["content-disposition"]
-    # 3: a group carries augmentations (2), and an id and keys so a newer
-    # copy can update what an older one made (3). Older files still load.
-    assert answer.json()["pamphlets_group"] == 3
-    assert answer.json()["id"]
+    assert 'filename="my-flow.pam"' in answer.headers["content-disposition"]
+    assert answer.json()["pamphlets_canvas"] == 1 and answer.json()["name"] == "My flow"
+
+    group = only(canvas.post("/graph/nodes", data={"kind": "group"}).json(), "group")
+    assert canvas.get(f"/graph/nodes/{group['id']}/export").status_code == 400
 
 
 def test_loading_a_group_adds_it_beside_what_is_already_here(canvas, db):

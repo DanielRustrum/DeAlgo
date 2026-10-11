@@ -143,8 +143,10 @@ interface GraphNodeView {
   feed: GraphFeed | null;
   /** Leaflets: what this block of a pamphlet shows, and what it could. */
   leaflet: GraphLeaflet | null;
-  /** Relays only: what is wired into it, which is what it passes on. */
-  relay: { carries: string } | null;
+  /** Relays only: what is wired into it, which way it faces, and the ways it could. */
+  relay: { carries: string; faces: string; facings: GraphChoice[] } | null;
+  /** Groups only: its colour, the colours it could be, and whether it is folded. */
+  look: { colour: string; collapsed: boolean; colours: GraphChoice[] } | null;
   /** Comments only: its words, its colour, and the colours it could be. */
   comment: { text: string; colour: string; colours: GraphChoice[] } | null;
   /** Pamphlet boxes: where its page is, and whether the tab opens on it. */
@@ -282,6 +284,8 @@ interface GraphWireView {
   from: number;
   to: number;
   kind: GraphWireKind;
+  /** How it is drawn: curve, straight, square, or astar — round the boxes. */
+  route: string;
 }
 
 /** The whole canvas as the server sent it. */
@@ -384,6 +388,8 @@ interface GraphState {
   trail: GraphTrailStep[];
   /** Where the pointer last was over the drawing: where a paste lands. */
   pointer: { x: number; y: number } | null;
+  /** Boxes folded away inside a group, by box: the group they are in. */
+  hiddenIn: Map<number, number>;
 }
 
 /** How to put one action back.

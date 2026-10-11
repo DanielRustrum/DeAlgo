@@ -304,3 +304,11 @@
 
 /* Cut, and waiting to be pasted somewhere: still here, but on its way. */
 .graph-node.is-cut { opacity: 0.45; border-style: dashed; }
+
+/* A relay facing another way: its way in and way out on the sides it faces. */
+.graph-node.kind-relay[data-faces="left"] .port-in { left: auto; right: -8px; }
+.graph-node.kind-relay[data-faces="left"] .port-out { right: auto; left: -8px; }
+.graph-node.kind-relay[data-faces="down"] .port-in,
+.graph-node.kind-relay[data-faces="up"] .port-out { top: -8px; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }
+.graph-node.kind-relay[data-faces="down"] .port-out,
+.graph-node.kind-relay[data-faces="up"] .port-in { top: auto; bottom: -8px; left: 50%; right: auto; margin-left: -8px; margin-top: 0; }

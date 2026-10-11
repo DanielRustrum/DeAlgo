@@ -235,6 +235,9 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     form.appendChild(graphElement("p", "hint", "Or double-click the comment to write in it where it is. It is wired to nothing, and changes nothing."));
   }
   else if (node.kind === "relay") {
+    if (node.relay !== null) {
+      form.appendChild(graphLabelled("Faces", graphLeafletSelect("look_faces", node.relay.facings, node.relay.faces)));
+    }
     form.appendChild(graphElement("p", "hint",
       "A point a wire passes through, to route it round other boxes. It takes one wire in and passes it on, unchanged, to as many boxes as you like."));
   }
@@ -279,6 +282,13 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     open.title = "Or double-click the box";
     open.dataset["editor"] = String(node.id);
     buttons.appendChild(open);
+    // Everything inside it, as a .pam file to hand somebody else.
+    const save = document.createElement("a");
+    save.className = "btn btn-quiet";
+    save.href = `/graph/nodes/${node.id}/export`;
+    save.textContent = "Save as file";
+    save.title = "Save this canvas, and everything inside it, as a .pam file";
+    buttons.appendChild(save);
   }
   if (editor !== null) {
     const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");

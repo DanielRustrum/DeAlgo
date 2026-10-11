@@ -119,13 +119,13 @@ function graphNextFiring(node: GraphNodeView): string {
 /** A group's own panel: what it is called, a way to hand it on, and — for one
  *  loaded from a file — a way to bring it up to date with a newer copy. */
 function graphGroupFields(state: GraphState, form: HTMLElement, node: GraphNodeView): void {
+  // Its colour: the theme's own, as a comment's are.
+  if (node.look !== null) {
+    form.appendChild(graphLabelled("Colour", graphLeafletSelect("look_colour", node.look.colours, node.look.colour)));
+  }
+  // A group is not saved as a file any more — a Canvas box is. One loaded
+  // from a file saved before can still be brought up to date from it.
   const row = graphElement("div", "graph-group-files");
-  const give = document.createElement("a");
-  give.className = "btn btn-quiet";
-  give.href = `/graph/nodes/${node.id}/export`;
-  give.textContent = "Export";
-  give.title = "Save this group as a file to give to somebody else";
-  row.appendChild(give);
 
   if (node.imported !== null) {
     // A file input behind a button: the browser cannot reopen the file it was

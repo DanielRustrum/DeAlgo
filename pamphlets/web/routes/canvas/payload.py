@@ -158,7 +158,16 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
     """One box or piece, as the canvas draws it."""
     drawn = _drawn(node, canvas)
     if node.kind == "relay":
-        drawn["relay"] = {"carries": canvas.relaying.get(node.id, "")}
+        drawn["relay"] = {
+            "carries": canvas.relaying.get(node.id, ""),
+            "faces": graph_service.looks.look(node)["faces"],
+            "facings": [{"name": n, "label": l} for n, l in graph_service.looks.FACES],
+        }
+    elif node.kind == "group":
+        drawn["look"] = {
+            **graph_service.looks.look(node),
+            "colours": [{"name": n, "label": l} for n, l in graph_service.comments.COLOURS],
+        }
     elif node.kind == "comment":
         drawn["comment"] = {
             **graph_service.comments.settings(node),

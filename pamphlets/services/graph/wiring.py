@@ -19,7 +19,7 @@ from ..scope import OwnerId, owned
 from .canvas import load
 from .errors import GraphError
 from .reading import edges, nodes
-from . import leaflets
+from . import leaflets, looks
 from .vocabulary import DATA_TAKERS, WIRED_LEAFLETS, WIRING, carries_between
 
 
@@ -323,6 +323,7 @@ def wires(session: Session, owner: OwnerId = None) -> list[dict[str, Any]]:
             "from": edge.source_pk,
             "to": edge.target_pk,
             "kind": kind_of(edge),
+            "route": looks.route_of(edge),
         }
         for edge in all_edges
     ]

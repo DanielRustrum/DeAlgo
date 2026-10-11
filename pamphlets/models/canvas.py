@@ -184,6 +184,10 @@ class GraphNode(Base):
     # "below", the next thing down its column, or "beside", the next column
     # to its right. Every other piece hangs below, and leaves this empty.
     attached_side: Mapped[Optional[str]] = mapped_column(String(8))
+    # How a layout box looks, as JSON — see services/graph/looks.py: which
+    # sides a Relay takes in and gives out on; a group's colour, and whether
+    # it is folded up. Drawing only: nothing that runs reads it.
+    look: Mapped[Optional[str]] = mapped_column(Text)
     # Comment boxes only: their words and colour, as JSON — see
     # services/graph/comments.py, which is the only thing that reads it.
     comment: Mapped[Optional[str]] = mapped_column(Text)
@@ -386,6 +390,9 @@ class GraphEdge(Base):
     carries: Mapped[str] = mapped_column(
         String(8), default="content", server_default=text("'content'")
     )
+    # How the wire is drawn: "curve" (the default, when empty), "straight",
+    # "square", or "astar" — round the boxes in its way. Drawing only.
+    route: Mapped[Optional[str]] = mapped_column(String(10))
 
     source: Mapped[GraphNode] = relationship(foreign_keys=[source_pk])
     target: Mapped[GraphNode] = relationship(foreign_keys=[target_pk])

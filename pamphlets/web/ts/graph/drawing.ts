@@ -255,7 +255,11 @@ function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
   frame.style.left = `${node.x}px`;
   frame.style.top = `${node.y}px`;
   frame.style.width = `${node.size?.width ?? 520}px`;
-  frame.style.height = `${node.size?.height ?? 300}px`;
+  const folded = node.look?.collapsed === true;
+  // Folded, only its name shows: what it holds is put away, not gone.
+  frame.style.height = folded ? "" : `${node.size?.height ?? 300}px`;
+  frame.dataset["shade"] = node.look?.colour ?? "paper";
+  if (folded) frame.classList.add("is-folded");
   frame.tabIndex = 0;
   frame.setAttribute("role", "button");
   frame.setAttribute("aria-label", `Group: ${node.title}`);
@@ -265,6 +269,20 @@ function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
   if (node.locked) frame.classList.add("is-locked");
 
   const name = graphElement("span", "graph-group-name", node.title);
+  // A fold beside the name: folded, the group is only its name, and what it
+  // holds is hidden. A lock does not stop it — a lock holds where it is.
+  const fold = graphElement("button", "graph-group-fold") as HTMLButtonElement;
+  fold.type = "button";
+  fold.dataset["fold"] = String(node.id);
+  fold.setAttribute("aria-expanded", String(!folded));
+  fold.title = folded ? "Open it out" : "Fold it up";
+  fold.setAttribute("aria-label", folded ? `Open out group ${node.title}` : `Fold up group ${node.title}`);
+  fold.textContent = folded ? "▸" : "▾";
+  name.prepend(fold);
+  if (folded) {
+    const held = graphSurrounded(state, node).filter((one): boolean => one.piece === null).length;
+    name.appendChild(graphElement("span", "graph-group-held", `${held} box${held === 1 ? "" : "es"} inside`));
+  }
   // A padlock beside the name: pressed, it holds the group where it is, so a
   // drag across it pans the canvas instead of carrying everything inside off.
   const lock = graphElement("button", "graph-group-lock") as HTMLButtonElement;
@@ -279,7 +297,7 @@ function drawGraphGroup(state: GraphState, node: GraphNodeView): HTMLElement {
 
   // Bottom-right, where a resize handle is looked for. A locked group has
   // none: holding it in place holds its size too.
-  if (!node.locked) {
+  if (!node.locked && !folded) {
     const grip = graphElement("span", "graph-group-grip");
     grip.dataset["grip"] = String(node.id);
     grip.title = "Drag to resize";
@@ -350,6 +368,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     const carried = node.relay?.carries ?? "";
     const carries: GraphCarries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
     box.classList.add("is-relay");
+    box.dataset["faces"] = node.relay?.faces ?? "right";
     if (carried === "") box.classList.add("is-empty");
     box.title = carried === "" ? "A relay: wire anything into it, and on from it." : "A relay: it passes on what is wired into it.";
     box.appendChild(graphPort("in", carries, "Takes one wire in, of any kind."));
@@ -558,6 +577,8 @@ function drawGraphNodes(state: GraphState): void {
     state.boxes.set(node.id, frame);
     state.parts.groups.appendChild(frame);
   }
+  // What folded groups hide, worked out before anything is drawn.
+  state.hiddenIn = graphFoldedAway(state);
   // Comments first, so the boxes drawn after sit over them: a note is never
   // in the way of what it is about.
   const notesFirst = [...state.nodes].sort(
@@ -566,6 +587,7 @@ function drawGraphNodes(state: GraphState): void {
   for (const node of notesFirst) {
     if (node.kind === "group") continue;
     const box = drawGraphNode(state, node);
+    if (state.hiddenIn.has(node.id)) box.classList.add("is-folded-away");
     state.boxes.set(node.id, box);
     state.parts.layer.appendChild(box);
   }
@@ -671,16 +693,18 @@ function drawGraphWires(state: GraphState): void {
   state.parts.wires.textContent = "";
   // The ✕ belongs to a wire but lives among the boxes, so it is cleared here
   // rather than with them — a drag redraws the wires many times over.
-  state.parts.layer.querySelectorAll(".graph-cut").forEach((button): void => button.remove());
+  state.parts.layer.querySelectorAll(".graph-cut, .graph-route-bar").forEach((button): void => button.remove());
   const over = graphPageWireLayer(state);
   over.textContent = "";
   for (const wire of state.wires) {
     const carries = graphWireCarries(state, wire);
-    const from = graphPortPoint(state, wire.from, "out", carries);
-    const to = graphPortPoint(state, wire.to, "in", carries);
+    const from = graphWireEnd(state, wire.from, "out", carries);
+    const to = graphWireEnd(state, wire.to, "in", carries);
     if (from === null || to === null) continue;
+    // Both ends folded into the one group: nothing of it shows.
+    if (from.folded !== null && from.folded === to.folded) continue;
 
-    const d = graphCurve(from.x, from.y, to.x, to.y);
+    const d = graphWirePath(state, wire.route, from, to);
     let classes = `graph-wire wire-${wire.kind}`;
     if (wire.id === state.selectedWire) classes += " is-picked";
 
@@ -699,7 +723,10 @@ function drawGraphWires(state: GraphState): void {
     if (wire.kind !== "edge") drawGraphWireIntoPage(state, over, wire, d, classes);
 
     if (wire.id === state.selectedWire) {
-      state.parts.layer.appendChild(graphCutButton(wire.id, (from.x + to.x) / 2, (from.y + to.y) / 2));
+      const mx = (from.x + to.x) / 2;
+      const my = (from.y + to.y) / 2;
+      state.parts.layer.appendChild(graphCutButton(wire.id, mx, my));
+      state.parts.layer.appendChild(graphRouteBar(wire, mx, my));
     }
   }
   graphMarkIdlePorts(state);

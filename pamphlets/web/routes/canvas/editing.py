@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from .... import sources
 from ....db import session_scope
 from ....models import (
+    GraphEdge,
     GraphNode,
 )
 from ....plugins import registry
@@ -327,6 +328,34 @@ def graph_resize(
     owner = owner_of(request)
     with session_scope() as session:
         return JSONResponse({"resized": graph_service.resize(session, node_pk, width, height, owner)})
+
+
+@router.post("/graph/nodes/{node_pk}/fold")
+def graph_fold(request: Request, node_pk: int, folded: str = Form("1")) -> JSONResponse:
+    """Fold a group up to its name, or open it out. A lock holds where a
+    group is, not whether it is folded: this works either way."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
+        if node is None or node.kind != "group":
+            return JSONResponse({"error": "Only a group folds."}, status_code=400)
+        graph_service.looks.save(node, {"look_collapsed": "1" if folded == "1" else "0"})
+        return JSONResponse(graph_payload(session, owner))
+
+
+@router.post("/graph/wires/{edge_pk}/route")
+def graph_route(request: Request, edge_pk: int, route: str = Form("curve")) -> JSONResponse:
+    """Draw a wire another way: a curve, straight, square, or round the boxes."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        edge = session.scalar(owned(select(GraphEdge), GraphEdge, owner).where(GraphEdge.id == edge_pk))
+        if edge is None:
+            return JSONResponse({"error": "That wire is no longer there."}, status_code=404)
+        try:
+            graph_service.looks.set_route(edge, route)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(graph_payload(session, owner))
 
 
 @router.post("/graph/nodes/{node_pk}/lock")

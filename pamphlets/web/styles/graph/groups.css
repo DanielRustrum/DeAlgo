@@ -76,3 +76,25 @@
 .graph-group-lock:hover { color: var(--accent); }
 .graph-group-lock[aria-pressed="true"] { opacity: 1; color: var(--text); }
 .graph-group-box.is-locked { cursor: default; border-style: solid; }
+
+/* A group's colour: the theme's own, as a comment's are, as a wash. */
+.graph-group-box { --group-wash: var(--muted); }
+.graph-group-box[data-shade="sage"] { --group-wash: var(--sage); }
+.graph-group-box[data-shade="blush"] { --group-wash: var(--peach); }
+.graph-group-box[data-shade="ochre"] { --group-wash: var(--ochre); }
+.graph-group-box[data-shade="sky"] { --group-wash: var(--plugin-sky); }
+.graph-group-box:not([data-shade="paper"]) {
+  background: color-mix(in oklab, var(--group-wash) 16%, transparent);
+  border-color: color-mix(in oklab, var(--group-wash) 55%, var(--line));
+}
+
+/* The fold beside its name, and the group folded: only its name shows, as
+   a bar, with how much it holds; what it holds is put away. */
+.graph-group-fold {
+  font: inherit; font-size: calc(11px * var(--text-scale)); line-height: 1;
+  padding: 0 2px; border: 0; background: none; color: inherit; cursor: pointer;
+}
+.graph-group-fold:hover { color: var(--accent); }
+.graph-group-box.is-folded { height: 34px; border-style: solid; }
+.graph-group-held { text-transform: none; letter-spacing: 0; opacity: 0.8; }
+.graph-node.is-folded-away { display: none !important; }

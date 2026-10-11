@@ -148,6 +148,10 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "inside_pk", "INTEGER"),
     # A Comment box's words and colour, as JSON.
     ("graph_node", "comment", "TEXT"),
+    # How a relay faces, and a group's colour and whether it is folded.
+    ("graph_node", "look", "TEXT"),
+    # How a wire is drawn: curve, straight, square, or round the boxes.
+    ("graph_edge", "route", "VARCHAR(10)"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

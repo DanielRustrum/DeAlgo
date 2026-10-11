@@ -61,3 +61,18 @@
   cursor: pointer;
 }
 .graph-cut:hover { background: var(--accent); color: var(--on-accent); }
+
+/* How a picked wire is drawn: four buttons just under its ✕. */
+.graph-route-bar {
+  position: absolute; transform: translate(-50%, 18px); z-index: 7;
+  display: flex; gap: 2px; padding: 3px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  box-shadow: 0 4px 12px var(--shadow); pointer-events: auto; white-space: nowrap;
+}
+.graph-route {
+  font: inherit; font-size: calc(11.5px * var(--text-scale));
+  padding: 3px 9px; border: 0; border-radius: 999px; cursor: pointer;
+  color: var(--muted); background: none;
+}
+.graph-route:hover { color: var(--text); background: var(--panel-2); }
+.graph-route[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }

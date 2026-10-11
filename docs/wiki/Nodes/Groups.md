@@ -10,12 +10,21 @@ Drag **Group** from **Layout** in the palette, then resize it from its corner. N
 - **Locks in place.** The padlock beside its name holds it where it is. A locked group can't be
   dragged or resized: dragging across it moves the canvas instead, as dragging empty canvas does.
   The boxes inside it still move on their own. Press the padlock again to let it go.
-- **Exports.** **Export** in its panel saves the boxes inside, their pieces and the wires between them
-  as a file you can give to someone.
-- **Loads.** **Load a group** on the canvas adds one somebody sent you, beside what you have. Nothing
-  existing is changed.
+- **Has a colour.** Paper, sage, blush, ochre or sky — the theme's own, as a
+  [comment](Canvases%20and%20Relays.md#comment)'s are — chosen in its panel.
+- **Folds up.** The ▾ beside its name folds the group to a bar with its name and how many boxes it
+  holds; what it holds is hidden, and wires to those boxes end on the folded bar. ▸ opens it out
+  again. Folding has nothing to do with the lock: a locked group folds, and a folded one stays
+  wherever it is, moving its hidden boxes with it if it is dragged.
+- **Is not saved as a file any more.** To hand part of your setup to someone, put it in a
+  [Canvas box](Canvases%20and%20Relays.md#saving-a-canvas-as-a-file) and save that as a `.pam`
+  file. A group file saved before still loads, as a group, with **Load a canvas**.
 
 ## What travels in a file
+
+This is also what travels in a [`.pam` file](Canvases%20and%20Relays.md#saving-a-canvas-as-a-file),
+which carries a whole canvas the same way.
+
 
 - Sources travel as their identifiers. Missing ones are created, paused. **Only YouTube channels
   import correctly for now**: a Reddit, RSS or newsletter source arrives without its kind or
@@ -28,7 +37,7 @@ No history and no credentials are included. Files from older versions still load
 
 ## Updating a loaded group
 
-A group you loaded from a file remembers it. Its panel says which file and when, and offers
+A group you loaded from a group file saved before remembers it. Its panel says which file and when, and offers
 **Update from file…**: choose a newer copy of that file, and the group is brought up to date.
 
 - **Boxes the file still has are updated in place.** Their settings, names and conditions come from

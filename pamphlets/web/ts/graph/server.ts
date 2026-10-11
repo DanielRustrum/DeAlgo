@@ -4,16 +4,22 @@
 
 /** GET (no body) or POST a form to the server, and read the JSON it answers with. */
 async function askGraph(url: string, body: URLSearchParams | null): Promise<unknown> {
-  // Every request says which canvas it is about: the top, or a Canvas
-  // node's inside — what it makes goes there, and what comes back is that one.
-  const inside = document.querySelector<HTMLElement>("[data-graph]")?.dataset["inside"];
-  if (inside !== undefined && inside !== "") url += `${url.includes("?") ? "&" : "?"}inside=${encodeURIComponent(inside)}`;
+  url = graphAddress(url);
   const init: RequestInit =
     body === null
       ? { headers: { Accept: "application/json" } }
       : { method: "POST", body, headers: { Accept: "application/json" } };
   const response = await fetch(url, init);
   return (await response.json()) as unknown;
+}
+
+/** An address on the canvas's API, saying which canvas it is about: the
+ *  top, or a Canvas node's inside — what it makes goes there, and what
+ *  comes back is that one. */
+function graphAddress(url: string): string {
+  const inside = document.querySelector<HTMLElement>("[data-graph]")?.dataset["inside"];
+  if (inside === undefined || inside === "") return url;
+  return `${url}${url.includes("?") ? "&" : "?"}inside=${encodeURIComponent(inside)}`;
 }
 
 /** Send a change, take the graph that comes back, redraw. */

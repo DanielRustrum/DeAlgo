@@ -70,7 +70,7 @@ from .names import store_name, tag_name, tag_names
 from . import formatting, leaflets
 from .leaflets import LEAFLET_KINDS
 from .insides import MOST_DEPTH, add_canvas, add_relay
-from . import clipboard, comments
+from . import canvas_files, clipboard, comments, looks
 from .comments import add_comment
 from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, pieces_under
 from .reading import channels_of, edges, nodes
@@ -118,6 +118,8 @@ __all__ = [
     "add_comment",
     "comments",
     "clipboard",
+    "looks",
+    "canvas_files",
     "MOST_DEPTH",
     "add_piece",
     "add_sort",

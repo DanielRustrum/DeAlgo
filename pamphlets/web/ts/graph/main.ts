@@ -182,6 +182,7 @@ function startGraph(canvas: HTMLElement): void {
     inside: null,
     trail: [],
     pointer: null,
+    hiddenIn: new Map<number, number>(),
   };
   // The canvas that was open when the tab was left, if any: the server says
   // the top instead if it has gone.
