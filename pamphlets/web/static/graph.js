@@ -1865,6 +1865,44 @@ function panGraph(state, x, y) {
     state.panY = y;
     showGraphView(state);
 }
+/** Where the view is kept between visits: this browser's, as a convenience. */
+function graphViewKey() {
+    return "pamphlets-canvas-view";
+}
+/** Note where the canvas is looked at, so leaving the tab and coming back
+ *  — or reloading — finds it where it was rather than back at the start. */
+function keepGraphView(state) {
+    try {
+        window.localStorage.setItem(graphViewKey(), JSON.stringify({ x: state.panX, y: state.panY, zoom: state.zoom }));
+    }
+    catch (_a) {
+        // Storage refused (a private window, say): the canvas still works.
+    }
+}
+/** Put the view back where it was last left, or at the start if it never
+ *  was — or if what was kept is not a view this canvas can show. */
+function restoreGraphView(state) {
+    var _a;
+    let kept = null;
+    try {
+        kept = JSON.parse((_a = window.localStorage.getItem(graphViewKey())) !== null && _a !== void 0 ? _a : "null");
+    }
+    catch (_b) {
+        kept = null;
+    }
+    const view = asGraphRecord(kept);
+    const x = view === null || view === void 0 ? void 0 : view["x"];
+    const y = view === null || view === void 0 ? void 0 : view["y"];
+    const zoom = view === null || view === void 0 ? void 0 : view["zoom"];
+    const limits = graphZoomLimits();
+    if (typeof x === "number" && typeof y === "number" && typeof zoom === "number"
+        && Number.isFinite(x) && Number.isFinite(y) && zoom >= limits.least && zoom <= limits.most) {
+        state.zoom = zoom;
+        panGraph(state, x, y);
+        return;
+    }
+    panGraph(state, 0, 0);
+}
 /** Apply the pan and zoom to the drawing and its grid. */
 function showGraphView(state) {
     const { panX, panY, zoom } = state;
@@ -1875,6 +1913,7 @@ function showGraphView(state) {
     const grid = 26 * zoom;
     state.parts.canvas.style.backgroundSize = `${grid}px ${grid}px`;
     state.parts.canvas.style.backgroundPosition = `${panX}px ${panY}px`;
+    keepGraphView(state);
     const reading = state.parts.canvas.querySelector("[data-graph-zoom]");
     if (reading !== null)
         reading.textContent = `${Math.round(zoom * 100)}%`;
@@ -5887,7 +5926,8 @@ function startGraph(canvas) {
         undo: [],
     };
     listenToGraph(state);
-    panGraph(state, 0, 0);
+    // Where it was left: leaving the tab does not send the view back to the start.
+    restoreGraphView(state);
     void openGraph(state);
 }
 /** Draw the graph, then pick up any run already in flight. */

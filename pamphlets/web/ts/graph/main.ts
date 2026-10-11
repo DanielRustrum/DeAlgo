@@ -173,7 +173,8 @@ function startGraph(canvas: HTMLElement): void {
     undo: [],
   };
   listenToGraph(state);
-  panGraph(state, 0, 0);
+  // Where it was left: leaving the tab does not send the view back to the start.
+  restoreGraphView(state);
   void openGraph(state);
 }
 

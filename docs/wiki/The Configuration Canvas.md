@@ -127,6 +127,9 @@ only what it gives out.
   scrolls the panel instead.
 - **Find a group** jumps to a [group](Nodes/Groups.md).
 
+Where you were stays where it was: leave the tab, or reload, and the canvas opens at the same spot
+and zoom. It is kept in this browser, so another device starts at the top left.
+
 ## Undo
 
 **Ctrl+Z** (or **⌘Z**), or the undo button, takes back the last change — adding a box, moving or
