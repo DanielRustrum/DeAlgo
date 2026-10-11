@@ -223,4 +223,5 @@ def _chart_rows(chart: charting.Chart | None) -> Any:
 
 
 def _drawn(chart: charting.Chart, label: str) -> str:
-    return TEMPLATES.get_template("_chart.html").render(chart=chart, chart_label=label)
+    """The chart alone: the editor shows its numbers in its own Table view."""
+    return TEMPLATES.get_template("_chart.html").render(chart=chart, chart_label=label, folded=False)

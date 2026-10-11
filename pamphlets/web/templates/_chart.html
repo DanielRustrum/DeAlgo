@@ -106,6 +106,10 @@
   </div>
   {% endif %}
 
+  {#- The same numbers as a table: the chart itself when drawn as one, else
+      folded under it — except in the canvas's editor, which has its own
+      Table view beside the chart (folded=false there). -#}
+  {% if c.kind == 'table' or folded is not defined or folded %}
   {% if c.kind == 'table' %}
   <table class="chart-plain">
   {% else %}
@@ -122,5 +126,6 @@
       </tbody>
     </table>
   {% if c.kind != 'table' %}</details>{% endif %}
+  {% endif %}
 </div>
 {% endif %}

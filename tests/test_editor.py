@@ -63,6 +63,8 @@ def test_a_format_box_shapes_with_settings_not_yet_saved(client, db):
     assert seen["input"]["count"] == 4
     assert seen["output"]["rows"][0] == {"label": "ana", "value": 16}
     assert "chart" in seen["output"]["html"]
+    # Only the chart: the editor has a Table view of its own.
+    assert "As a table" not in seen["output"]["html"]
 
 
 def test_a_transform_shows_its_count(client, db):
