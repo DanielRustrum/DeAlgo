@@ -1964,9 +1964,6 @@ function drawGraphNode(state, node) {
         if (node.frozen)
             iceGraphCanvas(box, node.id, node.size);
     }
-    // Inside a frozen canvas, now and then a box wears a touch of the ice.
-    if (graphFrostTouches(state, node))
-        box.appendChild(graphFrostTouch(node.id));
     return box;
 }
 /** Ice a frozen Canvas box to its size — again, whenever that changes, so
@@ -2184,6 +2181,8 @@ function drawGraphNodes(state) {
         state.parts.layer.appendChild(box);
     }
     placeGraphPieces(state);
+    // Inside a frozen canvas, now and then a stack wears a touch of the ice.
+    touchGraphWithFrost(state);
     markGraphCut(state);
 }
 /** Stack each slotted piece under whatever it is slotted into.
@@ -2471,6 +2470,7 @@ function renderGraphTrail(state) {
     // the whole of it is drawn so.
     const frozen = (_c = trail.find((step) => step.frozen)) !== null && _c !== void 0 ? _c : null;
     state.parts.canvas.classList.toggle("is-frozen", frozen !== null);
+    iceGraphView(state, frozen !== null);
     showGraphPalettePlugins(state);
     if (trail.length < 2) {
         bar === null || bar === void 0 ? void 0 : bar.remove();
@@ -3601,18 +3601,35 @@ function graphFrost(seed, width, height, scale) {
     frost.appendChild(graphElement("span", "graph-frost-badge", "❄ Frozen"));
     return frost;
 }
-/** Whether this box, inside a frozen canvas, wears a touch of ice: about
- *  one in ten, picked by its id so it is the same ones every time. Only a
- *  box or piece with nothing slotted below it, so the ice hangs free. */
-function graphFrostTouches(state, node) {
-    var _a;
-    if (!((_a = state.trail) !== null && _a !== void 0 ? _a : []).some((step) => step.frozen))
-        return false;
-    if (["comment", "relay", "group", "canvas"].includes(node.kind))
-        return false;
-    if (graphFrostNoise(node.id, 999) >= 0.1)
-        return false;
-    return !state.nodes.some((one) => { var _a; return ((_a = one.piece) === null || _a === void 0 ? void 0 : _a.under) === node.id && one.piece.side === "below"; });
+/** Inside a frozen canvas, a touch of ice on about a third of the boxes —
+ *  picked by id, so the same ones every time. A box and the pieces slotted
+ *  under it are one stack, and the ice hangs from the bottom of the stack,
+ *  where it hangs free. */
+function touchGraphWithFrost(state) {
+    var _a, _b;
+    var _c;
+    if (!((_c = state.trail) !== null && _c !== void 0 ? _c : []).some((step) => step.frozen))
+        return;
+    const below = new Map();
+    for (const one of state.nodes) {
+        if (((_a = one.piece) === null || _a === void 0 ? void 0 : _a.under) != null && one.piece.side === "below")
+            below.set(one.piece.under, one.id);
+    }
+    for (const node of state.nodes) {
+        if (node.piece !== null)
+            continue; // a stack is picked by the box at its top
+        if (["comment", "relay", "group", "canvas"].includes(node.kind))
+            continue;
+        if (graphFrostNoise(node.id, 999) >= 0.35)
+            continue;
+        let bottom = node.id;
+        const seen = new Set([bottom]);
+        for (let next = below.get(bottom); next !== undefined && !seen.has(next); next = below.get(next)) {
+            seen.add(next);
+            bottom = next;
+        }
+        (_b = state.boxes.get(bottom)) === null || _b === void 0 ? void 0 : _b.appendChild(graphFrostTouch(node.id));
+    }
 }
 /** A touch of ice along part of a box's bottom edge: a short rim, and a
  *  few small icicles hanging from it. */
@@ -3630,6 +3647,40 @@ function graphFrostTouch(seed) {
     }));
     touch.appendChild(svg);
     return touch;
+}
+/** Inside a frozen canvas, the view itself iced along its top: a cap of ice
+ *  and a fringe of icicles that stay put while the drawing pans under them.
+ *  Gone again outside one. Drawn to the view's width as it is now. */
+function iceGraphView(state, frozen) {
+    var _a;
+    const view = state.parts.canvas;
+    const was = view.querySelector(":scope > .graph-view-frost");
+    const width = Math.round(view.clientWidth);
+    if (!frozen || width <= 0) {
+        was === null || was === void 0 ? void 0 : was.remove();
+        return;
+    }
+    // Already iced at this width: the same ice, so nothing to redraw.
+    if (was !== null && was.dataset["width"] === String(width))
+        return;
+    const ice = graphElement("div", "graph-view-frost");
+    ice.setAttribute("aria-hidden", "true");
+    ice.dataset["width"] = String(width);
+    const height = 60;
+    const svg = graphFrostSvg(width, height, "graph-frost-art");
+    const seed = (_a = state.inside) !== null && _a !== void 0 ? _a : 1;
+    const capEdge = (x) => 5 + Math.sin(x / 13 + seed) * 1.8 + graphFrostNoise(seed, 7000 + Math.round(x / 7)) * 1.6;
+    let cap = `M0,0H${width}V${capEdge(width).toFixed(1)}`;
+    for (let x = width; x >= 0; x -= 5)
+        cap += `L${x},${capEdge(x).toFixed(1)}`;
+    cap += `L0,${capEdge(0).toFixed(1)}Z`;
+    svg.appendChild(graphFrostShape("path", { d: cap, class: "graph-ice-cap" }));
+    graphIcicleRow(svg, seed, 8000, -2, width + 2, capEdge, 1, 40);
+    ice.appendChild(svg);
+    if (was !== null)
+        was.replaceWith(ice);
+    else
+        view.appendChild(ice);
 }
 
 "use strict";
@@ -7791,7 +7842,12 @@ function listenToGraph(state) {
     // this is the one place that has to give the page back.
     catching === null || catching === void 0 ? void 0 : catching.addEventListener("close", () => holdPageForGraph(false));
     // Boxes are measured to place the wires, so a resize moves them.
-    window.addEventListener("resize", () => drawGraphWires(state));
+    window.addEventListener("resize", () => {
+        var _a;
+        drawGraphWires(state);
+        // The ice along a frozen canvas's view, to its new width.
+        iceGraphView(state, ((_a = state.trail) !== null && _a !== void 0 ? _a : []).some((step) => step.frozen));
+    });
 }
 /** Start one canvas, once: build its state and load the graph from the server. */
 function startGraph(canvas) {

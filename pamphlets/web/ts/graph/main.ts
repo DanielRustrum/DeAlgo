@@ -148,7 +148,11 @@ function listenToGraph(state: GraphState): void {
   catching?.addEventListener("close", (): void => holdPageForGraph(false));
 
   // Boxes are measured to place the wires, so a resize moves them.
-  window.addEventListener("resize", (): void => drawGraphWires(state));
+  window.addEventListener("resize", (): void => {
+    drawGraphWires(state);
+    // The ice along a frozen canvas's view, to its new width.
+    iceGraphView(state, (state.trail ?? []).some((step): boolean => step.frozen));
+  });
 }
 
 /** Start one canvas, once: build its state and load the graph from the server. */

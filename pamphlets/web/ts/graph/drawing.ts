@@ -417,8 +417,6 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     // Frozen: iced over, so it reads as stopped from across the canvas.
     if (node.frozen) iceGraphCanvas(box, node.id, node.size);
   }
-  // Inside a frozen canvas, now and then a box wears a touch of the ice.
-  if (graphFrostTouches(state, node)) box.appendChild(graphFrostTouch(node.id));
   return box;
 }
 
@@ -631,6 +629,8 @@ function drawGraphNodes(state: GraphState): void {
     state.parts.layer.appendChild(box);
   }
   placeGraphPieces(state);
+  // Inside a frozen canvas, now and then a stack wears a touch of the ice.
+  touchGraphWithFrost(state);
   markGraphCut(state);
 }
 
@@ -924,6 +924,7 @@ function renderGraphTrail(state: GraphState): void {
   // the whole of it is drawn so.
   const frozen = trail.find((step): boolean => step.frozen) ?? null;
   state.parts.canvas.classList.toggle("is-frozen", frozen !== null);
+  iceGraphView(state, frozen !== null);
   showGraphPalettePlugins(state);
   if (trail.length < 2) {
     bar?.remove();
