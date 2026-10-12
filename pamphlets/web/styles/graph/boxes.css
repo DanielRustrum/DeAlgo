@@ -482,5 +482,4 @@
   position: absolute; left: -1px; right: -1px; top: -11px; height: 18px; z-index: 1;
   pointer-events: none; overflow: visible;
 }
-.graph-frost-edge { fill: none; stroke-linecap: round; }
-.graph-frost-fade-stop { stop-color: var(--ice); }
+.graph-frost-ridge { fill: var(--ice); }

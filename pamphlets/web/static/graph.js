@@ -3770,36 +3770,67 @@ function touchGraphWithFrost(state) {
             box.appendChild(graphFrostTouch(node.id, box.offsetWidth));
     }
 }
-/** A touch of ice on part of a box's bottom edge, `width` wide: the border
- *  there iced, and a few small icicles growing out of it. No slab of its
- *  own: the box's own edge is what they hang from. */
+/** A touch of ice on part of a box's bottom edge, `width` wide: a ridge of
+ *  ice along the border, thickest where it drips and thinning to nothing
+ *  at its ends, and a few icicles of any length growing out of it, with
+ *  gaps between. No slab of its own: the box's own edge is what it is on. */
 function graphFrostTouch(seed, width) {
     const touch = graphElement("div", "graph-frost-touch");
     touch.setAttribute("aria-hidden", "true");
+    const n = (value) => value.toFixed(1);
+    const noise = (k) => graphFrostNoise(seed, 9000 + k);
     // The edge is `above` down the drawing.
     const above = 8;
-    const svg = graphFrostSvg(width, 28, "graph-frost-art");
+    const svg = graphFrostSvg(width, 30, "graph-frost-art");
     const radius = Math.min(graphFrostRadius(), width / 2);
-    const span = Math.min(width - radius * 2, width * (0.3 + graphFrostNoise(seed, 1001) * 0.25));
-    const from = radius + graphFrostNoise(seed, 1002) * Math.max(0, width - radius * 2 - span);
+    const span = Math.min(width - radius * 2, width * (0.3 + noise(1) * 0.25));
+    const from = radius + noise(2) * Math.max(0, width - radius * 2 - span);
     const to = from + span;
     const melt = (x) => {
-        const t = Math.min(1, Math.max(0, Math.min(x - from, to - x) / (span * 0.25)));
+        const t = Math.min(1, Math.max(0, Math.min(x - from, to - x) / (span * 0.3)));
         return t * t * (3 - 2 * t);
     };
-    graphIcicleRow(svg, seed, 9000, from + span * 0.06, to - span * 0.06, () => above - 0.5, 0.85, 17, melt);
-    // The border where they hang, iced over, fading out at both ends.
-    const fade = `graph-frost-fade-${seed}`;
-    const defs = graphFrostShape("defs", {});
-    const gradient = graphFrostShape("linearGradient", { id: fade, x1: String(from), x2: String(to), y1: "0", y2: "0", gradientUnits: "userSpaceOnUse" });
-    for (const [offset, opacity] of [["0", "0"], ["0.2", "1"], ["0.8", "1"], ["1", "0"]]) {
-        gradient.appendChild(graphFrostShape("stop", { offset: offset !== null && offset !== void 0 ? offset : "0", "stop-opacity": opacity !== null && opacity !== void 0 ? opacity : "1", class: "graph-frost-fade-stop" }));
+    // Where each icicle hangs: spaced out, never touching, smaller to the ends.
+    const icicles = [];
+    for (let x = from + span * 0.1, k = 0; x < to - span * 0.1; k += 1) {
+        const m = melt(x);
+        const wide = (3.5 + noise(10 + k) * 4) * (0.55 + m * 0.45);
+        const long = (3 + noise(20 + k) ** 1.4 * 16) * m + 2;
+        icicles.push([x, wide, long]);
+        x += wide + (3 + noise(30 + k) * 9);
     }
-    defs.appendChild(gradient);
-    svg.appendChild(defs);
-    svg.appendChild(graphFrostShape("path", {
-        d: `M${from.toFixed(1)},${above}H${to.toFixed(1)}`, stroke: `url(#${fade})`, class: "graph-frost-edge", "stroke-width": "2.5",
-    }));
+    // How far below the border the ridge reaches at `x`: a little everywhere
+    // it is thick, more where an icicle grows from it.
+    const sag = (x) => {
+        let most = 0;
+        for (const [at, wide] of icicles) {
+            const into = Math.abs(x - (at + wide / 2)) / (wide * 0.9);
+            if (into < 1)
+                most = Math.max(most, (1 - into * into) * 2.2);
+        }
+        return (0.9 + most) * melt(x);
+    };
+    const bodies = [];
+    const shades = [];
+    const glints = [];
+    for (const [at, wide, long] of icicles) {
+        const [body, shade, glint] = graphIcicle(at, wide, long, above + sag(at + wide / 2) - 1.2, (noise(at) - 0.5) * wide * 0.25);
+        bodies.push(body !== null && body !== void 0 ? body : "");
+        shades.push(shade !== null && shade !== void 0 ? shade : "");
+        if (long > 8)
+            glints.push(glint !== null && glint !== void 0 ? glint : "");
+    }
+    svg.appendChild(graphFrostShape("path", { d: bodies.join(""), class: "graph-icicle" }));
+    svg.appendChild(graphFrostShape("path", { d: shades.join(""), class: "graph-icicle-shade" }));
+    svg.appendChild(graphFrostShape("path", { d: glints.join(""), class: "graph-icicle-glint", "stroke-width": "0.9" }));
+    // The ridge over the border, lying on it: over the icicles' roots.
+    let ridge = `M${n(from)},${above}`;
+    for (let x = from; x <= to; x += 2)
+        ridge += `L${n(x)},${n(above - 1.1 * melt(x))}`;
+    for (let x = to; x >= from; x -= 2)
+        ridge += `L${n(x)},${n(above + sag(x))}`;
+    ridge += "Z";
+    svg.appendChild(graphFrostShape("path", { d: ridge, class: "graph-frost-ridge" }));
     touch.appendChild(svg);
     return touch;
 }
