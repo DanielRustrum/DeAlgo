@@ -32,11 +32,11 @@ no trigger fires (Run now and Backfill refuse), no source is polled for it, no i
 its boxes or lands in a feed inside it, no Withdraw pulls and no Text box writes. A source whose
 only trigger is inside is left alone, as if nothing were wired to it.
 
-Everything is still there to change. The box is **snowed in and iced over**: puffy snow lies
-along its top, with short drips and a pale blue underside, and a fringe of icicles hangs from under
-it; frost fades down the box, and its bottom edge is iced round its corners with longer icicles
-below — with a **❄ Frozen** badge, sized to the box however it was resized, in the theme's
-[Frost](../Theming.md#colours) colours. Inside, the view itself has snow and icicles in its two top corners and drifts of snow in its bottom two, the boxes are drawn muted, and about a
+Everything is still there to change. The box is **snowed in and iced over**: a low layer of
+snow lies along its top and its bottom, following its rounded corners, with short drips and a pale
+blue underside; a fringe of icicles hangs from the top snow into the box, longer ones from the
+bottom snow below it, and frost fades down the box — with a **❄ Frozen** badge, sized to the box however it was resized, in the theme's
+[Frost](../Theming.md#colours) colours. Inside, the view itself is iced in its two top corners and has drifts of snow in its bottom two, the boxes are drawn muted, and about a
 third of them wear a touch of the same ice — a few small icicles under part of the bottom edge of
 the box, or of the last piece slotted under it, the same boxes every time — and the trail
 says *Frozen: nothing here runs*. Each box keeps its own **Active** switch, so
