@@ -189,7 +189,10 @@ def publishing_names() -> Context:
     connect = plugin.connect if plugin is not None else None
     return {
         "plugin_id": plugin.id if plugin is not None else "",
-        "publisher": plugin.title if plugin is not None else "",
+        # With no plugin publishing — the one that did not installed yet —
+        # the sentences still read: "Open on its service".
+        "publisher": plugin.title if plugin is not None else "its service",
+        "installed": plugin is not None,
         "service": connect.name if connect is not None else "",
         "where": f"/settings#plugin-{plugin.id}" if plugin is not None else "/settings",
     }

@@ -42,7 +42,7 @@
       {% if section.playlist.url %}
         {% if publishing_offline(identity.user_pk if identity else none) %}
         <span class="pill pill-dormant"
-              title="No {{ publishing().service }} account, so nothing is being written to this playlist">
+              title="No {{ publishing().service ~ ' ' if publishing().service }}account, so nothing is being written to this playlist">
           local only</span>
         {% else %}
         <a class="btn btn-quiet" href="{{ section.playlist.url }}" target="_blank" rel="noopener">

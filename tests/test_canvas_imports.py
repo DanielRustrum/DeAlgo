@@ -97,3 +97,15 @@ def test_a_canvas_box_is_resized_and_keeps_its_size_in_a_copy(canvas, db):
         assert (room.width, room.height) == (400, 80)  # no smaller than it can be
         made = graph.clipboard.paste(session, graph.clipboard.copy(session, [room_pk]), x=0, y=500)
         assert (made[0].width, made[0].height) == (400, 80)
+
+
+def test_feeds_on_a_service_whose_plugin_is_not_installed_say_so(monkeypatch):
+    from pamphlets.web import templates
+
+    monkeypatch.setattr(templates, "publishing_plugin", lambda: None)
+    monkeypatch.setitem(templates.TEMPLATES.env.globals, "publishing_offline", lambda owner=None: {"feeds": 2, "stale": False})
+    names = templates.publishing_names()
+    assert (names["publisher"], names["installed"]) == ("its service", False)
+    said = templates.TEMPLATES.env.get_template("_offline_banner.html").render(identity=None)
+    assert "is not installed" in said and "/admin/plugins" in said
+    assert ", ." not in said and "No  account" not in said

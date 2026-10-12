@@ -5,6 +5,16 @@
 {% if offline %}
 {% set pub = publishing() %}
 <div class="toast toast-warn" data-toast="no-sign-in">
+  {% if not pub.installed %}
+  {# The plugin that wrote to these playlists is not installed: none come
+     with Pamphlets, and this one has not been added yet. #}
+  <strong>The plugin these playlists belong to is not installed.</strong>
+  {{ offline.feeds }} {{ 'feed points' if offline.feeds == 1 else 'feeds point' }} at a playlist on a
+  service no installed plugin writes to. Until it is installed they behave like generic feeds: new
+  items collect inside Pamphlets and are watchable here. Whatever collects meanwhile is added to the
+  playlists once it is installed and an account is connected.
+  {% if identity is none or identity.is_admin %}<a href="/admin/plugins">Plugins →</a>{% endif %}
+  {% else %}
   <strong>
     {% if offline.stale %}
       The {{ pub.service }} account needs reconnecting.
@@ -18,5 +28,6 @@
   or removed from, {{ pub.publisher }}. Whatever collects meanwhile is added to the playlists on the
   first sync after you connect.
   <a href="{{ pub.where }}">Settings →</a>
+  {% endif %}
 </div>
 {% endif %}

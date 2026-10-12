@@ -23,7 +23,7 @@
         <span class="pill" title="No playlist behind it on any service">generic</span>
       {% elif publishing_offline(identity.user_pk if identity else none) %}
         <span class="pill pill-dormant"
-              title="No {{ publishing().service }} account, so this one collects inside Pamphlets for now">
+              title="No {{ publishing().service ~ ' ' if publishing().service }}account, so this one collects inside Pamphlets for now">
           local only</span>
       {% endif %}
       {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
@@ -44,7 +44,7 @@
     <dd>
       {% if playlist.url %}<code>{{ playlist.playlist_id }}</code>
         {% if publishing_offline(identity.user_pk if identity else none) %}
-        <div class="hint">Not being written to: no {{ publishing().service }} account is connected. New items
+        <div class="hint">Not being written to: no {{ publishing().service ~ ' ' if publishing().service }}account is connected. New items
           collect in Pamphlets and go into the playlist on the first sync after you connect.</div>
         {% endif %}
       {% else %}nothing — videos live in Pamphlets only, costing no API quota{% endif %}
