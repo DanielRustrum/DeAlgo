@@ -415,7 +415,12 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     grip.title = "Drag to resize";
     box.appendChild(grip);
     // Frozen: iced over, so it reads as stopped from across the canvas.
-    if (node.frozen) box.appendChild(graphFrost(node.size.width, node.size.height));
+    if (node.frozen) {
+      const scale = graphCanvasScale(node.size);
+      box.appendChild(graphFrost(node.id, node.size.width, node.size.height, scale));
+      // The words start below the fringe of icicles along the top.
+      box.style.paddingTop = `${Math.round(graphFrostFringe(scale) + 4 * scale)}px`;
+    }
   }
   return box;
 }

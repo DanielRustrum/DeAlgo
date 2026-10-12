@@ -32,9 +32,10 @@ no trigger fires (Run now and Backfill refuse), no source is polled for it, no i
 its boxes or lands in a feed inside it, no Withdraw pulls and no Text box writes. A source whose
 only trigger is inside is left alone, as if nothing were wired to it.
 
-Everything is still there to change. The box is **iced over** — a cap of snow along its top,
-icicles hanging from its bottom edge, frost in its corners and a **❄ Frozen** badge — sized to the
-box however it was resized, in light and dark alike. Inside, the boxes are drawn grey and the trail
+Everything is still there to change. The box is **iced over** — a fringe of icicles hanging from its
+top edge and longer ones from its bottom, each lit on one side and shaded on the other, and a
+**❄ Frozen** badge — sized to the box however it was resized, pale in light mode and deep blue in
+dark. Inside, the boxes are drawn grey and the trail
 says *Frozen: nothing here runs*. Each box keeps its own **Active** switch, so
 **Thaw** puts everything back exactly as it was — a box you switched off stays off.
 

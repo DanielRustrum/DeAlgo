@@ -412,20 +412,24 @@
 .graph-node.kind-canvas .graph-node-title { font-size: calc(13.5px * var(--text-scale) * var(--canvas-scale, 1)); }
 .graph-node.kind-canvas .graph-node-note { font-size: calc(11.5px * var(--text-scale) * var(--canvas-scale, 1)); }
 
-/* A frozen Canvas box, iced over (frost.ts): snow along its top, icicles
-   along its bottom, in two flat colours mixed from the theme's panel, so it
-   reads in light and dark. */
+/* A frozen Canvas box, iced over (frost.ts): a fringe of icicles from its
+   top edge and longer ones below it, each lit on one side and shaded on the
+   other. The blues are mixed with the theme's panel, so the ice is pale in
+   light mode and deep in dark. */
 .graph-node.kind-canvas.is-frozen {
-  --ice: color-mix(in srgb, #7fbfe6 60%, var(--panel));
-  --snow: color-mix(in srgb, #ffffff 85%, var(--panel));
+  --ice-light: color-mix(in srgb, #e6f6ff 80%, var(--panel));
+  --ice: color-mix(in srgb, #8fd0f2 75%, var(--panel));
+  --ice-deep: color-mix(in srgb, #3f93c8 80%, var(--panel));
   border-color: var(--ice);
 }
 .graph-frost { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .graph-frost-art { position: absolute; inset: 0; overflow: visible; }
-.graph-snow { fill: var(--snow); stroke: var(--ice); stroke-width: 1; }
-.graph-icicle { fill: var(--ice); }
+.graph-icicle { fill: var(--ice); stroke: var(--ice-deep); stroke-width: 0.6; stroke-opacity: 0.5; }
+.graph-icicle-shade { fill: var(--ice-deep); opacity: 0.55; }
+.graph-icicle-glint { fill: none; stroke: var(--ice-light); stroke-linecap: round; opacity: 0.9; }
+.graph-ice-band { fill: var(--ice-light); stroke: var(--ice); stroke-width: 0.8; }
 .graph-frost-badge {
-  position: absolute; right: calc(10px * var(--canvas-scale, 1)); top: calc(14px * var(--canvas-scale, 1));
+  position: absolute; right: calc(10px * var(--canvas-scale, 1)); top: calc(30px * var(--canvas-scale, 1));
   padding: calc(2px * var(--canvas-scale, 1)) calc(8px * var(--canvas-scale, 1)); border-radius: 999px;
   font-size: calc(10.5px * var(--text-scale) * var(--canvas-scale, 1)); font-weight: 600;
   color: var(--text); background: color-mix(in srgb, var(--ice) 40%, var(--panel));
