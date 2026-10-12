@@ -21,7 +21,8 @@ A **Canvas** box is a canvas of its own: a room for part of your setup. **Double
   them would. It asks first, unless it is empty.
 
 The box says how many boxes are inside it, and is drawn as a stack of sheets: there is more
-underneath.
+underneath. **Resize it** from its corner, as a group or a comment is; it keeps its size in copies
+and files.
 
 ### Freezing a canvas
 
@@ -65,6 +66,18 @@ and no credentials go with it.
 with all of that inside, in whichever canvas you have open. Nothing already here is changed. It is
 refused if it would take canvases more than five deep where it is loaded.
 
+- **It comes in [frozen](#freezing-a-canvas)**, and the sources it names paused: somebody else's
+  setup does nothing until you have looked it over and pressed **Thaw**.
+- **Plugins it needs that are not here are asked about first.** The file names the plugins its boxes
+  are from, and the repository each was installed from. If any are missing, nothing is loaded yet:
+  the dialog lists them, each with **Install…**, which opens Admin → Plugins in a new tab to agree to
+  what it asks for, as installing any plugin does. Then press **Load again** — or **Load without
+  them**, and their boxes come in but do nothing until the plugin is here. A plugin switched off here
+  is said as that; one installed from a file rather than a repository has nowhere to be fetched
+  from, so ask whoever sent the file. Only an admin installs plugins; anybody else is told to ask
+  one.
+- Each source keeps its kind — a subreddit comes in as a subreddit.
+
 ## Relay
 
 A **Relay** is a dot a wire passes through, so a wire can be routed round other boxes instead of
@@ -93,6 +106,11 @@ nothing and changes nothing.
 
 - **Double-click it to write in it**, where it is. Click away, or press Ctrl+Enter, to keep what you
   wrote; Esc puts back what was there. Its panel has the same words, and its colour.
+- **Written in Markdown**, and shown the way it reads: `#` headings, `**bold**`, `*italic*`,
+  `~~struck~~`, `` `code` `` and fenced code blocks, `[links](https://…)`, `-` and `1.` lists,
+  `- [ ]` and `- [x]` task lists, `>` quotes and `---` rules. Links open in a new tab. While you
+  write in it you see the words as typed. Nothing in a comment can run as script — not even one in
+  a file somebody sent — and a link only goes to a web or mail address.
 - **Five colours**, all the theme's own: paper, sage, blush, ochre and sky. They follow the theme,
   light and dark.
 - **Resize it** from its corner, as a group is resized.

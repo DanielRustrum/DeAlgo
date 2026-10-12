@@ -172,10 +172,12 @@ async function loadGraphGroup(
   state: GraphState,
   file: File,
   dialog: HTMLDialogElement,
+  anyway = false,
 ): Promise<void> {
   const centre = graphViewCentre(state);
   const body = new FormData();
   body.append("file", file);
+  if (anyway) body.append("anyway", "1");
   // Dropped around the middle of what is on screen, not on top of whatever is
   // already at the coordinates it was exported from.
   body.append("x", String(Math.round(centre.x - 260)));
@@ -184,6 +186,10 @@ async function loadGraphGroup(
   try {
     const response = await fetch(graphAddress("/graph/groups"), { method: "POST", body });
     const answer = (await response.json()) as unknown;
+    if (response.status === 409) {
+      showGraphMissingPlugins(state, dialog, file, answer);
+      return;
+    }
     const view = asGraph(answer);
     if (view === null) {
       graphLoadTrouble(dialog, asGraphError(answer) ?? "That file could not be loaded.");
@@ -193,11 +199,105 @@ async function loadGraphGroup(
     state.wires = view.wires;
     forgetMissingGraph(state);
     showGraphError(state, null);
+    graphMissingPart(dialog)?.replaceChildren();
+    graphMissingPart(dialog)?.setAttribute("hidden", "");
     dialog.close();
     renderGraph(state);
   } catch {
     graphLoadTrouble(dialog, "No connection, so nothing was loaded.");
   }
+}
+
+function graphMissingPart(dialog: HTMLDialogElement): HTMLElement | null {
+  return dialog.querySelector<HTMLElement>("[data-graph-load-missing]");
+}
+
+/** The plugins a file needs that are not here: each offered for installing
+ *  — in a new tab, through the Plugins page's own consent — then loaded
+ *  again, or loaded without them. */
+function showGraphMissingPlugins(
+  state: GraphState,
+  dialog: HTMLDialogElement,
+  file: File,
+  answer: unknown,
+): void {
+  const part = graphMissingPart(dialog);
+  const raw = asGraphRecord(answer);
+  if (part === null || raw === null || !Array.isArray(raw["missing"])) {
+    graphLoadTrouble(dialog, "That file could not be loaded.");
+    return;
+  }
+  graphLoadTrouble(dialog, null);
+  const canInstall = raw["can_install"] === true;
+  const rows: Node[] = [graphElement("p", "graph-load-missing-head",
+    "Some of this canvas's boxes are from plugins this Pamphlets does not have:")];
+  const list = graphElement("ul", "graph-load-missing-list");
+  for (const entry of raw["missing"]) {
+    const one = asGraphRecord(entry);
+    if (one === null) continue;
+    const name = typeof one["name"] === "string" ? one["name"] : String(one["id"] ?? "");
+    const origin = typeof one["origin"] === "string" ? one["origin"] : "";
+    const ref = typeof one["ref"] === "string" ? one["ref"] : "";
+    const item = graphElement("li", "graph-load-missing-item");
+    item.appendChild(graphElement("strong", "", name));
+    if (one["paused"] === true) {
+      item.appendChild(graphElement("span", "hint", canInstall
+        ? " — installed, but switched off here."
+        : " — switched off here; ask an admin to switch it on."));
+      if (canInstall) {
+        const go = document.createElement("a");
+        go.className = "btn btn-quiet";
+        go.href = "/admin/plugins";
+        go.target = "_blank";
+        go.rel = "noopener";
+        go.textContent = "Open Plugins";
+        item.appendChild(go);
+      }
+    } else if (origin === "") {
+      item.appendChild(graphElement("span", "hint",
+        " — not installed from a repository where it was made, so there is nowhere to fetch it from. Ask whoever sent you this file for it."));
+    } else if (canInstall) {
+      item.appendChild(graphElement("span", "hint", ` — from ${origin}${ref ? ` (${ref})` : ""}`));
+      // The Plugins page's own fetch: it shows what the plugin asks to be
+      // allowed to do, and nothing is installed until that is agreed to.
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = "/admin/plugins/fetch";
+      form.target = "_blank";
+      form.setAttribute("hx-boost", "false");
+      for (const [field, value] of [["url", origin], ["ref", ref]]) {
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = field ?? "";
+        hidden.value = value ?? "";
+        form.appendChild(hidden);
+      }
+      const install = graphElement("button", "btn btn-quiet", "Install…");
+      install.setAttribute("type", "submit");
+      install.title = "Opens the Plugins page in a new tab, to agree to what it asks for";
+      form.appendChild(install);
+      item.appendChild(form);
+    } else {
+      item.appendChild(graphElement("span", "hint", ` — ask an admin to install it from ${origin}.`));
+    }
+    list.appendChild(item);
+  }
+  rows.push(list);
+  rows.push(graphElement("p", "hint", canInstall
+    ? "Install them, then load it again. Or load it without them: their boxes come in, but do nothing until the plugin is here."
+    : "Or load it without them: their boxes come in, but do nothing until the plugin is here."));
+  const again = graphElement("button", "btn btn-quiet", "Load again");
+  again.setAttribute("type", "button");
+  again.addEventListener("click", (): void => { void loadGraphGroup(state, file, dialog); });
+  const anyway = graphElement("button", "btn btn-quiet", "Load without them");
+  anyway.setAttribute("type", "button");
+  anyway.addEventListener("click", (): void => { void loadGraphGroup(state, file, dialog, true); });
+  const foot = graphElement("div", "graph-load-missing-foot");
+  foot.appendChild(again);
+  foot.appendChild(anyway);
+  rows.push(foot);
+  part.replaceChildren(...rows);
+  part.hidden = false;
 }
 
 /** Bring a loaded group up to date with a newer copy of its file. */

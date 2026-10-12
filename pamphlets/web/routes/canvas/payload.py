@@ -364,10 +364,14 @@ def _drawn(node: GraphNode, canvas: _Canvas) -> Context:
 
 
 def _size(node: GraphNode) -> Context | None:
-    """A group's size, or a comment's; None for any other box."""
-    if node.kind not in ("group", "comment"):
+    """A group's size, a comment's or a canvas's; None for any other box."""
+    if node.kind not in ("group", "comment", "canvas"):
         return None
-    start = graph_service.comments.SIZE if node.kind == "comment" else graph_service.GROUP_SIZE
+    start = (
+        graph_service.comments.SIZE if node.kind == "comment"
+        else graph_service.insides.CANVAS_SIZE if node.kind == "canvas"
+        else graph_service.GROUP_SIZE
+    )
     return {"width": node.width or start[0], "height": node.height or start[1]}
 
 

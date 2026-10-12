@@ -6,9 +6,14 @@ everything inside those — with the wires between, drawn as they were.
 Positions are each canvas's own, so they come back where they were.
 
 Loaded, a `.pam` file is a new Canvas box, in the canvas it is loaded into,
-with all of that inside it. Nothing already here is changed: channels it
-names are matched by their id or made, and feeds are made, as a group's
-file does (groups.py, whose packing this shares).
+with all of that inside it — **frozen**, so somebody else's setup does
+nothing until it has been looked over and thawed. Nothing already here is
+changed: channels it names are matched by their id or made, and feeds are
+made, as a group's file does (groups.py, whose packing this shares).
+
+The file names the plugins its boxes are from, and where each was installed
+from. One this install does not have is said before anything is loaded
+(`missing_plugins`), so it can be installed first.
 """
 
 from __future__ import annotations
@@ -19,8 +24,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models import CURRENT_INSIDE, GraphNode
+from ...plugins import registry
 from ..scope import OwnerId, owned
 from . import allowing, groups, insides
+from .conditions import RULE
 from .errors import GraphError
 from .reading import nodes
 
@@ -43,7 +50,73 @@ def export_canvas(session: Session, node_pk: int, owner: OwnerId = None) -> dict
         # Which canvas inside it this box is in: None for the canvas itself.
         held = node.inside_pk
         entry["inside"] = refs.get(held) if held is not None and held != canvas.id else None
-    return {FORMAT: VERSION, "name": canvas.title, "nodes": packed, "wires": wires}
+    return {
+        FORMAT: VERSION, "name": canvas.title, "plugins": _plugins_used(carried),
+        "nodes": packed, "wires": wires,
+    }
+
+
+def _plugins_used(carried: list[GraphNode]) -> list[dict[str, str]]:
+    """The plugins the boxes are from, and where each was fetched from — so
+    an install without one can be offered it."""
+    used = {found.id for node in carried if (found := allowing.plugin_of_node(node)) is not None}
+    if not used:
+        return []
+    came_from = registry.origins()
+    named = []
+    for plugin in registry.current().plugins:
+        if plugin.id not in used:
+            continue
+        origin = came_from.get(plugin.id)
+        named.append({
+            "id": plugin.id,
+            "name": plugin.title,
+            "version": plugin.version,
+            "origin": origin.url if origin is not None else "",
+            "ref": origin.ref if origin is not None else "",
+        })
+    return named
+
+
+def missing_plugins(payload: Any) -> list[dict[str, Any]]:
+    """The plugins a canvas file's boxes are from that this install does not
+    have working — as the file names them, with where to fetch each. One
+    switched off here is said as that, since it needs switching on, not
+    installing. A file that names none is read for them from its boxes."""
+    if not is_canvas_file(payload):
+        return []
+    named: dict[str, dict[str, Any]] = {}
+    for one in payload.get("plugins") or []:
+        if isinstance(one, dict) and isinstance(one.get("id"), str) and one["id"]:
+            named[one["id"]] = {
+                "id": one["id"],
+                "name": str(one.get("name") or one["id"]),
+                "origin": str(one.get("origin") or ""),
+                "ref": str(one.get("ref") or ""),
+            }
+    # Boxes a file did not name a plugin for: a condition says whose it is,
+    # and a source of a kind nothing here reads is most likely the plugin
+    # of that name's.
+    from ... import sources
+
+    kinds = {known.name for known in sources.all_kinds()}
+    for entry in payload.get("nodes") or []:
+        if isinstance(entry, dict) and entry.get("kind") == "source":
+            kind = str(entry.get("source_kind") or "")
+            if kind and kind not in kinds and not any(kind == one for one in named):
+                named[kind] = {"id": kind, "name": kind, "origin": "", "ref": ""}
+        if isinstance(entry, dict) and entry.get("kind") == RULE:
+            ref = str(entry.get("plugin_ref") or "")
+            whose = ref.split(":", 1)[0] if ":" in ref else ""
+            if whose and whose not in named:
+                named[whose] = {"id": whose, "name": whose, "origin": "", "ref": ""}
+    found = registry.current()
+    working = {plugin.id for plugin in found.working}
+    paused = {plugin.id for plugin in found.paused}
+    return [
+        {**one, "paused": one["id"] in paused}
+        for one in named.values() if one["id"] not in working
+    ]
 
 
 def is_canvas_file(payload: Any) -> bool:
@@ -82,6 +155,9 @@ def import_canvas(
 
     allowing.check_entries(session, here, entries, owner)
     canvas = insides.add_canvas(session, owner, label=str(payload.get("name") or "Canvas")[:120], x=x, y=y)
+    # Frozen until somebody has looked it over: its triggers would otherwise
+    # start fetching for its sources the moment it landed.
+    canvas.frozen = True
     made: dict[int, GraphNode] = {}
     # A canvas's boxes are made once the canvas they go in is: round again
     # while anything is still waiting for its canvas.

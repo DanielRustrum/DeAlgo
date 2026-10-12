@@ -149,6 +149,8 @@ def pack_nodes(
             entry["writing"] = writing.settings(node)
         if node.kind == "canvas" and node.frozen:
             entry["frozen"] = True
+        if node.kind == "canvas" and node.width:
+            entry["width"], entry["height"] = node.width, node.height
         if node.kind == "canvas" and node.plugins:
             entry["plugins"] = json.loads(node.plugins)
         if node.kind in ("relay", "group"):
@@ -165,6 +167,14 @@ def pack_nodes(
         if node.kind == "source" and node.channel is not None:
             entry["channel_id"] = node.channel.channel_id
             entry["title"] = node.channel.title
+            # Which kind of source, and where it is read from: a channel id
+            # alone is a YouTube channel's, and every other kind would come
+            # back as one.
+            entry["source_kind"] = node.channel.source_kind
+            if node.channel.source_url:
+                entry["source_url"] = node.channel.source_url
+            if node.channel.handle:
+                entry["handle"] = node.channel.handle
         elif node.kind == "source":
             # Not told which source it is yet: it travels as the kind it was
             # dragged out as, to be told on arrival.
@@ -407,10 +417,13 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
             looks.save(node, said)
         except GraphError:
             pass  # a look this install does not have: as it was, then
-    if kind == "group":
+    if kind in ("group", "canvas"):
+        from .insides import CANVAS_LEAST
+
+        least = GROUP_LEAST if kind == "group" else CANVAS_LEAST
         for side in ("width", "height"):
             if isinstance(entry.get(side), int):
-                setattr(node, side, max(GROUP_LEAST[0 if side == "width" else 1], entry[side]))
+                setattr(node, side, max(least[0 if side == "width" else 1], entry[side]))
     if kind == "text" and isinstance(entry.get("writing"), dict):
         from .. import writing
 
@@ -784,6 +797,11 @@ def _channel_for(session: Session, entry: dict[str, Any], owner: OwnerId) -> Cha
             channel_id=str(channel_id),
             title=str(entry.get("title") or channel_id),
             enabled=False,
+            # A file from before kinds were written down is YouTube's: the
+            # only kind group files were made of then.
+            source_kind=str(entry.get("source_kind") or "youtube")[:12],
+            source_url=str(entry["source_url"]) if entry.get("source_url") else None,
+            handle=str(entry["handle"])[:255] if entry.get("handle") else None,
         )
         session.add(channel)
         session.flush()
@@ -927,10 +945,12 @@ def resize(
     group = session.scalar(
         owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk)
     )
-    if group is None or group.kind not in ("group", "comment") or group.locked:
+    if group is None or group.kind not in ("group", "comment", "canvas") or group.locked:
         return False
-    # A comment is resized as a group is, down to a size of its own.
-    least = comments.LEAST if group.kind == "comment" else GROUP_LEAST
+    # A comment or a canvas is resized as a group is, down to a size of its own.
+    from .insides import CANVAS_LEAST
+
+    least = comments.LEAST if group.kind == "comment" else CANVAS_LEAST if group.kind == "canvas" else GROUP_LEAST
     group.width = max(least[0], int(width))
     group.height = max(least[1], int(height))
     session.flush()

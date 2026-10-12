@@ -178,6 +178,8 @@ function onGraphPointerDown(state: GraphState, event: PointerEvent): void {
   if (target instanceof Element && target.closest(".graph-palette")) return;
   // A comment being written in: the press is for the words.
   if (target instanceof Element && target.closest(".graph-comment-edit")) return;
+  // A link in a comment: the press is for following it.
+  if (target instanceof Element && target.closest(".graph-comment-text a[href]")) return;
   // A group's fold: up to its name, or out again — locked or not.
   const fold = target instanceof Element ? target.closest<HTMLElement>("[data-fold]") : null;
   if (fold) {
@@ -342,7 +344,8 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     const frame = state.boxes.get(drag.nodeId);
     if (node === undefined || frame === undefined || node.size === null) return;
     // A comment shrinks further than a group: it only has to hold its words.
-    const least = node.kind === "comment" ? { width: 140, height: 60 } : { width: 200, height: 140 };
+    const least = node.kind === "comment" ? { width: 140, height: 60 }
+      : node.kind === "canvas" ? { width: 160, height: 80 } : { width: 200, height: 140 };
     node.size.width = Math.max(least.width, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
     node.size.height = Math.max(least.height, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
     frame.style.width = `${node.size.width}px`;

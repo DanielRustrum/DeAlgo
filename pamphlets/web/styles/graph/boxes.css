@@ -298,9 +298,36 @@
 .graph-node.kind-comment:hover, .graph-node.kind-comment.is-picked { border-color: var(--accent); }
 .graph-comment-text {
   flex: 1 1 auto; overflow: auto;
-  white-space: pre-wrap; overflow-wrap: anywhere;
+  overflow-wrap: anywhere;
   font-size: calc(13.5px * var(--text-scale)); line-height: 1.45;
 }
+/* Its Markdown: a note's sizes, not a page's. */
+.graph-comment-text > :first-child { margin-top: 0; }
+.graph-comment-text > :last-child { margin-bottom: 0; }
+.graph-comment-text :is(p, ul, ol, pre, blockquote, hr) { margin: 0 0 0.5em; }
+.graph-comment-text :is(h3, h4, h5, h6) {
+  margin: 0.4em 0 0.3em; font-family: inherit; font-weight: 650; line-height: 1.25;
+  text-transform: none; letter-spacing: normal; color: inherit;
+}
+.graph-comment-text h3 { font-size: 1.3em; }
+.graph-comment-text h4 { font-size: 1.15em; }
+.graph-comment-text :is(h5, h6) { font-size: 1em; }
+.graph-comment-text :is(ul, ol) { padding-left: 1.3em; }
+.graph-comment-text ul { list-style: disc; }
+.graph-comment-text ol { list-style: decimal; }
+.graph-comment-text li.is-task { list-style: none; margin-left: -1.3em; }
+.graph-comment-text li.is-task input { margin: 0 0.4em 0 0; vertical-align: -1px; }
+.graph-comment-text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em;
+  padding: 0 3px; border-radius: 4px; background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.graph-comment-text pre { padding: 6px 8px; border-radius: 6px; overflow-x: auto; white-space: pre;
+  background: color-mix(in srgb, currentColor 8%, transparent); }
+.graph-comment-text pre code { padding: 0; background: none; }
+.graph-comment-text blockquote { padding-left: 0.7em; border-left: 3px solid color-mix(in srgb, currentColor 30%, transparent); opacity: 0.85; }
+.graph-comment-text hr { border: 0; border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+.graph-comment-text a { color: var(--accent); text-decoration: underline; }
+.graph-comment-text del { opacity: 0.7; }
 .graph-comment-text.is-blank { color: var(--muted); font-style: italic; }
 .graph-comment-edit {
   flex: 1 1 auto; width: 100%; resize: none; padding: 0; margin: 0;
@@ -363,3 +390,18 @@
 .graph-relay-side.is-right { top: 50%; right: 6px; margin-top: -12px; }
 .graph-relay-side[data-role="in"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .graph-relay-side[data-role="out"] { background: var(--ok); border-color: var(--ok); color: var(--on-accent); }
+
+/* A Canvas box once it has a size: its words keep to it, and the corner
+   to resize it by sits inside the stack of sheets. */
+.graph-node.kind-canvas { overflow: hidden; }
+.graph-node.kind-canvas .graph-node-note { overflow: hidden; }
+.graph-node.kind-canvas .graph-canvas-grip { right: 3px; bottom: 3px; }
+.graph-node.kind-canvas:hover .graph-canvas-grip { border-color: var(--accent); }
+
+/* The plugins a file needs that are not here, in the load dialog. */
+.graph-load-missing { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.graph-load-missing-head { margin: 0 0 6px; font-weight: 600; }
+.graph-load-missing-list { margin: 0 0 8px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.graph-load-missing-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.graph-load-missing-item form { display: inline; margin: 0; }
+.graph-load-missing-foot { display: flex; gap: 8px; flex-wrap: wrap; }

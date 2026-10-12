@@ -26,6 +26,9 @@ from .reading import nodes
 
 #: How many canvases deep a canvas can be: the top, then five more.
 MOST_DEPTH = 5
+#: A Canvas box's size until it is resized, and the least it can be made.
+CANVAS_SIZE = (220, 104)
+CANVAS_LEAST = (160, 80)
 
 
 def depth(by_id: dict[int, GraphNode], inside: int | None) -> int:

@@ -354,8 +354,11 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     box.style.width = `${node.size?.width ?? 260}px`;
     box.style.height = `${node.size?.height ?? 140}px`;
     box.setAttribute("aria-label", `Comment: ${words.slice(0, 80) || "empty"}`);
+    // Written in Markdown, and shown the way it reads; the words as typed
+    // come back while it is being written in.
     const said = graphElement("div", `graph-comment-text${words === "" ? " is-blank" : ""}`,
-      words === "" ? "Double-click to write a comment." : words);
+      words === "" ? "Double-click to write a comment. Markdown works: **bold**, - lists, [links](https://…)." : "");
+    if (words !== "") said.appendChild(graphMarkdown(words));
     box.appendChild(said);
     const grip = graphElement("span", "graph-group-grip graph-comment-grip");
     grip.dataset["grip"] = String(node.id);
@@ -402,6 +405,15 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     box.appendChild(graphPort("out", gives, graphPortSays(node.kind, "out", gives)));
   }
   graphSpreadPorts(box);
+  if (node.kind === "canvas" && node.size !== null) {
+    // A canvas is as big as it was made, with a corner to make it bigger by.
+    box.style.width = `${node.size.width}px`;
+    box.style.height = `${node.size.height}px`;
+    const grip = graphElement("span", "graph-group-grip graph-canvas-grip");
+    grip.dataset["grip"] = String(node.id);
+    grip.title = "Drag to resize";
+    box.appendChild(grip);
+  }
   return box;
 }
 

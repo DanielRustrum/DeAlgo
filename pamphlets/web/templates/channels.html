@@ -380,17 +380,21 @@
       <h2>Load a canvas</h2>
       <button class="modal-close" type="button" data-graph-load-close aria-label="Close">✕</button>
     </div>
-    <form class="modal-body" data-graph-load-form>
+    <form class="modal-body" data-graph-load-form hx-boost="false">
       <p class="hint">
         A .pam file somebody saved from a Canvas box. It comes in as a new
         Canvas box, with everything that was inside it, in the canvas you
-        have open — nothing here is changed or replaced. Channels it names are
-        added paused, so somebody else's setup does not start fetching the
-        moment it lands. A group file saved before still loads, as a group.
+        have open — nothing here is changed or replaced. It comes in
+        <strong>frozen</strong>, and the channels it names paused, so somebody
+        else's setup does nothing until you have looked it over and pressed
+        Thaw. A group file saved before still loads, as a group.
       </p>
       <input type="file" name="file" accept=".pam,application/json,.json" required
              data-graph-load-file>
       <p class="error-note" data-graph-load-error hidden></p>
+      {# Plugins the file's boxes are from that this install lacks: offered
+         for installing before it is loaded, or loaded without them. #}
+      <div class="graph-load-missing" data-graph-load-missing hidden></div>
       <div class="modal-foot">
         <button class="btn btn-quiet" type="button" data-graph-load-close>Cancel</button>
         <button class="btn btn-primary" type="submit">Load it</button>
@@ -422,7 +426,7 @@
       <h2>Backfill</h2>
       <button class="modal-close" type="button" data-graph-reach-close aria-label="Close">✕</button>
     </div>
-    <form class="modal-body" data-graph-reach-form>
+    <form class="modal-body" data-graph-reach-form hx-boost="false">
       <p class="hint">
         How many of the latest posts to run through, from each source this
         trigger is wired to. They go through the same filters as anything

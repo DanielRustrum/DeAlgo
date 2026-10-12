@@ -44,17 +44,35 @@ def graph_export_canvas(request: Request, node_pk: int) -> Response:
 
 @router.post("/graph/groups")
 async def graph_import_group(
-    request: Request, file: UploadFile = File(...), x: int = Form(40), y: int = Form(40)
+    request: Request, file: UploadFile = File(...), x: int = Form(40), y: int = Form(40),
+    anyway: str = Form(""),
 ) -> JSONResponse:
     """Load a .pam canvas file — or a group file saved before groups gave
     way to canvases — into the canvas being worked in. Nothing existing is
-    changed."""
+    changed.
+
+    A canvas file whose boxes are from plugins this install does not have
+    is not loaded, but answered with which — and whether the person loading
+    it may install them — unless they asked to load it `anyway`."""
     owner = owner_of(request)
     raw = await file.read()
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return JSONResponse({"error": "That file is not readable JSON."}, status_code=400)
+
+    if anyway != "1":
+        missing = graph_service.canvas_files.missing_plugins(payload)
+        if missing:
+            identity = getattr(request.state, "identity", None)
+            return JSONResponse(
+                {
+                    "missing": missing,
+                    # Installing is the admin's; with sign-in off, everybody is.
+                    "can_install": identity is None or bool(identity.is_admin),
+                },
+                status_code=409,
+            )
 
     with session_scope() as session:
         try:

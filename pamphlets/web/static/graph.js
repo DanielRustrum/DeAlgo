@@ -854,11 +854,14 @@ function graphLoadTrouble(dialog, message) {
 }
 /** Load a .pam canvas file — or a group file from before — into the middle
  *  of the view, in the canvas that is open. */
-async function loadGraphGroup(state, file, dialog) {
-    var _a;
+async function loadGraphGroup(state, file, dialog, anyway = false) {
+    var _a, _b;
+    var _c;
     const centre = graphViewCentre(state);
     const body = new FormData();
     body.append("file", file);
+    if (anyway)
+        body.append("anyway", "1");
     // Dropped around the middle of what is on screen, not on top of whatever is
     // already at the coordinates it was exported from.
     body.append("x", String(Math.round(centre.x - 260)));
@@ -866,21 +869,115 @@ async function loadGraphGroup(state, file, dialog) {
     try {
         const response = await fetch(graphAddress("/graph/groups"), { method: "POST", body });
         const answer = (await response.json());
+        if (response.status === 409) {
+            showGraphMissingPlugins(state, dialog, file, answer);
+            return;
+        }
         const view = asGraph(answer);
         if (view === null) {
-            graphLoadTrouble(dialog, (_a = asGraphError(answer)) !== null && _a !== void 0 ? _a : "That file could not be loaded.");
+            graphLoadTrouble(dialog, (_c = asGraphError(answer)) !== null && _c !== void 0 ? _c : "That file could not be loaded.");
             return;
         }
         state.nodes = view.nodes;
         state.wires = view.wires;
         forgetMissingGraph(state);
         showGraphError(state, null);
+        (_a = graphMissingPart(dialog)) === null || _a === void 0 ? void 0 : _a.replaceChildren();
+        (_b = graphMissingPart(dialog)) === null || _b === void 0 ? void 0 : _b.setAttribute("hidden", "");
         dialog.close();
         renderGraph(state);
     }
-    catch (_b) {
+    catch (_d) {
         graphLoadTrouble(dialog, "No connection, so nothing was loaded.");
     }
+}
+function graphMissingPart(dialog) {
+    return dialog.querySelector("[data-graph-load-missing]");
+}
+/** The plugins a file needs that are not here: each offered for installing
+ *  — in a new tab, through the Plugins page's own consent — then loaded
+ *  again, or loaded without them. */
+function showGraphMissingPlugins(state, dialog, file, answer) {
+    var _a;
+    const part = graphMissingPart(dialog);
+    const raw = asGraphRecord(answer);
+    if (part === null || raw === null || !Array.isArray(raw["missing"])) {
+        graphLoadTrouble(dialog, "That file could not be loaded.");
+        return;
+    }
+    graphLoadTrouble(dialog, null);
+    const canInstall = raw["can_install"] === true;
+    const rows = [graphElement("p", "graph-load-missing-head", "Some of this canvas's boxes are from plugins this Pamphlets does not have:")];
+    const list = graphElement("ul", "graph-load-missing-list");
+    for (const entry of raw["missing"]) {
+        const one = asGraphRecord(entry);
+        if (one === null)
+            continue;
+        const name = typeof one["name"] === "string" ? one["name"] : String((_a = one["id"]) !== null && _a !== void 0 ? _a : "");
+        const origin = typeof one["origin"] === "string" ? one["origin"] : "";
+        const ref = typeof one["ref"] === "string" ? one["ref"] : "";
+        const item = graphElement("li", "graph-load-missing-item");
+        item.appendChild(graphElement("strong", "", name));
+        if (one["paused"] === true) {
+            item.appendChild(graphElement("span", "hint", canInstall
+                ? " — installed, but switched off here."
+                : " — switched off here; ask an admin to switch it on."));
+            if (canInstall) {
+                const go = document.createElement("a");
+                go.className = "btn btn-quiet";
+                go.href = "/admin/plugins";
+                go.target = "_blank";
+                go.rel = "noopener";
+                go.textContent = "Open Plugins";
+                item.appendChild(go);
+            }
+        }
+        else if (origin === "") {
+            item.appendChild(graphElement("span", "hint", " — not installed from a repository where it was made, so there is nowhere to fetch it from. Ask whoever sent you this file for it."));
+        }
+        else if (canInstall) {
+            item.appendChild(graphElement("span", "hint", ` — from ${origin}${ref ? ` (${ref})` : ""}`));
+            // The Plugins page's own fetch: it shows what the plugin asks to be
+            // allowed to do, and nothing is installed until that is agreed to.
+            const form = document.createElement("form");
+            form.method = "post";
+            form.action = "/admin/plugins/fetch";
+            form.target = "_blank";
+            form.setAttribute("hx-boost", "false");
+            for (const [field, value] of [["url", origin], ["ref", ref]]) {
+                const hidden = document.createElement("input");
+                hidden.type = "hidden";
+                hidden.name = field !== null && field !== void 0 ? field : "";
+                hidden.value = value !== null && value !== void 0 ? value : "";
+                form.appendChild(hidden);
+            }
+            const install = graphElement("button", "btn btn-quiet", "Install…");
+            install.setAttribute("type", "submit");
+            install.title = "Opens the Plugins page in a new tab, to agree to what it asks for";
+            form.appendChild(install);
+            item.appendChild(form);
+        }
+        else {
+            item.appendChild(graphElement("span", "hint", ` — ask an admin to install it from ${origin}.`));
+        }
+        list.appendChild(item);
+    }
+    rows.push(list);
+    rows.push(graphElement("p", "hint", canInstall
+        ? "Install them, then load it again. Or load it without them: their boxes come in, but do nothing until the plugin is here."
+        : "Or load it without them: their boxes come in, but do nothing until the plugin is here."));
+    const again = graphElement("button", "btn btn-quiet", "Load again");
+    again.setAttribute("type", "button");
+    again.addEventListener("click", () => { void loadGraphGroup(state, file, dialog); });
+    const anyway = graphElement("button", "btn btn-quiet", "Load without them");
+    anyway.setAttribute("type", "button");
+    anyway.addEventListener("click", () => { void loadGraphGroup(state, file, dialog, true); });
+    const foot = graphElement("div", "graph-load-missing-foot");
+    foot.appendChild(again);
+    foot.appendChild(anyway);
+    rows.push(foot);
+    part.replaceChildren(...rows);
+    part.hidden = false;
 }
 /** Bring a loaded group up to date with a newer copy of its file. */
 async function updateGraphGroup(state, groupId, file) {
@@ -1070,6 +1167,9 @@ function onGraphPointerDown(state, event) {
     // A comment being written in: the press is for the words.
     if (target instanceof Element && target.closest(".graph-comment-edit"))
         return;
+    // A link in a comment: the press is for following it.
+    if (target instanceof Element && target.closest(".graph-comment-text a[href]"))
+        return;
     // A group's fold: up to its name, or out again — locked or not.
     const fold = target instanceof Element ? target.closest("[data-fold]") : null;
     if (fold) {
@@ -1226,7 +1326,8 @@ function onGraphPointerMove(state, event) {
         if (node === undefined || frame === undefined || node.size === null)
             return;
         // A comment shrinks further than a group: it only has to hold its words.
-        const least = node.kind === "comment" ? { width: 140, height: 60 } : { width: 200, height: 140 };
+        const least = node.kind === "comment" ? { width: 140, height: 60 }
+            : node.kind === "canvas" ? { width: 160, height: 80 } : { width: 200, height: 140 };
         node.size.width = Math.max(least.width, Math.round(drag.grabX + (event.clientX - drag.fromX) / state.zoom));
         node.size.height = Math.max(least.height, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
         frame.style.width = `${node.size.width}px`;
@@ -1788,7 +1889,11 @@ function drawGraphNode(state, node) {
         box.style.width = `${(_q = (_e = node.size) === null || _e === void 0 ? void 0 : _e.width) !== null && _q !== void 0 ? _q : 260}px`;
         box.style.height = `${(_r = (_f = node.size) === null || _f === void 0 ? void 0 : _f.height) !== null && _r !== void 0 ? _r : 140}px`;
         box.setAttribute("aria-label", `Comment: ${words.slice(0, 80) || "empty"}`);
-        const said = graphElement("div", `graph-comment-text${words === "" ? " is-blank" : ""}`, words === "" ? "Double-click to write a comment." : words);
+        // Written in Markdown, and shown the way it reads; the words as typed
+        // come back while it is being written in.
+        const said = graphElement("div", `graph-comment-text${words === "" ? " is-blank" : ""}`, words === "" ? "Double-click to write a comment. Markdown works: **bold**, - lists, [links](https://…)." : "");
+        if (words !== "")
+            said.appendChild(graphMarkdown(words));
         box.appendChild(said);
         const grip = graphElement("span", "graph-group-grip graph-comment-grip");
         grip.dataset["grip"] = String(node.id);
@@ -1839,6 +1944,15 @@ function drawGraphNode(state, node) {
         box.appendChild(graphPort("out", gives, graphPortSays(node.kind, "out", gives)));
     }
     graphSpreadPorts(box);
+    if (node.kind === "canvas" && node.size !== null) {
+        // A canvas is as big as it was made, with a corner to make it bigger by.
+        box.style.width = `${node.size.width}px`;
+        box.style.height = `${node.size.height}px`;
+        const grip = graphElement("span", "graph-group-grip graph-canvas-grip");
+        grip.dataset["grip"] = String(node.id);
+        grip.title = "Drag to resize";
+        box.appendChild(grip);
+    }
     return box;
 }
 /** The boxes data runs through on its way to a Format box, changed by each
@@ -3940,6 +4054,184 @@ function graphMapFocus(form, nodeId, said) {
         void look();
     });
     show();
+}
+
+"use strict";
+// Markdown, for a Comment box's words.
+//
+// Built as elements, never as HTML: a comment may have come in a .pam file
+// from somebody else, and text that is only ever text cannot run anything.
+// The parts people write in a note — headings, emphasis, code, links,
+// lists, task lists, quotes and rules — and nothing that needs more.
+//
+// Part of the Configuration canvas; see main.ts.
+/** Words written in Markdown, as elements to put in a box. */
+function graphMarkdown(words) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+    const out = document.createDocumentFragment();
+    const lines = words.replace(/\r\n?/g, "\n").split("\n");
+    let index = 0;
+    while (index < lines.length) {
+        const line = (_a = lines[index]) !== null && _a !== void 0 ? _a : "";
+        // A fenced block of code: kept exactly as written.
+        const fence = /^\s*(```|~~~)/.exec(line);
+        if (fence !== null) {
+            const closing = (_b = fence[1]) !== null && _b !== void 0 ? _b : "```";
+            const kept = [];
+            index += 1;
+            while (index < lines.length && !((_c = lines[index]) !== null && _c !== void 0 ? _c : "").trim().startsWith(closing)) {
+                kept.push((_d = lines[index]) !== null && _d !== void 0 ? _d : "");
+                index += 1;
+            }
+            index += 1;
+            const pre = document.createElement("pre");
+            pre.appendChild(graphElement("code", "", kept.join("\n")));
+            out.appendChild(pre);
+            continue;
+        }
+        if (line.trim() === "") {
+            index += 1;
+            continue;
+        }
+        const heading = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+        if (heading !== null) {
+            // Kept small: a note's heading is a heading inside a box, not a page's.
+            const level = Math.min(6, ((_e = heading[1]) !== null && _e !== void 0 ? _e : "#").length + 2);
+            const head = document.createElement(`h${level}`);
+            graphMarkdownInline(head, (_f = heading[2]) !== null && _f !== void 0 ? _f : "");
+            out.appendChild(head);
+            index += 1;
+            continue;
+        }
+        if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) {
+            out.appendChild(document.createElement("hr"));
+            index += 1;
+            continue;
+        }
+        if (/^\s{0,3}>/.test(line)) {
+            const quoted = [];
+            while (index < lines.length && /^\s{0,3}>/.test((_g = lines[index]) !== null && _g !== void 0 ? _g : "")) {
+                quoted.push(((_h = lines[index]) !== null && _h !== void 0 ? _h : "").replace(/^\s{0,3}>\s?/, ""));
+                index += 1;
+            }
+            const quote = document.createElement("blockquote");
+            quote.appendChild(graphMarkdown(quoted.join("\n")));
+            out.appendChild(quote);
+            continue;
+        }
+        const bullet = /^\s*([-*+]|\d{1,9}[.)])\s+/;
+        if (bullet.test(line)) {
+            const ordered = /^\s*\d/.test(line);
+            const list = document.createElement(ordered ? "ol" : "ul");
+            const first = /^\s*(\d{1,9})/.exec(line);
+            if (ordered && first !== null && first[1] !== "1")
+                list.setAttribute("start", (_j = first[1]) !== null && _j !== void 0 ? _j : "1");
+            while (index < lines.length && bullet.test((_k = lines[index]) !== null && _k !== void 0 ? _k : "")) {
+                let said = ((_l = lines[index]) !== null && _l !== void 0 ? _l : "").replace(bullet, "");
+                index += 1;
+                // A line under an item, indented, carries on that item.
+                while (index < lines.length && /^\s{2,}\S/.test((_m = lines[index]) !== null && _m !== void 0 ? _m : "") && !bullet.test((_o = lines[index]) !== null && _o !== void 0 ? _o : "")) {
+                    said += ` ${((_p = lines[index]) !== null && _p !== void 0 ? _p : "").trim()}`;
+                    index += 1;
+                }
+                const item = document.createElement("li");
+                const task = /^\[([ xX])\]\s+/.exec(said);
+                if (task !== null) {
+                    // A task: ticked or not, as written. Shown, not a switch to flip.
+                    item.className = "is-task";
+                    const box = document.createElement("input");
+                    box.type = "checkbox";
+                    box.disabled = true;
+                    box.checked = ((_q = task[1]) !== null && _q !== void 0 ? _q : " ") !== " ";
+                    item.appendChild(box);
+                    said = said.slice(task[0].length);
+                }
+                graphMarkdownInline(item, said);
+                list.appendChild(item);
+            }
+            out.appendChild(list);
+            continue;
+        }
+        // A paragraph: lines until a blank one or something else begins. A line
+        // break inside it is kept, as somebody writing a note means one.
+        const kept = [];
+        while (index < lines.length) {
+            const next = (_r = lines[index]) !== null && _r !== void 0 ? _r : "";
+            if (next.trim() === "" || (kept.length > 0 && graphMarkdownStarts(next)))
+                break;
+            kept.push(next);
+            index += 1;
+        }
+        const para = document.createElement("p");
+        kept.forEach((one, at) => {
+            if (at > 0)
+                para.appendChild(document.createElement("br"));
+            graphMarkdownInline(para, one.trim());
+        });
+        out.appendChild(para);
+    }
+    return out;
+}
+/** Whether a line starts a block of its own, ending the paragraph before it. */
+function graphMarkdownStarts(line) {
+    return /^\s{0,3}(#{1,6}\s|>|```|~~~)/.test(line)
+        || /^\s*([-*+]|\d{1,9}[.)])\s+/.test(line)
+        || /^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line);
+}
+/** Only addresses that go somewhere to read: never a script. */
+function graphMarkdownHref(href) {
+    const wanted = href.trim();
+    return /^(https?:\/\/|mailto:)/i.test(wanted) ? wanted : null;
+}
+/** The marks inside a line: code, links, bold, italic and struck-through,
+ *  appended to `into` as elements and text. */
+function graphMarkdownInline(into, words) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    // In the order they bind: code first, since nothing inside it is a mark.
+    const marks = /`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|<(https?:\/\/[^>\s]+)>|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(?!\s)(.+?)\*|_(?!\s)(.+?)_(?!\w)/g;
+    let from = 0;
+    let found = marks.exec(words);
+    while (found !== null) {
+        const at = found.index;
+        // snake_case is a word, not emphasis: an underscore inside one is kept.
+        if (found[9] !== undefined && at > 0 && /\w/.test(words.charAt(at - 1))) {
+            marks.lastIndex = at + 1;
+            found = marks.exec(words);
+            continue;
+        }
+        if (at > from)
+            into.appendChild(document.createTextNode(words.slice(from, at)));
+        from = at + found[0].length;
+        if (found[1] !== undefined) {
+            into.appendChild(graphElement("code", "", found[1]));
+        }
+        else if (found[2] !== undefined || found[4] !== undefined) {
+            const href = graphMarkdownHref((_b = (_a = found[3]) !== null && _a !== void 0 ? _a : found[4]) !== null && _b !== void 0 ? _b : "");
+            if (href === null) {
+                // Not somewhere to read — a script, say: shown as it was written.
+                into.appendChild(document.createTextNode(found[0]));
+            }
+            else {
+                const link = document.createElement("a");
+                link.href = href;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                graphMarkdownInline(link, (_c = found[2]) !== null && _c !== void 0 ? _c : href);
+                into.appendChild(link);
+            }
+        }
+        else {
+            const [tag, inner] = found[5] !== undefined || found[6] !== undefined
+                ? ["strong", (_e = (_d = found[5]) !== null && _d !== void 0 ? _d : found[6]) !== null && _e !== void 0 ? _e : ""]
+                : found[7] !== undefined ? ["del", found[7]] : ["em", (_g = (_f = found[8]) !== null && _f !== void 0 ? _f : found[9]) !== null && _g !== void 0 ? _g : ""];
+            const mark = document.createElement(tag);
+            graphMarkdownInline(mark, inner);
+            into.appendChild(mark);
+        }
+        found = marks.exec(words);
+    }
+    if (from < words.length)
+        into.appendChild(document.createTextNode(words.slice(from)));
 }
 
 "use strict";
