@@ -31,9 +31,12 @@ from .storage import (
     home_of,
     inside,
     keep,
+    restage,
     settle,
     stage,
+    staged,
     take_staged,
+    unstage,
 )
 
 __all__ = [
@@ -55,7 +58,10 @@ __all__ = [
     "set_origin",
     "set_paused",
     "settle",
+    "restage",
     "stage",
+    "staged",
+    "unstage",
     "STAGING",
     "storage",
     "take_staged",

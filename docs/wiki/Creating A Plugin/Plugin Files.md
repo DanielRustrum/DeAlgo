@@ -62,6 +62,7 @@ one is added, removed, switched off or has its permissions changed.
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `api` | number | **yes** | The plugin API version. Must be `1`. |
+| `id` | string | no | Its id — letters, digits, `-` and `_`. Fetched or uploaded, it is installed under this rather than its repository's or file's name. |
 | `name` | string | no | Shown on the Plugins page and in the palette. Defaults to the id. |
 | `version` | string | no | Shown on the Plugins page. |
 | `permissions` | list | no | What it asks to be allowed. See [Permissions](Permissions.md). |

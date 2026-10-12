@@ -97,16 +97,21 @@ def read(
     return found
 
 
-def judge(stem: str, source: str) -> Plugin:
+def judge(stem: str, source: str, home: Path | None = None) -> Plugin:
     """Load a plugin from text, without keeping it.
 
     What an upload is checked with: a file that will not load is one nobody
     wants in the folder, and saying so before it lands beats a broken row on
     the page afterwards.
+
+    `home` is the folder a fetched plugin is being held in while somebody
+    decides, so the files its `plugin.lua` requires are there to be read: a
+    plugin is the whole repository it came in, not its one file.
     """
-    # A path it does not have yet: it is being read, not kept, and where it
-    # would land is the caller's to decide once somebody has agreed to it.
-    plugin = Plugin(id=stem, path=Path(stem) / ENTRY)
+    # A path it does not have yet, unless it is held somewhere: it is being
+    # read, not kept, and where it would land is the caller's to decide once
+    # somebody has agreed to it.
+    plugin = Plugin(id=stem, path=(home if home is not None else Path(stem)) / ENTRY)
     return _judge(plugin, source, {})
 
 
@@ -160,6 +165,11 @@ def _judge(plugin: Plugin, source: str, given: dict[str, object]) -> Plugin:
         return plugin
 
     plugin.box = box
+    # The id it says it is, if it says one: what its sources and conditions
+    # are stored against, whatever the repository it came in is called.
+    said = made.get("id")
+    if isinstance(said, str) and said and set(said) <= PLAIN:
+        plugin.declared = said
     # Its folder's name when it gives none. Not the file's: every plugin's
     # file is called plugin.lua, so that would title them all "plugin".
     plugin.name = str(made.get("name") or plugin.id)

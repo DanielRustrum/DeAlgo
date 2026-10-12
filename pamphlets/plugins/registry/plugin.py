@@ -220,6 +220,9 @@ class Plugin:
     id: str
     path: Path
     name: str = ""
+    #: The id its file says it is — `id = "youtube"` — when it says one.
+    #: A fetched plugin is kept under this rather than its repository's name.
+    declared: str = ""
     version: str = ""
     #: None while it is fine. A sentence when it is not, and then nothing
     #: else on this object is to be trusted.

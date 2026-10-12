@@ -153,6 +153,30 @@ def take_staged(plugin_id: str) -> bool:
     return True
 
 
+def staged(plugin_id: str) -> Path | None:
+    """The folder a fetched plugin is held in while somebody decides."""
+    return _staged(plugin_id, clear=False)
+
+
+def restage(plugin_id: str, wanted: str) -> None:
+    """Hold a fetched plugin under another id: the one it says it is."""
+    held = _staged(plugin_id, clear=False)
+    if held is None or not wanted or not set(wanted) <= PLAIN:
+        raise PluginError(f"“{wanted}” is not a usable plugin name")
+    _staged(wanted)  # cleared, as a fresh fetch of it would be
+    held.replace(_staging() / wanted)
+
+
+def unstage(plugin_id: str) -> None:
+    """Let go of a fetched plugin nobody will be asked about — and of the
+    staging folder too, once nothing else is waiting in it."""
+    _staged(plugin_id)
+    try:
+        _staging().rmdir()
+    except OSError:
+        pass  # something else is waiting, or it was never made
+
+
 def _staging() -> Path:
     """Where fetched plugins wait for consent: `plugins/.staged/`."""
     return folder() / STAGING

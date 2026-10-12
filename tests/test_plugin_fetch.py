@@ -634,3 +634,38 @@ def test_only_an_admin_may_fetch_a_plugin(admin, here, serving):
     # It never reached the host, and nothing was written.
     assert serving.asked == []
     assert list(here.iterdir()) == []
+
+
+SPLIT = """local parts = require("parts")
+return {
+  id = "boxd", api = 1, name = "Letterboxd",
+  augmentations = { parts.seen },
+}"""
+PARTS = """return { seen = { kind = "seen", label = "Seen", keep = function() return true end } }"""
+
+
+def test_a_plugin_is_read_whole_and_kept_under_the_id_it_says(admin, here, serving):
+    """A plugin.lua that requires the files beside it is read with them —
+    the repository is the plugin — and lands under the id it declares,
+    whatever its repository is called, spelt right or not."""
+    serving.archives["https://repo.example.org/Rusty/Pamplets-Boxd-Plugin/archive/main.tar.gz"] = tarball(
+        {"plugin.lua": SPLIT, "parts.lua": PARTS}
+    )
+    asked = admin.post(
+        "/admin/plugins/fetch",
+        data={"url": "https://repo.example.org/Rusty/Pamplets-Boxd-Plugin.git"},
+        follow_redirects=True,
+    )
+    assert "cannot require" not in asked.text
+    assert (here / registry.STAGING / "boxd" / "parts.lua").is_file()
+    assert not (here / registry.STAGING / "pamplets-boxd").exists()
+
+    added = admin.post(
+        "/admin/plugins/confirm",
+        data={"name": "boxd.lua", "source": SPLIT,
+              "origin": "https://repo.example.org/Rusty/Pamplets-Boxd-Plugin.git", "ref": "main"},
+        follow_redirects=True,
+    )
+    assert "Letterboxd added" in added.text
+    assert (here / "boxd" / "parts.lua").read_text() == PARTS
+    assert registry.current().augmentation("boxd:seen") is not None

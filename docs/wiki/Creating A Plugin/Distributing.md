@@ -19,10 +19,14 @@ If there are several, the shallowest `plugin.lua` is used.
 
 ## The plugin's id
 
-Taken from the **repository's** name, lowercased: `pamphlets-plugin-`, `pamphlets-` or `plugin-` is removed
-from the front, and anything other than letters, digits, `-` and `_` becomes `-`. So
-`pamphlets-plugin-hackernews` installs as `hackernews`. Keep the id stable: conditions people have placed
-are stored against it.
+Say it in `plugin.lua` — `id = "hackernews"` — and it installs under that, whatever the repository is
+called. Without one, it is taken from the **repository's** name, lowercased: `pamphlets-plugin-`,
+`pamphlets-` or `plugin-` is removed from the front and `-plugin` from the end, and anything other than
+letters, digits, `-` and `_` becomes `-`. So `Pamphlets-Hackernews-Plugin` installs as `hackernews`.
+Keep the id stable: sources and conditions people have placed are stored against it.
+
+The whole repository is the plugin: it is read with the files `plugin.lua` requires beside it, both
+when it is checked and when it is installed.
 
 ## Hosts
 

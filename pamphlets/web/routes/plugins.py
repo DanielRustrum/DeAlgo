@@ -168,6 +168,10 @@ async def add_plugin(request: Request, file: UploadFile = File(...)) -> Response
     checked = registry.judge(stem, text)
     if checked.trouble:
         return redirect("/admin/plugins", err=f"{name}: {checked.trouble}")
+    if checked.declared and checked.declared != stem:
+        # The id it says it is, whatever the file was called.
+        name = f"{checked.declared}.lua"
+        checked = registry.judge(checked.declared, text)
 
     # Nothing is written yet. What it asks for is put to somebody first, and
     # the file lands only once they have said yes — so a plugin nobody agreed
@@ -202,24 +206,37 @@ def fetch_plugin(request: Request, url: str = Form(""), ref: str = Form("")) -> 
     if len(got.source.encode("utf-8")) > MOST_PLUGIN_BYTES:
         return redirect("/admin/plugins", err="That plugin.lua is far too big to be one.")
 
-    # Read before it is kept, with nothing granted, exactly as an upload is.
-    checked = registry.judge(got.plugin_id, got.source)
-    if checked.trouble:
-        return redirect("/admin/plugins", err=f"{got.plugin_id}: {checked.trouble}")
-
     # Held aside while somebody decides. A plugin may be more than one file,
     # and what was read and judged here is then exactly what lands — a second
     # fetch on the way past consent would leave a gap in which the repository
-    # could become something else.
+    # could become something else. Held first, so it is read with the files
+    # it requires beside it: the whole repository, not its one file.
+    plugin_id = got.plugin_id
     try:
-        registry.stage(got.plugin_id, got.source, got.extras)
+        registry.stage(plugin_id, got.source, got.extras)
     except (OSError, registry.PluginError) as exc:
         return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
+
+    # Read before it is kept, with nothing granted, exactly as an upload is.
+    checked = registry.judge(plugin_id, got.source, home=registry.staged(plugin_id))
+    if not checked.trouble and checked.declared and checked.declared != plugin_id:
+        # Kept under the id it says it is — what its sources and conditions
+        # are stored against — not whatever its repository is called.
+        try:
+            registry.restage(plugin_id, checked.declared)
+        except (OSError, registry.PluginError) as exc:
+            registry.unstage(plugin_id)
+            return redirect("/admin/plugins", err=f"Could not be saved: {exc}")
+        plugin_id = checked.declared
+        checked = registry.judge(plugin_id, got.source, home=registry.staged(plugin_id))
+    if checked.trouble:
+        registry.unstage(plugin_id)
+        return redirect("/admin/plugins", err=f"{plugin_id}: {checked.trouble}")
 
     return _plugins_view(
         request,
         pending={
-            "name": f"{got.plugin_id}.lua",
+            "name": f"{plugin_id}.lua",
             "source": got.source,
             "plugin": checked,
             "origin": got.origin,
@@ -246,7 +263,8 @@ async def confirm_plugin(
     if not stem or not set(stem) <= registry.PLAIN or len(source) > MOST_PLUGIN_BYTES:
         return redirect("/admin/plugins", err="That was not a plugin this page offered.")
 
-    checked = registry.judge(stem, source)
+    # A fetched one is read where it is held, with the files it requires.
+    checked = registry.judge(stem, source, home=registry.staged(stem) if origin else None)
     if checked.trouble:
         return redirect("/admin/plugins", err=f"{name}: {checked.trouble}")
 
