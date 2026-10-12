@@ -93,6 +93,7 @@
 
   /* The ice on a frozen canvas (graph/boxes.css, graph/frost.ts): its
      cap, its icicles and their shaded side (THEMING tokens "frost"). */
+  --snow: #ffffff;
   --ice-light: #ebf7fd;
   --ice: #abdcf5;
   --ice-deep: #65a8d3;
@@ -237,6 +238,7 @@
     --chart-5: #6a7f20;
 
     /* Ice by night: the same blues, deep enough for the night panel. */
+    --snow: #dfe8ee;
     --ice-light: #bdcdd3;
     --ice: #72a6bf;
     --ice-deep: #387ea7;

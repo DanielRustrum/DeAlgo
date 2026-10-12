@@ -3573,6 +3573,119 @@ function graphIcicleRow(svg, seed, salt, from, to, edge, scale, reach, taper = (
         d: glints.join(""), class: "graph-icicle-glint", "stroke-width": (1.1 * scale).toFixed(2),
     }));
 }
+/** A cap of snow lying along an edge at `edge`, from `from` to `to`: puffy
+ *  rounded bumps on top, a pale blue band along its underside, short
+ *  rounded drips below, and a few specks. `taper` thins it towards an end.
+ *  Answers where its underside is at each `x`, for icicles to hang from. */
+function graphSnowCap(svg, seed, salt, from, to, edge, scale, tall, taper = () => 1) {
+    const n = (value) => value.toFixed(1);
+    const noise = (k) => graphFrostNoise(seed, salt + k);
+    // The underside: a little below the edge, thicker where the snow is.
+    const under = (x) => edge + (2.2 + Math.sin(x / (9 * scale) + seed + salt) * 0.8 + noise(Math.round(x / (7 * scale))) * 0.9) * scale * Math.max(0.35, taper(x));
+    // The top: rounded bumps, each its own width and height.
+    let top = `M${n(from)},${n(under(from))}`;
+    top += `C${n(from - 3 * scale)},${n(under(from))} ${n(from - 2 * scale)},${n(edge)} ${n(from + 1 * scale)},${n(edge - 1 * scale)}`;
+    let x = from + 1 * scale;
+    let bump = 0;
+    while (x < to - 2 * scale) {
+        const wide = Math.min(to - 1 * scale - x, (16 + noise(100 + bump) * 26) * scale);
+        const mid = x + wide / 2;
+        const high = tall * (0.45 + noise(200 + bump) * 0.55) * taper(mid);
+        const rest = edge - Math.min(high * 0.35, 3 * scale);
+        top += `C${n(x + wide * 0.08)},${n(edge - high * 1.25)} ${n(x + wide * 0.92)},${n(edge - high * 1.25)} ${n(x + wide)},${n(rest)}`;
+        x += wide;
+        bump += 1;
+    }
+    top += `C${n(to + 2 * scale)},${n(edge)} ${n(to + 3 * scale)},${n(under(to))} ${n(to)},${n(under(to))}`;
+    // The underside, back the other way, with a drip now and then.
+    let bottom = "";
+    const drips = [];
+    for (let at = to; at > from; at -= 4 * scale) {
+        bottom += `L${n(at)},${n(under(at))}`;
+        const k = Math.round(at / (4 * scale));
+        if (noise(300 + k) > 0.86 && at - from > 10 * scale && to - at > 10 * scale) {
+            const wide = (4 + noise(400 + k) * 4) * scale;
+            const long = (4 + noise(500 + k) * 9) * scale * taper(at);
+            if (long > 2.5 * scale) {
+                const y = under(at);
+                bottom += `C${n(at)},${n(y + long * 1.3)} ${n(at - wide)},${n(y + long * 1.3)} ${n(at - wide)},${n(y)}`;
+                drips.push([at, wide, long]);
+                at -= wide;
+            }
+        }
+    }
+    const body = `${top}${bottom}Z`;
+    // A deeper blue just under the snow, as its shadow on the edge.
+    const shadow = graphFrostShape("path", { d: body, class: "graph-snow-shade" });
+    shadow.setAttribute("transform", `translate(0 ${n(2.2 * scale)})`);
+    svg.appendChild(shadow);
+    svg.appendChild(graphFrostShape("path", { d: body, class: "graph-snow" }));
+    // The pale band along its underside, drips and all.
+    let band = `M${n(to)},${n(under(to) - 3 * scale)}`;
+    for (let at = to; at >= from; at -= 4 * scale)
+        band += `L${n(at)},${n(under(at) - 2.6 * scale * Math.max(0.4, taper(at)))}`;
+    band += `L${n(from)},${n(under(from))}`;
+    for (let at = from; at <= to; at += 4 * scale)
+        band += `L${n(at)},${n(under(at))}`;
+    band += "Z";
+    for (const [at, wide, long] of drips) {
+        const y = under(at);
+        band += `M${n(at)},${n(y)}C${n(at)},${n(y + long * 1.3)} ${n(at - wide)},${n(y + long * 1.3)} ${n(at - wide)},${n(y)}`
+            + `C${n(at - wide * 0.8)},${n(y + long * 0.5)} ${n(at - wide * 0.2)},${n(y + long * 0.5)} ${n(at)},${n(y)}Z`;
+    }
+    svg.appendChild(graphFrostShape("path", { d: band, class: "graph-snow-band" }));
+    // A few specks.
+    let specks = "";
+    for (let k = 0; k < Math.max(2, (to - from) / (40 * scale)); k += 1) {
+        const sx = from + noise(600 + k) * (to - from);
+        const sy = edge - tall * 0.25 * taper(sx) * noise(700 + k);
+        specks += `M${n(sx)},${n(sy)}h0.01`;
+    }
+    svg.appendChild(graphFrostShape("path", { d: specks, class: "graph-snow-speck", "stroke-width": (1.6 * scale).toFixed(2) }));
+    return (at) => under(at);
+}
+/** A drift of snow on the ground at `ground`, deepest at `corner` and
+ *  nothing `reach` away from it: puffy rounded humps, a pale blue band low
+ *  along its front, and specks. */
+function graphSnowPile(svg, seed, salt, corner, reach, ground, tall) {
+    const n = (value) => value.toFixed(1);
+    const noise = (k) => graphFrostNoise(seed, salt + k);
+    const toward = corner === 0 ? 1 : -1;
+    const far = corner + toward * reach;
+    const depth = (x) => Math.max(0, 1 - Math.abs(x - corner) / reach) ** 1.25;
+    // Humps from the far end to the corner and past it, each rounded.
+    let top = `M${n(far)},${n(ground)}`;
+    let x = far;
+    let hump = 0;
+    while ((x - corner) * toward > -4) {
+        // Low, wide humps, gently uneven: a drift, not a row of puffs.
+        const wide = (60 + noise(10 + hump) * 60) * (0.7 + depth(x) * 0.5);
+        const next = x - toward * wide;
+        const mid = (x + next) / 2;
+        const high = tall * depth(mid) * (0.92 + noise(20 + hump) * 0.16) + 4;
+        const end = ground - tall * depth(next) * (0.86 + noise(30 + hump) * 0.08);
+        top += `C${n(x - toward * wide * 0.3)},${n(ground - high * 1.08)} ${n(next + toward * wide * 0.3)},${n(ground - high * 1.08)} ${n(next)},${n(Math.min(ground, end))}`;
+        x = next;
+        hump += 1;
+    }
+    const body = `${top}L${n(x)},${n(ground + 2)}L${n(far)},${n(ground + 2)}Z`;
+    svg.appendChild(graphFrostShape("path", { d: body, class: "graph-snow" }));
+    // The pale band low along its front, wavy.
+    let band = `M${n(far)},${n(ground)}`;
+    for (let at = far; (at - corner) * toward > -4; at -= toward * 6) {
+        const lift = (6 + Math.sin(at / 17 + seed) * 3) * depth(at) + 2;
+        band += `L${n(at)},${n(ground - lift)}`;
+    }
+    band += `L${n(x)},${n(ground + 2)}L${n(far)},${n(ground + 2)}Z`;
+    svg.appendChild(graphFrostShape("path", { d: band, class: "graph-snow-band" }));
+    let specks = "";
+    for (let k = 0; k < 7; k += 1) {
+        const sx = corner + toward * noise(40 + k) * reach * 0.8;
+        const sy = ground - tall * depth(sx) * (0.25 + noise(50 + k) * 0.5);
+        specks += `M${n(sx)},${n(sy)}h0.01`;
+    }
+    svg.appendChild(graphFrostShape("path", { d: specks, class: "graph-snow-speck", "stroke-width": "2" }));
+}
 /** The ice for one frozen box, `width` by `height`. */
 function graphFrost(seed, width, height, scale) {
     const frost = graphElement("div", "graph-frost");
@@ -3581,18 +3694,15 @@ function graphFrost(seed, width, height, scale) {
     // Inside the box, clipped to its corners by the layer it is drawn in.
     const inside = graphElement("div", "graph-frost-inside");
     const within = graphFrostSvg(width, height, "graph-frost-art");
-    const capEdge = (x) => (5 + Math.sin(x / (11 * scale) + seed) * 1.6 + graphFrostNoise(seed, Math.round(x / (6 * scale))) * 1.4) * scale;
-    let cap = `M0,0H${width}V${n(capEdge(width))}`;
-    for (let x = width; x >= 0; x -= 4 * scale)
-        cap += `L${n(x)},${n(capEdge(x))}`;
-    cap += `L0,${n(capEdge(0))}Z`;
-    within.appendChild(graphFrostShape("path", { d: cap, class: "graph-ice-cap" }));
-    graphIcicleRow(within, seed, 0, -2 * scale, width + 2 * scale, capEdge, scale, graphFrostFringe(scale) - 4 * scale);
+    const outside = graphFrostSvg(width, height, "graph-frost-art");
+    // Snow lying along the top edge, over it and the corners; the icicles
+    // hang inside the box from its underside.
+    const snowUnder = graphSnowCap(outside, seed, 0, -3 * scale, width + 3 * scale, 0, scale, 9 * scale);
+    graphIcicleRow(within, seed, 0, -2 * scale, width + 2 * scale, snowUnder, scale, graphFrostFringe(scale) - 4 * scale);
     inside.appendChild(within);
     frost.appendChild(inside);
     // Outside: the bottom edge iced round its corners, and icicles below.
     const radius = Math.min(graphFrostRadius(), width / 2, height / 2);
-    const outside = graphFrostSvg(width, height, "graph-frost-art");
     const rim = `M0,${n(height - radius)}A${n(radius)},${n(radius)} 0 0 0 ${n(radius)},${height}`
         + `H${n(width - radius)}A${n(radius)},${n(radius)} 0 0 0 ${width},${n(height - radius)}`;
     graphIcicleRow(outside, seed, 5000, radius * 0.6, width - radius * 0.6, () => height, scale, 44 * scale);
@@ -3679,20 +3789,18 @@ function iceGraphView(state, frozen) {
         const from = Math.min(x, width - x);
         return Math.max(0, 1 - from / span) ** 0.8;
     };
-    const capEdge = (x) => (7 + Math.sin(x / 15 + seed) * 2.2 + graphFrostNoise(seed, 7000 + Math.round(x / 8)) * 2) * thick(x);
-    // Each corner: the cap across all of its span, the icicles over the part
-    // nearest the corner, where the ice is thick enough to drip.
+    // Each corner: snow lying across its span, thickest in the corner, and the
+    // icicles over the part nearest the corner, hung from under the snow.
     const corners = [
-        [-2, span, -2, span * 0.85],
-        [width - span, width + 2, width - span * 0.85, width + 2],
+        [-4, span, -2, span * 0.85],
+        [width - span, width + 4, width - span * 0.85, width + 2],
     ];
     for (const [from, to, dripFrom, dripTo] of corners) {
-        let cap = `M${from},0H${to}`;
-        for (let x = to; x >= from; x -= 5)
-            cap += `L${x.toFixed(1)},${capEdge(x).toFixed(1)}`;
-        cap += "Z";
-        svg.appendChild(graphFrostShape("path", { d: cap, class: "graph-ice-cap" }));
-        graphIcicleRow(svg, seed, 8000 + Math.round(from), dripFrom, dripTo, capEdge, 1.6, 95, thick);
+        // Icicles first, so the snow lies over their roots.
+        const holder = graphFrostShape("g", {});
+        svg.appendChild(holder);
+        const under = graphSnowCap(svg, seed, 8000 + Math.round(from), from, to, 24, 1.8, 20, thick);
+        graphIcicleRow(holder, seed, 8000 + Math.round(from), dripFrom, dripTo, (x) => under(x) - 2, 1.6, 95, thick);
     }
     ice.appendChild(svg);
     if (was !== null)
@@ -3721,31 +3829,8 @@ function snowGraphView(state, width) {
     const seed = ((_a = state.inside) !== null && _a !== void 0 ? _a : 1) + 31;
     const span = Math.min(300, width * 0.25);
     const n = (value) => value.toFixed(1);
-    // How deep the drift is at `x`: all of `tall` in the corner, nothing past
-    // `reach`, lumpy on the way.
-    const depth = (x, reach, tall, salt) => {
-        const from = Math.min(x, width - x);
-        const fall = Math.max(0, 1 - from / reach);
-        const lumps = Math.sin(x / 23 + seed + salt) * 0.08 + graphFrostNoise(seed, salt + Math.round(x / 30)) * 0.07;
-        return tall * fall ** 1.6 * (1 + lumps);
-    };
-    const mound = (reach, tall, salt, left) => {
-        const from = left ? 0 : width - reach;
-        const to = left ? reach : width;
-        let top = "";
-        for (let x = from; x <= to; x += 4) {
-            top += `${top === "" ? "M" : "L"}${n(x)},${n(height - depth(x, reach, tall, salt))}`;
-        }
-        const fill = `${top}L${n(to)},${height}L${n(from)},${height}Z`;
-        return { fill, top };
-    };
-    for (const left of [true, false]) {
-        const back = mound(span, 70, 11, left);
-        const front = mound(span * 0.78, 52, 23, left);
-        svg.appendChild(graphFrostShape("path", { d: back.fill, class: "graph-snow-back" }));
-        svg.appendChild(graphFrostShape("path", { d: front.fill, class: "graph-snow-front" }));
-        svg.appendChild(graphFrostShape("path", { d: front.top, class: "graph-snow-light", "stroke-width": "2" }));
-    }
+    graphSnowPile(svg, seed, 0, 0, span, height, 50);
+    graphSnowPile(svg, seed, 90, width, span, height, 50);
     snow.appendChild(svg);
     if (was !== null)
         was.replaceWith(snow);
