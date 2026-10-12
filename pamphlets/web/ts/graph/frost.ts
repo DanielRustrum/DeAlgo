@@ -277,10 +277,10 @@ function graphFrost(seed: number, width: number, height: number, scale: number):
   return frost;
 }
 
-/** Inside a frozen canvas, a touch of ice on about a third of the boxes —
- *  picked by id, so the same ones every time. A box and the pieces slotted
- *  under it are one stack, and the ice hangs from the bottom of the stack,
- *  where it hangs free. */
+/** Inside a frozen canvas, a touch of frost on about a third of the boxes —
+ *  picked by id, so the same ones every time: either snow on top or
+ *  icicles below, never both. A box and the pieces slotted under it are one
+ *  stack: snow lies on the box at its top, icicles hang from its bottom. */
 function touchGraphWithFrost(state: GraphState): void {
   if (!(state.trail ?? []).some((step): boolean => step.frozen)) return;
   const below = new Map<number, number>();
@@ -297,12 +297,16 @@ function touchGraphWithFrost(state: GraphState): void {
       seen.add(next);
       bottom = next;
     }
-    // Laid out by now, so each is drawn to the box's own width: snow on the
-    // top of the stack, icicles from the bottom of it.
-    const top = state.boxes.get(node.id);
-    if (top !== undefined) top.appendChild(graphFrostSnowfall(node.id, top.offsetWidth));
-    const box = state.boxes.get(bottom);
-    if (box !== undefined) box.appendChild(graphFrostTouch(node.id, box.offsetWidth));
+    // Laid out by now, so it is drawn to the box's own width. One or the
+    // other, never both — a Canvas box is the one that is snowed in: snow
+    // on the top of the stack, or icicles from the bottom of it.
+    if (graphFrostNoise(node.id, 998) < 0.5) {
+      const top = state.boxes.get(node.id);
+      if (top !== undefined) top.appendChild(graphFrostSnowfall(node.id, top.offsetWidth));
+    } else {
+      const box = state.boxes.get(bottom);
+      if (box !== undefined) box.appendChild(graphFrostTouch(node.id, box.offsetWidth));
+    }
   }
 }
 
