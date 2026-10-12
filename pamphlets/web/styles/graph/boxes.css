@@ -275,7 +275,7 @@
 /* A frozen canvas: nothing in it runs. Its box is drawn cold, and so is the
    whole of it while you are inside — still there to change, just not running. */
 .graph-canvas.is-frozen .graph-node:not(.kind-comment),
-.graph-canvas.is-frozen .graph-group-box { filter: saturate(0.6); opacity: 0.8; }
+.graph-canvas.is-frozen .graph-group-box { filter: saturate(0.75); opacity: 0.88; }
 
 /* A Comment: a note on the canvas in one of the theme's colours, as big as
    it was made, its words wrapped as they were written. Under the boxes it
@@ -448,10 +448,10 @@
    (frost.ts, graphFrostTouch): a short rim along part of its bottom edge
    and a few small icicles. */
 .graph-frost-touch {
-  position: absolute; left: 0; right: 0; top: calc(100% - 1px); height: 18px; z-index: 1;
+  /* Its drawing has the box's bottom edge 8px down it (frost.ts). */
+  position: absolute; left: -1px; right: -1px; top: calc(100% - 8px); height: 28px; z-index: 1;
   pointer-events: none; overflow: visible;
 }
-.graph-frost-touch svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
 
 /* Inside a frozen canvas, the view iced in its top corners (frost.ts,
    iceGraphView): over the drawing, which pans under it, and under the
@@ -474,3 +474,13 @@
 .graph-snow-band { fill: var(--ice); opacity: 0.45; }
 .graph-snow-shade { fill: var(--ice-deep); opacity: 0.6; }
 .graph-snow-speck { fill: none; stroke: var(--ice); stroke-linecap: round; opacity: 0.8; }
+
+/* Snow on the top of an iced stack (frost.ts, graphFrostSnowfall): its
+   drawing has the box's top edge 10px down it. The iced border where the
+   icicles hang, fading out at both ends. */
+.graph-frost-fall {
+  position: absolute; left: -1px; right: -1px; top: -11px; height: 18px; z-index: 1;
+  pointer-events: none; overflow: visible;
+}
+.graph-frost-edge { fill: none; stroke-linecap: round; }
+.graph-frost-fade-stop { stop-color: var(--ice); }

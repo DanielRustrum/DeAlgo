@@ -3582,10 +3582,14 @@ function graphSnowCap(svg, seed, salt, from, to, edge, scale, tall, taper = () =
     const n = (value) => value.toFixed(1);
     const noise = (k) => graphFrostNoise(seed, salt + k);
     // The underside: a little below the edge, thicker where the snow is.
-    const under = (x) => edge(x) + (2.2 + Math.sin(x / (9 * scale) + seed + salt) * 0.8 + noise(Math.round(x / (7 * scale))) * 0.9) * scale * Math.max(0.35, taper(x));
+    const under = (x) => edge(x) + (2.2 + Math.sin(x / (9 * scale) + seed + salt) * 0.8 + noise(Math.round(x / (7 * scale))) * 0.9) * scale * Math.max(0.15, taper(x));
     // The top: rounded bumps, each its own width and height.
+    // Its ends round off, as far out as the snow there is thick: a cap that
+    // thins to nothing at its ends meets the edge without a blunt end.
+    const endFrom = 3 * scale * taper(from);
+    const endTo = 3 * scale * taper(to);
     let top = `M${n(from)},${n(under(from))}`;
-    top += `C${n(from - 3 * scale)},${n(under(from))} ${n(from - 2 * scale)},${n(edge(from))} ${n(from + 1 * scale)},${n(edge(from) - 1 * scale)}`;
+    top += `C${n(from - endFrom)},${n(under(from))} ${n(from - endFrom * 0.7)},${n(edge(from))} ${n(from + 1 * scale)},${n(edge(from) - endFrom / 3)}`;
     let x = from + 1 * scale;
     let bump = 0;
     while (x < to - 2 * scale) {
@@ -3593,12 +3597,15 @@ function graphSnowCap(svg, seed, salt, from, to, edge, scale, tall, taper = () =
         const mid = x + wide / 2;
         const high = tall * (0.45 + noise(200 + bump) * 0.55) * taper(mid);
         const rest = edge(x + wide) - Math.min(high * 0.35, 3 * scale);
-        const lift = Math.min(edge(x), edge(x + wide)) - high * 1.25;
-        top += `C${n(x + wide * 0.08)},${n(lift)} ${n(x + wide * 0.92)},${n(lift)} ${n(x + wide)},${n(rest)}`;
+        // Each side of the bump rises from the edge beneath it, so round a
+        // corner the snow follows the curve rather than bulging over it.
+        const left = edge(x + wide * 0.08) - high * 1.25;
+        const right = edge(x + wide * 0.92) - high * 1.25;
+        top += `C${n(x + wide * 0.08)},${n(left)} ${n(x + wide * 0.92)},${n(right)} ${n(x + wide)},${n(rest)}`;
         x += wide;
         bump += 1;
     }
-    top += `C${n(to + 2 * scale)},${n(edge(to))} ${n(to + 3 * scale)},${n(under(to))} ${n(to)},${n(under(to))}`;
+    top += `C${n(to + endTo * 0.7)},${n(edge(to))} ${n(to + endTo)},${n(under(to))} ${n(to)},${n(under(to))}`;
     // The underside, back the other way, with a drip now and then.
     let bottom = "";
     const drips = [];
@@ -3714,8 +3721,13 @@ function graphFrost(seed, width, height, scale) {
     // below from its underside. Icicles first, so the snow covers their roots.
     const hanging = graphFrostShape("g", {});
     outside.appendChild(hanging);
-    // Short of the corners, which curve up: snow piled there would bulge into the box.
-    const bottomUnder = graphSnowCap(outside, seed, 3000, radius * 0.45, width - radius * 0.45, (x) => height - corner(x), scale, 3.5 * scale);
+    // Thinning to nothing as it goes round the corners, so it melts into the
+    // border there rather than ending in a slab.
+    const melt = (x) => {
+        const t = Math.min(1, Math.max(0, Math.min(x, width - x) / (radius * 1.8)));
+        return t * t * (3 - 2 * t);
+    };
+    const bottomUnder = graphSnowCap(outside, seed, 3000, 0, width, (x) => height - corner(x), scale, 3.5 * scale, melt);
     graphIcicleRow(hanging, seed, 5000, radius * 0.6, width - radius * 0.6, (x) => bottomUnder(x) - 1.5 * scale, scale, 44 * scale);
     frost.appendChild(outside);
     frost.appendChild(graphElement("span", "graph-frost-badge", "❄ Frozen"));
@@ -3726,9 +3738,9 @@ function graphFrost(seed, width, height, scale) {
  *  under it are one stack, and the ice hangs from the bottom of the stack,
  *  where it hangs free. */
 function touchGraphWithFrost(state) {
-    var _a, _b;
-    var _c;
-    if (!((_c = state.trail) !== null && _c !== void 0 ? _c : []).some((step) => step.frozen))
+    var _a;
+    var _b;
+    if (!((_b = state.trail) !== null && _b !== void 0 ? _b : []).some((step) => step.frozen))
         return;
     const below = new Map();
     for (const one of state.nodes) {
@@ -3748,25 +3760,68 @@ function touchGraphWithFrost(state) {
             seen.add(next);
             bottom = next;
         }
-        (_b = state.boxes.get(bottom)) === null || _b === void 0 ? void 0 : _b.appendChild(graphFrostTouch(node.id));
+        // Laid out by now, so each is drawn to the box's own width: snow on the
+        // top of the stack, icicles from the bottom of it.
+        const top = state.boxes.get(node.id);
+        if (top !== undefined)
+            top.appendChild(graphFrostSnowfall(node.id, top.offsetWidth));
+        const box = state.boxes.get(bottom);
+        if (box !== undefined)
+            box.appendChild(graphFrostTouch(node.id, box.offsetWidth));
     }
 }
-/** A touch of ice along part of a box's bottom edge: a short rim, and a
- *  few small icicles hanging from it. */
-function graphFrostTouch(seed) {
+/** A touch of ice on part of a box's bottom edge, `width` wide: the border
+ *  there iced, and a few small icicles growing out of it. No slab of its
+ *  own: the box's own edge is what they hang from. */
+function graphFrostTouch(seed, width) {
     const touch = graphElement("div", "graph-frost-touch");
     touch.setAttribute("aria-hidden", "true");
-    // Drawn as wide as a box usually is; stretched a little on one that is not.
-    const width = 212;
-    const svg = graphFrostShape("svg", { viewBox: `0 0 ${width} 18`, preserveAspectRatio: "none" });
-    const span = width * (0.3 + graphFrostNoise(seed, 1001) * 0.25);
-    const from = 14 + graphFrostNoise(seed, 1002) * (width - 28 - span);
-    graphIcicleRow(svg, seed, 9000, from, from + span, () => 0, 0.8, 14);
+    // The edge is `above` down the drawing.
+    const above = 8;
+    const svg = graphFrostSvg(width, 28, "graph-frost-art");
+    const radius = Math.min(graphFrostRadius(), width / 2);
+    const span = Math.min(width - radius * 2, width * (0.3 + graphFrostNoise(seed, 1001) * 0.25));
+    const from = radius + graphFrostNoise(seed, 1002) * Math.max(0, width - radius * 2 - span);
+    const to = from + span;
+    const melt = (x) => {
+        const t = Math.min(1, Math.max(0, Math.min(x - from, to - x) / (span * 0.25)));
+        return t * t * (3 - 2 * t);
+    };
+    graphIcicleRow(svg, seed, 9000, from + span * 0.06, to - span * 0.06, () => above - 0.5, 0.85, 17, melt);
+    // The border where they hang, iced over, fading out at both ends.
+    const fade = `graph-frost-fade-${seed}`;
+    const defs = graphFrostShape("defs", {});
+    const gradient = graphFrostShape("linearGradient", { id: fade, x1: String(from), x2: String(to), y1: "0", y2: "0", gradientUnits: "userSpaceOnUse" });
+    for (const [offset, opacity] of [["0", "0"], ["0.2", "1"], ["0.8", "1"], ["1", "0"]]) {
+        gradient.appendChild(graphFrostShape("stop", { offset: offset !== null && offset !== void 0 ? offset : "0", "stop-opacity": opacity !== null && opacity !== void 0 ? opacity : "1", class: "graph-frost-fade-stop" }));
+    }
+    defs.appendChild(gradient);
+    svg.appendChild(defs);
     svg.appendChild(graphFrostShape("path", {
-        d: `M${from.toFixed(1)},0H${(from + span).toFixed(1)}`, class: "graph-ice-rim", "stroke-width": "2.5",
+        d: `M${from.toFixed(1)},${above}H${to.toFixed(1)}`, stroke: `url(#${fade})`, class: "graph-frost-edge", "stroke-width": "2.5",
     }));
     touch.appendChild(svg);
     return touch;
+}
+/** A little snow lying on part of a box's top edge, `width` wide, thinning
+ *  to nothing at both ends so it settles into the border. */
+function graphFrostSnowfall(seed, width) {
+    const fall = graphElement("div", "graph-frost-fall");
+    fall.setAttribute("aria-hidden", "true");
+    // The edge is `above` down the drawing, so the snow on it has room.
+    const above = 10;
+    const svg = graphFrostSvg(width, 18, "graph-frost-art");
+    const radius = Math.min(graphFrostRadius(), width / 2);
+    const span = Math.min(width - radius * 2, width * (0.35 + graphFrostNoise(seed, 1101) * 0.3));
+    const from = radius + graphFrostNoise(seed, 1102) * Math.max(0, width - radius * 2 - span);
+    const to = from + span;
+    const melt = (x) => {
+        const t = Math.min(1, Math.max(0, Math.min(x - from, to - x) / (span * 0.3)));
+        return t * t * (3 - 2 * t);
+    };
+    graphSnowCap(svg, seed, 9100, from, to, () => above, 0.9, 4.5, melt);
+    fall.appendChild(svg);
+    return fall;
 }
 /** Inside a frozen canvas, the view itself iced in its two top corners:
  *  a cap of ice thinning away from each corner, and big icicles hanging

@@ -37,8 +37,9 @@ snow lies along its top and its bottom, following its rounded corners, with shor
 blue underside; a fringe of icicles hangs from the top snow into the box, longer ones from the
 bottom snow below it, and frost fades down the box — with a **❄ Frozen** badge, sized to the box however it was resized, in the theme's
 [Frost](../Theming.md#colours) colours. Inside, the view itself is iced in its two top corners and has drifts of snow in its bottom two, the boxes are drawn muted, and about a
-third of them wear a touch of the same ice — a few small icicles under part of the bottom edge of
-the box, or of the last piece slotted under it, the same boxes every time — and the trail
+third of them wear a touch of the same frost — a little snow on part of the box's top edge, and a
+few small icicles growing out of part of its bottom edge, or the bottom edge of the last piece
+slotted under it, the same boxes every time — and the trail
 says *Frozen: nothing here runs*. Each box keeps its own **Active** switch, so
 **Thaw** puts everything back exactly as it was — a box you switched off stays off.
 
