@@ -350,6 +350,8 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     node.size.height = Math.max(least.height, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
     frame.style.width = `${node.size.width}px`;
     frame.style.height = `${node.size.height}px`;
+    // A canvas's words grow and shrink with it, as it is dragged.
+    if (node.kind === "canvas") frame.style.setProperty("--canvas-scale", String(graphCanvasScale(node.size)));
     return;
   }
 

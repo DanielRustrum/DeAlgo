@@ -405,3 +405,10 @@
 .graph-load-missing-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .graph-load-missing-item form { display: inline; margin: 0; }
 .graph-load-missing-foot { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* A Canvas box's words, as big as the box: --canvas-scale is how much
+   bigger it is than its first size (drawing.ts, graphCanvasScale). */
+.graph-node.kind-canvas { gap: calc(3px * var(--canvas-scale, 1)); padding: calc(10px * var(--canvas-scale, 1)) calc(12px * var(--canvas-scale, 1)); }
+.graph-node.kind-canvas .graph-node-kind { font-size: calc(10px * var(--text-scale) * var(--canvas-scale, 1)); letter-spacing: calc(0.7px * var(--canvas-scale, 1)); }
+.graph-node.kind-canvas .graph-node-title { font-size: calc(13.5px * var(--text-scale) * var(--canvas-scale, 1)); }
+.graph-node.kind-canvas .graph-node-note { font-size: calc(11.5px * var(--text-scale) * var(--canvas-scale, 1)); }

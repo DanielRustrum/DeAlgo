@@ -21,8 +21,9 @@ A **Canvas** box is a canvas of its own: a room for part of your setup. **Double
   them would. It asks first, unless it is empty.
 
 The box says how many boxes are inside it, and is drawn as a stack of sheets: there is more
-underneath. **Resize it** from its corner, as a group or a comment is; it keeps its size in copies
-and files.
+underneath. **Resize it** from its corner, as a group or a comment is, and its words grow and shrink with it
+— by whichever of its width and height changed least, so they still fit (from three-quarters of
+their usual size up to four times it). It keeps its size in copies and files.
 
 ### Freezing a canvas
 

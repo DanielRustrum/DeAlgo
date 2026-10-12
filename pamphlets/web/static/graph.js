@@ -1332,6 +1332,9 @@ function onGraphPointerMove(state, event) {
         node.size.height = Math.max(least.height, Math.round(drag.grabY + (event.clientY - drag.fromY) / state.zoom));
         frame.style.width = `${node.size.width}px`;
         frame.style.height = `${node.size.height}px`;
+        // A canvas's words grow and shrink with it, as it is dragged.
+        if (node.kind === "canvas")
+            frame.style.setProperty("--canvas-scale", String(graphCanvasScale(node.size)));
         return;
     }
     if (drag.kind === "move") {
@@ -1948,12 +1951,19 @@ function drawGraphNode(state, node) {
         // A canvas is as big as it was made, with a corner to make it bigger by.
         box.style.width = `${node.size.width}px`;
         box.style.height = `${node.size.height}px`;
+        box.style.setProperty("--canvas-scale", String(graphCanvasScale(node.size)));
         const grip = graphElement("span", "graph-group-grip graph-canvas-grip");
         grip.dataset["grip"] = String(node.id);
         grip.title = "Drag to resize";
         box.appendChild(grip);
     }
     return box;
+}
+/** How much bigger a Canvas box's words are drawn than at its first size:
+ *  by whichever of its width and height grew least, so they still fit. */
+function graphCanvasScale(size) {
+    const scale = Math.min(size.width / 220, size.height / 104);
+    return Math.round(Math.min(4, Math.max(0.75, scale)) * 100) / 100;
 }
 /** The boxes data runs through on its way to a Format box, changed by each
  *  the way items are: a Filter keeps rows, a Sort orders them. */
