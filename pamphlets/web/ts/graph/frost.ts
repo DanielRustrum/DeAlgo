@@ -65,6 +65,7 @@ function graphIcicle(left: number, wide: number, long: number, top: number, lean
 function graphIcicleRow(
   svg: SVGElement, seed: number, salt: number, from: number, to: number,
   edge: (x: number) => number, scale: number, reach: number,
+  taper: (x: number) => number = (): number => 1,
 ): void {
   const bodies: string[] = [];
   const shades: string[] = [];
@@ -73,9 +74,11 @@ function graphIcicleRow(
   let index = 0;
   while (x < to - 3 * scale) {
     const noise = (k: number): number => graphFrostNoise(seed, salt + index * 7 + k);
-    const wide = Math.min(to - x, (5 + noise(1) * 7) * scale);
+    // Wider and longer where `taper` says the ice is thickest.
+    const thick = taper(x);
+    const wide = Math.min(to - x, (5 + noise(1) * 7) * scale * (0.6 + thick * 0.6));
     // Every length from a nub to the whole reach, the wider the longer.
-    const long = (reach * 0.2 + noise(2) ** 1.3 * reach * 0.8) * (wide / (9 * scale)) ** 0.5;
+    const long = (reach * 0.2 + noise(2) ** 1.3 * reach * 0.8) * (wide / (9 * scale)) ** 0.5 * thick;
     const lean = (noise(3) - 0.5) * wide * 0.3;
     // Rooted a little inside the ice it hangs from, so there is no seam.
     const top = edge(x + wide / 2) - 1.5 * scale;
@@ -174,9 +177,10 @@ function graphFrostTouch(seed: number): HTMLElement {
   return touch;
 }
 
-/** Inside a frozen canvas, the view itself iced along its top: a cap of ice
- *  and a fringe of icicles that stay put while the drawing pans under them.
- *  Gone again outside one. Drawn to the view's width as it is now. */
+/** Inside a frozen canvas, the view itself iced in its two top corners:
+ *  a cap of ice thinning away from each corner, and big icicles hanging
+ *  from it, longest at the corner. They stay put while the drawing pans
+ *  under them; gone again outside one. Drawn to the view's width. */
 function iceGraphView(state: GraphState, frozen: boolean): void {
   const view = state.parts.canvas;
   const was = view.querySelector<HTMLElement>(":scope > .graph-view-frost");
@@ -190,16 +194,30 @@ function iceGraphView(state: GraphState, frozen: boolean): void {
   const ice = graphElement("div", "graph-view-frost");
   ice.setAttribute("aria-hidden", "true");
   ice.dataset["width"] = String(width);
-  const height = 60;
+  const height = 130;
   const svg = graphFrostSvg(width, height, "graph-frost-art");
   const seed = state.inside ?? 1;
+  const span = Math.min(260, width * 0.22);
+  // How thick the ice is across the view: all at a corner, none past `span`.
+  const thick = (x: number): number => {
+    const from = Math.min(x, width - x);
+    return Math.max(0, 1 - from / span) ** 0.8;
+  };
   const capEdge = (x: number): number =>
-    5 + Math.sin(x / 13 + seed) * 1.8 + graphFrostNoise(seed, 7000 + Math.round(x / 7)) * 1.6;
-  let cap = `M0,0H${width}V${capEdge(width).toFixed(1)}`;
-  for (let x = width; x >= 0; x -= 5) cap += `L${x},${capEdge(x).toFixed(1)}`;
-  cap += `L0,${capEdge(0).toFixed(1)}Z`;
-  svg.appendChild(graphFrostShape("path", { d: cap, class: "graph-ice-cap" }));
-  graphIcicleRow(svg, seed, 8000, -2, width + 2, capEdge, 1, 40);
+    (7 + Math.sin(x / 15 + seed) * 2.2 + graphFrostNoise(seed, 7000 + Math.round(x / 8)) * 2) * thick(x);
+  // Each corner: the cap across all of its span, the icicles over the part
+  // nearest the corner, where the ice is thick enough to drip.
+  const corners: [number, number, number, number][] = [
+    [-2, span, -2, span * 0.85],
+    [width - span, width + 2, width - span * 0.85, width + 2],
+  ];
+  for (const [from, to, dripFrom, dripTo] of corners) {
+    let cap = `M${from},0H${to}`;
+    for (let x = to; x >= from; x -= 5) cap += `L${x.toFixed(1)},${capEdge(x).toFixed(1)}`;
+    cap += "Z";
+    svg.appendChild(graphFrostShape("path", { d: cap, class: "graph-ice-cap" }));
+    graphIcicleRow(svg, seed, 8000 + Math.round(from), dripFrom, dripTo, capEdge, 1.6, 95, thick);
+  }
   ice.appendChild(svg);
   if (was !== null) was.replaceWith(ice);
   else view.appendChild(ice);
