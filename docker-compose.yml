@@ -25,6 +25,10 @@ services:
       PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET: ${PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET:-}
       PAMPHLETS_PLUGIN_YOUTUBE_API_KEY: ${PAMPHLETS_PLUGIN_YOUTUBE_API_KEY:-}
       PAMPHLETS_LOG_LEVEL: ${PAMPHLETS_LOG_LEVEL:-INFO}
+      # A PEM file of certificate authorities to trust beside the public ones:
+      # for fetching plugins from a forge on your own network that signs its
+      # own certificates. Put it in the data volume, e.g. /data/extra-ca.pem.
+      PAMPHLETS_EXTRA_CA: ${PAMPHLETS_EXTRA_CA:-}
       # Setting both of these is what turns sign-in on. Leave them
       # empty and anyone who can reach the address can use Pamphlets.
       PAMPHLETS_ADMIN_USER: ${PAMPHLETS_ADMIN_USER:-}

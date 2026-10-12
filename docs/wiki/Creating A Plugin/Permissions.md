@@ -57,9 +57,9 @@ end
 
 `known` is `false` for a permission this version of Pamphlets does not have.
 
-## Shipped plugins
+## What a plugin starts with
 
-Plugins shipped with Pamphlets start with everything they asked for. Plugins added by the admin start
-with whatever was ticked at install.
+A plugin starts with whatever the admin ticked when installing it. None come with Pamphlets, so
+none start with anything nobody agreed to.
 
 **Related:** [The Sandbox](The%20Sandbox.md) · [The pamphlets Object](The%20pamphlets%20Object.md)

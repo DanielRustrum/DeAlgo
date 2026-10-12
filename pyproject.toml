@@ -12,6 +12,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "sqlalchemy>=2.0",
     "httpx>=0.27",
+    # The public authorities, beside any PAMPHLETS_EXTRA_CA (outgoing.py).
+    # httpx brings it already; named because Pamphlets now reads it too.
+    "certifi>=2024.2.2",
     "apscheduler>=3.10,<4",
     # Fernet, for the encrypted site backup. Nothing else here needs a
     # cipher, and hand-rolling one to avoid a dependency would be worse.
@@ -53,12 +56,9 @@ pamphlets = [
     "web/static/vendor/*",
     "web/static/textures/*",
     "web/ts/*.ts",
-    # Without this the image ships with no plugins at all, and every kind of
-    # source stops being recognised — the app would start and understand
-    # nothing you typed. Recursive, because a plugin is a folder of its own
-    # and may carry more than one file: the flat `*.lua` this used to be
-    # matched nothing once they moved, and the image shipped without them.
-    "plugins/builtin/**/*",
+    # No plugins ship: each lives in a repository of its own and is installed
+    # from Admin -> Plugins like anybody's. The suite keeps copies to test
+    # against, in tests/plugins.
 ]
 
 [tool.pytest.ini_options]

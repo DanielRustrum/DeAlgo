@@ -280,7 +280,8 @@
     {% endfor %}
   </ul>
   {% else %}
-  <p class="empty">No plugins. Even the shipped ones are missing, which is a broken install.</p>
+  <p class="empty">No plugins yet. None come with Pamphlets: add one below, from its
+    repository or as a file — YouTube, Reddit, Bluesky, Substack and Shape each have their own.</p>
   {% endif %}
 </section>
 
@@ -316,9 +317,7 @@
     <button class="btn btn-primary" type="submit">Add it</button>
     <p class="hint">
       It lands in a folder of its own under <code>{{ folder }}</code> and is
-      read straight away. One named after a plugin that ships with Pamphlets
-      replaces it, which is how you change a shipped plugin without editing
-      the image.
+      read straight away. One named after a plugin already here replaces it.
     </p>
     <p class="error-note">
       <strong>A plugin is code, and it runs here.</strong>

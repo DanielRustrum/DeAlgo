@@ -17,6 +17,7 @@ Read once at start-up. Change one and restart. Everything else is set in the app
 | `PAMPHLETS_HOST` | `0.0.0.0` | Listen address inside the container. |
 | `PAMPHLETS_PORT` | `8080` | Listen port inside the container. |
 | `PAMPHLETS_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR`. |
+| `PAMPHLETS_EXTRA_CA` | *(empty)* | A PEM file of certificate authorities to trust beside the public ones, for fetching [plugins](Plugins.md#a-forge-with-its-own-certificates) from a forge that signs its own certificates — e.g. `/data/extra-ca.pem`. |
 | `TZ` | `UTC` | Container time zone, for log timestamps. Schedules are always UTC. |
 
 Compose-only (used by `docker-compose.yml`, not by the app):

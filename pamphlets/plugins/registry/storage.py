@@ -30,8 +30,14 @@ PLAIN = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 
 
 def shipped() -> Path:
-    """The plugins that come with Pamphlets. Read-only, and replaced wholesale
-    by an upgrade, so a new version's YouTube plugin arrives with it."""
+    """Where plugins that come with Pamphlets would be: read-only, trusted
+    with what they ask for, and replaced wholesale by an upgrade.
+
+    None ship now — YouTube, Reddit, Bluesky, Substack and Shape each live in
+    a repository of their own and are installed from Admin -> Plugins like
+    anybody's — so this folder is not there, and nothing is read from it.
+    It is kept as the one place an image could carry some again; the test
+    suite points it at its own copies (tests/plugins)."""
     return Path(__file__).resolve().parent.parent / "builtin"
 
 

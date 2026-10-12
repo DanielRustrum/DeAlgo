@@ -3,13 +3,26 @@
 Plugins add kinds of [source](Nodes/Sources.md) and [conditions](Nodes/Filter.md) to everyone's palette. They are
 written in Lua and run inside a sandbox. Managing them is **admin only**: **Admin → Plugins**.
 
-Five ship with Pamphlets: **YouTube**, **Reddit**, **Bluesky**, **Substack** and **Shape**.
+None come with Pamphlets: every plugin is installed, from a repository or a file. Those that used to
+come with it each live in a repository of their own:
+
+| Plugin | Repository |
+| --- | --- |
+| **Reddit** | `https://repo.home.app/Rusty/Pamphlets-Reddit-Plugin.git` |
+| **Bluesky** | `https://repo.home.app/Rusty/Pamphlets-Bluesky-Plugin.git` |
+| **Substack** | `https://repo.home.app/Rusty/Pamphlets-Substack-Plugin.git` |
+| **YouTube** | `https://repo.home.app/Rusty/Pamphlets-Youtube-Plugin.git` *(not published yet)* |
+| **Shape** | *(no repository yet)* |
+
+Each installs under the id its sources and conditions were stored against — `reddit`, `youtube` — so
+a setup made while they came with Pamphlets works again as soon as they are installed. Until then,
+its sources are not read and its conditions do nothing.
 
 ## The list
 
 Each row shows:
 
-- **shipped** or **yours**, its version, and where it was fetched from;
+- its version, and where it was fetched from;
 - the source kinds it provides and the permissions it asked for, granted or not;
 - how many of your sources depend on it;
 - why it did not load, if it did not.
@@ -40,7 +53,7 @@ A plugin can do nothing outside its own code unless granted:
 | **Write to the log** | Write lines to Pamphlets's log. |
 
 Untick any you would rather it did without — it still loads, and simply finds that ability missing.
-Change them later on its card, in the folded section under its name. Shipped plugins start with what they asked for; you can revoke it.
+Change them later on its card, in the folded section under its name.
 
 ## Settings for everyone
 
@@ -64,13 +77,14 @@ A switched-off plugin also releases its source kind, so a replacement can take i
 ## Updating and removing
 
 - **Update** — on a plugin fetched from a repository: fetches it again and asks for consent again.
-- **Remove** — on your own plugins only. Shipped ones come back on the next start; switch them off instead.
-  Removing one also deletes its settings, both yours and every account's.
+- **Remove** — takes it away. Removing one also deletes its settings, both yours and every account's.
 
-## Replacing a shipped plugin
+## A forge with its own certificates
 
-Add your own with the same id — the same file or folder name, e.g. `youtube`. Yours is used instead,
-and the row says so.
+A repository on your own network whose forge signs its own certificates cannot be fetched until
+Pamphlets trusts the authority that signed them. Put that authority's certificate, as a PEM file, in
+the data folder and name it in `PAMPHLETS_EXTRA_CA` — for example `/data/extra-ca.pem` in Docker.
+It is trusted beside the usual public authorities; certificate checks are never switched off.
 
 ## Where they live
 

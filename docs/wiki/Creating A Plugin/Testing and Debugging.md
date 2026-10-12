@@ -50,7 +50,7 @@ with acting_for(None):                        # so `pamphlets` and `account` ans
     print(found.keeps("hackernews:no-ask-hn", item, {}))
 ```
 
-Pamphlets's own tests for the shipped plugins (`tests/test_plugin_nodes.py`, `tests/test_plugins.py`)
-use exactly this.
+Pamphlets's own tests for the plugins it used to come with (`tests/test_plugin_nodes.py`,
+`tests/test_plugins.py`, against the copies in `tests/plugins/`) use exactly this.
 
 **Related:** [The Sandbox](The%20Sandbox.md) · [Clock and Log](Clock%20and%20Log.md)

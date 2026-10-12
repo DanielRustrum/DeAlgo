@@ -158,6 +158,10 @@ def test_something_that_is_not_a_repository_is_refused(url):
         ("https://github.com/someone/pamphlets-plugin-letterboxd", "letterboxd"),
         ("https://github.com/someone/plugin-letterboxd", "letterboxd"),
         ("https://gitlab.com/someone/Thing.git", "thing"),
+        # Capitals and a suffix: what the shipped plugins' own repositories are called.
+        ("https://repo.home.app/Rusty/Pamphlets-Reddit-Plugin.git", "reddit"),
+        ("https://repo.home.app/Rusty/Pamphlets-Youtube-Plugin", "youtube"),
+        ("https://codeberg.org/someone/letterboxd-plugin", "letterboxd"),
     ],
 )
 def test_a_plugin_is_named_after_its_repository(url, named):

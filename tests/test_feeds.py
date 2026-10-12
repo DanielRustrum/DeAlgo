@@ -15,7 +15,7 @@ from pathlib import Path
 from pamphlets.plugins import registry
 from pamphlets.sources import syndication
 
-SHIPPED = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
+SHIPPED = Path(__file__).resolve().parent / "plugins"
 
 SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"

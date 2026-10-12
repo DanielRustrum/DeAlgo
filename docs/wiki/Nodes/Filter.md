@@ -44,7 +44,7 @@ carries. Capitals and extra spaces don't matter.
 
 ## Plugin conditions
 
-Shipped plugins add these. A source plugin's conditions judge only that source's items and let
+The plugins that used to come with Pamphlets add these, once installed (see [Plugins](../Plugins.md)). A source plugin's conditions judge only that source's items and let
 everything else through; Shape's judge every item.
 
 | Plugin | Condition | Lets through | Default |

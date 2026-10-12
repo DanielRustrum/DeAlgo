@@ -26,7 +26,7 @@ from pamphlets.plugins import registry
 from pamphlets.services import graph as graph_service
 from tests.test_graph import boxes, canvas, only  # noqa: F401
 
-SHIPPED = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
+SHIPPED = Path(__file__).resolve().parent / "plugins"
 
 ONE_BOX = """return {
   api = 1, name = "%s",

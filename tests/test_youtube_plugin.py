@@ -482,7 +482,7 @@ def shipped():
 
     from pamphlets.plugins import registry
 
-    here = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
+    here = Path(__file__).resolve().parent / "plugins"
     return registry.read(here)
 
 

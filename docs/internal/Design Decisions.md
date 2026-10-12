@@ -58,6 +58,15 @@ on a path, pieces in a chain, sorts).
 the core. RSS and Newsletter belong to no service.
 **Cost:** A sandbox to maintain; YouTube publishing goes through a capability layer.
 
+## No plugin comes with the app
+**Chosen:** YouTube, Reddit, Bluesky, Substack and Shape live in repositories of their own and are
+installed from Admin → Plugins like anybody's; the image ships none. The suite keeps copies in
+`tests/plugins/` and reads them as it once read the shipped folder.
+**Why:** They are released on their own schedule, and installing one is the same act for every plugin.
+**Cost:** A fresh install understands only feed addresses, newsletters and REST APIs until plugins are
+added; a forge with its own certificates needs `PAMPHLETS_EXTRA_CA`. Plugin ids come from repository
+names, so those are read case-blind with `-plugin` taken off — the ids data is stored against.
+
 ## Lua, in-process, with capabilities
 **Chosen:** lupa, one runtime per plugin, attribute filter, per-call ceilings, absent-unless-granted
 capabilities.

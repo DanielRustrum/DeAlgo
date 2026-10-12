@@ -114,7 +114,8 @@ its row on the Plugins page says why, with a line number.
 | [Distributing](Distributing.md) | Publishing your plugin in a git repository |
 | [Testing and Debugging](Testing%20and%20Debugging.md) | Finding out why it does not work |
 
-The five plugins that ship with Pamphlets are complete examples, in `pamphlets/plugins/builtin/`, each split
+The five plugins that used to come with Pamphlets are complete examples — each in a repository of its
+own (see [Plugins](../Plugins.md)), with copies the test suite runs against in `tests/plugins/` — each split
 into a file per job: `plugin.lua` says who it is and requires the rest. Start with `reddit/` (a source
 with a mirror and two conditions: `references.lua`, `source.lua`, `conditions.lua`) and `shape/`
 (conditions and an ordering, no source). `youtube/` is the full set: sign-in, settings, a Data API

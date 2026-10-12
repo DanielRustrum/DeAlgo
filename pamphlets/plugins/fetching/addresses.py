@@ -57,7 +57,10 @@ def repository_name(url: str) -> str:
 
     A repository called ``pamphlets-plugin-letterboxd`` is a plugin called
     ``letterboxd``: the prefix says what it is for, which the folder it lands
-    in already says.
+    in already says. So does a suffix — ``Pamphlets-Reddit-Plugin`` is
+    ``reddit`` — and case is no part of an id, so it is set aside first:
+    an id is what everything placed with the plugin is stored against, and
+    a capital letter must not make a second one.
     """
     path = urlparse(_whole(url)).path.strip("/")
     for ending in (".tar.gz", ".tgz", ".git"):
@@ -69,11 +72,16 @@ def repository_name(url: str) -> str:
     # An archive address ends in the ref, not the name: .../tar.gz/main.
     if len(bits) > 2 and bits[-1] in USUAL_REFS:
         name = bits[1]
+    name = name.lower()
     for prefix in ("pamphlets-plugin-", "pamphlets-", "dealgo-plugin-", "dealgo-", "plugin-"):
         if name.startswith(prefix) and len(name) > len(prefix):
             name = name[len(prefix):]
             break
-    return "".join(one if one.isalnum() or one in "-_" else "-" for one in name.lower())
+    for suffix in ("-pamphlets-plugin", "-plugin", "-pamphlets"):
+        if name.endswith(suffix) and len(name) > len(suffix):
+            name = name[: -len(suffix)]
+            break
+    return "".join(one if one.isalnum() or one in "-_" else "-" for one in name)
 
 
 def _whole(url: str) -> str:

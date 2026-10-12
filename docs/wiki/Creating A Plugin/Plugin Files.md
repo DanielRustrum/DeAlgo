@@ -50,12 +50,10 @@ local dates = require("lib.dates")   -- dots are folders: lib/dates.lua
 
 | Folder | Holds |
 | --- | --- |
-| `pamphlets/plugins/builtin/<id>/` | Shipped plugins, inside the image. |
 | `<PAMPHLETS_DATA_DIR>/plugins/<id>/` | Plugins the admin added (`/data/plugins` in Docker). |
 
-Both are read in name order, shipped first. A plugin in the data folder with the same id as a shipped
-one **replaces** it. Plugins load on start, and again whenever one is added, removed, switched off or
-has its permissions changed.
+None come inside the image. They are read in name order. Plugins load on start, and again whenever
+one is added, removed, switched off or has its permissions changed.
 
 ## The returned table
 

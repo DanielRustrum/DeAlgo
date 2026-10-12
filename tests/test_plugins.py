@@ -12,7 +12,7 @@ import pytest
 
 from pamphlets.plugins import registry, runtime
 
-SHIPPED = Path(__file__).resolve().parent.parent / "pamphlets" / "plugins" / "builtin"
+SHIPPED = Path(__file__).resolve().parent / "plugins"
 
 
 def a_plugin(tmp_path, name: str, body: str) -> Path:
@@ -284,7 +284,7 @@ def test_every_allowed_colour_is_drawn_in_both_themes():
     and not to the stylesheet would be a box with no colour at all."""
     from pamphlets.plugins.registry.plugin import SOURCE_COLOURS
 
-    styles = SHIPPED.parent.parent / "web" / "styles"
+    styles = SHIPPED.parent.parent / "pamphlets" / "web" / "styles"
     tokens = (styles / "tokens.css").read_text()
     mapping = (styles / "plugin-colours.css").read_text()
     for name in SOURCE_COLOURS:
@@ -431,15 +431,19 @@ def test_every_file_the_app_reads_from_its_own_package_is_shipped():
 
     needed = [
         one
-        for folder in ("plugins/builtin", "web/templates", "web/static")
+        for folder in ("web/templates", "web/static")
         for one in (package / folder).rglob("*")
         if one.is_file() and "__pycache__" not in one.parts
     ]
     missing = sorted(str(one.relative_to(package)) for one in needed if one not in shipped)
 
     assert missing == [], f"not matched by any package-data glob: {missing}"
-    # And the thing that went wrong, said directly.
-    assert package / "plugins/builtin/youtube/plugin.lua" in shipped
+
+
+def test_no_plugin_ships_with_the_app():
+    """Each lives in a repository of its own, installed like anybody's."""
+    package = Path(__file__).resolve().parent.parent / "pamphlets"
+    assert not (package / "plugins" / "builtin").exists()
 
 
 # -- what the plugins that ship in the image start with --------------------

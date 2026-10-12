@@ -33,17 +33,25 @@ def db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def fresh_plugins():
+def fresh_plugins(monkeypatch):
     """A registry built against this test's database, not the last one's.
+
+    And with the plugins the suite tests against — copies of the ones that
+    used to ship, kept in tests/plugins — read as shipped ones were: trusted
+    with what they ask for. The app itself ships none.
 
     What a registry offers depends on rows saying which plugins are off and
     what each is granted, so one cached across a database swap is a registry
     answering about somewhere else.
     """
+    from pathlib import Path
+
     from pamphlets.plugins import registry
+    from pamphlets.plugins.registry import storage
     from pamphlets.services import plugin_settings
     from pamphlets.services.theming import store as themes
 
+    monkeypatch.setattr(storage, "shipped", lambda: Path(__file__).resolve().parent / "plugins")
     # And the plugins' setting values and each account's theme, which are
     # held the same way.
     registry.forget()
