@@ -120,7 +120,11 @@ def read_rest_once(session: Session, node: GraphNode, owner: OwnerId) -> str:
 def inspect(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, str]) -> dict[str, Any]:
     """Both sides of one box, by kind."""
     kind = node.kind
-    off = "" if node.enabled else "Switched off: it passes nothing on."
+    frozen = node.frozen_by
+    off = (
+        f"Frozen: {frozen.title} is frozen, so nothing in it runs." if frozen is not None
+        else "" if node.enabled else "Switched off: it passes nothing on."
+    )
 
     if kind == "source":
         rest_source = node.channel is not None and node.channel.source_kind == "rest"

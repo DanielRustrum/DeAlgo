@@ -127,6 +127,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     sort: asGraphSort(raw["sort"]),
     size: asGraphSize(raw["size"]),
     locked: raw["locked"] === true,
+    frozen: raw["frozen"] === true,
     imported: asGraphImported(raw["imported"]),
     channel: asGraphChannel(raw["channel"]),
     asks: asGraphAsks(raw["asks"]),
@@ -475,6 +476,7 @@ function asGraph(value: unknown): GraphView | null {
       trail.push({
         id: typeof step["id"] === "number" ? step["id"] : null,
         title: typeof step["title"] === "string" ? step["title"] : "",
+        frozen: step["frozen"] === true,
       });
     }
   }

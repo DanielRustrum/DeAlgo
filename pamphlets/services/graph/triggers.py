@@ -119,6 +119,9 @@ def pulse_targets(session: Session, node_pk: int, owner: OwnerId = None) -> list
     node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
     if node is None or node.kind != "trigger":
         raise GraphError("That node is not a trigger.")
+    frozen = node.frozen_by
+    if frozen is not None:
+        raise GraphError(f"That trigger is in {frozen.title}, which is frozen: thaw it to run it.")
     if not node.enabled:
         raise GraphError("That trigger is switched off.")
     return wired_channels(session, node, owner)

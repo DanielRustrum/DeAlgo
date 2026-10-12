@@ -2,8 +2,13 @@
 
 A Canvas node is a box that is a canvas of its own: double-clicked, the
 canvas shows what is inside it, with a trail back out. What is inside is
-kept apart — its boxes wire only to each other — but nothing about it is
-asleep: every box inside runs, as every box outside does.
+kept apart — its boxes wire only to each other — and every box inside runs,
+as every box outside does, unless the canvas is **frozen**. Then nothing
+inside it runs, however deep: no trigger fires, no source is polled for it,
+no item goes through it or into a feed in it. Each box keeps its own
+switch, so thawing it puts everything back as it was. A box in a frozen
+canvas is off wherever a box's switch is asked (`GraphNode.enabled`), which
+is everywhere anything runs.
 
 Each box says which Canvas node it is inside (`GraphNode.inside_pk`; None
 for the top of the canvas). The canvas being looked at is the one a request
@@ -57,7 +62,7 @@ def trail(session: Session, owner: OwnerId, inside: int | None) -> list[dict[str
         holder = by_id.get(inside)
         if holder is None:
             break
-        found.append({"id": holder.id, "title": holder.title})
+        found.append({"id": holder.id, "title": holder.title, "frozen": bool(holder.frozen)})
         inside = holder.inside_pk
     found.append({"id": None, "title": "Configuration"})
     return list(reversed(found))
@@ -72,6 +77,16 @@ def everything_inside(all_nodes: list[GraphNode], canvas_pk: int) -> list[GraphN
         found.extend(within)
         holders = {node.id for node in within if node.kind == "canvas"}
     return found
+
+
+def freeze(session: Session, node_pk: int, frozen: bool, owner: OwnerId = None) -> GraphNode:
+    """Freeze a Canvas node, so nothing inside it runs — or thaw it."""
+    node = session.get(GraphNode, node_pk)
+    if node is None or node.kind != "canvas" or node.owner_pk != owner:
+        raise GraphError("Only a Canvas box is frozen.")
+    node.frozen = frozen
+    session.flush()
+    return node
 
 
 def add_canvas(

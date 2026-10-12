@@ -11,8 +11,9 @@ A **Canvas** box is a canvas of its own: a room for part of your setup. **Double
 
 - **It keeps to itself.** A box inside is wired only to boxes beside it, in the same canvas, and a
   piece slots only under a box in the same canvas. Nothing is wired to the Canvas box itself.
-- **Everything inside runs.** A source inside is polled, its paths fill their feeds, and a chart
-  inside a pamphlet inside it is drawn, exactly as if it were at the top.
+- **Everything inside runs** — unless it is [frozen](#freezing-a-canvas). A source inside is
+  polled, its paths fill their feeds, and a chart inside a pamphlet inside it is drawn, exactly as
+  if it were at the top.
 - **Five deep.** A canvas can hold canvases, and they can hold canvases, five deep below the top.
 - **Each remembers its view.** Where you were in each canvas, and which canvas was open, is kept in
   this browser: leave the tab or reload, and it opens where you left it.
@@ -21,6 +22,20 @@ A **Canvas** box is a canvas of its own: a room for part of your setup. **Double
 
 The box says how many boxes are inside it, and is drawn as a stack of sheets: there is more
 underneath.
+
+### Freezing a canvas
+
+Press **Freeze** in a Canvas box's panel and nothing inside it runs, however many canvases deep:
+no trigger fires (Run now and Backfill refuse), no source is polled for it, no item goes through
+its boxes or lands in a feed inside it, no Withdraw pulls and no Text box writes. A source whose
+only trigger is inside is left alone, as if nothing were wired to it.
+
+Everything is still there to change. The box says **❄ Frozen**, and inside, the boxes are drawn
+grey and the trail says *Frozen: nothing here runs*. Each box keeps its own **Active** switch, so
+**Thaw** puts everything back exactly as it was — a box you switched off stays off.
+
+A frozen canvas copied, or saved as a file, stays frozen. A box copied out of one runs where it is
+pasted.
 
 ### Saving a canvas as a file
 

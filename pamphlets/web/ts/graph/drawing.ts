@@ -340,6 +340,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
   box.setAttribute("aria-label", `${graphTriggerLabel(node)}: ${node.title}`);
   if (state.picked.has(node.id)) box.classList.add("is-picked");
   if (!node.enabled) box.classList.add("is-off");
+  if (node.frozen) box.classList.add("is-frozen");
   // A source wears the colour its plugin chose (kinds.css reads it).
   const colour = node.channel?.colour ?? node.asks?.colour ?? "";
   if (colour !== "") box.dataset["colour"] = colour;
@@ -883,6 +884,10 @@ function showGraphVerdict(state: GraphState, message: string | null): void {
 function renderGraphTrail(state: GraphState): void {
   let bar = state.parts.canvas.querySelector<HTMLElement>(":scope > .graph-trail");
   const trail = state.trail ?? [];
+  // Inside a frozen canvas — this one, or one it is in — nothing runs, and
+  // the whole of it is drawn so.
+  const frozen = trail.find((step): boolean => step.frozen) ?? null;
+  state.parts.canvas.classList.toggle("is-frozen", frozen !== null);
   if (trail.length < 2) {
     bar?.remove();
     return;
@@ -906,6 +911,11 @@ function renderGraphTrail(state: GraphState): void {
     back.addEventListener("click", (): void => enterGraphCanvas(state, step.id));
     steps.push(back);
   });
+  if (frozen !== null) {
+    const said = frozen.id === trail[trail.length - 1]?.id ? "Frozen" : `Frozen with ${frozen.title}`;
+    const mark = graphElement("span", "graph-trail-frozen", `❄ ${said}: nothing here runs`);
+    steps.push(mark);
+  }
   bar.replaceChildren(...steps);
 }
 

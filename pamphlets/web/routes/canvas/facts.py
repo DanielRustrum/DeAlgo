@@ -131,7 +131,9 @@ def is_on(node: GraphNode) -> bool:
     switched, and a second box for the same channel can be off while this
     one is on.
     """
-    if not node.enabled:
+    # Its own switch: a box in a frozen canvas is drawn frozen, not switched
+    # off, so its panel says what it will do once the canvas thaws.
+    if not node.switched_on:
         return False
     if node.kind == "source":
         return node.channel.enabled if node.channel is not None else False

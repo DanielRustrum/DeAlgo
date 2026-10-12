@@ -177,6 +177,7 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         held = sum(1 for one in canvas.nodes if one.inside_pk == node.id and one.attached_to is None)
         drawn["note"] = (f"{held} box{'es' if held != 1 else ''} inside · double-click to open"
                          if held else "empty · double-click to open")
+        drawn["frozen"] = bool(node.frozen)
     if node.kind in graph_service.LEAFLET_KINDS:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)

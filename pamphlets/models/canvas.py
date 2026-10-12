@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
 
 from .base import Base, owner_column
 from .feed import Playlist
@@ -109,10 +109,15 @@ class GraphNode(Base):
     owner_pk: Mapped[Optional[int]] = owner_column()
     kind: Mapped[str] = mapped_column(String(8), index=True)
 
-    # Filter and trigger boxes only. A source or feed box is switched on and
-    # off through the channel or playlist behind it, because that is where
-    # every other part of the app reads it from.
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The box's own switch. A source or feed box is switched on and off
+    # through the channel or playlist behind it, because that is where every
+    # other part of the app reads it from. What runs asks `enabled`, below,
+    # which is this and the canvases around it not being frozen.
+    switched_on: Mapped[bool] = mapped_column("enabled", Boolean, default=True)
+    # Canvas nodes only: frozen, so nothing inside it — however deep — runs.
+    # The boxes inside keep their own switches, for when it thaws.
+    # A database default too: rows written by raw SQL leave it out.
+    frozen: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
 
     x: Mapped[int] = mapped_column(Integer, default=0)
     y: Mapped[int] = mapped_column(Integer, default=0)
@@ -257,6 +262,31 @@ class GraphNode(Base):
 
     channel: Mapped[Optional[Channel]] = relationship()
     playlist: Mapped[Optional[Playlist]] = relationship()
+
+    @property
+    def enabled(self) -> bool:
+        """Whether this box runs: switched on, and in no frozen canvas."""
+        return bool(self.switched_on) and self.frozen_by is None
+
+    @enabled.setter
+    def enabled(self, on: bool) -> None:
+        self.switched_on = on
+
+    @property
+    def frozen_by(self) -> "GraphNode | None":
+        """The frozen canvas this box is in, nearest first — if it is in one."""
+        session = object_session(self)
+        inside, seen = self.inside_pk, set[int]()
+        while session is not None and inside is not None and inside not in seen and len(seen) <= 6:
+            seen.add(inside)
+            with session.no_autoflush:
+                holder = session.get(GraphNode, inside)
+            if holder is None:
+                return None
+            if holder.frozen:
+                return holder
+            inside = holder.inside_pk
+        return None
 
     @property
     def title(self) -> str:

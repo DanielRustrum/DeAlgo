@@ -270,6 +270,14 @@
 .graph-trail-step:hover, .graph-trail-step:focus-visible { background: var(--panel-2); }
 .graph-trail-gap { color: var(--muted); }
 .graph-trail-here { font-weight: 600; padding: 2px 6px; }
+.graph-trail-frozen { color: var(--muted); padding-left: 6px; border-left: 1px solid var(--line); }
+
+/* A frozen canvas: nothing in it runs. Its box is drawn cold, and so is the
+   whole of it while you are inside — still there to change, just not running. */
+.graph-node.kind-canvas.is-frozen { border-style: dashed; }
+.graph-node.kind-canvas.is-frozen .graph-node-note::before { content: "❄ Frozen · "; }
+.graph-canvas.is-frozen .graph-node:not(.kind-comment),
+.graph-canvas.is-frozen .graph-group-box { filter: grayscale(0.85); opacity: 0.7; }
 
 /* A Comment: a note on the canvas in one of the theme's colours, as big as
    it was made, its words wrapped as they were written. Under the boxes it

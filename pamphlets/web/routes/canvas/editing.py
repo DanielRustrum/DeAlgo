@@ -343,6 +343,18 @@ def graph_fold(request: Request, node_pk: int, folded: str = Form("1")) -> JSONR
         return JSONResponse(graph_payload(session, owner))
 
 
+@router.post("/graph/nodes/{node_pk}/freeze")
+def graph_freeze(request: Request, node_pk: int, frozen: str = Form("1")) -> JSONResponse:
+    """Freeze a canvas, so nothing inside it runs, or thaw it."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        try:
+            graph_service.insides.freeze(session, node_pk, frozen == "1", owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(graph_payload(session, owner))
+
+
 @router.post("/graph/wires/{edge_pk}/route")
 def graph_route(request: Request, edge_pk: int, route: str = Form("curve")) -> JSONResponse:
     """Draw a wire another way: a curve, straight, square, or round the boxes."""

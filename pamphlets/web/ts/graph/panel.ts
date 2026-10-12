@@ -232,7 +232,9 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.trigger !== null) graphTriggerFields(form, node);
   else if (node.kind === "canvas") {
     form.appendChild(graphElement("p", "hint",
-      "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs."));
+      node.frozen
+        ? "Frozen: nothing inside it runs — no trigger fires, nothing is polled, nothing reaches a feed — however deep. Thaw it to put everything back as it was."
+        : "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs. Freeze it to stop all of it at once."));
   }
   else if (node.kind === "comment" && node.comment !== null) {
     const words = document.createElement("textarea");
@@ -299,6 +301,15 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
     save.textContent = "Save as file";
     save.title = "Save this canvas, and everything inside it, as a .pam file";
     buttons.appendChild(save);
+    // Everything inside stops, or starts again — each box keeping its switch.
+    const freeze = graphElement("button", "btn btn-quiet", node.frozen ? "Thaw" : "Freeze");
+    freeze.setAttribute("type", "button");
+    freeze.title = node.frozen ? "Let everything inside it run again" : "Stop everything inside it from running";
+    freeze.addEventListener("click", (): void => {
+      void applyGraph(state, `/graph/nodes/${node.id}/freeze`,
+        new URLSearchParams({ frozen: node.frozen ? "0" : "1" }));
+    });
+    buttons.appendChild(freeze);
   }
   if (editor !== null) {
     const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");

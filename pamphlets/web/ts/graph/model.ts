@@ -124,6 +124,8 @@ interface GraphNodeView {
   size: { width: number; height: number } | null;
   /** Group nodes only: held in place, so pressing it pans rather than moves. */
   locked: boolean;
+  /** Canvas nodes only: frozen, so nothing inside it runs. */
+  frozen: boolean;
   /** Group nodes loaded from a file: its name, and when it was loaded or last updated. */
   imported: { from: string; at: string | null } | null;
   /** Channel boxes that stand for a channel: what it does. */
@@ -298,6 +300,8 @@ interface GraphWireView {
 interface GraphTrailStep {
   id: number | null;
   title: string;
+  /** Frozen: nothing inside it runs. */
+  frozen: boolean;
 }
 
 interface GraphView {

@@ -132,7 +132,7 @@ def pack_nodes(
             "x": node.x - left,
             "y": node.y - top,
             "label": node.label,
-            "enabled": node.enabled,
+            "enabled": node.switched_on,
         }
         if node.attached_to is not None and node.attached_to in refs:
             # A piece travels as what it is slotted under, not as where it
@@ -147,6 +147,8 @@ def pack_nodes(
             from .. import writing
 
             entry["writing"] = writing.settings(node)
+        if node.kind == "canvas" and node.frozen:
+            entry["frozen"] = True
         if node.kind in ("relay", "group"):
             entry["look"] = looks.look(node)
             if node.kind == "group":
@@ -385,6 +387,8 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
         # A source or feed is switched through its channel or playlist.
         node.enabled = bool(entry["enabled"])
     kind = node.kind
+    if kind == "canvas" and "frozen" in entry:
+        node.frozen = entry["frozen"] is True
     # How a relay or a group looks: which way it faces, its colour, folded.
     if kind in ("relay", "group") and isinstance(entry.get("look"), dict):
         said = {

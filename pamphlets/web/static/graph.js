@@ -1772,6 +1772,8 @@ function drawGraphNode(state, node) {
         box.classList.add("is-picked");
     if (!node.enabled)
         box.classList.add("is-off");
+    if (node.frozen)
+        box.classList.add("is-frozen");
     // A source wears the colour its plugin chose (kinds.css reads it).
     const colour = (_m = (_l = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _l !== void 0 ? _l : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _m !== void 0 ? _m : "";
     if (colour !== "")
@@ -2314,8 +2316,13 @@ function showGraphVerdict(state, message) {
  *  this one, each pressable but the one shown. Not drawn at the top. */
 function renderGraphTrail(state) {
     var _a;
+    var _b, _c;
     let bar = state.parts.canvas.querySelector(":scope > .graph-trail");
-    const trail = (_a = state.trail) !== null && _a !== void 0 ? _a : [];
+    const trail = (_b = state.trail) !== null && _b !== void 0 ? _b : [];
+    // Inside a frozen canvas — this one, or one it is in — nothing runs, and
+    // the whole of it is drawn so.
+    const frozen = (_c = trail.find((step) => step.frozen)) !== null && _c !== void 0 ? _c : null;
+    state.parts.canvas.classList.toggle("is-frozen", frozen !== null);
     if (trail.length < 2) {
         bar === null || bar === void 0 ? void 0 : bar.remove();
         return;
@@ -2340,6 +2347,11 @@ function renderGraphTrail(state) {
         back.addEventListener("click", () => enterGraphCanvas(state, step.id));
         steps.push(back);
     });
+    if (frozen !== null) {
+        const said = frozen.id === ((_a = trail[trail.length - 1]) === null || _a === void 0 ? void 0 : _a.id) ? "Frozen" : `Frozen with ${frozen.title}`;
+        const mark = graphElement("span", "graph-trail-frozen", `❄ ${said}: nothing here runs`);
+        steps.push(mark);
+    }
     bar.replaceChildren(...steps);
 }
 /** Show another canvas: the inside of a Canvas node, or (null) the top.
@@ -4472,7 +4484,9 @@ function graphNodeForm(state, node) {
     else if (node.trigger !== null)
         graphTriggerFields(form, node);
     else if (node.kind === "canvas") {
-        form.appendChild(graphElement("p", "hint", "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs."));
+        form.appendChild(graphElement("p", "hint", node.frozen
+            ? "Frozen: nothing inside it runs — no trigger fires, nothing is polled, nothing reaches a feed — however deep. Thaw it to put everything back as it was."
+            : "A canvas of its own. Double-click it, or press Open, to work inside it; boxes inside are wired only to each other, and every one of them runs. Freeze it to stop all of it at once."));
     }
     else if (node.kind === "comment" && node.comment !== null) {
         const words = document.createElement("textarea");
@@ -4534,6 +4548,14 @@ function graphNodeForm(state, node) {
         save.textContent = "Save as file";
         save.title = "Save this canvas, and everything inside it, as a .pam file";
         buttons.appendChild(save);
+        // Everything inside stops, or starts again — each box keeping its switch.
+        const freeze = graphElement("button", "btn btn-quiet", node.frozen ? "Thaw" : "Freeze");
+        freeze.setAttribute("type", "button");
+        freeze.title = node.frozen ? "Let everything inside it run again" : "Stop everything inside it from running";
+        freeze.addEventListener("click", () => {
+            void applyGraph(state, `/graph/nodes/${node.id}/freeze`, new URLSearchParams({ frozen: node.frozen ? "0" : "1" }));
+        });
+        buttons.appendChild(freeze);
     }
     if (editor !== null) {
         const open = graphElement("button", "btn btn-quiet", editor === "settings" ? "Open editor" : "Input & output");
@@ -5474,6 +5496,7 @@ function asGraphNode(value) {
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
         locked: raw["locked"] === true,
+        frozen: raw["frozen"] === true,
         imported: asGraphImported(raw["imported"]),
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
@@ -5826,6 +5849,7 @@ function asGraph(value) {
             trail.push({
                 id: typeof step["id"] === "number" ? step["id"] : null,
                 title: typeof step["title"] === "string" ? step["title"] : "",
+                frozen: step["frozen"] === true,
             });
         }
     }
