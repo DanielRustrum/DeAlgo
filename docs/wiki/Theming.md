@@ -179,6 +179,8 @@ two tabs also switches the preview. The colours are grouped:
   triggers' purple, moss and pink), ordered so neighbours stay apart for colour-blind readers, and by
   night held dark enough for the night panel. Lines, labels and type in a chart follow the theme's
   text and line colours and its typeface.
+- **Frost:** the ice on a [frozen canvas](Nodes/Canvases%20and%20Relays.md#freezing-a-canvas) — the
+  frost and rim, the icicles, and their shaded side — pale ice by day and deeper blue by night.
 
 The background's and drawings' colours are in their own sections, above.
 

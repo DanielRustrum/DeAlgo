@@ -91,6 +91,12 @@
   --chart-5: #697d21;
   --chart-6: #b8487c;
 
+  /* The ice on a frozen canvas (graph/boxes.css, graph/frost.ts): its
+     cap, its icicles and their shaded side (THEMING tokens "frost"). */
+  --ice-light: #ebf7fd;
+  --ice: #abdcf5;
+  --ice-deep: #65a8d3;
+
   /* The background (backdrop.css): the two lights, where a gradient ends,
      and the pattern. Each is another colour until a theme says otherwise. */
   --wash-1: var(--sage);
@@ -229,6 +235,11 @@
     --chart-3: #b7810b;
     --chart-4: #8262af;
     --chart-5: #6a7f20;
+
+    /* Ice by night: the same blues, deep enough for the night panel. */
+    --ice-light: #bdcdd3;
+    --ice: #72a6bf;
+    --ice-deep: #387ea7;
 
     /* The scenes at night: deeper water and sky, darker sand and rock. */
     --art-water: #3f7391;

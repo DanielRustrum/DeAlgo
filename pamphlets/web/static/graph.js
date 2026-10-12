@@ -1964,6 +1964,9 @@ function drawGraphNode(state, node) {
         if (node.frozen)
             iceGraphCanvas(box, node.id, node.size);
     }
+    // Inside a frozen canvas, now and then a box wears a touch of the ice.
+    if (graphFrostTouches(state, node))
+        box.appendChild(graphFrostTouch(node.id));
     return box;
 }
 /** Ice a frozen Canvas box to its size — again, whenever that changes, so
@@ -3597,6 +3600,36 @@ function graphFrost(seed, width, height, scale) {
     frost.appendChild(outside);
     frost.appendChild(graphElement("span", "graph-frost-badge", "❄ Frozen"));
     return frost;
+}
+/** Whether this box, inside a frozen canvas, wears a touch of ice: about
+ *  one in ten, picked by its id so it is the same ones every time. Only a
+ *  box or piece with nothing slotted below it, so the ice hangs free. */
+function graphFrostTouches(state, node) {
+    var _a;
+    if (!((_a = state.trail) !== null && _a !== void 0 ? _a : []).some((step) => step.frozen))
+        return false;
+    if (["comment", "relay", "group", "canvas"].includes(node.kind))
+        return false;
+    if (graphFrostNoise(node.id, 999) >= 0.1)
+        return false;
+    return !state.nodes.some((one) => { var _a; return ((_a = one.piece) === null || _a === void 0 ? void 0 : _a.under) === node.id && one.piece.side === "below"; });
+}
+/** A touch of ice along part of a box's bottom edge: a short rim, and a
+ *  few small icicles hanging from it. */
+function graphFrostTouch(seed) {
+    const touch = graphElement("div", "graph-frost-touch");
+    touch.setAttribute("aria-hidden", "true");
+    // Drawn as wide as a box usually is; stretched a little on one that is not.
+    const width = 212;
+    const svg = graphFrostShape("svg", { viewBox: `0 0 ${width} 18`, preserveAspectRatio: "none" });
+    const span = width * (0.3 + graphFrostNoise(seed, 1001) * 0.25);
+    const from = 14 + graphFrostNoise(seed, 1002) * (width - 28 - span);
+    graphIcicleRow(svg, seed, 9000, from, from + span, () => 0, 0.8, 14);
+    svg.appendChild(graphFrostShape("path", {
+        d: `M${from.toFixed(1)},0H${(from + span).toFixed(1)}`, class: "graph-ice-rim", "stroke-width": "2.5",
+    }));
+    touch.appendChild(svg);
+    return touch;
 }
 
 "use strict";

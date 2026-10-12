@@ -103,6 +103,7 @@ GROUPS: tuple[Group, ...] = (
     Group("plugins", "Plugin colours", "The seven colours a plugin may give its sources."),
     Group("charts", "Charts", "The colours a pamphlet's charts draw in, in order: the first series, "
           "the second… The sixth is Other too."),
+    Group("frost", "Frost", "The ice on a frozen canvas, and the touch of it on what is inside one."),
     Group("background", "Background", "The light on the page behind everything."),
     Group("gradient", "Gradient", "A gradient background's colours."),
     Group("texture", "Pattern and texture", "The pattern's ink."),
@@ -180,6 +181,10 @@ COLOURS: tuple[Colour, ...] = (
     Colour("chart-5", "Fifth", "charts", "#697d21", "#6a7f20", "Moss."),
     Colour("chart-6", "Sixth, and Other", "charts", "#b8487c", None,
            "Pink: the sixth series, and everything past the fifth."),
+    Colour("ice-light", "Frost", "frost", "#ebf7fd", "#bdcdd3",
+           "The cap of ice, the rim and the glint down each icicle."),
+    Colour("ice", "Ice", "frost", "#abdcf5", "#72a6bf", "The icicles, and the frost over a frozen box."),
+    Colour("ice-deep", "Shaded ice", "frost", "#65a8d3", "#387ea7", "The shaded side of each icicle."),
     Colour("wash-1", "First light", "background", "#9fb8a1", None,
            "The wash in the first corner, or the glow.", follows="sage"),
     Colour("wash-2", "Second light", "background", "#f2b196", None,

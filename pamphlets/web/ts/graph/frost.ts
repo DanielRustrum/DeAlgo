@@ -131,3 +131,31 @@ function graphFrost(seed: number, width: number, height: number, scale: number):
   frost.appendChild(graphElement("span", "graph-frost-badge", "❄ Frozen"));
   return frost;
 }
+
+/** Whether this box, inside a frozen canvas, wears a touch of ice: about
+ *  one in ten, picked by its id so it is the same ones every time. Only a
+ *  box or piece with nothing slotted below it, so the ice hangs free. */
+function graphFrostTouches(state: GraphState, node: GraphNodeView): boolean {
+  if (!(state.trail ?? []).some((step): boolean => step.frozen)) return false;
+  if (["comment", "relay", "group", "canvas"].includes(node.kind)) return false;
+  if (graphFrostNoise(node.id, 999) >= 0.1) return false;
+  return !state.nodes.some((one): boolean => one.piece?.under === node.id && one.piece.side === "below");
+}
+
+/** A touch of ice along part of a box's bottom edge: a short rim, and a
+ *  few small icicles hanging from it. */
+function graphFrostTouch(seed: number): HTMLElement {
+  const touch = graphElement("div", "graph-frost-touch");
+  touch.setAttribute("aria-hidden", "true");
+  // Drawn as wide as a box usually is; stretched a little on one that is not.
+  const width = 212;
+  const svg = graphFrostShape("svg", { viewBox: `0 0 ${width} 18`, preserveAspectRatio: "none" });
+  const span = width * (0.3 + graphFrostNoise(seed, 1001) * 0.25);
+  const from = 14 + graphFrostNoise(seed, 1002) * (width - 28 - span);
+  graphIcicleRow(svg, seed, 9000, from, from + span, (): number => 0, 0.8, 14);
+  svg.appendChild(graphFrostShape("path", {
+    d: `M${from.toFixed(1)},0H${(from + span).toFixed(1)}`, class: "graph-ice-rim", "stroke-width": "2.5",
+  }));
+  touch.appendChild(svg);
+  return touch;
+}

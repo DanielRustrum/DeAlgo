@@ -275,7 +275,7 @@
 /* A frozen canvas: nothing in it runs. Its box is drawn cold, and so is the
    whole of it while you are inside — still there to change, just not running. */
 .graph-canvas.is-frozen .graph-node:not(.kind-comment),
-.graph-canvas.is-frozen .graph-group-box { filter: grayscale(0.85); opacity: 0.7; }
+.graph-canvas.is-frozen .graph-group-box { filter: saturate(0.6); opacity: 0.8; }
 
 /* A Comment: a note on the canvas in one of the theme's colours, as big as
    it was made, its words wrapped as they were written. Under the boxes it
@@ -415,14 +415,9 @@
 /* A frozen Canvas box, iced over (frost.ts). The ice is part of the box:
    inside, clipped to its corners, a frost fading down from a cap of ice and
    a fringe of icicles; outside, its bottom edge iced round its corners with
-   longer icicles below. The blues are mixed with the theme's panel, so the
-   ice is pale in light mode and deep in dark. */
-.graph-node.kind-canvas.is-frozen {
-  --ice-light: color-mix(in srgb, #e6f6ff 80%, var(--panel));
-  --ice: color-mix(in srgb, #8fd0f2 75%, var(--panel));
-  --ice-deep: color-mix(in srgb, #3f93c8 80%, var(--panel));
-  border-color: var(--ice);
-}
+   longer icicles below. Its blues are the theme's Frost colours (--ice-light,
+   --ice, --ice-deep), pale by day and deep by night. */
+.graph-node.kind-canvas.is-frozen { border-color: var(--ice); }
 .graph-frost { position: absolute; inset: -1px; z-index: 1; pointer-events: none; border-radius: inherit; }
 .graph-frost-inside {
   position: absolute; inset: 0; overflow: hidden; border-radius: inherit;
@@ -448,3 +443,12 @@
 }
 /* The words stay above the ice. */
 .graph-node.kind-canvas.is-frozen > :not(.graph-frost):not(.graph-group-grip) { position: relative; z-index: 2; }
+
+/* Inside a frozen canvas, a touch of the same ice on about one box in ten
+   (frost.ts, graphFrostTouch): a short rim along part of its bottom edge
+   and a few small icicles. */
+.graph-frost-touch {
+  position: absolute; left: 0; right: 0; top: calc(100% - 1px); height: 18px; z-index: 1;
+  pointer-events: none; overflow: visible;
+}
+.graph-frost-touch svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }

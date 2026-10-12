@@ -417,6 +417,8 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     // Frozen: iced over, so it reads as stopped from across the canvas.
     if (node.frozen) iceGraphCanvas(box, node.id, node.size);
   }
+  // Inside a frozen canvas, now and then a box wears a touch of the ice.
+  if (graphFrostTouches(state, node)) box.appendChild(graphFrostTouch(node.id));
   return box;
 }
 
