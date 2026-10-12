@@ -412,22 +412,34 @@
 .graph-node.kind-canvas .graph-node-title { font-size: calc(13.5px * var(--text-scale) * var(--canvas-scale, 1)); }
 .graph-node.kind-canvas .graph-node-note { font-size: calc(11.5px * var(--text-scale) * var(--canvas-scale, 1)); }
 
-/* A frozen Canvas box, iced over (frost.ts): a fringe of icicles from its
-   top edge and longer ones below it, each lit on one side and shaded on the
-   other. The blues are mixed with the theme's panel, so the ice is pale in
-   light mode and deep in dark. */
+/* A frozen Canvas box, iced over (frost.ts). The ice is part of the box:
+   inside, clipped to its corners, a frost fading down from a cap of ice and
+   a fringe of icicles; outside, its bottom edge iced round its corners with
+   longer icicles below. The blues are mixed with the theme's panel, so the
+   ice is pale in light mode and deep in dark. */
 .graph-node.kind-canvas.is-frozen {
   --ice-light: color-mix(in srgb, #e6f6ff 80%, var(--panel));
   --ice: color-mix(in srgb, #8fd0f2 75%, var(--panel));
   --ice-deep: color-mix(in srgb, #3f93c8 80%, var(--panel));
   border-color: var(--ice);
 }
-.graph-frost { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.graph-frost { position: absolute; inset: -1px; z-index: 1; pointer-events: none; border-radius: inherit; }
+.graph-frost-inside {
+  position: absolute; inset: 0; overflow: hidden; border-radius: inherit;
+  /* Frost: thick under the cap, fading to nothing a third of the way down,
+     and a glaze along the inside of every edge. */
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--ice) 45%, transparent) 0,
+    color-mix(in srgb, var(--ice) 14%, transparent) 30%, transparent 55%,
+    color-mix(in srgb, var(--ice) 12%, transparent) 100%);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ice) 70%, transparent),
+    inset 0 0 calc(10px * var(--canvas-scale, 1)) color-mix(in srgb, var(--ice) 35%, transparent);
+}
 .graph-frost-art { position: absolute; inset: 0; overflow: visible; }
-.graph-icicle { fill: var(--ice); stroke: var(--ice-deep); stroke-width: 0.6; stroke-opacity: 0.5; }
+.graph-ice-cap { fill: var(--ice-light); }
+.graph-ice-rim { fill: none; stroke: var(--ice-light); stroke-linecap: round; }
+.graph-icicle { fill: var(--ice); }
 .graph-icicle-shade { fill: var(--ice-deep); opacity: 0.55; }
 .graph-icicle-glint { fill: none; stroke: var(--ice-light); stroke-linecap: round; opacity: 0.9; }
-.graph-ice-band { fill: var(--ice-light); stroke: var(--ice); stroke-width: 0.8; }
 .graph-frost-badge {
   position: absolute; right: calc(10px * var(--canvas-scale, 1)); top: calc(30px * var(--canvas-scale, 1));
   padding: calc(2px * var(--canvas-scale, 1)) calc(8px * var(--canvas-scale, 1)); border-radius: 999px;

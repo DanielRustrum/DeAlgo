@@ -3462,10 +3462,13 @@ function graphFormatFields(form, node, inEditor = false) {
 }
 
 "use strict";
-// The ice on a frozen Canvas box: a fringe of icicles hanging from its top
-// edge, and longer ones from its bottom edge, each grown from a band of ice
-// along the edge. Every icicle is drawn the way ice catches light — a lit
-// side, a shaded side, a glint — and some fork into a second, smaller drip.
+// The ice on a frozen Canvas box, part of the box rather than laid on it.
+//
+// Inside, clipped to the box's own rounded shape: a frost that fades down
+// from the top, and a cap of ice across the top whose lower edge a fringe of
+// icicles hangs from. Outside: the bottom edge iced over, round its corners
+// as the box's border is, with longer icicles hanging from it between them.
+// Every icicle has a lit side, a shaded side and a glint, and some fork.
 //
 // Drawn to the box's own size, and the same on every redraw: each icicle's
 // width and length come from the box's id, not from chance.
@@ -3483,18 +3486,27 @@ function graphFrostShape(tag, attributes) {
         shape.setAttribute(name, (_a = attributes[name]) !== null && _a !== void 0 ? _a : "");
     return shape;
 }
-/** How tall the fringe along the top is, so the words can sit below it. */
-function graphFrostFringe(scale) {
-    return 26 * scale;
+function graphFrostSvg(width, height, kind) {
+    return graphFrostShape("svg", {
+        class: kind, viewBox: `0 0 ${width} ${height}`, width: String(width), height: String(height),
+    });
 }
-/** One icicle hanging from `top`: its whole shape, its shaded side and its
- *  glint, as three paths. */
+/** How far down the ice along the top reaches, so the words sit below it. */
+function graphFrostFringe(scale) {
+    return 24 * scale;
+}
+/** The theme's corner radius, which the ice follows round. */
+function graphFrostRadius() {
+    const said = getComputedStyle(document.documentElement).getPropertyValue("--radius");
+    const radius = Number.parseFloat(said);
+    return Number.isFinite(radius) ? radius : 12;
+}
+/** One icicle hanging from `top`: its shape, its shaded side, its glint. */
 function graphIcicle(left, wide, long, top, lean) {
     const n = (value) => value.toFixed(1);
     const tipX = left + wide / 2 + lean;
     const tipY = top + long;
     const right = left + wide;
-    // Pinched in a little a third of the way down, as ice drips do.
     const waist = top + long * 0.35;
     const body = `M${n(left)},${n(top)}`
         + `C${n(left - wide * 0.05)},${n(waist)} ${n(left + wide * 0.22)},${n(top + long * 0.6)} ${n(tipX)},${n(tipY)}`
@@ -3507,61 +3519,69 @@ function graphIcicle(left, wide, long, top, lean) {
         + `Q${n(left + wide * 0.3)},${n(top + long * 0.4)} ${n(tipX - wide * 0.06)},${n(top + long * 0.78)}`;
     return [body, shade, glint];
 }
-/** A row of icicles along one edge, from `top`, `count` of them across
- *  `width`, the longest `reach` long. */
-function graphIcicleRow(svg, seed, salt, width, top, scale, reach) {
+/** Icicles from `from` to `to` across, each hanging from `edge(x)`, the
+ *  longest `reach` long, drawn into `svg`. */
+function graphIcicleRow(svg, seed, salt, from, to, edge, scale, reach) {
     var _a, _b;
     const bodies = [];
     const shades = [];
     const glints = [];
-    let x = -1 * scale;
+    let x = from;
     let index = 0;
-    while (x < width - 2 * scale) {
+    while (x < to - 3 * scale) {
         const noise = (k) => graphFrostNoise(seed, salt + index * 7 + k);
-        const wide = Math.min(width - x, (5 + noise(1) * 7) * scale);
-        // Every length from a nub to the whole reach, longer ones the wider
-        // they are: a fringe, not a comb.
+        const wide = Math.min(to - x, (5 + noise(1) * 7) * scale);
+        // Every length from a nub to the whole reach, the wider the longer.
         const long = (reach * 0.2 + noise(2) ** 1.3 * reach * 0.8) * (wide / (9 * scale)) ** 0.5;
         const lean = (noise(3) - 0.5) * wide * 0.3;
+        // Rooted a little inside the ice it hangs from, so there is no seam.
+        const top = edge(x + wide / 2) - 1.5 * scale;
         const [body, shade, glint] = graphIcicle(x, wide, long, top, lean);
         bodies.push(body !== null && body !== void 0 ? body : "");
         shades.push(shade !== null && shade !== void 0 ? shade : "");
         if (long > 9 * scale)
             glints.push(glint !== null && glint !== void 0 ? glint : "");
-        // Some fork: a smaller drip off one shoulder.
         if (noise(4) > 0.62 && wide > 9 * scale) {
             const small = graphIcicle(x + wide * (noise(5) > 0.5 ? 0.55 : 0.05), wide * 0.4, long * 0.45, top + long * 0.18, 0);
             bodies.push((_a = small[0]) !== null && _a !== void 0 ? _a : "");
             shades.push((_b = small[1]) !== null && _b !== void 0 ? _b : "");
         }
-        // Packed close, overlapping a little, as a fringe of ice is.
         x += wide * (0.7 + noise(6) * 0.35);
         index += 1;
     }
     svg.appendChild(graphFrostShape("path", { d: bodies.join(""), class: "graph-icicle" }));
     svg.appendChild(graphFrostShape("path", { d: shades.join(""), class: "graph-icicle-shade" }));
-    svg.appendChild(graphFrostShape("path", { d: glints.join(""), class: "graph-icicle-glint", "stroke-width": (1.1 * scale).toFixed(2) }));
-    // The band of ice along the edge they grow from.
-    const band = 3 * scale;
-    svg.appendChild(graphFrostShape("rect", {
-        x: String(-1 * scale), y: (top - band * 0.6).toFixed(1), width: (width + 2 * scale).toFixed(1),
-        height: band.toFixed(1), rx: (band / 2).toFixed(1), class: "graph-ice-band",
+    svg.appendChild(graphFrostShape("path", {
+        d: glints.join(""), class: "graph-icicle-glint", "stroke-width": (1.1 * scale).toFixed(2),
     }));
 }
-/** The ice for one frozen box, `width` by `height`, laid over it. */
+/** The ice for one frozen box, `width` by `height`. */
 function graphFrost(seed, width, height, scale) {
     const frost = graphElement("div", "graph-frost");
     frost.setAttribute("aria-hidden", "true");
-    const svg = graphFrostShape("svg", {
-        class: "graph-frost-art",
-        viewBox: `0 0 ${width} ${height}`,
-        width: String(width),
-        height: String(height),
-    });
-    // Short ones inside along the top; longer ones below the bottom edge.
-    graphIcicleRow(svg, seed, 0, width, 1 * scale, scale, graphFrostFringe(scale));
-    graphIcicleRow(svg, seed, 5000, width, height - 1 * scale, scale, 44 * scale);
-    frost.appendChild(svg);
+    const n = (value) => value.toFixed(1);
+    // Inside the box, clipped to its corners by the layer it is drawn in.
+    const inside = graphElement("div", "graph-frost-inside");
+    const within = graphFrostSvg(width, height, "graph-frost-art");
+    const capEdge = (x) => (5 + Math.sin(x / (11 * scale) + seed) * 1.6 + graphFrostNoise(seed, Math.round(x / (6 * scale))) * 1.4) * scale;
+    let cap = `M0,0H${width}V${n(capEdge(width))}`;
+    for (let x = width; x >= 0; x -= 4 * scale)
+        cap += `L${n(x)},${n(capEdge(x))}`;
+    cap += `L0,${n(capEdge(0))}Z`;
+    within.appendChild(graphFrostShape("path", { d: cap, class: "graph-ice-cap" }));
+    graphIcicleRow(within, seed, 0, -2 * scale, width + 2 * scale, capEdge, scale, graphFrostFringe(scale) - 4 * scale);
+    inside.appendChild(within);
+    frost.appendChild(inside);
+    // Outside: the bottom edge iced round its corners, and icicles below.
+    const radius = Math.min(graphFrostRadius(), width / 2, height / 2);
+    const outside = graphFrostSvg(width, height, "graph-frost-art");
+    const rim = `M0,${n(height - radius)}A${n(radius)},${n(radius)} 0 0 0 ${n(radius)},${height}`
+        + `H${n(width - radius)}A${n(radius)},${n(radius)} 0 0 0 ${width},${n(height - radius)}`;
+    graphIcicleRow(outside, seed, 5000, radius * 0.6, width - radius * 0.6, () => height, scale, 44 * scale);
+    outside.appendChild(graphFrostShape("path", {
+        d: rim, class: "graph-ice-rim", "stroke-width": (3.5 * scale).toFixed(2),
+    }));
+    frost.appendChild(outside);
     frost.appendChild(graphElement("span", "graph-frost-badge", "❄ Frozen"));
     return frost;
 }
