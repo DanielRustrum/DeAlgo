@@ -3659,6 +3659,7 @@ function iceGraphView(state, frozen) {
     const view = state.parts.canvas;
     const was = view.querySelector(":scope > .graph-view-frost");
     const width = Math.round(view.clientWidth);
+    snowGraphView(state, frozen ? width : 0);
     if (!frozen || width <= 0) {
         was === null || was === void 0 ? void 0 : was.remove();
         return;
@@ -3698,6 +3699,58 @@ function iceGraphView(state, frozen) {
         was.replaceWith(ice);
     else
         view.appendChild(ice);
+}
+/** Snow piled in a frozen canvas's two bottom corners: a drift deepest in
+ *  each corner and thinning away from it, a shaded mound behind a brighter
+ *  one, with the light along its top. `width` 0 takes them away. */
+function snowGraphView(state, width) {
+    var _a;
+    const view = state.parts.canvas;
+    const was = view.querySelector(":scope > .graph-view-snow");
+    if (width <= 0) {
+        was === null || was === void 0 ? void 0 : was.remove();
+        return;
+    }
+    if (was !== null && was.dataset["width"] === String(width))
+        return;
+    const snow = graphElement("div", "graph-view-snow");
+    snow.setAttribute("aria-hidden", "true");
+    snow.dataset["width"] = String(width);
+    const height = 110;
+    const svg = graphFrostSvg(width, height, "graph-frost-art");
+    const seed = ((_a = state.inside) !== null && _a !== void 0 ? _a : 1) + 31;
+    const span = Math.min(300, width * 0.25);
+    const n = (value) => value.toFixed(1);
+    // How deep the drift is at `x`: all of `tall` in the corner, nothing past
+    // `reach`, lumpy on the way.
+    const depth = (x, reach, tall, salt) => {
+        const from = Math.min(x, width - x);
+        const fall = Math.max(0, 1 - from / reach);
+        const lumps = Math.sin(x / 23 + seed + salt) * 0.08 + graphFrostNoise(seed, salt + Math.round(x / 30)) * 0.07;
+        return tall * fall ** 1.6 * (1 + lumps);
+    };
+    const mound = (reach, tall, salt, left) => {
+        const from = left ? 0 : width - reach;
+        const to = left ? reach : width;
+        let top = "";
+        for (let x = from; x <= to; x += 4) {
+            top += `${top === "" ? "M" : "L"}${n(x)},${n(height - depth(x, reach, tall, salt))}`;
+        }
+        const fill = `${top}L${n(to)},${height}L${n(from)},${height}Z`;
+        return { fill, top };
+    };
+    for (const left of [true, false]) {
+        const back = mound(span, 70, 11, left);
+        const front = mound(span * 0.78, 52, 23, left);
+        svg.appendChild(graphFrostShape("path", { d: back.fill, class: "graph-snow-back" }));
+        svg.appendChild(graphFrostShape("path", { d: front.fill, class: "graph-snow-front" }));
+        svg.appendChild(graphFrostShape("path", { d: front.top, class: "graph-snow-light", "stroke-width": "2" }));
+    }
+    snow.appendChild(svg);
+    if (was !== null)
+        was.replaceWith(snow);
+    else
+        view.appendChild(snow);
 }
 
 "use strict";

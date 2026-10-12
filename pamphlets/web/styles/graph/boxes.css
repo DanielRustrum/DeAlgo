@@ -460,3 +460,13 @@
   position: absolute; top: 0; left: 0; right: 0; height: 130px; z-index: 1;
   pointer-events: none; overflow: hidden; border-radius: var(--radius) var(--radius) 0 0;
 }
+
+/* And snow piled in its bottom corners (frost.ts, snowGraphView): a shaded
+   drift behind a brighter one, lit along its top, in the Frost colours. */
+.graph-view-snow {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 110px; z-index: 1;
+  pointer-events: none; overflow: hidden; border-radius: 0 0 var(--radius) var(--radius);
+}
+.graph-snow-back { fill: var(--ice); opacity: 0.85; }
+.graph-snow-front { fill: var(--ice-light); }
+.graph-snow-light { fill: none; stroke: color-mix(in srgb, #ffffff 55%, var(--ice-light)); stroke-opacity: 0.8; stroke-linecap: round; stroke-linejoin: round; }
