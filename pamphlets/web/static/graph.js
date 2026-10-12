@@ -1333,8 +1333,12 @@ function onGraphPointerMove(state, event) {
         frame.style.width = `${node.size.width}px`;
         frame.style.height = `${node.size.height}px`;
         // A canvas's words grow and shrink with it, as it is dragged.
-        if (node.kind === "canvas")
+        if (node.kind === "canvas") {
             frame.style.setProperty("--canvas-scale", String(graphCanvasScale(node.size)));
+            // And its ice, if it is frozen, redrawn to the new size.
+            if (node.frozen)
+                iceGraphCanvas(frame, node.id, node.size);
+        }
         return;
     }
     if (drag.kind === "move") {
@@ -1957,14 +1961,23 @@ function drawGraphNode(state, node) {
         grip.title = "Drag to resize";
         box.appendChild(grip);
         // Frozen: iced over, so it reads as stopped from across the canvas.
-        if (node.frozen) {
-            const scale = graphCanvasScale(node.size);
-            box.appendChild(graphFrost(node.id, node.size.width, node.size.height, scale));
-            // The words start below the fringe of icicles along the top.
-            box.style.paddingTop = `${Math.round(graphFrostFringe(scale) + 4 * scale)}px`;
-        }
+        if (node.frozen)
+            iceGraphCanvas(box, node.id, node.size);
     }
     return box;
+}
+/** Ice a frozen Canvas box to its size — again, whenever that changes, so
+ *  the ice follows the corner as the box is resized. */
+function iceGraphCanvas(box, id, size) {
+    const scale = graphCanvasScale(size);
+    const ice = graphFrost(id, size.width, size.height, scale);
+    const was = box.querySelector(":scope > .graph-frost");
+    if (was !== null)
+        was.replaceWith(ice);
+    else
+        box.appendChild(ice);
+    // The words start below the fringe of icicles along the top.
+    box.style.paddingTop = `${Math.round(graphFrostFringe(scale) + 4 * scale)}px`;
 }
 /** How much bigger a Canvas box's words are drawn than at its first size:
  *  by whichever of its width and height grew least, so they still fit. */

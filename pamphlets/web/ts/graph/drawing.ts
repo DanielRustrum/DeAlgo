@@ -415,14 +415,21 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     grip.title = "Drag to resize";
     box.appendChild(grip);
     // Frozen: iced over, so it reads as stopped from across the canvas.
-    if (node.frozen) {
-      const scale = graphCanvasScale(node.size);
-      box.appendChild(graphFrost(node.id, node.size.width, node.size.height, scale));
-      // The words start below the fringe of icicles along the top.
-      box.style.paddingTop = `${Math.round(graphFrostFringe(scale) + 4 * scale)}px`;
-    }
+    if (node.frozen) iceGraphCanvas(box, node.id, node.size);
   }
   return box;
+}
+
+/** Ice a frozen Canvas box to its size — again, whenever that changes, so
+ *  the ice follows the corner as the box is resized. */
+function iceGraphCanvas(box: HTMLElement, id: number, size: { width: number; height: number }): void {
+  const scale = graphCanvasScale(size);
+  const ice = graphFrost(id, size.width, size.height, scale);
+  const was = box.querySelector<HTMLElement>(":scope > .graph-frost");
+  if (was !== null) was.replaceWith(ice);
+  else box.appendChild(ice);
+  // The words start below the fringe of icicles along the top.
+  box.style.paddingTop = `${Math.round(graphFrostFringe(scale) + 4 * scale)}px`;
 }
 
 /** How much bigger a Canvas box's words are drawn than at its first size:

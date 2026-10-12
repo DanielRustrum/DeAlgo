@@ -351,7 +351,11 @@ function onGraphPointerMove(state: GraphState, event: PointerEvent): void {
     frame.style.width = `${node.size.width}px`;
     frame.style.height = `${node.size.height}px`;
     // A canvas's words grow and shrink with it, as it is dragged.
-    if (node.kind === "canvas") frame.style.setProperty("--canvas-scale", String(graphCanvasScale(node.size)));
+    if (node.kind === "canvas") {
+      frame.style.setProperty("--canvas-scale", String(graphCanvasScale(node.size)));
+      // And its ice, if it is frozen, redrawn to the new size.
+      if (node.frozen) iceGraphCanvas(frame, node.id, node.size);
+    }
     return;
   }
 
