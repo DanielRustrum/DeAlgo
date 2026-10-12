@@ -149,6 +149,8 @@ def pack_nodes(
             entry["writing"] = writing.settings(node)
         if node.kind == "canvas" and node.frozen:
             entry["frozen"] = True
+        if node.kind == "canvas" and node.plugins:
+            entry["plugins"] = json.loads(node.plugins)
         if node.kind in ("relay", "group"):
             entry["look"] = looks.look(node)
             if node.kind == "group":
@@ -266,6 +268,10 @@ def import_group(
     so a newer copy of it can update this group later (`update_group`).
     """
     payload = _check_file(payload)
+    from .allowing import check_entries
+    from .insides import current
+
+    check_entries(session, current(session, owner), list(payload.get("nodes") or []), owner)
 
     group = add_group(
         session,
@@ -389,6 +395,8 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
     kind = node.kind
     if kind == "canvas" and "frozen" in entry:
         node.frozen = entry["frozen"] is True
+    if kind == "canvas" and isinstance(entry.get("plugins"), list):
+        node.plugins = json.dumps([str(one) for one in entry["plugins"]])
     # How a relay or a group looks: which way it faces, its colour, folded.
     if kind in ("relay", "group") and isinstance(entry.get("look"), dict):
         said = {

@@ -6,7 +6,7 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from ....models import GraphNode
 from ....services import channels as channel_service
@@ -46,6 +46,11 @@ def graph_payload(session: Session, owner: OwnerId) -> Context:
     return {
         "inside": inside,
         "trail": insides.trail(session, owner, inside),
+        # Which plugins' boxes the palette offers here; None for every one.
+        "plugins": (
+            None if (allowed := graph_service.allowing.allowed_in(session, inside)) is None
+            else sorted(allowed)
+        ),
         "nodes": [_node(node, canvas) for node in shown],
         "wires": [wire for wire in graph_service.wires(session, owner) if wire["from"] in here and wire["to"] in here],
         # What is already watched, for a source node to be pointed at rather
@@ -178,6 +183,21 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         drawn["note"] = (f"{held} box{'es' if held != 1 else ''} inside · double-click to open"
                          if held else "empty · double-click to open")
         drawn["frozen"] = bool(node.frozen)
+        # Its Plugins tab: each working plugin with boxes to offer, whether
+        # this canvas offers it, and whether a canvas around it already
+        # leaves it out — which nothing in here can take back.
+        mine = graph_service.allowing.own(node)
+        held_in = object_session(node)
+        around = graph_service.allowing.allowed_in(held_in, node.inside_pk) if held_in is not None else None
+        drawn["plugins"] = [
+            {
+                "id": one.id,
+                "title": one.title,
+                "offered": mine is None or one.id in mine,
+                "outside": around is not None and one.id not in around,
+            }
+            for one in graph_service.allowing.offered()
+        ]
     if node.kind in graph_service.LEAFLET_KINDS:
         if node.attached_to is not None:
             drawn["note"] = graph_service.leaflets.words(node, canvas.feeds)

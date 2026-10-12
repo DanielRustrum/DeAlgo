@@ -87,6 +87,10 @@ def add_piece(
         raise GraphError(f"There is no {kind} piece.")
     if kind == RULE and not ref:
         raise GraphError("A plugin condition has to say which one it is.")
+    if kind == RULE:
+        from .allowing import check_here
+
+        check_here(session, ref=ref)
     ends = alive or DEFAULT_ALIVE
     piece = GraphNode(
         owner_pk=owner,
@@ -190,6 +194,10 @@ def add_source(
     was dragged out of the palette. That is the whole reason the box knows
     what to ask for: a Subreddit box asks for a subreddit.
     """
+    # Only a plugin the canvas it is made in offers.
+    from .allowing import check_here
+
+    check_here(session, source_kind=channel.source_kind if channel is not None else source_kind.strip())
     node = GraphNode(
         owner_pk=owner,
         kind="source",
@@ -209,6 +217,10 @@ def attach_channel(
     """Say which channel an empty channel box stands for."""
     if node.kind != "source":
         raise GraphError("Only a channel node stands for a channel.")
+    # Only a plugin's source the canvas this box is in offers.
+    from .allowing import check, plugin_of
+
+    check(session, node.inside_pk, plugin_of(source_kind=channel.source_kind or ""))
     # The relationship, not only the key behind it: this node was loaded with
     # no channel, and setting the key alone leaves that stale until something
     # expires it — so the answer to this very request would still say empty.

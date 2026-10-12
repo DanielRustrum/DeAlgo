@@ -134,6 +134,7 @@ async function pasteGraph(state: GraphState): Promise<void> {
   state.nodes = view.nodes;
   state.wires = view.wires;
   state.trail = view.trail;
+  state.plugins = view.plugins;
   // What landed is what is picked now, ready to be dragged into place.
   state.selectedNode = pasted.length === 1 ? (pasted[0] ?? null) : null;
   state.picked = new Set<number>(pasted);

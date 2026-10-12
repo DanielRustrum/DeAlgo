@@ -181,6 +181,7 @@ function startGraph(canvas: HTMLElement): void {
     undo: [],
     inside: null,
     trail: [],
+    plugins: null,
     pointer: null,
     hiddenIn: new Map<number, number>(),
   };

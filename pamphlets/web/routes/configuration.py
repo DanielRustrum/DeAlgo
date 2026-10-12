@@ -47,6 +47,13 @@ def _palette_plugins() -> list[Context]:
     """
     found = registry.current()
     grouped: dict[str, list[Context]] = {}
+    # Which plugin each group is, so a canvas offering only some can hide the rest.
+    ids: dict[str, str] = {}
+    for plugin in found.working:
+        for kind in plugin.sources:
+            ids.setdefault(kind.plugin, plugin.id)
+        for one in plugin.augments:
+            ids.setdefault(one.plugin, plugin.id)
     for kind in found.source_kinds():
         grouped.setdefault(kind.plugin, []).append(
             {
@@ -71,4 +78,4 @@ def _palette_plugins() -> list[Context]:
                 "swatch": graph_service.RULE,
             }
         )
-    return [{"plugin": plugin, "nodes": nodes} for plugin, nodes in grouped.items()]
+    return [{"plugin": plugin, "id": ids.get(plugin, ""), "nodes": nodes} for plugin, nodes in grouped.items()]

@@ -306,8 +306,15 @@ def _attach_channel(
     # differently, and is worth being able to draw.
     already = _channel_already_here(session, wanted, owner)
     if already is not None:
-        graph_service.attach_channel(session, node, already, owner)
-        return None
+        return _attached(session, node, already, owner)
+    # Asked before anything is fetched or made: a box whose kind's plugin
+    # this canvas has since stopped offering.
+    try:
+        graph_service.allowing.check(
+            session, node.inside_pk, graph_service.allowing.plugin_of(source_kind=node.source_kind or ""),
+        )
+    except graph_service.GraphError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
 
     with outgoing.client() as http:
         try:
@@ -324,7 +331,15 @@ def _attach_channel(
             )
         except channel_service.ChannelError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-    graph_service.attach_channel(session, node, channel, owner)
+    return _attached(session, node, channel, owner)
+
+
+def _attached(session: Session, node: GraphNode, channel: Channel, owner: OwnerId) -> JSONResponse | None:
+    """Point a box at a channel; None when it worked, else why not."""
+    try:
+        graph_service.attach_channel(session, node, channel, owner)
+    except graph_service.GraphError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
     return None
 
 
@@ -415,8 +430,7 @@ def _attach_watched(
     )
     if channel is None:
         return JSONResponse({"error": "That source is not here."}, status_code=400)
-    graph_service.attach_channel(session, node, channel, owner)
-    return None
+    return _attached(session, node, channel, owner)
 
 
 def _channel_already_here(session: Session, wanted: str, owner: OwnerId) -> Channel | None:

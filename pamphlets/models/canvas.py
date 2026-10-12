@@ -118,6 +118,9 @@ class GraphNode(Base):
     # The boxes inside keep their own switches, for when it thaws.
     # A database default too: rows written by raw SQL leave it out.
     frozen: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    # Canvas nodes only: which plugins' boxes it offers, as a JSON list of
+    # plugin ids; empty for every one. See services/graph/allowing.py.
+    plugins: Mapped[Optional[str]] = mapped_column(Text)
 
     x: Mapped[int] = mapped_column(Integer, default=0)
     y: Mapped[int] = mapped_column(Integer, default=0)

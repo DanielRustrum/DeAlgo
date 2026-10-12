@@ -128,6 +128,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     size: asGraphSize(raw["size"]),
     locked: raw["locked"] === true,
     frozen: raw["frozen"] === true,
+    plugins: asGraphCanvasPlugins(raw["plugins"]),
     imported: asGraphImported(raw["imported"]),
     channel: asGraphChannel(raw["channel"]),
     asks: asGraphAsks(raw["asks"]),
@@ -486,7 +487,27 @@ function asGraph(value: unknown): GraphView | null {
     nodes: readNodes,
     wires: readWires,
     sources: watched,
+    plugins: Array.isArray(raw["plugins"])
+      ? raw["plugins"].filter((one): one is string => typeof one === "string")
+      : null,
   };
+}
+
+/** A Canvas node's Plugins tab, one row per plugin. */
+function asGraphCanvasPlugins(value: unknown): GraphCanvasPlugin[] {
+  if (!Array.isArray(value)) return [];
+  const found: GraphCanvasPlugin[] = [];
+  for (const entry of value) {
+    const raw = asGraphRecord(entry);
+    if (raw === null || typeof raw["id"] !== "string") continue;
+    found.push({
+      id: raw["id"],
+      title: typeof raw["title"] === "string" ? raw["title"] : raw["id"],
+      offered: raw["offered"] === true,
+      outside: raw["outside"] === true,
+    });
+  }
+  return found;
 }
 
 /** The error message in a refusal, or null. */

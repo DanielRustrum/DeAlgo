@@ -126,6 +126,9 @@ interface GraphNodeView {
   locked: boolean;
   /** Canvas nodes only: frozen, so nothing inside it runs. */
   frozen: boolean;
+  /** Canvas nodes only: each plugin with boxes to offer, and whether this
+   *  canvas offers it — or a canvas around it already leaves it out. */
+  plugins: GraphCanvasPlugin[];
   /** Group nodes loaded from a file: its name, and when it was loaded or last updated. */
   imported: { from: string; at: string | null } | null;
   /** Channel boxes that stand for a channel: what it does. */
@@ -304,6 +307,15 @@ interface GraphTrailStep {
   frozen: boolean;
 }
 
+/** One plugin on a Canvas node's Plugins tab. */
+interface GraphCanvasPlugin {
+  id: string;
+  title: string;
+  offered: boolean;
+  /** Left out by a canvas around this one, which nothing inside can undo. */
+  outside: boolean;
+}
+
 interface GraphView {
   /** The canvas shown: null for the top, else a Canvas node's id. */
   inside: number | null;
@@ -313,6 +325,8 @@ interface GraphView {
   wires: GraphWireView[];
   /** What is already watched, for a channel node to be pointed at. */
   sources: { id: number; title: string; kind: string }[];
+  /** Which plugins' boxes the palette offers in this canvas; null for all. */
+  plugins: string[] | null;
 }
 
 /** A drag in progress — moving a box, or pulling a new wire out of one. */
@@ -390,7 +404,7 @@ interface GraphState {
   /** A box being dragged out of the palette, before it exists. */
   dropping: GraphDropping | null;
   /** Which side of the open box is showing: what it does, or what it would do. */
-  tab: "settings" | "test";
+  tab: "settings" | "test" | "plugins";
   /** The last trial, kept so a redraw does not throw the answer away. */
   trial: GraphTrial | null;
   /** What to do to put things back, most recent last. */
@@ -399,6 +413,8 @@ interface GraphState {
   inside: number | null;
   /** The way back out of it, from the top down. */
   trail: GraphTrailStep[];
+  /** Which plugins' boxes the palette offers here; null for every one. */
+  plugins: string[] | null;
   /** Where the pointer last was over the drawing: where a paste lands. */
   pointer: { x: number; y: number } | null;
   /** Boxes folded away inside a group, by box: the group they are in. */

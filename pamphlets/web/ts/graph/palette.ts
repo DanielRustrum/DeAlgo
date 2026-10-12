@@ -15,6 +15,21 @@ function toggleGraphPalette(state: GraphState, open: boolean): void {
     ?.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
+/** Offer only the plugins' boxes this canvas does: hide the rest. */
+function showGraphPalettePlugins(state: GraphState): void {
+  const drawer = state.parts.drawer;
+  if (drawer === null) return;
+  const allowed = state.plugins;
+  let shown = 0;
+  drawer.querySelectorAll<HTMLElement>("[data-plugin]").forEach((row): void => {
+    const off = allowed !== null && !allowed.includes(row.dataset["plugin"] ?? "");
+    row.hidden = off;
+    if (!off && row.tagName === "LI") shown += 1;
+  });
+  const none = drawer.querySelector<HTMLElement>("[data-palette-no-plugins]");
+  if (none !== null) none.hidden = shown > 0;
+}
+
 /** Start dragging a kind of box out of the palette. */
 function beginGraphDrop(
   state: GraphState,

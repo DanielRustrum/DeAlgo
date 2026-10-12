@@ -220,7 +220,10 @@ def _add_source_box(
             {"error": "There is no source of that kind. Its plugin may be off."},
             status_code=400,
         )
-    graph_service.add_source(session, owner, source_kind=wanted, x=x, y=y)
+    try:
+        graph_service.add_source(session, owner, source_kind=wanted, x=x, y=y)
+    except graph_service.GraphError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
     return None
 
 
@@ -350,6 +353,23 @@ def graph_freeze(request: Request, node_pk: int, frozen: str = Form("1")) -> JSO
     with session_scope() as session:
         try:
             graph_service.insides.freeze(session, node_pk, frozen == "1", owner)
+        except graph_service.GraphError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(graph_payload(session, owner))
+
+
+@router.post("/graph/nodes/{node_pk}/plugins")
+def graph_canvas_plugins(
+    request: Request, node_pk: int, plugin: list[str] = Form([]), every: str = Form(""),
+) -> JSONResponse:
+    """Say which plugins' boxes a canvas offers: those ticked, or `every` one."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        node = session.scalar(owned(select(GraphNode), GraphNode, owner).where(GraphNode.id == node_pk))
+        if node is None:
+            return JSONResponse({"error": "That box is no longer there."}, status_code=404)
+        try:
+            graph_service.allowing.set_allowed(node, None if every == "1" else plugin)
         except graph_service.GraphError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(graph_payload(session, owner))

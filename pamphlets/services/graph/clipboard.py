@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from ...models import Channel, GraphEdge, GraphNode, Playlist
 from ..scope import OwnerId, owned
-from . import groups, insides
+from . import allowing, groups, insides
 from .errors import GraphError
 from .pieces import pieces_under
 from .reading import nodes
@@ -93,6 +93,7 @@ def paste(
     which box each is a copy of, as the copy said."""
     if not isinstance(clip, dict) or clip.get("pamphlets_clip") != CLIP_FORMAT:
         raise GraphError("That is not something copied from the canvas.")
+    allowing.check_entries(session, insides.current(session, owner), list(clip.get("nodes") or []), owner)
     made: dict[int, GraphNode] = {}
     for entry in clip.get("nodes") or []:
         if not isinstance(entry, dict):
@@ -152,6 +153,11 @@ def move(session: Session, picked_ids: list[int], owner: OwnerId = None, *, x: i
                      for inner in within if inner.kind == "canvas"), default=0)
         if insides.depth(by_id, target) + 1 + below > insides.MOST_DEPTH:
             raise GraphError(f"Canvases go {insides.MOST_DEPTH} deep: that one would go deeper.")
+
+    # Only the plugins' boxes the canvas they go to offers.
+    for node in carried:
+        if node.inside_pk != target:
+            allowing.check(session, target, allowing.plugin_of_node(node))
 
     # Into another canvas, wires to boxes left behind go: a canvas keeps to
     # itself. Taken out the way taking each out would, so the feeds a source

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ...models import CURRENT_INSIDE, GraphNode
 from ..scope import OwnerId, owned
-from . import groups, insides
+from . import allowing, groups, insides
 from .errors import GraphError
 from .reading import nodes
 
@@ -80,6 +80,7 @@ def import_canvas(
     if insides.depth(by_id, here) + 1 + _levels(entries) > insides.MOST_DEPTH:
         raise GraphError(f"Canvases go {insides.MOST_DEPTH} deep, and this file would go deeper here.")
 
+    allowing.check_entries(session, here, entries, owner)
     canvas = insides.add_canvas(session, owner, label=str(payload.get("name") or "Canvas")[:120], x=x, y=y)
     made: dict[int, GraphNode] = {}
     # A canvas's boxes are made once the canvas they go in is: round again

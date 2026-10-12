@@ -634,6 +634,7 @@ async function pasteGraph(state) {
     state.nodes = view.nodes;
     state.wires = view.wires;
     state.trail = view.trail;
+    state.plugins = view.plugins;
     // What landed is what is picked now, ready to be dragged into place.
     state.selectedNode = pasted.length === 1 ? ((_d = pasted[0]) !== null && _d !== void 0 ? _d : null) : null;
     state.picked = new Set(pasted);
@@ -2323,6 +2324,7 @@ function renderGraphTrail(state) {
     // the whole of it is drawn so.
     const frozen = (_c = trail.find((step) => step.frozen)) !== null && _c !== void 0 ? _c : null;
     state.parts.canvas.classList.toggle("is-frozen", frozen !== null);
+    showGraphPalettePlugins(state);
     if (trail.length < 2) {
         bar === null || bar === void 0 ? void 0 : bar.remove();
         return;
@@ -3980,6 +3982,24 @@ function toggleGraphPalette(state, open) {
     (_b = (_a = state.parts.canvas
         .closest(".graph-panel")) === null || _a === void 0 ? void 0 : _a.querySelector("[data-graph-palette]")) === null || _b === void 0 ? void 0 : _b.setAttribute("aria-expanded", open ? "true" : "false");
 }
+/** Offer only the plugins' boxes this canvas does: hide the rest. */
+function showGraphPalettePlugins(state) {
+    const drawer = state.parts.drawer;
+    if (drawer === null)
+        return;
+    const allowed = state.plugins;
+    let shown = 0;
+    drawer.querySelectorAll("[data-plugin]").forEach((row) => {
+        var _a;
+        const off = allowed !== null && !allowed.includes((_a = row.dataset["plugin"]) !== null && _a !== void 0 ? _a : "");
+        row.hidden = off;
+        if (!off && row.tagName === "LI")
+            shown += 1;
+    });
+    const none = drawer.querySelector("[data-palette-no-plugins]");
+    if (none !== null)
+        none.hidden = shown > 0;
+}
 /** Start dragging a kind of box out of the palette. */
 function beginGraphDrop(state, event, kind, which = "", named = "", under = "") {
     const ghost = graphElement("div", `graph-node kind-${graphPaletteKind(kind)} is-ghost`);
@@ -4308,22 +4328,31 @@ function renderGraphPopover(state) {
     // A trigger always has two sides. Every other box grows one once a trial
     // has passed through it, and loses it again when that trial is replaced.
     const tested = node.trigger !== null || graphShareOf(state, node) !== null;
-    const showing = tested ? state.tab : "settings";
-    if (tested)
-        pop.appendChild(graphPopTabs(node, showing));
+    // A canvas, with plugins installed, says which of their boxes it offers.
+    const choosing = node.kind === "canvas" && node.plugins.length > 0;
+    const tabs = tested
+        ? [["settings", "Settings"], ["test", "Test"]]
+        : choosing ? [["settings", "Settings"], ["plugins", "Plugins"]] : [];
+    const showing = tabs.some(([name]) => name === state.tab) ? state.tab : "settings";
+    if (tabs.length > 0)
+        pop.appendChild(graphPopTabs(node, showing, tabs));
     if (showing === "test") {
         pop.classList.add("is-wide");
         pop.appendChild(graphTrialBody(state, node));
+    }
+    else if (showing === "plugins") {
+        pop.appendChild(graphCanvasPluginsBody(state, node));
     }
     else {
         pop.appendChild(graphNodeForm(state, node));
     }
     state.parts.layer.appendChild(pop);
 }
-/** The two sides of a trigger: what it does, and what it would do. */
-function graphPopTabs(node, showing) {
+/** The sides of a box: what it does, and what it would do — or, for a
+ *  canvas, which plugins' boxes it offers. */
+function graphPopTabs(node, showing, tabs = [["settings", "Settings"], ["test", "Test"]]) {
     const strip = graphElement("div", "graph-pop-tabs");
-    for (const [name, label] of [["settings", "Settings"], ["test", "Test"]]) {
+    for (const [name, label] of tabs) {
         const tab = graphElement("button", "graph-pop-tab", label);
         tab.setAttribute("type", "button");
         tab.dataset["tab"] = name;
@@ -4333,6 +4362,45 @@ function graphPopTabs(node, showing) {
         strip.appendChild(tab);
     }
     return strip;
+}
+/** A canvas's Plugins tab: a switch per installed plugin, saved as it is
+ *  flipped. Its palette offers only the boxes of those switched on. */
+function graphCanvasPluginsBody(state, node) {
+    const sheet = graphElement("div", "graph-sheet graph-canvas-plugins");
+    sheet.appendChild(graphElement("p", "hint", "Which plugins' boxes can be used in this canvas, and the canvases inside it. Boxes already here stay, and run; the app's own boxes are always offered."));
+    const list = graphElement("div", "graph-plugin-list");
+    const save = () => {
+        const body = new URLSearchParams();
+        list.querySelectorAll("input[data-plugin-choice]").forEach((box) => {
+            var _a;
+            if (box.checked)
+                body.append("plugin", (_a = box.dataset["pluginChoice"]) !== null && _a !== void 0 ? _a : "");
+        });
+        void applyGraph(state, `/graph/nodes/${node.id}/plugins`, body);
+    };
+    for (const plugin of node.plugins) {
+        const row = graphElement("label", "graph-switch");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.dataset["pluginChoice"] = plugin.id;
+        box.checked = plugin.offered && !plugin.outside;
+        box.disabled = plugin.outside;
+        box.addEventListener("change", save);
+        row.appendChild(box);
+        row.appendChild(graphElement("span", "graph-switch-name", plugin.title));
+        if (plugin.outside)
+            row.appendChild(graphElement("span", "graph-group-note", "left out by a canvas around this one"));
+        list.appendChild(row);
+    }
+    sheet.appendChild(list);
+    const every = graphElement("button", "btn btn-quiet", "Offer every plugin");
+    every.setAttribute("type", "button");
+    every.title = "Including any installed later";
+    every.addEventListener("click", () => {
+        void applyGraph(state, `/graph/nodes/${node.id}/plugins`, new URLSearchParams({ every: "1" }));
+    });
+    sheet.appendChild(every);
+    return sheet;
 }
 /** Whether opening this Test tab has to run a trial, or only show one.
  *
@@ -4998,7 +5066,7 @@ function onGraphClick(state, event) {
         event.preventDefault();
         const whose = Number((_l = tab === null || tab === void 0 ? void 0 : tab.dataset["for"]) !== null && _l !== void 0 ? _l : "");
         const box = state.nodes.find((entry) => entry.id === whose);
-        state.tab = wanted === "test" ? "test" : "settings";
+        state.tab = wanted === "test" ? "test" : wanted === "plugins" ? "plugins" : "settings";
         if (graphTabNeedsRun(box, state.trial, wanted)) {
             void tryGraph(state, String(whose));
             return;
@@ -5497,6 +5565,7 @@ function asGraphNode(value) {
         size: asGraphSize(raw["size"]),
         locked: raw["locked"] === true,
         frozen: raw["frozen"] === true,
+        plugins: asGraphCanvasPlugins(raw["plugins"]),
         imported: asGraphImported(raw["imported"]),
         channel: asGraphChannel(raw["channel"]),
         asks: asGraphAsks(raw["asks"]),
@@ -5859,7 +5928,28 @@ function asGraph(value) {
         nodes: readNodes,
         wires: readWires,
         sources: watched,
+        plugins: Array.isArray(raw["plugins"])
+            ? raw["plugins"].filter((one) => typeof one === "string")
+            : null,
     };
+}
+/** A Canvas node's Plugins tab, one row per plugin. */
+function asGraphCanvasPlugins(value) {
+    if (!Array.isArray(value))
+        return [];
+    const found = [];
+    for (const entry of value) {
+        const raw = asGraphRecord(entry);
+        if (raw === null || typeof raw["id"] !== "string")
+            continue;
+        found.push({
+            id: raw["id"],
+            title: typeof raw["title"] === "string" ? raw["title"] : raw["id"],
+            offered: raw["offered"] === true,
+            outside: raw["outside"] === true,
+        });
+    }
+    return found;
 }
 /** The error message in a refusal, or null. */
 function asGraphError(value) {
@@ -6455,6 +6545,7 @@ async function applyGraph(state, url, body) {
                 state.parts.canvas.dataset["inside"] = String(view.inside);
         }
         state.trail = view.trail;
+        state.plugins = view.plugins;
         state.nodes = view.nodes;
         state.wires = view.wires;
         state.sources = view.sources;
@@ -7253,6 +7344,7 @@ function startGraph(canvas) {
         undo: [],
         inside: null,
         trail: [],
+        plugins: null,
         pointer: null,
         hiddenIn: new Map(),
     };

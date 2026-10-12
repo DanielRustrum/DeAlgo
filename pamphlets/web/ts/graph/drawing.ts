@@ -888,6 +888,7 @@ function renderGraphTrail(state: GraphState): void {
   // the whole of it is drawn so.
   const frozen = trail.find((step): boolean => step.frozen) ?? null;
   state.parts.canvas.classList.toggle("is-frozen", frozen !== null);
+  showGraphPalettePlugins(state);
   if (trail.length < 2) {
     bar?.remove();
     return;

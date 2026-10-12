@@ -189,8 +189,8 @@
 {# A plugin's own row. Two shapes come through here — the source kinds it
    provides and the conditions it adds to the Filter box — and they differ
    only in which attribute the canvas reads back. #}
-{% macro plugin_row(node, plugin) -%}
-  <li class="palette-item" data-palette="{{ node.palette }}"
+{% macro plugin_row(node, plugin, plugin_id) -%}
+  <li class="palette-item" data-palette="{{ node.palette }}" data-plugin="{{ plugin_id }}"
       {% if node.palette == 'source' %}data-source-kind="{{ node.ref }}"
       {% else %}data-plugin-node="{{ node.ref }}"
         data-under="{{ host_kinds(node.palette, node.ref) }}"{% endif %}
@@ -309,16 +309,17 @@
         {% if plugin_nodes %}
         <details class="palette-group">
           <summary>Plugins</summary>
+          <p class="palette-blurb palette-none" data-palette-no-plugins hidden>This canvas offers no plugins' boxes: its Plugins tab says which it does.</p>
           {% for offered in plugin_nodes %}
             {% if offered.nodes | length == 1 %}
               <ul class="palette-list">
-                {{ plugin_row(offered.nodes[0], offered.plugin) }}
+                {{ plugin_row(offered.nodes[0], offered.plugin, offered.id) }}
               </ul>
             {% else %}
-              <details class="palette-group palette-nested">
+              <details class="palette-group palette-nested" data-plugin="{{ offered.id }}">
                 <summary>{{ offered.plugin }}</summary>
                 <ul class="palette-list">
-                  {% for node in offered.nodes %}{{ plugin_row(node, offered.plugin) }}{% endfor %}
+                  {% for node in offered.nodes %}{{ plugin_row(node, offered.plugin, offered.id) }}{% endfor %}
                 </ul>
               </details>
             {% endif %}

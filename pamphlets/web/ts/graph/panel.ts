@@ -39,22 +39,34 @@ function renderGraphPopover(state: GraphState): void {
   // A trigger always has two sides. Every other box grows one once a trial
   // has passed through it, and loses it again when that trial is replaced.
   const tested = node.trigger !== null || graphShareOf(state, node) !== null;
-  const showing = tested ? state.tab : "settings";
-  if (tested) pop.appendChild(graphPopTabs(node, showing));
+  // A canvas, with plugins installed, says which of their boxes it offers.
+  const choosing = node.kind === "canvas" && node.plugins.length > 0;
+  const tabs: [string, string][] = tested
+    ? [["settings", "Settings"], ["test", "Test"]]
+    : choosing ? [["settings", "Settings"], ["plugins", "Plugins"]] : [];
+  const showing = tabs.some(([name]): boolean => name === state.tab) ? state.tab : "settings";
+  if (tabs.length > 0) pop.appendChild(graphPopTabs(node, showing, tabs));
 
   if (showing === "test") {
     pop.classList.add("is-wide");
     pop.appendChild(graphTrialBody(state, node));
+  } else if (showing === "plugins") {
+    pop.appendChild(graphCanvasPluginsBody(state, node));
   } else {
     pop.appendChild(graphNodeForm(state, node));
   }
   state.parts.layer.appendChild(pop);
 }
 
-/** The two sides of a trigger: what it does, and what it would do. */
-function graphPopTabs(node: GraphNodeView, showing: string): HTMLElement {
+/** The sides of a box: what it does, and what it would do — or, for a
+ *  canvas, which plugins' boxes it offers. */
+function graphPopTabs(
+  node: GraphNodeView,
+  showing: string,
+  tabs: [string, string][] = [["settings", "Settings"], ["test", "Test"]],
+): HTMLElement {
   const strip = graphElement("div", "graph-pop-tabs");
-  for (const [name, label] of [["settings", "Settings"], ["test", "Test"]] as const) {
+  for (const [name, label] of tabs) {
     const tab = graphElement("button", "graph-pop-tab", label);
     tab.setAttribute("type", "button");
     tab.dataset["tab"] = name;
@@ -63,6 +75,44 @@ function graphPopTabs(node: GraphNodeView, showing: string): HTMLElement {
     strip.appendChild(tab);
   }
   return strip;
+}
+
+/** A canvas's Plugins tab: a switch per installed plugin, saved as it is
+ *  flipped. Its palette offers only the boxes of those switched on. */
+function graphCanvasPluginsBody(state: GraphState, node: GraphNodeView): HTMLElement {
+  const sheet = graphElement("div", "graph-sheet graph-canvas-plugins");
+  sheet.appendChild(graphElement("p", "hint",
+    "Which plugins' boxes can be used in this canvas, and the canvases inside it. Boxes already here stay, and run; the app's own boxes are always offered."));
+  const list = graphElement("div", "graph-plugin-list");
+  const save = (): void => {
+    const body = new URLSearchParams();
+    list.querySelectorAll<HTMLInputElement>("input[data-plugin-choice]").forEach((box): void => {
+      if (box.checked) body.append("plugin", box.dataset["pluginChoice"] ?? "");
+    });
+    void applyGraph(state, `/graph/nodes/${node.id}/plugins`, body);
+  };
+  for (const plugin of node.plugins) {
+    const row = graphElement("label", "graph-switch");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.dataset["pluginChoice"] = plugin.id;
+    box.checked = plugin.offered && !plugin.outside;
+    box.disabled = plugin.outside;
+    box.addEventListener("change", save);
+    row.appendChild(box);
+    row.appendChild(graphElement("span", "graph-switch-name", plugin.title));
+    if (plugin.outside) row.appendChild(graphElement("span", "graph-group-note", "left out by a canvas around this one"));
+    list.appendChild(row);
+  }
+  sheet.appendChild(list);
+  const every = graphElement("button", "btn btn-quiet", "Offer every plugin");
+  every.setAttribute("type", "button");
+  every.title = "Including any installed later";
+  every.addEventListener("click", (): void => {
+    void applyGraph(state, `/graph/nodes/${node.id}/plugins`, new URLSearchParams({ every: "1" }));
+  });
+  sheet.appendChild(every);
+  return sheet;
 }
 
 /** Whether opening this Test tab has to run a trial, or only show one.

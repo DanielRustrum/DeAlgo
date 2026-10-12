@@ -193,7 +193,7 @@ function onGraphClick(state: GraphState, event: MouseEvent): void {
     event.preventDefault();
     const whose = Number(tab?.dataset["for"] ?? "");
     const box = state.nodes.find((entry): boolean => entry.id === whose);
-    state.tab = wanted === "test" ? "test" : "settings";
+    state.tab = wanted === "test" ? "test" : wanted === "plugins" ? "plugins" : "settings";
 
     if (graphTabNeedsRun(box, state.trial, wanted)) {
       void tryGraph(state, String(whose));

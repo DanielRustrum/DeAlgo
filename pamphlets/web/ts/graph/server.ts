@@ -42,6 +42,7 @@ async function applyGraph(state: GraphState, url: string, body: URLSearchParams 
       else state.parts.canvas.dataset["inside"] = String(view.inside);
     }
     state.trail = view.trail;
+    state.plugins = view.plugins;
     state.nodes = view.nodes;
     state.wires = view.wires;
     state.sources = view.sources;

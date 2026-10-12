@@ -37,6 +37,22 @@ grey and the trail says *Frozen: nothing here runs*. Each box keeps its own **Ac
 A frozen canvas copied, or saved as a file, stays frozen. A box copied out of one runs where it is
 pasted.
 
+### Which plugins a canvas offers
+
+With plugins installed, a Canvas box's panel has a **Plugins** tab: a switch for each plugin that
+puts boxes in the palette. Switch one off and, inside this canvas, the palette no longer shows that
+plugin's sources or the conditions it adds — and one is refused there however it arrives: dropped
+in, pasted, moved in by a cut, loaded from a file, or an empty source box pointed at one. The
+change is saved as soon as you flip the switch. **Offer every plugin** goes back to all of them,
+including any installed later.
+
+- **A canvas inside offers no more than the canvases around it.** A plugin one leaves out shows
+  greyed on the Plugins tab of every canvas inside it, *left out by a canvas around this one*.
+- **Boxes already there stay, and run.** It decides what can be added, not what is already drawn.
+- **The app's own boxes are always offered** — feeds, filters, triggers, feed addresses,
+  newsletters, REST APIs, leaflets and the rest.
+- A canvas copied, or saved as a file, keeps which plugins it offers.
+
 ### Saving a canvas as a file
 
 **Save as file** in a Canvas box's panel saves it, and everything inside it, as a **`.pam`** file to

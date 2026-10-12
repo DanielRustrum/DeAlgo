@@ -157,6 +157,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # Where a square wire's middle segment was dragged to, from its usual place.
     ("graph_edge", "bend", "FLOAT"),
     ("graph_node", "frozen", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("graph_node", "plugins", "TEXT"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.
