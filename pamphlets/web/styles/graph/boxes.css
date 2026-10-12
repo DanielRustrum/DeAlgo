@@ -274,7 +274,6 @@
 
 /* A frozen canvas: nothing in it runs. Its box is drawn cold, and so is the
    whole of it while you are inside — still there to change, just not running. */
-.graph-node.kind-canvas.is-frozen { border-style: dashed; }
 .graph-canvas.is-frozen .graph-node:not(.kind-comment),
 .graph-canvas.is-frozen .graph-group-box { filter: grayscale(0.85); opacity: 0.7; }
 
@@ -413,38 +412,23 @@
 .graph-node.kind-canvas .graph-node-title { font-size: calc(13.5px * var(--text-scale) * var(--canvas-scale, 1)); }
 .graph-node.kind-canvas .graph-node-note { font-size: calc(11.5px * var(--text-scale) * var(--canvas-scale, 1)); }
 
-/* A frozen Canvas box, iced over (frost.ts): a tint of ice, frost in the
-   corners, a cap of snow, icicles below. The ice is mixed from the theme's
-   own panel, so it is pale ice in light mode and dark ice in dark. */
+/* A frozen Canvas box, iced over (frost.ts): snow along its top, icicles
+   along its bottom, in two flat colours mixed from the theme's panel, so it
+   reads in light and dark. */
 .graph-node.kind-canvas.is-frozen {
-  --ice: color-mix(in srgb, #8fcbef 55%, var(--panel));
-  --ice-deep: color-mix(in srgb, #4f9ccc 70%, var(--panel));
-  --snow: color-mix(in srgb, #ffffff 88%, var(--panel));
-  border-color: var(--ice-deep);
+  --ice: color-mix(in srgb, #7fbfe6 60%, var(--panel));
+  --snow: color-mix(in srgb, #ffffff 85%, var(--panel));
+  border-color: var(--ice);
 }
-.graph-frost {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
-  background:
-    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--ice) 55%, transparent), transparent 55%),
-    radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--ice) 50%, transparent), transparent 55%),
-    linear-gradient(160deg, color-mix(in srgb, var(--ice) 32%, transparent), color-mix(in srgb, var(--ice) 18%, transparent));
-  box-shadow: inset 0 0 calc(14px * var(--canvas-scale, 1)) color-mix(in srgb, var(--ice-deep) 45%, transparent);
-}
+.graph-frost { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .graph-frost-art { position: absolute; inset: 0; overflow: visible; }
-.graph-frost-crystal, .graph-frost-flake { fill: none; stroke: var(--snow); stroke-linecap: round; opacity: 0.85; }
-.graph-frost-flake { opacity: 0.45; }
-.graph-snow { fill: var(--snow); stroke: var(--ice-deep); stroke-opacity: 0.35; filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ice-deep) 40%, transparent)); }
-.graph-icicle { stroke: var(--ice-deep); stroke-opacity: 0.55; filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ice-deep) 35%, transparent)); }
-.graph-ice-top { stop-color: var(--snow); }
-.graph-ice-tip { stop-color: var(--ice); stop-opacity: 0.85; }
-.graph-icicle-glint { fill: none; stroke: #ffffff; stroke-opacity: 0.75; stroke-linecap: round; }
+.graph-snow { fill: var(--snow); stroke: var(--ice); stroke-width: 1; }
+.graph-icicle { fill: var(--ice); }
 .graph-frost-badge {
-  position: absolute; right: calc(10px * var(--canvas-scale, 1)); top: calc(12px * var(--canvas-scale, 1));
+  position: absolute; right: calc(10px * var(--canvas-scale, 1)); top: calc(14px * var(--canvas-scale, 1));
   padding: calc(2px * var(--canvas-scale, 1)) calc(8px * var(--canvas-scale, 1)); border-radius: 999px;
-  font-size: calc(10.5px * var(--text-scale) * var(--canvas-scale, 1)); font-weight: 600; letter-spacing: 0.3px;
-  color: var(--text); background: color-mix(in srgb, var(--ice) 45%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--ice-deep) 45%, transparent);
+  font-size: calc(10.5px * var(--text-scale) * var(--canvas-scale, 1)); font-weight: 600;
+  color: var(--text); background: color-mix(in srgb, var(--ice) 40%, var(--panel));
 }
-/* The words stay readable over the ice. */
+/* The words stay above the ice. */
 .graph-node.kind-canvas.is-frozen > :not(.graph-frost):not(.graph-group-grip) { position: relative; z-index: 2; }
-@media (prefers-reduced-transparency: reduce) { .graph-frost { background: color-mix(in srgb, var(--ice) 35%, var(--panel)); } }

@@ -415,7 +415,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     grip.title = "Drag to resize";
     box.appendChild(grip);
     // Frozen: iced over, so it reads as stopped from across the canvas.
-    if (node.frozen) box.appendChild(graphFrost(node.id, node.size.width, node.size.height));
+    if (node.frozen) box.appendChild(graphFrost(node.size.width, node.size.height));
   }
   return box;
 }
