@@ -41,6 +41,8 @@ PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     **{kind: ("pamphlet",) for kind in LEAFLET_KINDS},
     # What a Transform does with what comes in.
     "count": ("transform",),
+    # Or a transformation written by hand, in Lua (scripting.py).
+    "lua": ("transform",),
     # A form's fields, stacked under its Form leaflet.
     **{kind: ("leaflet-form",) for kind in INPUT_KINDS},
     # The algorithm of one's own: narrows, orders, or shortens a lifetime.

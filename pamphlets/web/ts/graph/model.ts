@@ -22,6 +22,8 @@ type GraphNodeKind =
   | "text"
   // What a Transform does: counts what comes in.
   | "count"
+  // Or whatever a hand-written piece of Lua makes of it.
+  | "lua"
   // The algorithm of one's own, under a Filter, a Sort or an Expire box.
   | "aggregation"
   // Leaflets: the blocks of a pamphlet's page. Pieces, but ones that can
@@ -124,6 +126,8 @@ interface GraphNodeView {
   polled: string | null;
   /** Trigger boxes only. */
   trigger: GraphTrigger | null;
+  /** Lua pieces only: the transformation, written by hand. */
+  code: string | null;
   /** Input pieces only: the form field's settings. */
   field: GraphField | null;
   /** Input sources only: its queue, the field that titles its items, and the fields to choose from. */

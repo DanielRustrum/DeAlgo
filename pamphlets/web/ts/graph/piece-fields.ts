@@ -149,6 +149,10 @@ function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
     graphInputFields(form, node);
     return;
   }
+  if (node.kind === "lua") {
+    graphLuaFields(form, node);
+    return;
+  }
 
   if (node.kind === "count") {
     form.appendChild(
@@ -389,4 +393,29 @@ function graphInputFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphLabelled("Says when it does not", text("hint", said.hint, "That is not in the form this asks for.")));
     form.appendChild(graphElement("p", "hint", "The whole of what is typed must match. Checked in the browser, and again when it arrives."));
   }
+}
+
+/** A Lua piece: the transformation, written by hand. */
+function graphLuaFields(form: HTMLElement, node: GraphNodeView): void {
+  if (node.piece?.under == null) {
+    form.appendChild(graphElement("p", "hint", "Loose on the canvas. Drop it on a Transform box to change what goes through it."));
+  }
+  const code = document.createElement("textarea");
+  code.name = "lua_code";
+  code.className = "graph-code";
+  code.rows = 14;
+  code.spellcheck = false;
+  code.value = node.code ?? "";
+  // A tab indents, as it does in any editor, rather than leaving the box.
+  code.addEventListener("keydown", (event: KeyboardEvent): void => {
+    event.stopPropagation();
+    if (event.key !== "Tab") return;
+    event.preventDefault();
+    const at = code.selectionStart;
+    code.value = `${code.value.slice(0, at)}  ${code.value.slice(code.selectionEnd)}`;
+    code.selectionStart = code.selectionEnd = at + 2;
+  });
+  form.appendChild(graphLabelled("Lua", code));
+  form.appendChild(graphElement("p", "hint",
+    "`data` is what comes in — a list of rows, or one value — and `params` the values its flow was activated with. What it returns is what the Transform gives out. `json.decode` and `json.encode` read and write JSON text. Double-click the Transform to see what it makes."));
 }

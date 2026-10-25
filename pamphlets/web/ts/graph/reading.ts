@@ -35,6 +35,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "transform" ||
     value === "text" ||
     value === "count" ||
+    value === "lua" ||
     value === "aggregation" ||
     value === "leaflet-feed" ||
     value === "canvas" ||
@@ -136,6 +137,7 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     trigger: asGraphTrigger(raw["trigger"]),
     activation: asGraphActivation(raw["activation"]),
     field: asGraphField(raw["field"]),
+    code: typeof raw["code"] === "string" ? raw["code"] : null,
     input: asGraphInput(raw["input"]),
     activate: asGraphActivate(raw["activate"]),
     sort: asGraphSort(raw["sort"]),

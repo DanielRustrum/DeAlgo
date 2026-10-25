@@ -40,6 +40,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "transform") return "Transform";
   if (kind === "text") return "Text";
   if (kind === "count") return "Count";
+  if (kind === "lua") return "Lua";
   if (kind === "aggregation") return "Aggregation";
   if (kind === "canvas") return "Canvas";
   if (kind === "relay") return "Relay";

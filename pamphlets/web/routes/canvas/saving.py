@@ -221,6 +221,13 @@ async def graph_save_node(
             # the app's own Order piece does.
             if orders(node):
                 node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind == "lua":
+            given = await request.form()
+            if "lua_code" in given:
+                try:
+                    graph_service.scripting.save(node, str(given.get("lua_code") or ""))
+                except graph_service.GraphError as exc:
+                    return JSONResponse({"error": str(exc)}, status_code=400)
         elif node.kind in graph_service.INPUT_KINDS:
             given = await request.form()
             try:

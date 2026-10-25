@@ -160,6 +160,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("graph_node", "plugins", "TEXT"),
     ("graph_node", "activation", "TEXT"),
     ("graph_node", "form_field", "TEXT"),
+    ("graph_node", "code", "TEXT"),
     # What a person granted each plugin. plugin_state may already exist from
     # before permissions did, so this is a column rather than part of the
     # table's creation.

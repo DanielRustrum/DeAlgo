@@ -100,6 +100,7 @@ function collectFocusElements(root) {
         post: focusElement("focus-post"),
         tiles: focusElement("focus-tiles"),
         words: focusElement("focus-words"),
+        view: focusElement("focus-view"),
         postUrl: focusElement("focus-post-url"),
         timer: focusElement("focus-timer"),
         timerCount: focusElement("focus-timer-count"),
@@ -311,10 +312,19 @@ function focusIsTimed(item) {
 function showFocusPost(sitting, item) {
     const elements = sitting.elements;
     elements.tiles.textContent = "";
-    item.images.forEach((url) => {
-        elements.tiles.appendChild(buildFocusTile(url));
-    });
-    elements.words.textContent = item.body;
+    elements.view.hidden = !item.view;
+    elements.view.textContent = "";
+    if (item.view) {
+        // Laid out by its plugin: asked for, and drawn when it comes.
+        elements.words.textContent = "";
+        void loadFocusView(sitting, item, null);
+    }
+    else {
+        item.images.forEach((url) => {
+            elements.tiles.appendChild(buildFocusTile(url));
+        });
+        elements.words.textContent = item.body;
+    }
     elements.postUrl.href = item.url;
     elements.postUrl.textContent = `Open it on ${item.source} ↗`;
     elements.post.hidden = false;
@@ -363,6 +373,48 @@ function showFocusItem(sitting, item, remaining) {
         showFocusPost(sitting, item);
     else
         showFocusVideo(sitting, item);
+}
+/** A plugin's view of one item: asked for — or, with a form's values, sent
+ *  back to its plugin — and drawn. The HTML was made safe on the server,
+ *  from the plugin's components only; its CSS reaches only this view. */
+async function loadFocusView(sitting, item, values) {
+    var _a;
+    const shown = sitting.elements.view;
+    let answer;
+    try {
+        const response = await fetch(`/focus/item/${item.id}/view`, values === null
+            ? { headers: { Accept: "application/json" } }
+            : { method: "POST", body: values, headers: { Accept: "application/json" } });
+        answer = (await response.json());
+    }
+    catch (_b) {
+        shown.textContent = "Its view could not be fetched.";
+        return;
+    }
+    // Moved on while it was being asked for: not this one's to draw any more.
+    if (((_a = sitting.current) === null || _a === void 0 ? void 0 : _a.id) !== item.id)
+        return;
+    if (answer.error) {
+        shown.textContent = `Its plugin's view could not be shown: ${answer.error}`;
+        sitting.elements.words.textContent = item.body;
+        return;
+    }
+    shown.dataset["pv"] = answer.plugin;
+    shown.innerHTML = answer.html;
+    let style = document.getElementById("focus-view-style");
+    if (style === null) {
+        style = document.createElement("style");
+        style.id = "focus-view-style";
+        document.head.appendChild(style);
+    }
+    style.textContent = answer.css;
+    // A form in it goes back to its plugin, and the view comes back changed.
+    shown.querySelectorAll("form[data-pv-form]").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            void loadFocusView(sitting, item, new FormData(form));
+        });
+    });
 }
 
 "use strict";
@@ -552,6 +604,12 @@ function initFocusMode() {
     sayFocusSeenOnLeaving(sitting);
     pointFrameAtFirstVideo(sitting);
     awaitYouTubeApi(sitting);
+    // The opening item laid out by its plugin is asked for now; the server
+    // drew only its title.
+    if (focusIsRead(sitting.current) && sitting.current.view) {
+        sitting.elements.view.hidden = false;
+        void loadFocusView(sitting, sitting.current, null);
+    }
     if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
         startFocusTimer(sitting, sitting.current);
     }

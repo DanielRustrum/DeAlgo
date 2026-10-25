@@ -159,3 +159,29 @@
   .focus-timer { margin: 0 -14px; padding: 8px 14px; }
   .focus-tiles { grid-template-columns: 1fr 1fr; gap: 6px; }
 }
+
+/* A plugin's own view of an item (services/plugin_views.py): its components,
+   with plain defaults its plugin's CSS — scoped to this view — dresses up. */
+.focus-view { display: grid; gap: 12px; text-align: left; }
+.pv-root :is(.pv-view, .pv-box, .pv-column) { display: flex; flex-direction: column; gap: 10px; }
+.pv-root .pv-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.pv-root .pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.pv-root .pv-spacer { flex: 1 1 auto; min-height: 8px; }
+.pv-root :is(h2, h3, h4, h5, h6) { margin: 0; }
+.pv-root .pv-paragraph, .pv-root .pv-p { margin: 0; line-height: 1.55; }
+.pv-root .pv-image { max-width: 100%; height: auto; border-radius: var(--radius); }
+.pv-root :is(.pv-video, .pv-audio) { width: 100%; }
+.pv-root .pv-embed { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: #000; }
+.pv-root .pv-embed iframe, .pv-root .pv-embed video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.pv-root .pv-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.85em; background: var(--panel-2); border: 1px solid var(--line); }
+.pv-root .pv-quote { margin: 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.pv-root .pv-link { color: var(--accent); }
+.pv-root .pv-table { border-collapse: collapse; width: 100%; }
+.pv-root :is(.pv-cell, .pv-header-cell) { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+.pv-root .pv-form { display: grid; gap: 8px; }
+.pv-root .pv-label { display: grid; gap: 4px; font-weight: 600; }
+.pv-root .pv-button { justify-self: start; }
+.pv-root button.pv-button, .pv-root a.pv-button {
+  display: inline-block; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--on-accent, #fff); text-decoration: none; cursor: pointer;
+}

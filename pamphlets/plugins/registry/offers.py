@@ -14,6 +14,7 @@ from typing import Any
 # Re-exported, so that a caller handling what a plugin did wrong does not have
 # to know which module the sentence came from. Said with `as` rather than with
 # an `__all__`, which would also hide every function here from the reference.
+from ..capabilities.owner import acting_for
 from ..runtime import PluginError, Sandbox
 from .plugin import MOST_POSTS, Augmentation, Plugin, Recognised, SourceKind, Take
 
@@ -92,6 +93,73 @@ class Registry:
             log.warning("%s could not judge an item: %s", found.plugin, exc)
             return True
         return said is not False
+
+    def _kind(self, kind: str) -> tuple[SourceKind, Any] | None:
+        """One source kind, and the sandbox its plugin runs in."""
+        for plugin in self.working:
+            for one in plugin.sources:
+                if one.kind == kind and plugin.box is not None:
+                    return one, plugin.box
+        return None
+
+    def has_view(self, kind: str) -> bool:
+        """Whether a source kind's plugin lays its items out itself."""
+        found = self._kind(kind)
+        return found is not None and found[0]._view is not None
+
+    def view(
+        self, kind: str, item: dict[str, object], settings: dict[str, str], owner: OwnerId = None,
+    ) -> tuple[str, str] | None:
+        """A source kind's item laid out by its plugin: `view(item, settings)`
+        answers XML; with it, the plugin's CSS. None where it has no view,
+        or its view threw (said in the log)."""
+        found = self._kind(kind)
+        if found is None or found[0]._view is None:
+            return None
+        source, box = found
+        try:
+            with acting_for(owner):
+                said = box.call(source._view, box.given(item), box.table(**settings))
+        except PluginError as exc:
+            log.warning("%s view: %s", kind, exc)
+            return None
+        return (str(said) if said is not None else "", source.style)
+
+    def act(
+        self, kind: str, item: dict[str, object], values: dict[str, str], settings: dict[str, str],
+        owner: OwnerId = None,
+    ) -> tuple[str, str] | None:
+        """A form in an item's view, sent: `act(item, values, settings)`
+        answers the view again — XML — as it should now look."""
+        found = self._kind(kind)
+        if found is None or found[0]._act is None:
+            return None
+        source, box = found
+        try:
+            with acting_for(owner):
+                said = box.call(source._act, box.given(item), box.table(**values), box.table(**settings))
+        except PluginError as exc:
+            log.warning("%s act: %s", kind, exc)
+            return None
+        return (str(said) if said is not None else "", source.style)
+
+    def transforms(
+        self, ref: str, data: object, settings: dict[str, str], params: dict[str, str],
+        owner: OwnerId = None,
+    ) -> object:
+        """What a plugin's transformation makes of what comes into a Transform
+        box: `transform(data, settings, params)`. One that throws gives out
+        nothing — said in the log — rather than taking the box down with it."""
+        asking = self._asking(ref, "_transform")
+        if asking is None:
+            return None
+        found, box, transform = asking
+        try:
+            with acting_for(owner):
+                return box.call(transform, box.given(data), box.table(**settings), box.table(**params))
+        except PluginError as exc:
+            log.warning("%s: %s", found.ref, exc)
+            return None
 
     def ranks(
         self, ref: str, item: dict[str, object], settings: dict[str, str]

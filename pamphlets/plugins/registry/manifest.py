@@ -139,6 +139,7 @@ def augmentations_in(plugin: Plugin, given: object) -> list[Augmentation]:
                 under=under,
                 _keep=entry.get("keep"),
                 _rank=entry.get("rank"),
+                _transform=entry.get("transform"),
             )
         )
     return made
@@ -273,6 +274,9 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
                 _posts=entry.get("posts"),
                 _home=entry.get("home"),
                 _classify=entry.get("classify"),
+                _view=entry.get("view") if callable(entry.get("view")) else None,
+                _act=entry.get("act") if callable(entry.get("act")) else None,
+                style=str(entry.get("style") or "")[:50000],
             )
         )
     return kinds

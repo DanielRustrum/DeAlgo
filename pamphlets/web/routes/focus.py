@@ -16,7 +16,8 @@ from ...models import (
     Placement,
     Video,
 )
-from ...services import algorithm
+from ...plugins import registry
+from ...services import algorithm, plugin_views
 from ...services import graph as graph_service
 from ...services import playlists as playlist_service
 from ...services import watched as watched_service
@@ -54,6 +55,9 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
         # others still has a picture to show.
         "images": video.pictures,
         "url": video.url,
+        # Whether its source's plugin lays it out itself (plugin_views.py):
+        # then the page asks for that view rather than drawing a post.
+        "view": registry.current().has_view(video.channel.source_kind),
         # What a Decay box on its way here said. Null means the account's own
         # setting, which is what everything that never met one uses.
         "seconds": video.view_seconds,
@@ -253,3 +257,72 @@ def _remember(
         skipped=skipped,
         finished=finished,
     )
+
+
+def _view_item(video: Video) -> dict[str, object]:
+    """One item as a plugin's view is handed it."""
+    return {
+        "title": video.title or "",
+        "kind": video.kind,
+        "words": video.body or "",
+        "link": video.link or video.url or "",
+        "images": list(video.pictures),
+        "thumbnail": video.thumbnail_url or "",
+        "duration": video.duration_sec or 0,
+        "views": video.view_count or 0,
+        "likes": video.like_count or 0,
+        "published": video.published_at.isoformat() if video.published_at else "",
+        "author": video.channel.title if video.channel else "",
+        "source": video.channel.source_kind if video.channel else "",
+        "key": video.video_id,
+        "tags": list(video.tag_list),
+        "hint": video.hint or "",
+    }
+
+
+def _owned_item(session: Session, owner: OwnerId, item_pk: int) -> Video | None:
+    return session.scalar(
+        owned(select(Video), Video, owner).options(selectinload(Video.channel)).where(Video.id == item_pk)
+    )
+
+
+def _view_answer(video: Video, said: tuple[str, str] | None) -> JSONResponse:
+    if said is None:
+        return JSONResponse({"html": "", "css": "", "error": "Its plugin has no view for it just now."})
+    made = plugin_views.shown(_plugin_of(video), said[0], said[1])
+    return JSONResponse({"html": made.html, "css": made.css, "error": made.error, "plugin": _plugin_of(video)})
+
+
+def _plugin_of(video: Video) -> str:
+    """The id of the plugin that reads this item's kind of source."""
+    kind = video.channel.source_kind if video.channel else ""
+    for plugin in registry.current().working:
+        if any(one.kind == kind for one in plugin.sources):
+            return plugin.id
+    return kind
+
+
+@router.get("/focus/item/{item_pk}/view")
+def item_view(request: Request, item_pk: int) -> JSONResponse:
+    """An item laid out by its source's plugin: XML made into HTML, and its CSS."""
+    owner = owner_of(request)
+    with session_scope() as session:
+        video = _owned_item(session, owner, item_pk)
+        if video is None or video.channel is None:
+            return JSONResponse({"error": "That item is not here."}, status_code=404)
+        said = registry.current().view(video.channel.source_kind, _view_item(video), {}, owner)
+        return _view_answer(video, said)
+
+
+@router.post("/focus/item/{item_pk}/view")
+async def act_on_view(request: Request, item_pk: int) -> JSONResponse:
+    """A form in an item's view, sent to its plugin: answered with the view again."""
+    owner = owner_of(request)
+    given = await request.form()
+    values = {str(key): str(value)[:2000] for key, value in given.items()}
+    with session_scope() as session:
+        video = _owned_item(session, owner, item_pk)
+        if video is None or video.channel is None:
+            return JSONResponse({"error": "That item is not here."}, status_code=404)
+        said = registry.current().act(video.channel.source_kind, _view_item(video), values, {}, owner)
+        return _view_answer(video, said)

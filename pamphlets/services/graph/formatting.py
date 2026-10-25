@@ -36,7 +36,7 @@ from ...models import Channel, GraphEdge, GraphNode, RepositoryItem, Video
 from ...sources import rest
 from .. import filters
 from ..scope import OwnerId, owned
-from .conditions import filter_rules
+from .conditions import RULE, filter_rules
 from .errors import GraphError
 from .names import store_name, tag_name, tag_names
 from .pieces import pieces_of, pieces_under
@@ -355,7 +355,55 @@ def transformed(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0
             # JSON, as everything down a data wire is: an object naming what
             # the number is, which a Chart leaflet shows as one figure.
             value = {"count": count_of(value)}
+        elif piece.kind == "lua":
+            # Written by hand; a failure gives out nothing, and says why in
+            # the editor (`transform_error`).
+            from .activations import params_for
+            from .scripting import code_of, run
+
+            try:
+                value = run(code_of(piece), value, params_for(session, box, owner))
+            except GraphError:
+                return None
+        elif piece.kind == RULE:
+            # A plugin's transformation, from the plugin that offers it.
+            from ...plugins import registry
+            from .activations import params_for
+
+            value = registry.current().transforms(
+                piece.plugin_ref or "", value, plugin_settings(piece), params_for(session, box, owner), owner,
+            )
     return value
+
+
+def transform_error(session: Session, box: GraphNode, owner: OwnerId) -> str:
+    """Why a Transform box's Lua gives out nothing, if it is failing: run
+    again up to the first Lua piece that fails, for the editor to say."""
+    from .activations import params_for
+    from .scripting import code_of, run
+
+    has_data = bool(incoming(session, box, owner, "data"))
+    value: Any = data_into(session, box, owner) if has_data else items_into(session, box, owner)
+    for piece in pieces_under(nodes(session, owner), box.id):
+        if not piece.enabled:
+            continue
+        if piece.kind == "count":
+            value = {"count": count_of(value)}
+        elif piece.kind == "lua":
+            try:
+                value = run(code_of(piece), value, params_for(session, box, owner))
+            except GraphError as exc:
+                return str(exc)
+    return ""
+
+
+def plugin_settings(piece: GraphNode) -> dict[str, str]:
+    """What a plugin piece's fields were set to, as plain strings."""
+    try:
+        said = json.loads(piece.plugin_settings or "{}")
+    except ValueError:
+        return {}
+    return {str(k): str(v) for k, v in said.items()} if isinstance(said, dict) else {}
 
 
 def count_of(value: Any) -> int:

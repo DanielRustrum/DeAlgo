@@ -157,7 +157,11 @@ def inspect(session: Session, node: GraphNode, owner: OwnerId, given: dict[str, 
         value, how = inspecting.arriving(session, node, owner)
         return {
             "input": side(value, how or "data", _nothing(how)),
-            "output": side(formatting.transformed(session, node, owner), "data", off),
+            # Why its Lua gives out nothing, when it is failing, in its place.
+            "output": side(
+                formatting.transformed(session, node, owner), "data",
+                formatting.transform_error(session, node, owner) or off,
+            ),
         }
 
     if kind == "text":

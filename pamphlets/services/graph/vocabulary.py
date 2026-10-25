@@ -32,7 +32,7 @@ ONE_INPUT = WIRED_LEAFLETS + ("format", *DATA_LEAFLETS)
 
 #: What a Transform box can be told to do, one augmentation each. It turns
 #: what comes in — items or data — into data, as these say.
-TRANSFORMS: tuple[str, ...] = ("count",)
+TRANSFORMS: tuple[str, ...] = ("count", "lua")
 
 #: The fields of a Form leaflet: a piece each, stacked under it in the order
 #: they are asked (forms.py).

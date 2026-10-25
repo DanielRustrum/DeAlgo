@@ -130,6 +130,12 @@ function initFocusMode(): void {
   pointFrameAtFirstVideo(sitting);
   awaitYouTubeApi(sitting);
 
+  // The opening item laid out by its plugin is asked for now; the server
+  // drew only its title.
+  if (focusIsRead(sitting.current) && sitting.current.view) {
+    sitting.elements.view.hidden = false;
+    void loadFocusView(sitting, sitting.current, null);
+  }
   if (focusIsRead(sitting.current) && focusIsTimed(sitting.current)) {
     startFocusTimer(sitting, sitting.current);
   } else if (!focusIsRead(sitting.current)) {

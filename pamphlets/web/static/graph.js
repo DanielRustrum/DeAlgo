@@ -1760,6 +1760,8 @@ function graphKindLabel(kind) {
         return "Text";
     if (kind === "count")
         return "Count";
+    if (kind === "lua")
+        return "Lua";
     if (kind === "aggregation")
         return "Aggregation";
     if (kind === "canvas")
@@ -6323,6 +6325,10 @@ function graphPieceFields(form, node) {
         graphInputFields(form, node);
         return;
     }
+    if (node.kind === "lua") {
+        graphLuaFields(form, node);
+        return;
+    }
     if (node.kind === "count") {
         form.appendChild(graphElement("p", "hint", piece.under === null
             ? "Loose on the canvas. Drop it on a Transform box to count what comes into it."
@@ -6518,6 +6524,32 @@ function graphInputFields(form, node) {
         form.appendChild(graphElement("p", "hint", "The whole of what is typed must match. Checked in the browser, and again when it arrives."));
     }
 }
+/** A Lua piece: the transformation, written by hand. */
+function graphLuaFields(form, node) {
+    var _a;
+    var _b;
+    if (((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null) {
+        form.appendChild(graphElement("p", "hint", "Loose on the canvas. Drop it on a Transform box to change what goes through it."));
+    }
+    const code = document.createElement("textarea");
+    code.name = "lua_code";
+    code.className = "graph-code";
+    code.rows = 14;
+    code.spellcheck = false;
+    code.value = (_b = node.code) !== null && _b !== void 0 ? _b : "";
+    // A tab indents, as it does in any editor, rather than leaving the box.
+    code.addEventListener("keydown", (event) => {
+        event.stopPropagation();
+        if (event.key !== "Tab")
+            return;
+        event.preventDefault();
+        const at = code.selectionStart;
+        code.value = `${code.value.slice(0, at)}  ${code.value.slice(code.selectionEnd)}`;
+        code.selectionStart = code.selectionEnd = at + 2;
+    });
+    form.appendChild(graphLabelled("Lua", code));
+    form.appendChild(graphElement("p", "hint", "`data` is what comes in — a list of rows, or one value — and `params` the values its flow was activated with. What it returns is what the Transform gives out. `json.decode` and `json.encode` read and write JSON text. Double-click the Transform to see what it makes."));
+}
 
 "use strict";
 // Reading what the server said: a checked shape for everything the canvas draws.
@@ -6554,6 +6586,7 @@ function asGraphNodeKind(value) {
         value === "transform" ||
         value === "text" ||
         value === "count" ||
+        value === "lua" ||
         value === "aggregation" ||
         value === "leaflet-feed" ||
         value === "canvas" ||
@@ -6655,6 +6688,7 @@ function asGraphNode(value) {
         trigger: asGraphTrigger(raw["trigger"]),
         activation: asGraphActivation(raw["activation"]),
         field: asGraphField(raw["field"]),
+        code: typeof raw["code"] === "string" ? raw["code"] : null,
         input: asGraphInput(raw["input"]),
         activate: asGraphActivate(raw["activate"]),
         sort: asGraphSort(raw["sort"]),

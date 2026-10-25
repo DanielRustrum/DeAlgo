@@ -88,6 +88,8 @@ class SourceKind:
     #: Which of `PLAYERS` plays its videos in Focus mode; "" for none, and
     #: then they are read rather than played.
     player: str = ""
+    #: The CSS its view is styled with, scoped to that view (plugin_views.py).
+    style: str = ""
     _recognise: Any = None
     _accept: Any = None
     _item_url: Any = None
@@ -97,6 +99,10 @@ class SourceKind:
     _home: Any = None
     #: Which of `takes` one item is.
     _classify: Any = None
+    #: How one of its items is laid out in Focus mode: XML (plugin_views.py).
+    _view: Any = None
+    #: What a form in that view does when sent: answers the view again.
+    _act: Any = None
 
     @property
     def has_posts(self) -> bool:
@@ -152,7 +158,7 @@ class Field:
 #: answer: something about one item, worked out from what it was handed. A
 #: Timer or an Alive is about clocks and sittings, which is the host's own
 #: machinery and nothing a plugin could implement.
-AUGMENTS: dict[str, str] = {"filter": "keep", "sort": "rank"}
+AUGMENTS: dict[str, str] = {"filter": "keep", "sort": "rank", "transform": "transform"}
 
 
 #: The colours a plugin may give its source boxes, the first being what a
@@ -206,6 +212,8 @@ class Augmentation:
     under: str = "filter"
     _keep: Any = None
     _rank: Any = None
+    #: Under a Transform: given what comes in, gives back what goes out.
+    _transform: Any = None
 
     @property
     def orders(self) -> bool:

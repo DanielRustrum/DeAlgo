@@ -25,6 +25,16 @@ interface FocusItem {
   seconds: number | null;
   /** Whether a Lock under that box said the time cannot be held. */
   locked: boolean;
+  /** Whether its source's plugin lays it out itself, as a view. */
+  view: boolean;
+}
+
+/** A plugin's view of one item, as the server made it safe to show. */
+interface FocusView {
+  html: string;
+  css: string;
+  error: string;
+  plugin: string;
 }
 
 /** What POST /focus/<id>/finished answers with. */
@@ -41,6 +51,7 @@ interface FocusElements {
   post: HTMLElement;
   tiles: HTMLElement;
   words: HTMLElement;
+  view: HTMLElement;
   postUrl: HTMLAnchorElement;
   timer: HTMLElement;
   timerCount: HTMLElement;

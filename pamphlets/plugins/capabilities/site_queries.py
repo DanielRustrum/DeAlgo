@@ -82,3 +82,12 @@ def watch_source(session: Any, owner: OwnerId, reference: str) -> str | None:
             log.info("a plugin could not watch %r: %s", reference, exc)
             return None
     return channel.channel_id
+
+
+def queue_of(session: Any, owner: OwnerId, name: str) -> list[dict[str, object]]:
+    """What Form leaflets have sent into one queue, newest first, as rows:
+    each field, and when it was sent."""
+    from ...services.graph.forms import rows
+    from ...services.graph.names import store_name
+
+    return rows(session, owner, store_name(name))

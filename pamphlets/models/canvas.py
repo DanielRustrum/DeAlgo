@@ -137,6 +137,8 @@ class GraphNode(Base):
     # Input pieces only, as JSON — see services/graph/forms.py: the field's
     # name, its label, whether it is required, the pattern it must match.
     form_field: Mapped[Optional[str]] = mapped_column(Text)
+    # Lua pieces only: the transformation, written by hand (scripting.py).
+    code: Mapped[Optional[str]] = mapped_column(Text)
 
     x: Mapped[int] = mapped_column(Integer, default=0)
     y: Mapped[int] = mapped_column(Integer, default=0)
@@ -376,6 +378,8 @@ class GraphNode(Base):
             return "Text"
         if self.kind == "count":
             return "Count"
+        if self.kind == "lua":
+            return "Lua"
         if self.kind == "aggregation":
             return "Aggregation"
         if self.kind in LEAFLET_LABELS:

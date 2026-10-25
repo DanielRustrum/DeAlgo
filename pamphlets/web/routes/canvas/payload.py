@@ -186,6 +186,9 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
             "params": graph_service.activations.params(node),
             "last": graph_service.activations.last(node),
         }
+    elif node.kind == "lua":
+        # Its Lua, for its panel.
+        drawn["code"] = graph_service.scripting.code_of(node)
     elif node.kind in graph_service.INPUT_KINDS:
         # A form's field: its settings, for its panel.
         drawn["field"] = graph_service.forms.field(node)

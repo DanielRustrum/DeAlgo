@@ -50,7 +50,7 @@
      for the one that opens, so it is readable before the script runs. #}
   <article class="focus-post" id="focus-post" {{ 'hidden' if queue[0].player }}>
     <div class="focus-tiles" id="focus-tiles">
-      {% if not queue[0].player %}
+      {% if not queue[0].player and not queue[0].view %}
         {% for image in queue[0].images %}
         <a class="focus-tile" href="{{ image }}" target="_blank" rel="noopener">
           <img src="{{ image }}" alt="" loading="lazy" referrerpolicy="no-referrer">
@@ -58,7 +58,10 @@
         {% endfor %}
       {% endif %}
     </div>
-    <div class="focus-words" id="focus-words">{{ queue[0].body if not queue[0].player }}</div>
+    <div class="focus-words" id="focus-words">{{ queue[0].body if not queue[0].player and not queue[0].view }}</div>
+    {# Laid out by its source's plugin, when it lays its items out itself:
+       filled from /focus/item/<id>/view (services/plugin_views.py). #}
+    <div class="focus-view pv-root" id="focus-view" hidden></div>
     <p class="focus-post-link">
       <a id="focus-post-url" href="{{ queue[0].url }}" target="_blank" rel="noopener">
         Open it on {{ queue[0].source }} ↗</a>

@@ -126,6 +126,11 @@ def piece_words(piece: GraphNode, window: int | None = None) -> str:
         return "cannot be paused"
     if piece.kind == "aggregation":
         return "the algorithm of your own"
+    if piece.kind == "lua":
+        from .scripting import code_of
+
+        lines = [line for line in code_of(piece).splitlines() if line.strip() and not line.strip().startswith("--")]
+        return f"Lua · {len(lines)} line{'s' if len(lines) != 1 else ''}"
     if piece.kind == "count":
         return "how many come in, as one number"
     if piece.kind == "after-watch":

@@ -27,7 +27,7 @@ from typing import Any
 
 from ..runtime.values import to_lua
 from .owner import whose
-from .site_queries import feeds_of, pause_source, sources_of, watch_source
+from .site_queries import queue_of, feeds_of, pause_source, sources_of, watch_source
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class Site:
     #: What a plugin may reach on this. Anything not named here is
     #: unreachable, which is what keeps `__class__` — and the whole
     #: machine behind it — out of a plugin's hands.
-    LUA_OFFERS = frozenset({"version", "permissions", "sources", "feeds", "pause", "watch"})
+    LUA_OFFERS = frozenset({"version", "permissions", "sources", "feeds", "queue", "pause", "watch"})
 
     def __init__(
         self,
@@ -129,6 +129,14 @@ class Site:
         if not self._may("read", self._reading):
             return self._empty()
         rows = self._look(feeds_of)
+        return self._rows(rows)
+
+    def queue(self, name: object) -> Any:
+        """What Form leaflets have sent into a queue, newest first: each
+        submission's fields, and when it was sent."""
+        if not self._may("read", self._reading):
+            return self._empty()
+        rows = self._look(lambda session, owner: queue_of(session, owner, str(name or "")))
         return self._rows(rows)
 
     # -- changing ----------------------------------------------------------

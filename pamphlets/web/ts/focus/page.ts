@@ -23,6 +23,7 @@ function collectFocusElements(root: HTMLElement): FocusElements {
     post: focusElement("focus-post"),
     tiles: focusElement("focus-tiles"),
     words: focusElement("focus-words"),
+    view: focusElement("focus-view"),
     postUrl: focusElement<HTMLAnchorElement>("focus-post-url"),
     timer: focusElement("focus-timer"),
     timerCount: focusElement("focus-timer-count"),

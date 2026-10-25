@@ -151,6 +151,8 @@ def pack_nodes(
             entry["writing"] = writing.settings(node)
         if node.kind == "canvas" and node.frozen:
             entry["frozen"] = True
+        if node.kind == "lua" and node.code is not None:
+            entry["code"] = node.code
         if node.kind in INPUT_KINDS and node.form_field:
             # A form's field: what it is filed as, asked as, and must be.
             entry["form_field"] = json.loads(node.form_field)
@@ -447,6 +449,8 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
         # A source or feed is switched through its channel or playlist.
         node.enabled = bool(entry["enabled"])
     kind = node.kind
+    if kind == "lua" and isinstance(entry.get("code"), str):
+        node.code = entry["code"][:20000]
     if kind in INPUT_KINDS and isinstance(entry.get("form_field"), dict):
         node.form_field = json.dumps(entry["form_field"], sort_keys=True)
     if kind == "canvas" and "frozen" in entry:
