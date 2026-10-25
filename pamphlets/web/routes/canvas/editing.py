@@ -195,6 +195,8 @@ def graph_add_node(
             graph_service.add_pamphlet(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "activate":
             graph_service.add_activate(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "return":
+            graph_service.add_return(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "format":
             graph_service.add_format(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "transform":

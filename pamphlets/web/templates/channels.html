@@ -265,6 +265,7 @@
             {{ node_row('deposit', 'Deposit', 'Ends a path in a named repository. Nothing comes out until a Withdraw pulls it.') }}
             {{ node_row('withdraw', 'Withdraw', 'Starts a path from a named repository, when a trigger says to pull.') }}
             {{ node_row('activate', 'Activate', 'Ends a path: once a run gets anything here, it sets an Activation off — in any canvas — with values of your choosing.') }}
+            {{ node_row('return', 'Return', 'Ends an activated flow: what reaches it goes back to the Activate box that set the flow off, out of its { } port.') }}
             {{ node_row('text', 'Text', 'Has your AI model write from what comes in — a briefing, a summary — for a Text leaflet.') }}
             {{ node_row('transform', 'Transform', 'Turns items or data into data, as the piece under it says — a Count, to start with.') }}
             {{ node_row('format', 'Format', 'Reshapes a source’s JSON — an API’s answer, or its items — into bars for a Chart leaflet.') }}

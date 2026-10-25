@@ -20,6 +20,7 @@ from .. import ordering
 from ..scope import OwnerId, owned
 from .adding import (
     add_activate,
+    add_return,
     add_format,
     add_pamphlet,
     add_feed,
@@ -820,6 +821,9 @@ def unpack(
 
     if kind == "activate":
         return add_activate(session, owner, label=label, x=x, y=y)
+
+    if kind == "return":
+        return add_return(session, owner, label=label, x=x, y=y)
 
     if kind == "trigger":
         return add_trigger(

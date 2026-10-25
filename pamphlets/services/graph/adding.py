@@ -303,6 +303,17 @@ def add_activate(
     return node
 
 
+def add_return(
+    session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
+) -> GraphNode:
+    """A Return box: the end of a flow an Activation starts, sending what
+    reaches it back to the Activate box that set it off (activations.py)."""
+    node = GraphNode(owner_pk=owner, kind="return", label=label.strip()[:120], x=x, y=y)
+    session.add(node)
+    session.flush()
+    return node
+
+
 def add_pamphlet(
     session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
 ) -> GraphNode:

@@ -252,6 +252,11 @@ def data_out(session: Session, box: GraphNode, owner: OwnerId, depth: int = 0) -
         return data_for(session, box)
     if box.kind in ("deposit", "withdraw"):
         return repository_rows(session, box, owner)
+    if box.kind == "activate":
+        # What its Activation's flow sent back, through a Return box.
+        from .activations import returned
+
+        return returned(box)
     if box.kind == "trigger":
         # Only an Activation gives data: the values it was set off with.
         from .activations import as_row, is_activation

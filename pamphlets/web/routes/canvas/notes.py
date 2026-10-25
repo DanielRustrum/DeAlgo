@@ -45,6 +45,8 @@ def node_note(
         return _trigger_note(node, opening)
     if node.kind == "activate":
         return _activate_note(node)
+    if node.kind == "return":
+        return _return_note(node)
     if node.kind == "source":
         return _source_note(node)
     if node.kind == "feed":
@@ -59,7 +61,22 @@ def _activate_note(node: GraphNode) -> str:
     target = graph_service.activations.target_of(session, node) if session is not None else None
     if target is None:
         return "open it and choose an Activation to set off"
-    return f"sets off “{target.title}”"
+    said = f"sets off “{target.title}”"
+    if graph_service.activations.returned_at(node) is not None:
+        said += " · something came back"
+    return said
+
+
+def _return_note(node: GraphNode) -> str:
+    """Which flow it sends back from, and to whom."""
+    session = object_session(node)
+    if session is None:
+        return ""
+    started = graph_service.activations.started_by(session, node, node.owner_pk)
+    if not started:
+        return "wire it into a flow an Activation starts"
+    names = ", ".join(f"“{one.title}”" for pk in started if (one := session.get(GraphNode, pk)) is not None)
+    return f"sends back what reaches it to whatever set off {names}"
 
 
 def _rule_note(node: GraphNode) -> str:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import datetime as dt
 from dataclasses import dataclass
 from typing import Any
@@ -209,6 +211,10 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
         drawn["activate"] = {
             "target": target.id if target is not None else None,
             "values": graph_service.activations.values_of(node),
+            # What its Activation's flow last sent back, through a Return box.
+            "returned_at": graph_service.activations.returned_at(node),
+            "returned": json.dumps(graph_service.activations.returned(node), default=str)[:400]
+            if graph_service.activations.returned_at(node) is not None else None,
             # Every Activation it could set off, in any canvas, and what each takes.
             "choices": graph_service.activations.choices(held_in, node.owner_pk) if held_in is not None else [],
         }

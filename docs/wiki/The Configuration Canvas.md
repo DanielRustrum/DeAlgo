@@ -20,7 +20,7 @@ middle of the view.
 | Section | Contains |
 | --- | --- |
 | *(top)* | **Newsletter**, **Input**, **REST API**, **Feed address**, **Feed** |
-| Operations | [Filter](Nodes/Filter.md), [Sort](Nodes/Sort.md), [Tag](Nodes/Tag.md), [Decay](Nodes/Decay.md), [Expire](Nodes/Expire.md), [Deposit and Withdraw](Nodes/Repositories.md), [Activate](Nodes/Triggers.md#activation-and-activate) |
+| Operations | [Filter](Nodes/Filter.md), [Sort](Nodes/Sort.md), [Tag](Nodes/Tag.md), [Decay](Nodes/Decay.md), [Expire](Nodes/Expire.md), [Deposit and Withdraw](Nodes/Repositories.md), [Activate and Return](Nodes/Triggers.md#activation-and-activate) |
 | Augmentations | [Timer, Reset, Alive, Lock](Nodes/Reading%20Windows.md) and the [conditions](Nodes/Filter.md) |
 | Triggers | [Pulse, Schedule and Activation](Nodes/Triggers.md) |
 | Plugins | Each plugin's [sources](Nodes/Sources.md) and conditions |
@@ -36,7 +36,7 @@ The bar down a box's left edge says what kind of box it is. The palette uses the
 
 | Colour | Kind |
 | --- | --- |
-| Violet | Triggers — Pulse, Schedule, Activation — and Activate |
+| Violet | Triggers — Pulse, Schedule, Activation — and Activate and Return |
 | Green | Sources — channels, newsletters, feed addresses. A plugin may give its sources one of a few [other colours](Creating%20A%20Plugin/Sources.md#colour) instead: YouTube's are red, Bluesky's sky blue |
 | Amber | Filter |
 | Blue | Sort |

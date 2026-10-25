@@ -45,6 +45,17 @@ takes items (▶) and data (`{ }`).
   run and got through the filters on the way — it sets the Activation off once, with the first such
   item's fields, and the Activation's flow runs straight after.
 - **Five deep.** Flows that set each other off stop after five in a row.
+
+A **Return** box, under **Operations** beside Activate, ends the flow an Activation starts and sends
+something back, the way a function returns a value:
+
+- Wire items (▶) or data (`{ }`) into it, anywhere in the Activation's flow.
+- At the end of that flow's run, what reached it goes back to the **Activate box that set the flow
+  off** — the last one to, if several can. Data goes back as it is; items, as rows.
+- It comes out of that Activate box's own `{ }` port, for a Format box, a Transform, a Text box or a
+  chart in the flow that asked. The Activate box's panel says when something last came back, and
+  what.
+- An Activation set off by hand, with **Run now**, has nobody to send back to.
 - An Activation that is switched off, or in a [frozen canvas](Canvases%20and%20Relays.md#freezing-a-canvas),
   is not set off. Copies and `.pam` files keep its parameters, and an Activate box copied with its
   Activation points at the copy.

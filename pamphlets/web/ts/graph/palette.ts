@@ -74,6 +74,7 @@ function graphPaletteName(kind: string): string {
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
   if (kind === "activate") return "Activate";
+  if (kind === "return") return "Return";
   if (kind === "activation") return "Activation";
   return kind === "pulse" ? "Pulse" : "Schedule";
 }

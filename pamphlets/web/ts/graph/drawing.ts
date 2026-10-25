@@ -14,6 +14,7 @@ function graphElement(tag: string, className: string, text?: string): HTMLElemen
 function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "source") return "Source";
   if (kind === "activate") return "Activate";
+  if (kind === "return") return "Return";
   if (kind === "leaflet-form") return "Form leaflet";
   if (kind.startsWith("input-")) return "Input";
   if (kind === "deposit") return "Deposit";
@@ -458,7 +459,10 @@ function graphPortKinds(
   if (kind === "trigger" && triggerKind === "activation") return { in: [], out: ["signal", "data"] };
   if (kind === "trigger") return { in: [], out: ["signal"] };
   // The end of a path that sets an Activation off: items in, and data for its values.
-  if (kind === "activate") return { in: ["content", "data"], out: [] };
+  // It also gives out what its Activation's flow sent back.
+  if (kind === "activate") return { in: ["content", "data"], out: ["data"] };
+  // The end of an activated flow: items or data in, sent back to the Activate box.
+  if (kind === "return") return { in: ["content", "data"], out: [] };
   // A REST API answers with records and numbers: data, and no items.
   if (kind === "source" && dataOnly) return { in: ["signal"], out: ["data"] };
   // Items or data in; data out, as the piece under it says.
@@ -480,6 +484,14 @@ function graphPortKinds(
 function graphPortSays(kind: GraphNodeKind, where: "in" | "out", carries: GraphCarries): string {
   if (kind === "trigger" && carries === "data") {
     return "Gives out the values it was set off with, as one row of data.";
+  }
+  if (kind === "return") {
+    return carries === "content"
+      ? "Takes items: at the end of the run, they go back to the Activate box that set this flow off."
+      : "Takes data: at the end of the run, it goes back to the Activate box that set this flow off.";
+  }
+  if (kind === "activate" && where === "out") {
+    return "Gives out what its Activation's flow sent back, through a Return box.";
   }
   if (kind === "activate") {
     return carries === "content"

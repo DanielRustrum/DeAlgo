@@ -341,4 +341,8 @@ function graphActivateFields(form: HTMLElement, node: GraphNodeView): void {
   };
   pick.addEventListener("change", draw);
   draw();
+  // What came back last, through a Return box in the flow it set off.
+  form.appendChild(graphElement("p", "hint", said?.returnedAt
+    ? `Last sent back ${new Date(said.returnedAt.endsWith("Z") ? said.returnedAt : `${said.returnedAt}Z`).toLocaleString()}: ${said.returned ?? ""} — out of its { } port.`
+    : "Nothing sent back yet. A Return box in the flow it sets off sends what reaches it back here, out of its { } port."));
 }

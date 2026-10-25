@@ -57,8 +57,10 @@ def test_only_an_activation_gives_data_and_an_activate_box_ends_a_path(db):
         with pytest.raises(graph.GraphError, match="Only an Activation"):
             graph.connect(session, pulse, shaper, carries="data")
         assert graph.connect(session, source, box).carries == "content"
+        # What it gives is what its Activation's flow sends back: data.
+        assert graph.connect(session, box, shaper).carries == "data"
         with pytest.raises(graph.GraphError):
-            graph.connect(session, box, shaper)
+            graph.connect(session, box, source)
         # What its { } port gives: its values, as one row.
         assert graph.formatting.data_out(session, node, None) == [{"city": ""}]
 
@@ -177,3 +179,46 @@ def test_a_run_starts_the_flows_it_set_off_and_a_ring_stops_five_deep(db, monkey
     assert asked[0][0] == "manual"
     assert asked[1] == ("activation", frozenset({channel_pk}), frozenset({box_pk}), node_pk)
     assert len(asked) == 1 + activations.MOST_DEPTH
+
+
+def test_a_return_box_sends_what_reaches_it_back_to_the_activate_box(db):
+    build(db, channels=("UCone",), feeds=())
+    with db.session_scope() as session:
+        source = node_for(session, "source", "UCone")
+        # The flow an Activation starts, ending in a Return box…
+        target = _activation(session, ("city", ""))
+        keep = graph.add_filter(session, label="Keep")
+        back = graph.add_return(session, label="Back")
+        graph.connect(session, target, source)
+        graph.connect(session, source, keep)
+        assert graph.connect(session, keep, back).carries == "content"
+        # …and, elsewhere, the Activate box that set it off.
+        caller = graph.add_activate(session, label="Ask")
+        activations.set_activate(session, caller, target.id, {})
+        charted = graph.add_format(session, label="Shape")
+        assert graph.connect(session, caller, charted).carries == "data"
+        session.add(Video(video_id="a", channel_pk=source.channel_pk, title="Came through", published_at=utcnow()))
+        session.flush()
+
+        # Set off by hand, there is nobody to send back to.
+        activations.set_off(target, {})
+        assert activations.send_back(session, None, target.id) == 0
+        # Set off by the Activate box, what reached Back goes back to it.
+        activations.set_off(target, {"city": "Tucson"}, by=caller.id)
+        assert activations.send_back(session, None, target.id) == 1
+        came = graph.formatting.data_out(session, caller, None)
+        assert [row["title"] for row in came] == ["Came through"]
+        assert activations.returned_at(caller) is not None
+
+
+def test_data_wired_into_a_return_box_goes_back_as_it_is(db):
+    build(db, channels=(), feeds=())
+    with db.session_scope() as session:
+        target = _activation(session, ("topic", "rivers"))
+        back = graph.add_return(session, label="Back")
+        graph.connect(session, target, back)  # its values, as data, straight back
+        caller = graph.add_activate(session, label="Ask")
+        activations.set_activate(session, caller, target.id, {"topic": "storms"})
+        activations.set_off(target, {"topic": "storms"}, by=caller.id)
+        assert activations.send_back(session, None, target.id) == 1
+        assert activations.returned(caller) == [{"topic": "storms"}]

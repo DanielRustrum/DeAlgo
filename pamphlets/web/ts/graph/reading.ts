@@ -17,6 +17,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
   if (
     value === "trigger" ||
     value === "activate" ||
+    value === "return" ||
     value === "leaflet-form" ||
     value === "input-text" ||
     value === "input-long" ||
@@ -481,6 +482,8 @@ function asGraphActivate(value: unknown): GraphActivate | null {
   return {
     target: typeof raw["target"] === "number" ? raw["target"] : null,
     values: asGraphStrings(raw["values"]),
+    returnedAt: typeof raw["returned_at"] === "string" ? raw["returned_at"] : null,
+    returned: typeof raw["returned"] === "string" ? raw["returned"] : null,
     choices,
   };
 }

@@ -227,6 +227,8 @@ def _run(
     # off with, whatever their own timing says.
     if trigger == "activation" and fired_by is not None:
         _write_activated(session, settings, owner, pen, fired_by)
+        # And what reached its Return boxes goes back to the Activate box.
+        graph.activations.send_back(session, owner, fired_by, pen)
         session.commit()
 
     # Text boxes that write by themselves, and are due. Only on a whole run:

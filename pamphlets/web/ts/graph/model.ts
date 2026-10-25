@@ -7,6 +7,8 @@ type GraphNodeKind =
   | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
   // The end of a path that sets an Activation trigger off.
   | "activate"
+  // The end of a flow an Activation starts: what reaches it goes back.
+  | "return"
   // A form on a pamphlet's page, and the fields slotted under it.
   | "leaflet-form" | "input-text" | "input-long" | "input-number" | "input-date" | "input-choice" | "input-check"
   // A page under the Pamphlets tab, laid out by the leaflets slotted under
@@ -310,6 +312,9 @@ interface GraphActivation {
 interface GraphActivate {
   target: number | null;
   values: Record<string, string>;
+  /** When its Activation's flow last sent something back, and what, shortened. */
+  returnedAt: string | null;
+  returned: string | null;
   /** Every Activation it could set off, in any canvas. */
   choices: { id: number; title: string; where: string; params: string[] }[];
 }

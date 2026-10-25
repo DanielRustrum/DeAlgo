@@ -263,7 +263,7 @@ function graphActivationFields(form, node) {
 /** An Activate box: which Activation it sets off — in any canvas — and what
  *  it fills each of that Activation's parameters with. */
 function graphActivateFields(form, node) {
-    var _a;
+    var _a, _b;
     const said = node.activate;
     form.appendChild(graphElement("p", "hint", "Once a run gets anything here, it sets the Activation off. Fill each value with words, or {{ fields }} of the first item to arrive — {{ title }}, {{ link }} — or of the data wired into its { } port, as {{ data… }}."));
     const pick = document.createElement("select");
@@ -305,6 +305,10 @@ function graphActivateFields(form, node) {
     };
     pick.addEventListener("change", draw);
     draw();
+    // What came back last, through a Return box in the flow it set off.
+    form.appendChild(graphElement("p", "hint", (said === null || said === void 0 ? void 0 : said.returnedAt)
+        ? `Last sent back ${new Date(said.returnedAt.endsWith("Z") ? said.returnedAt : `${said.returnedAt}Z`).toLocaleString()}: ${(_b = said.returned) !== null && _b !== void 0 ? _b : ""} — out of its { } port.`
+        : "Nothing sent back yet. A Return box in the flow it sets off sends what reaches it back here, out of its { } port."));
 }
 
 "use strict";
@@ -1704,6 +1708,8 @@ function graphKindLabel(kind) {
         return "Source";
     if (kind === "activate")
         return "Activate";
+    if (kind === "return")
+        return "Return";
     if (kind === "leaflet-form")
         return "Form leaflet";
     if (kind.startsWith("input-"))
@@ -2099,7 +2105,11 @@ function graphPortKinds(kind, dataOnly = false, triggerKind = "") {
     if (kind === "trigger")
         return { in: [], out: ["signal"] };
     // The end of a path that sets an Activation off: items in, and data for its values.
+    // It also gives out what its Activation's flow sent back.
     if (kind === "activate")
+        return { in: ["content", "data"], out: ["data"] };
+    // The end of an activated flow: items or data in, sent back to the Activate box.
+    if (kind === "return")
         return { in: ["content", "data"], out: [] };
     // A REST API answers with records and numbers: data, and no items.
     if (kind === "source" && dataOnly)
@@ -2129,6 +2139,14 @@ function graphPortKinds(kind, dataOnly = false, triggerKind = "") {
 function graphPortSays(kind, where, carries) {
     if (kind === "trigger" && carries === "data") {
         return "Gives out the values it was set off with, as one row of data.";
+    }
+    if (kind === "return") {
+        return carries === "content"
+            ? "Takes items: at the end of the run, they go back to the Activate box that set this flow off."
+            : "Takes data: at the end of the run, it goes back to the Activate box that set this flow off.";
+    }
+    if (kind === "activate" && where === "out") {
+        return "Gives out what its Activation's flow sent back, through a Return box.";
     }
     if (kind === "activate") {
         return carries === "content"
@@ -5000,6 +5018,8 @@ function graphPaletteName(kind) {
         return "Group";
     if (kind === "activate")
         return "Activate";
+    if (kind === "return")
+        return "Return";
     if (kind === "activation")
         return "Activation";
     return kind === "pulse" ? "Pulse" : "Schedule";
@@ -6499,6 +6519,7 @@ function asGraphRecord(value) {
 function asGraphNodeKind(value) {
     if (value === "trigger" ||
         value === "activate" ||
+        value === "return" ||
         value === "leaflet-form" ||
         value === "input-text" ||
         value === "input-long" ||
@@ -6965,6 +6986,8 @@ function asGraphActivate(value) {
     return {
         target: typeof raw["target"] === "number" ? raw["target"] : null,
         values: asGraphStrings(raw["values"]),
+        returnedAt: typeof raw["returned_at"] === "string" ? raw["returned_at"] : null,
+        returned: typeof raw["returned"] === "string" ? raw["returned"] : null,
         choices,
     };
 }

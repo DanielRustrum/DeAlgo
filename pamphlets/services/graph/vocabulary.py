@@ -60,7 +60,7 @@ AUGMENTATIONS: tuple[str, ...] = (
 BOX_NAMES: dict[str, str] = {
     "feed": "Feed", "filter": "Filter", "sort": "Sort",
     "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet", "format": "Format",
-    "transform": "Transform", "text": "Text", "activate": "Activate",
+    "transform": "Transform", "text": "Text", "activate": "Activate", "return": "Return",
     "leaflet-form": "Form leaflet",
 }
 
@@ -87,8 +87,10 @@ INTO_TRANSFORM = ("transform", "text")
 
 
 #: Where a path may end: a feed, or a repository to be pulled from later.
-#: An Activate box is an end too: what reaches it sets an Activation off.
-ENDS = ("feed", "deposit", "activate")
+#: An Activate box is an end too: what reaches it sets an Activation off. So
+#: is a Return box: what reaches it goes back to the Activate box that set
+#: its flow off.
+ENDS = ("feed", "deposit", "activate", "return")
 
 
 ALLOWED: dict[str, tuple[str, ...]] = {
@@ -135,6 +137,8 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # Also an end: what reaches it sets off the Activation it names, which
     # starts a flow of its own (activations.py).
     "activate": (),
+    # And the end of that flow: what reaches it goes back to the Activate box.
+    "return": (),
     # A piece is slotted, not wired. Nothing runs into or out of one.
     "timer": (),
     "reset": (),
@@ -164,7 +168,7 @@ DATA_OPS = ("filter", "sort", "tag", "decay", "expire")
 #: Where data may go from each box: through the operations, into a Format
 #: box, and from a Format box into a Chart leaflet. A repository gives what
 #: is waiting in it.
-_ONWARD = DATA_OPS + ("format", "transform", "text", "activate", *DATA_LEAFLETS)
+_ONWARD = DATA_OPS + ("format", "transform", "text", "activate", "return", *DATA_LEAFLETS)
 
 DATA_ALLOWED: dict[str, tuple[str, ...]] = {
     "source": _ONWARD,
@@ -178,6 +182,8 @@ DATA_ALLOWED: dict[str, tuple[str, ...]] = {
     # Only an Activation trigger gives data — the values it was set off
     # with, as one row (wiring.py refuses the rest).
     "trigger": _ONWARD,
+    # What its Activation's flow sent back, through a Return box.
+    "activate": _ONWARD,
 }
 
 #: What may be wired to what, by what the wire carries.
@@ -191,7 +197,7 @@ WIRING: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 #: Boxes a data wire may come into. Each takes one: a second replaces it.
-DATA_TAKERS = DATA_OPS + ("format", *DATA_LEAFLETS, "transform", "text", "activate")
+DATA_TAKERS = DATA_OPS + ("format", *DATA_LEAFLETS, "transform", "text", "activate", "return")
 
 
 def carries_between(source_kind: str, target_kind: str) -> str:

@@ -110,13 +110,15 @@ def set_params(node: GraphNode, names: list[str], given_defaults: list[str]) -> 
     node.activation = json.dumps(said)
 
 
-def set_off(node: GraphNode, values: dict[str, str]) -> dict[str, str]:
-    """Keep what an Activation is being set off with, and when: its
-    parameters only, a missing one taking its default. Answers the values."""
+def set_off(node: GraphNode, values: dict[str, str], by: int | None = None) -> dict[str, str]:
+    """Keep what an Activation is being set off with, when, and by which
+    Activate box (None by hand): its parameters only, a missing one taking
+    its default. Answers the values."""
     kept = defaults(node)
     kept.update({name: str(value)[:2000] for name, value in values.items() if name in kept})
     said = _said(node)
     said["last"] = kept
+    said["by"] = by
     node.activation = json.dumps(said)
     node.last_fired_at = utcnow()
     return kept
@@ -265,7 +267,7 @@ def fire_reached(
         if target is None or not target.enabled or target.id in fired:
             continue
         values = fill_values(box, _item_row(video), data_into(session, box, owner), params_for(session, box, owner))
-        kept = set_off(target, values)
+        kept = set_off(target, values, by=box.id)
         fired.append(target.id)
         if say is not None:
             shown = ", ".join(f"{k} = “{v}”" for k, v in kept.items()) or "no parameters"
@@ -284,6 +286,58 @@ def what_it_starts(session: Session, node: GraphNode, owner: OwnerId) -> tuple[l
         if (channel := session.get(Channel, pk)) is not None and channel.enabled
     ]
     return channels, wired_sources(session, node, owner), [one.id for one in wired_withdrawals(session, node, owner)]
+
+
+# -- Return boxes: what an activated flow sends back -------------------------
+
+
+def set_by(node: GraphNode) -> int | None:
+    """The Activate box that last set an Activation off; None if by hand."""
+    by = _said(node).get("by")
+    return by if isinstance(by, int) else None
+
+
+def returned(box: GraphNode) -> Any:
+    """What an Activate box's Activation sent back last, through its flow's
+    Return box: what comes out of its `{ }` port. None until something has."""
+    return _said(box).get("returned")
+
+
+def returned_at(box: GraphNode) -> str | None:
+    when = _said(box).get("returned_at")
+    return when if isinstance(when, str) else None
+
+
+def send_back(session: Session, owner: OwnerId, activation: int, say: Any = None) -> int:
+    """At the end of a flow an Activation started: what reached each Return
+    box in it, sent back to the Activate box that set it off. Data wired into
+    a Return box goes back as it is; items, as rows. Answers how many went."""
+    from .formatting import data_into, incoming, items_into
+
+    node = session.get(GraphNode, activation)
+    if not is_activation(node) or node is None:
+        return 0
+    caller = session.get(GraphNode, set_by(node) or -1)
+    if caller is None or caller.kind != "activate":
+        return 0
+    sent = 0
+    for box in nodes(session, owner):
+        if box.kind != "return" or not box.enabled or activation not in started_by(session, box, owner):
+            continue
+        value: Any = (
+            data_into(session, box, owner) if incoming(session, box, owner, "data")
+            else items_into(session, box, owner)
+        )
+        said = _said(caller)
+        said["returned"] = value
+        said["returned_at"] = utcnow().isoformat()
+        said["returned_by"] = box.id
+        caller.activation = json.dumps(said, default=str)
+        sent += 1
+        if say is not None:
+            say.write(f"{box.title} sent back to {caller.title}")
+    session.flush()
+    return sent
 
 
 # -- {{ params }} in the flow an Activation starts -----------------------------

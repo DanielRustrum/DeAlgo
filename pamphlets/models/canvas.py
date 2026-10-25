@@ -324,6 +324,8 @@ class GraphNode(Base):
             return {"schedule": "Schedule", "activation": "Activation"}.get(self.trigger_kind or "", "Pulse")
         if self.kind == "activate":
             return "Activate"
+        if self.kind == "return":
+            return "Return"
         if self.kind == "sort":
             return "Sort"
         if self.kind == "canvas":
