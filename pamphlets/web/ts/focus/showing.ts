@@ -2,12 +2,6 @@
 //
 // Part of Focus mode; see main.ts.
 
-/** The privacy-enhanced embed address for a video, set to autoplay. */
-function focusEmbedUrl(videoId: string): string {
-  const origin = encodeURIComponent(window.location.origin);
-  return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&rel=0&origin=${origin}`;
-}
-
 /** One picture from a post, linking to itself. */
 function buildFocusTile(url: string): HTMLAnchorElement {
   const link = document.createElement("a");
@@ -26,11 +20,11 @@ function buildFocusTile(url: string): HTMLAnchorElement {
 }
 
 /** Whether this is read rather than played. Asked as "has no player" so a
- *  source that chose none is read by default, which is the safe way round:
+ *  source that gives none is read by default, which is the safe way round:
  *  the worst case is a reading timer on something, not an empty player
- *  nobody can advance. "youtube" is the one player built in. */
+ *  nobody can advance. */
 function focusIsRead(item: FocusItem): boolean {
-  return item.player !== "youtube";
+  return item.player === "";
 }
 
 /** Whether this one is on the clock at all.
@@ -63,27 +57,23 @@ function showFocusPost(sitting: FocusSitting, item: FocusItem): void {
   elements.post.hidden = false;
   elements.timer.hidden = !focusIsTimed(item);
   elements.stage.hidden = true;
-  if (sitting.player) sitting.player.pauseVideo();
+  tellFocusPlayer(sitting, "pause");
   if (focusIsTimed(item)) startFocusTimer(sitting, item);
   else stopFocusTimer(sitting);
 }
 
-/** Show a video in the player, or reload the iframe if the API never came. */
+/** Show a video in its source's player. */
 function showFocusVideo(sitting: FocusSitting, item: FocusItem): void {
   stopFocusTimer(sitting);
   const elements = sitting.elements;
   elements.post.hidden = true;
   elements.timer.hidden = true;
   elements.stage.hidden = false;
-
-  if (sitting.player) {
-    sitting.player.loadVideoById(item.video_id);
-    return;
+  if (!playInFocusFrame(sitting, item, true)) {
+    // Its plugin was switched off since, or the frame is not on this page:
+    // read it instead, rather than show a player that will never play.
+    showFocusPost(sitting, item);
   }
-  // No API attached — reload the iframe itself. Advancing must work even when
-  // YouTube's script never arrives, or the queue is stuck on whatever happens
-  // to be on screen.
-  if (elements.frame) elements.frame.src = focusEmbedUrl(item.video_id);
 }
 
 /** Show the next item, of whichever kind, and update the counts and links. */

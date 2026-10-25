@@ -30,7 +30,7 @@ function graphStampFields(form: HTMLElement, node: GraphNodeView): void {
       "p",
       "hint",
       node.kind === "decay"
-        ? "Slot a Timer under this to say how long you get with each item in Focus. A Lock under it makes that time one you cannot pause."
+        ? "Slot a Timer under this to say how long you get with each item in Content view. A Lock under it makes that time one you cannot pause."
         : "Slot a Timer under this to say how long an item stays in the feed, counted from when it arrives. After that it is taken out — it stays in your history and in any other feed that said nothing about expiry.",
     ),
   );

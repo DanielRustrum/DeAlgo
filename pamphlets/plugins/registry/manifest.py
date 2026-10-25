@@ -14,7 +14,6 @@ from typing import Any
 from ..runtime import PluginError
 from .plugin import (
     AUGMENTS,
-    PLAYERS,
     SOURCE_COLOURS,
     Asked,
     Augmentation,
@@ -23,6 +22,7 @@ from .plugin import (
     SourceKind,
     Take,
 )
+from .players import read_player
 from .storage import PLAIN
 
 
@@ -246,10 +246,8 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
             raise PluginError(f"“{name}” needs a `recognise` function")
         colour = _colour(name, entry)
         takes = _takes(name, entry.get("takes"))
-        player = str(entry.get("player") or "").strip().lower()
-        if player and player not in PLAYERS:
-            allowed = ", ".join(f"“{one}”" for one in PLAYERS)
-            raise PluginError(f"source “{name}”: `player` has to be one of {allowed}, not “{player}”")
+        player = read_player(name, entry.get("player"))
+        videos = entry["player"].get("videos") if player is not None else None
         if takes and not callable(entry.get("classify")):
             raise PluginError(f"“{name}” declares `takes`, so it needs a `classify` function")
         # Every other hook is optional; `recognise` is the one the app cannot do without.
@@ -276,6 +274,7 @@ def sources_in(plugin: Plugin, given: object) -> list[SourceKind]:
                 _classify=entry.get("classify"),
                 _view=entry.get("view") if callable(entry.get("view")) else None,
                 _act=entry.get("act") if callable(entry.get("act")) else None,
+                _videos=videos if callable(videos) else None,
                 style=str(entry.get("style") or "")[:50000],
             )
         )

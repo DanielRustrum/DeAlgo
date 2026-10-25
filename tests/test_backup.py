@@ -21,6 +21,8 @@ def populated(db):
         music = Playlist(playlist_id="PL_mus", title="Music", enabled=False, priority=1)
         channel = Channel(
             channel_id="UCaaaaaaaaaaaaaaaaaaaaaa",
+            source_kind="rss",
+            source_url="https://example.org/feed.xml",
             title="A Channel",
             min_pull_minutes=360,
             left_out="[]",
@@ -227,6 +229,8 @@ def test_a_backup_restores_onto_an_empty_install(populated, db):
         assert feed.max_items == 40 and feed.max_per_run == 2
         channel = session.scalar(select(Channel))
         assert channel.min_pull_minutes == 360 and channel.title_exclude == "podcast"
+        # Its kind and feed come back with it, whatever kind it is.
+        assert (channel.source_kind, channel.source_url) == ("rss", "https://example.org/feed.xml")
         assert [p.playlist_id for p in channel.playlists] == ["PL_sci"]
 
         assert db.get_settings(session).poll_interval_minutes == 45

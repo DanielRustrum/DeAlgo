@@ -184,7 +184,7 @@ def test_the_star_is_on_the_feeds_own_page_too(client, db):
     feed = ids(db)["Bravo"]
     page = client.get(f"/feed/{feed}").text
     assert 'action="/feeds/%d/favorite"' % feed in page
-    assert '<a href="/feed">Feeds</a>' in page  # the way back to the shelf
+    assert '<a href="/feed">List view</a>' in page  # the way back to the shelf
 
     star = client.post(f"/feeds/{feed}/favorite", data={"on": "1", "back": "feed"},
                        headers={"HX-Request": "true"})

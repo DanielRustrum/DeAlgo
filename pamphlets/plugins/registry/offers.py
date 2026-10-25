@@ -16,6 +16,7 @@ from typing import Any
 # an `__all__`, which would also hide every function here from the reference.
 from ..capabilities.owner import acting_for
 from ..runtime import PluginError, Sandbox
+from .players import Player
 from .plugin import MOST_POSTS, Augmentation, Plugin, Recognised, SourceKind, Take
 
 #: Whose work is in hand: an account id, or None for the implicit one.
@@ -349,6 +350,23 @@ class Registry:
         except PluginError as exc:
             log.warning("%s could not answer %s: %s", found.plugin, hook.strip("_"), exc)
             return None
+
+    def player(self, kind: str) -> Player | None:
+        """The frame a source kind's videos play in, if its plugin gives one."""
+        found = self.kind(kind)
+        return found.player if found is not None else None
+
+    def video_at(self, address: str) -> tuple[Player, str] | None:
+        """Which source's player plays the video at an address, and its key:
+        asked of every source whose plugin says which addresses are its
+        videos. None for an address none of them claims."""
+        for found in self.source_kinds():
+            if found.player is None or found._videos is None:
+                continue
+            key = self._ask(found.kind, "_videos", address)
+            if isinstance(key, str) and found.player.src(key, autoplay=False, origin=""):
+                return found.player, key
+        return None
 
     def item_url(
         self, kind: str, key: str, link: str | None, item_kind: str = "video"

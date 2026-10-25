@@ -2,7 +2,7 @@
 {% from "_garden.html" import page_head with context %}
 {% block title %}Pamphlets — {{ playlist.title }}{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/feed">Feeds</a> › {{ playlist.title }}</p>
+<p class="crumbs"><a href="/feed">List view</a> › {{ playlist.title }}</p>
 {% set lede = (section.videos | length) ~ ' waiting' if not section.shut else 'Shut for now' %}
 {% call page_head(playlist.title, lede) %}
 {% set back = 'feed' %}

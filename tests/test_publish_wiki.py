@@ -10,14 +10,14 @@ BLOB = "https://forge.example/owner/repo/src/branch/main"
 
 
 def test_pages_files_and_images_are_each_linked_their_own_way():
-    page = wiki.WIKI / "Focus Mode.md"
+    page = wiki.WIKI / "Content View.md"
     text = (
-        "See [the feed](The%20Feed%20Page.md#the-shelf), [the plugin](../../ops/README.md) and\n"
-        "![Focus mode](images/focus.png)\n"
-        "```\n![in code](images/focus.png)\n```\n"
+        "See [the feed](List%20View.md#the-shelf), [the plugin](../../ops/README.md) and\n"
+        "![Content view](images/content.png)\n"
+        "```\n![in code](images/content.png)\n```\n"
     )
     made = wiki.rewrite(text, page, BLOB)
-    assert "[the feed](The-Feed-Page#the-shelf)" in made
+    assert "[the feed](List-View#the-shelf)" in made
     assert f"[the plugin]({BLOB}/ops/README.md)" in made
-    assert "![Focus mode](https://forge.example/owner/repo/raw/branch/main/docs/wiki/images/focus.png)" in made
-    assert "![in code](images/focus.png)" in made
+    assert "![Content view](https://forge.example/owner/repo/raw/branch/main/docs/wiki/images/content.png)" in made
+    assert "![in code](images/content.png)" in made

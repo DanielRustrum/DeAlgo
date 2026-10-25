@@ -38,8 +38,8 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
         "id": video.id,
         "video_id": video.video_id,
         "kind": video.kind,
-        # Which built-in player plays it, as its source's plugin chose: "" for
-        # anything read rather than played.
+        # Which source's player plays it — its plugin's frame, given to the
+        # page by `_players_for` — or "" for anything read rather than played.
         "player": described.player if video.kind == "video" else "",
         # Where it came from, said the way a person would say it, so the page
         # can offer "Open it on Reddit" without knowing the list of kinds.
@@ -64,6 +64,20 @@ def _focus_item(video: Video, playlist_title: str = "") -> Context:
         # And whether a Lock under that box said the time cannot be held.
         "locked": video.view_locked,
     }
+
+
+def _players_for(items: list[Context]) -> dict[str, object]:
+    """The players these items play in, by source kind, for the page to
+    drive (plugins/registry/players.py): data the plugin declared, never
+    code of its own."""
+    shown: dict[str, object] = {}
+    for item in items:
+        kind = str(item.get("player") or "")
+        if kind and kind not in shown:
+            player = registry.current().player(kind)
+            if player is not None:
+                shown[kind] = player.page()
+    return shown
 
 
 def _focus_queue(
@@ -127,6 +141,7 @@ def focus(request: Request, order: str = "oldest", playlist: str = "", start: st
         context = {
             "queue": queue,
             "queue_json": json.dumps(queue),
+            "players_json": json.dumps(_players_for(queue)),
             "order": "newest" if order == "newest" else "oldest",
             "playlist": playlist,
             # A post never ends by itself, so reading time is what moves it on.
@@ -199,6 +214,7 @@ def focus_finished(
     return JSONResponse(
         {
             "next": rest[0] if rest else None,
+            "players": _players_for(rest[:1]),
             "remaining": len(rest),
             # The list the page shows, rebuilt from the same queue the next
             # item came from, so the two cannot drift apart.

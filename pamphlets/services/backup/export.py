@@ -77,6 +77,10 @@ def build_export(session: Session, owner: OwnerId = None) -> dict[str, Any]:
     exported["channels"] = [
         {
             "channel_id": channel.channel_id,
+            # What kind of source it is and where its feed is: without them a
+            # source comes back as whatever kind a row with neither defaults to.
+            "source_kind": channel.source_kind,
+            "source_url": channel.source_url,
             "title": channel.title,
             "handle": channel.handle,
             "enabled": channel.enabled,

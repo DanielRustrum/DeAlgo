@@ -1,9 +1,9 @@
 {# Thumbnail and timestamp, nothing else. The title is not printed but is still
    the link's accessible name, so hovering shows it and a screen reader reads
-   it. Clicking opens Focus mode at this item.
+   it. Clicking opens Content view at this item.
 
    A community post wears its first image as that thumbnail — the same tile
-   Focus mode leads with — and falls back to its opening words when it has no
+   Content view leads with — and falls back to its opening words when it has no
    image at all, which is the only thing a text post can show.
 
    An item from a feed elsewhere is the same again: a thumbnail if the feed
@@ -58,7 +58,7 @@
       <span class="card-mark card-mark-tag">{{ tag }}</span>
       {% endfor %}
       {% if video.view_seconds %}
-      <span class="card-mark" title="How long you get with it in Focus{{ ', and that time cannot be paused' if video.view_locked }}">
+      <span class="card-mark" title="How long you get with it in Content view{{ ', and that time cannot be paused' if video.view_locked }}">
         {{ video.view_seconds | spell }}{{ ' · no pause' if video.view_locked }}
       </span>
       {% endif %}

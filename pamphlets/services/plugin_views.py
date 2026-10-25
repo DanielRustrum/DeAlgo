@@ -24,6 +24,7 @@ import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+from ..plugins.registry.players import SANDBOX
 from . import embeds
 
 #: How long a view's XML, and its CSS, may be.
@@ -148,8 +149,10 @@ def _render(element: ElementTree.Element, depth: int = 0) -> str:
         return f"<{made}{attrs} controls preload=\"metadata\">{inner}</{made}>"
     if tag == "embed":
         found = embeds.embed_for(_web(element.get("src", "")))
-        if found.kind in ("youtube", "vimeo"):
+        if found.kind == "frame":
+            # A plugin's player, sandboxed as everywhere (registry/players.py).
             return (f'<div{attrs}><iframe src="{html.escape(found.src)}" loading="lazy" allowfullscreen '
+                    f'sandbox="{SANDBOX}" '
                     'allow="autoplay; encrypted-media; picture-in-picture; fullscreen" '
                     'referrerpolicy="strict-origin-when-cross-origin"></iframe></div>')
         if found.kind == "file":

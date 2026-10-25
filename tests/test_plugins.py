@@ -569,18 +569,45 @@ def test_a_new_source_leaves_out_what_its_plugin_starts_off(db):
         assert reddit.left_out_names == set() and not reddit.takes
 
 
-def test_a_source_picks_its_player_from_the_ones_built_in(tmp_path):
-    """A player is browser code with the signed-in session behind it, which a
-    plugin is never handed — so it names one of the app's own, or none."""
-    found = registry.read(a_plugin(tmp_path, "vid", """
-        return { api = 1, sources = { { kind = "vid", player = "flash",
-          recognise = function() return nil end } } }
+@pytest.mark.parametrize("player, trouble", [
+    # Pamphlets has no players of its own to name.
+    ('"youtube"', "`player` is a table now"),
+    ('{ frame = "http://player.example/{key}" }', "has to be an https address"),
+    # What it fills in cannot move the frame to another origin.
+    ('{ frame = "https://{key}.example/v" }', "cannot fill in anything before its path"),
+    ('{ frame = "https://player.example@evil.example/{key}" }', "cannot fill in anything before its path"),
+    ('{ frame = "https://player.example/{key}?u={user}" }', "fills in only"),
+    ('{ frame = "https://player.example/v" }', "where the video's {key} goes"),
+    ('{ frame = "https://player.example/{key}", hello = "not json" }', "`player.hello` is not JSON"),
+    ('{ frame = "https://player.example/{key}", hears = { ended = { ["a b"] = 0 } } }', "not a field path"),
+    ('{ frame = "https://player.example/{key}", hears = { ended = { state = {} } } }', "a plain value"),
+])
+def test_a_player_is_data_checked_before_it_is_believed(tmp_path, player, trouble):
+    """A player is declared, not run: one https origin fixed by the plugin,
+    messages that are JSON, and fields read at plain paths."""
+    found = registry.read(a_plugin(tmp_path, "vid", f"""
+        return {{ api = 1, sources = {{ {{ kind = "vid", player = {player},
+          recognise = function() return nil end }} }} }}
     """))
-    assert "`player` has to be one of “youtube”" in found.broken[0].trouble
+    assert trouble in found.broken[0].trouble
 
 
-def test_youtube_plays_in_the_youtube_player_and_nothing_else_plays():
+def test_a_player_fills_in_only_a_plain_key():
+    from pamphlets.plugins.registry.players import read_player
+
+    player = read_player("vid", {"frame": "https://player.example/v/{key}?o={origin}&a={autoplay}",
+                                 "hears": {"ended": {"state": 0}, "time": "info.t"}})
+    assert player is not None and player.origin == "https://player.example"
+    assert player.src("abc-123", autoplay=True, origin="https://me.example") == (
+        "https://player.example/v/abc-123?o=https%3A%2F%2Fme.example&a=1")
+    assert player.src("../admin", autoplay=False, origin="") == ""
+    assert player.src("a/b", autoplay=False, origin="") == ""
+    assert player.hears == {"ended": [{"state": 0}], "time": "info.t"}
+
+
+def test_youtube_plays_in_its_own_declared_player_and_nothing_else_plays():
     found = registry.read(SHIPPED)
     players = {kind.kind: kind.player for kind in found.source_kinds()}
-    assert players.pop("youtube") == "youtube"
-    assert set(players.values()) == {""}
+    youtube = players.pop("youtube")
+    assert youtube is not None and youtube.origin == "https://www.youtube-nocookie.com"
+    assert set(players.values()) == {None}

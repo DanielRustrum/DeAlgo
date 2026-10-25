@@ -138,7 +138,7 @@ def learn_now(request: Request) -> Response:
     done = [name for name, model in learned.items() if model is not None]
     if not done:
         return redirect(PAGE + "#algorithm",
-                        err="Not enough yet: open and pass over more in Focus mode first.")
+                        err="Not enough yet: open and pass over more in Content view first.")
     return redirect(PAGE + "#algorithm", ok="Learned again: " + ", ".join(done) + ".")
 
 

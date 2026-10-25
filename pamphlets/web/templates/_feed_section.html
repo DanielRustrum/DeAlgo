@@ -37,7 +37,7 @@
     <div class="section-actions">
       {% if section.videos %}
       <a class="btn btn-quiet" href="/focus?order={{ section.playlist.view_order }}&playlist={{ section.playlist.id }}"
-         title="Play this feed through, marking each one watched">Focus ▶</a>
+         title="Play this feed through, marking each one watched">Content view ▶</a>
       {% endif %}
       {% if section.playlist.url %}
         {% if publishing_offline(identity.user_pk if identity else none) %}

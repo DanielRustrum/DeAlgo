@@ -50,6 +50,13 @@ function readFocusQueue(): FocusItem[] {
   return JSON.parse(script.textContent ?? "[]") as FocusItem[];
 }
 
+/** The players the page was given, by source kind. */
+function readFocusPlayers(): Record<string, FocusPlayer> {
+  const script = document.getElementById("focus-frames");
+  if (!script) return {};
+  return JSON.parse(script.textContent ?? "{}") as Record<string, FocusPlayer>;
+}
+
 /** Say something after the title, or clear it with an empty string. */
 function setFocusStatus(sitting: FocusSitting, message: string): void {
   sitting.elements.status.textContent = message ? ` · ${message}` : "";

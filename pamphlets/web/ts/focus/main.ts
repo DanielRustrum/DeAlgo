@@ -17,14 +17,13 @@
 // on the second visit. Everything a sitting needs to remember therefore lives
 // in one FocusSitting object, passed explicitly rather than captured.
 
-/** Load the first video, with the origin the page is actually served from. */
+/** Load the first video, if a video is what opens: played, with the origin
+ *  the page is actually served from rather than whatever PAMPHLETS_PUBLIC_URL
+ *  happens to say. Opening on something read leaves the frame empty until a
+ *  video comes, so nothing plays underneath the reading. */
 function pointFrameAtFirstVideo(sitting: FocusSitting): void {
-  const frame = sitting.elements.frame;
-  if (!frame) return;
-  // The origin has to be the host actually browsed to, not whatever
-  // PAMPHLETS_PUBLIC_URL happens to say.
-  const source = frame.dataset["src"] ?? "";
-  frame.src = `${source}&origin=${encodeURIComponent(window.location.origin)}`;
+  if (focusIsRead(sitting.current)) return;
+  if (!playInFocusFrame(sitting, sitting.current, true)) showFocusPost(sitting, sitting.current);
 }
 
 /** Wire up Next, Skip and the timer's pause button. */
@@ -41,8 +40,8 @@ function warnIfPlayerNeverWakes(sitting: FocusSitting): void {
     if (sitting.ready) return;
     setFocusStatus(
       sitting,
-      sitting.player
-        ? "the player is not responding — try Reload"
+      sitting.playing
+        ? "the player is not responding — Done · next still works, or try Reload"
         : "auto-advance is unavailable — Done · next still works",
     );
   }, 8000);
@@ -59,7 +58,8 @@ function newFocusSitting(root: HTMLElement, opening: FocusItem): FocusSitting {
     locked: false,
     current: opening,
     passedOver: [],
-    player: null,
+    players: readFocusPlayers(),
+    playing: null,
     ready: false,
     advancing: false,
     timerId: null,
@@ -81,16 +81,12 @@ function freshFocusSeen(pickedId: number | null): FocusSeen {
   return { shownAt: Date.now(), pauses: 0, reached: 0, duration: 0, playing: false, pickedId };
 }
 
-/** Read how far the player got, while it can still be asked. */
+/** How far the player got, as far as it has said. */
 function noteFocusPosition(sitting: FocusSitting): void {
-  const player = sitting.player;
-  if (player === null || focusIsRead(sitting.current)) return;
-  try {
-    sitting.seen.reached = Math.max(sitting.seen.reached, player.getCurrentTime() || 0);
-    sitting.seen.duration = player.getDuration() || sitting.seen.duration;
-  } catch {
-    // A player not ready yet has nothing to say.
-  }
+  const playing = sitting.playing;
+  if (playing === null || playing.itemId !== sitting.current.id || focusIsRead(sitting.current)) return;
+  sitting.seen.reached = Math.max(sitting.seen.reached, playing.time);
+  sitting.seen.duration = playing.duration || sitting.seen.duration;
 }
 
 /** How the open item went, as form fields. */
@@ -127,8 +123,8 @@ function initFocusMode(): void {
   const sitting = newFocusSitting(root, opening);
   bindFocusControls(sitting);
   sayFocusSeenOnLeaving(sitting);
+  listenToFocusPlayer(sitting);
   pointFrameAtFirstVideo(sitting);
-  awaitYouTubeApi(sitting);
 
   // The opening item laid out by its plugin is asked for now; the server
   // drew only its title.

@@ -499,9 +499,9 @@ def _learning(session: Session, owner: OwnerId) -> dict[str, str]:
     said: dict[str, str] = {}
     seen = algorithm.counts(session, owner)
     said["saturation"] = (
-        "Worked out as it goes, from this feed and what you open in Focus mode."
+        "Worked out as it goes, from this feed and what you open in Content view."
         if seen >= account.algorithm_min else
-        f"Still learning what you like: it needs {account.algorithm_min} items opened in Focus "
+        f"Still learning what you like: it needs {account.algorithm_min} items opened in Content view "
         "mode, and does nothing until then."
     )
     for name in algorithm.LEARNED:
@@ -509,7 +509,7 @@ def _learning(session: Session, owner: OwnerId) -> dict[str, str]:
         if model is None:
             said[name] = (
                 f"Still learning: it needs {account.algorithm_min} items you opened or passed "
-                "over in Focus mode, and does nothing until then."
+                "over in Content view, and does nothing until then."
             )
         else:
             how = "" if model.quality is None else (

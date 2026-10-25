@@ -67,7 +67,7 @@
   <h2>Your algorithm</h2>
   <p class="hint">
     An algorithm of your own, like the one a video site runs on you — but yours, and only on this
-    machine. It learns from how you go through things in Focus mode, and an
+    machine. It learns from how you go through things in Content view, and an
     <strong>Aggregation</strong> piece on the canvas puts what it predicts to work: under a Filter,
     under a Sort, or under an Expire box. It learns three things:
   </p>
@@ -84,7 +84,7 @@
 
   <form class="stack-form" method="post" action="/settings/ai/algorithm">
     <label class="check"><input type="checkbox" name="on" value="1" {{ 'checked' if algorithm_on }}>
-      Learn from how I watch in Focus mode</label>
+      Learn from how I watch in Content view</label>
     <div class="field-row">
       <label>Learn from the last
         <input type="number" name="days" min="7" max="730" value="{{ algorithm_days }}"> days</label>
@@ -100,7 +100,7 @@
   </form>
 
   <h3>What it has learned</h3>
-  <p class="hint">It has seen {{ seen }} time{{ 's' if seen != 1 }} something was open in Focus mode.</p>
+  <p class="hint">It has seen {{ seen }} time{{ 's' if seen != 1 }} something was open in Content view.</p>
   {% for one in signals %}
   <div class="algorithm-signal">
     <h4>{{ one.label }}</h4>

@@ -219,8 +219,14 @@ def _restore_channels(
         )
         if channel is None:
             channel = Channel(owner_pk=owner, channel_id=channel_id, title=entry.get("title") or channel_id)
+            # Files from before kinds were written carry none, and their
+            # sources keep the old default.
+            if entry.get("source_kind"):
+                channel.source_kind = str(entry["source_kind"])[:12]
             session.add(channel)
             session.flush()
+        if entry.get("source_url"):
+            channel.source_url = str(entry["source_url"])
         for key in _CHANNEL_FIELDS:
             if key in entry:
                 setattr(channel, key, entry[key])

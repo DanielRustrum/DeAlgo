@@ -4515,7 +4515,7 @@ function graphLeafletFields(form, node) {
     else if (node.kind === "leaflet-video") {
         form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
         form.appendChild(graphLabelled("Video's address", graphLeafletText("leaflet_url", said("url"), "https://www.youtube.com/watch?v=…")));
-        form.appendChild(graphElement("p", "hint", "YouTube and Vimeo play in their own player, and a .mp4, .webm or .ogg file in the browser's. Anything else is a link to it."));
+        form.appendChild(graphElement("p", "hint", "An address an installed plugin knows as one of its videos plays in that plugin's player, and a .mp4, .webm or .ogg file in the browser's. Anything else is a link to it."));
         fromWire();
         const picks = [
             { name: "newest", label: "The newest in it" },
@@ -4536,7 +4536,7 @@ function graphLeafletFields(form, node) {
         fromWire();
         form.appendChild(graphLabelled("Address", graphLeafletText("leaflet_url", said("url"), "https://")));
         form.appendChild(graphLabelled("Says", graphLeafletText("leaflet_label", said("label"), "worked out from where it goes")));
-        form.appendChild(graphElement("p", "hint", "Focus with no feed wired in goes through everything."));
+        form.appendChild(graphElement("p", "hint", "Content view with no feed wired in goes through everything."));
     }
 }
 /** Where the part of a page wire inside its pamphlet is drawn: among the
@@ -6218,7 +6218,7 @@ function graphStampFields(form, node) {
         return;
     }
     form.appendChild(graphElement("p", "hint", node.kind === "decay"
-        ? "Slot a Timer under this to say how long you get with each item in Focus. A Lock under it makes that time one you cannot pause."
+        ? "Slot a Timer under this to say how long you get with each item in Content view. A Lock under it makes that time one you cannot pause."
         : "Slot a Timer under this to say how long an item stays in the feed, counted from when it arrives. After that it is taken out — it stays in your history and in any other feed that said nothing about expiry."));
 }
 /** One condition. Exactly one thing to fill in, because that is what makes

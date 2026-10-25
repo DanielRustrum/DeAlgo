@@ -7,10 +7,10 @@ interface FocusItem {
   id: number;
   video_id: string;
   kind: "video" | "post" | "link";
-  /** Which built-in player plays it, as its source's plugin chose; "" for
-   *  anything read rather than played. */
+  /** Which source's player plays it — a key of the sitting's `players` —
+   *  or "" for anything read rather than played. */
   player: string;
-  /** What its source is called — "YouTube", "Reddit" — for the link out. */
+  /** What its source is called, for the link out. */
   source: string;
   title: string;
   channel: string;
@@ -37,9 +37,46 @@ interface FocusView {
   plugin: string;
 }
 
+/** How a player says something, as its plugin declared it: every field, by
+ *  dotted path, equal to its value. */
+type FocusMatcher = Record<string, string | number | boolean>;
+
+/** A source plugin's player, as players.py checked it. */
+interface FocusPlayer {
+  /** Its address, with {key}, {autoplay} and {origin} to fill in. */
+  frame: string;
+  /** The one origin it is talked to at and heard from. */
+  origin: string;
+  hello: string[];
+  say: { play?: string; pause?: string; stop?: string };
+  hears: {
+    ready?: FocusMatcher[];
+    playing?: FocusMatcher[];
+    paused?: FocusMatcher[];
+    ended?: FocusMatcher[];
+    failed?: FocusMatcher[];
+    time?: string;
+    duration?: string;
+  };
+}
+
+/** What is in the frame now, and what has been heard from it. */
+interface FocusPlaying {
+  player: FocusPlayer;
+  itemId: number;
+  /** It has said something, so it is there to talk to. */
+  heard: boolean;
+  /** It has ended, or failed, once already: it is not moved on from twice. */
+  ended: boolean;
+  time: number;
+  duration: number;
+}
+
 /** What POST /focus/<id>/finished answers with. */
 interface FocusAdvance {
   next: FocusItem | null;
+  /** The player the next item plays in, if it has one. */
+  players: Record<string, FocusPlayer>;
   remaining: number;
   upcoming: FocusItem[];
 }
@@ -87,7 +124,10 @@ interface FocusSitting {
   /** Skipped this sitting: still unwatched, but not offered again until the
    *  next one. The server needs telling, since it rebuilds the queue. */
   passedOver: number[];
-  player: YouTubePlayer | null;
+  /** The players its items play in, by source kind. */
+  players: Record<string, FocusPlayer>;
+  /** What the frame is playing, or null. */
+  playing: FocusPlaying | null;
   /** True once anything has proved the page is working. */
   ready: boolean;
   /** One advance at a time, however many things ask for one. */

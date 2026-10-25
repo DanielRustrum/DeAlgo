@@ -125,7 +125,7 @@ def test_a_leaflet_says_what_it_shows(db):
         leaflets.save(feed, {"leaflet_feed": "7", "leaflet_count": "5"}, {7})
         assert leaflets.words(feed, {7: "News"}) == "5 from “News”"
         link = leaflet(session, "link")
-        assert leaflets.words(link, {}) == "Focus on everything"
+        assert leaflets.words(link, {}) == "Content view of everything"
 
 
 # -- charts ------------------------------------------------------------------------
@@ -204,7 +204,7 @@ def test_a_pamphlet_page_shows_every_leaflet(client, db):
     # The chart's data, for Chart.js to draw: each feed, and what it holds.
     assert "What each feed holds" in page
     assert '"labels": ["Science"]' in page and '"unit": "waiting"' in page
-    assert f'href="/focus?playlist={feed_pk}"' in page and "Read Science in Focus" in page
+    assert f'href="/focus?playlist={feed_pk}"' in page and "Read Science in Content view" in page
     # Set as a paper: a masthead with a dateline, the feed's items as stories.
     assert 'class="paper-title">Morning<' in page and "paper-dateline" in page
     assert 'class="story is-lead"' in page

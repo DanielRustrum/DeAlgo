@@ -261,12 +261,10 @@ def _video(session: Session, owner: OwnerId, said: Mapping[str, Any]) -> Context
         if said.get("pick") == "unwatched":
             query = query.where(Video.watched_at.is_(None))
         video = session.scalars(query.limit(1)).first()
-        if video is not None:
-            title = video.title or ""
-            url = video.link or (
-                f"https://www.youtube.com/watch?v={video.video_id}"
-                if video.channel is not None and video.channel.source_kind == "youtube" else ""
-            )
+        if video is not None and video.channel is not None:
+            # In its own source's player, when its plugin gives one.
+            shown = embeds.embed_for_item(video.channel.source_kind, video.video_id, video.url or "")
+            return {"embed": shown, "video_title": video.title or "", "from_feed": feed.title}
     return {"embed": embeds.embed_for(url), "video_title": title, "from_feed": feed.title if feed else ""}
 
 

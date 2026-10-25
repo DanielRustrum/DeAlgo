@@ -161,17 +161,19 @@ def test_the_page_loads_its_script_and_the_controls(client):
     assert 'id="focus-next"' in body and 'id="focus-skip"' in body
 
 
-def test_the_iframe_api_is_left_to_the_script(client):
-    """A script tag in the page is inserted by htmx on a boosted navigation,
-    where `defer` orders nothing — so it could run before the ready callback
-    exists and the player would never attach."""
-    assert "iframe_api" not in client.get("/focus").text
+def test_no_players_script_is_loaded(client):
+    """A player is its plugin's frame on another origin, talked to by
+    postMessage: nothing of any service's runs in this page."""
+    body = client.get("/focus").text
+    import re
+
+    assert "iframe_api" not in body
+    assert not re.search(r'<script[^>]+src="https?://', body)
 
 
-def test_the_focus_player_keeps_fullscreen_and_refuses_pip(client):
-    """Left to itself the IFrame API sets allow="…; picture-in-picture; …",
-    which puts the pop-out button back over the fullscreen control. Supplying
-    the iframe ourselves is what prevents that."""
+def test_the_focus_player_is_sandboxed_keeps_fullscreen_and_refuses_pip(client):
+    """The page's own frame, so its `allow` list is ours: picture-in-picture
+    left out keeps the pop-out button off the fullscreen control."""
     import re
 
     body = client.get("/focus").text
@@ -179,8 +181,20 @@ def test_the_focus_player_keeps_fullscreen_and_refuses_pip(client):
 
     assert "allowfullscreen" in frame
     assert "picture-in-picture" not in frame
-    assert "enablejsapi=1" in frame  # the API can only attach with this set
-    assert "youtube-nocookie.com/embed/" in frame
+    assert 'sandbox="allow-scripts allow-same-origin allow-presentation' in frame
+    assert "allow-top-navigation" not in frame
+    # Pointed at each video by the script, with the origin actually browsed to.
+    assert " src=" not in frame
+
+
+def test_the_page_is_given_the_players_its_queue_plays_in(client):
+    import json
+    import re
+
+    body = client.get("/focus").text
+    players = json.loads(re.search(r'id="focus-frames">(.*?)</script>', body, re.S).group(1))
+    assert players["youtube"]["origin"] == "https://www.youtube-nocookie.com"
+    assert "{key}" in players["youtube"]["frame"] and players["youtube"]["hears"]["ended"]
 
 
 def test_finishing_an_unknown_video_is_refused(client):
@@ -310,13 +324,15 @@ def test_a_post_gets_no_countdown_unless_a_decay_box_gave_it_one(client, db):
 
 def test_opening_on_a_post_does_not_autoplay_a_video_underneath(client, db):
     """The player is still there for what comes next, but it must be silent
-    while something is being read."""
+    while something is being read: the frame is left empty until a video
+    comes, rather than loaded and hoped quiet."""
     post_id = make_post(db)
 
     body = client.get(f"/focus?start={post_id}").text
 
-    assert "autoplay=0" in body
-    assert "autoplay=1" not in body
+    assert 'id="focus-player"' in body
+    opening = focus_source().split("function pointFrameAtFirstVideo", 1)[1].split("\n}", 1)[0]
+    assert "if (focusIsRead(sitting.current)) return;" in opening
 
 
 # -- items from somewhere other than YouTube --------------------------------
@@ -427,18 +443,17 @@ def test_the_way_out_of_an_item_says_where_it_goes(client, db):
     assert "https://reddit.com/r/python/comments/abc" in body
 
 
-def test_an_item_from_a_feed_does_not_autoplay_underneath(client, db):
+def test_an_item_from_a_feed_is_not_given_a_player(client, db):
     item_id = make_link(db)
 
-    body = client.get(f"/focus?start={item_id}").text
+    queue = queue_of(client.get(f"/focus?start={item_id}").text)
 
-    assert "autoplay=0" in body
-    assert "autoplay=1" not in body
+    assert queue[0]["player"] == ""
 
 
-def test_a_video_first_still_autoplays(client):
-    body = client.get("/focus").text
-    assert "autoplay=1" in body
+def test_a_video_first_still_autoplays():
+    opening = focus_source().split("function pointFrameAtFirstVideo", 1)[1].split("\n}", 1)[0]
+    assert "playInFocusFrame(sitting, sitting.current, true)" in opening
 
 
 def test_the_timer_comes_from_settings(client, db):
@@ -486,24 +501,23 @@ def focus_source() -> str:
     return "\n".join(part.read_text() for part in sorted(FOCUS_PARTS.glob("*.ts")))
 
 
-def test_advancing_works_without_the_iframe_api():
-    """The reported failure: the button posted, the title changed, and the
-    video carried on playing, because the player was never attached and
-    loadVideoById had nothing to call. Advancing must not depend on it."""
-    body = focus_source().split("function showFocusVideo", 1)[1].split("\n}", 1)[0]
-
-    # With no player, the iframe itself is pointed at the next video.
-    assert "elements.frame.src = focusEmbedUrl(item.video_id)" in body
+def test_advancing_points_the_frame_at_the_next_video():
+    """The reported failure, once: the button posted, the title changed, and
+    the video carried on playing. Advancing does not wait on the player to
+    answer: the frame itself is pointed at the next one."""
+    body = focus_source().split("function playInFocusFrame", 1)[1].split("\n}", 1)[0]
+    assert "frame.src = src;" in body
 
 
-def test_the_player_is_built_however_the_api_turns_up():
-    """YT calls onYouTubeIframeAPIReady once per document, so a second boosted
-    visit never gets that callback at all."""
+def test_only_the_players_own_frame_and_origin_are_heard_or_told():
+    """Messages go to the declared origin only, and only that frame at that
+    origin is listened to; what it says is parsed as data, never drawn."""
     script = focus_source()
-
-    assert "function buildFocusPlayer" in script
-    assert "if (sitting.player || !sitting.elements.frame || !api || !api.Player) return;" in script
-    assert "setInterval" in script.split("function awaitYouTubeApi", 1)[1]   # polled too
+    hearing = script.split("function hearFocusPlayer", 1)[1].split("\n}", 1)[0]
+    assert "event.source !== frame.contentWindow || event.origin !== playing.player.origin" in hearing
+    assert "innerHTML" not in hearing
+    assert "postMessage(message, playing.player.origin)" in script
+    assert 'postMessage(message, "*")' not in script
 
 
 # -- the sitting keeps its place -------------------------------------------

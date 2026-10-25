@@ -13,36 +13,6 @@ interface Htmx {
   ): Promise<void>;
 }
 
-/** YouTube's IFrame Player API, loaded from youtube.com at runtime. */
-interface YouTubePlayer {
-  loadVideoById(videoId: string): void;
-  pauseVideo(): void;
-  stopVideo(): void;
-  /** How far into the video it is, and how long it is, in seconds. */
-  getCurrentTime(): number;
-  getDuration(): number;
-}
-
-/** What the player's events carry: its state. */
-interface YouTubePlayerEvent {
-  data: number;
-}
-
-/** The events Pamphlets listens to on the player. */
-interface YouTubePlayerOptions {
-  events: {
-    onReady?: () => void;
-    onStateChange?: (event: YouTubePlayerEvent) => void;
-    onError?: () => void;
-  };
-}
-
-/** The part of YouTube's IFrame API Pamphlets uses. */
-interface YouTubeApi {
-  Player: new (elementId: string, options: YouTubePlayerOptions) => YouTubePlayer;
-  PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };
-}
-
 /** One chart Chart.js has drawn: only what Pamphlets does with one. */
 interface ChartJsChart {
   destroy(): void;
@@ -79,7 +49,7 @@ interface LeafletLibrary {
 }
 
 /** What the page's scripts find on `window`: htmx, Chart.js, Leaflet,
- *  YouTube's API, and what charts.ts and maps.ts give the canvas's editor
+ *  and what charts.ts and maps.ts give the canvas's editor
  *  to draw with. */
 interface Window {
   htmx?: Htmx;
@@ -87,9 +57,6 @@ interface Window {
   L?: LeafletLibrary;
   drawCharts?: (root: ParentNode) => void;
   drawMaps?: (root: ParentNode) => void;
-  YT?: YouTubeApi;
-  /** Called once per document, by the API itself, when it has loaded. */
-  onYouTubeIframeAPIReady?: () => void;
 }
 
 /** htmx fires these on the body; only the target is ever read. */

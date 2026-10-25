@@ -7,6 +7,7 @@
 
 local references = require("references")
 local posts = require("posts")
+local player = require("player")
 
 return {
   kind = "youtube",
@@ -20,8 +21,9 @@ return {
   -- YouTube reads every channel's feed without complaint, so a second
   -- address for it is never worth offering.
   mirrors = false,
-  -- Focus mode plays its videos in the YouTube player it has built in.
-  player = "youtube",
+  -- Content view and pamphlets play its videos in YouTube's own embed,
+  -- declared rather than built in (player.lua).
+  player = player,
 
   -- What a channel publishes, each a switch on its box. Shorts and
   -- broadcasts start switched off: most people follow a channel for its

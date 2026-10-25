@@ -1,36 +1,56 @@
 """A Video leaflet: one video on a pamphlet's page — the address it is
-given, or the newest in a feed wired into it."""
+given, or the newest in a feed wired into it. Pamphlets knows no video
+service: an address plays in a frame only when an installed plugin's player
+claims it."""
 
 from __future__ import annotations
 
 import datetime as dt
+from urllib.parse import quote
 
 import pytest
 
+from pamphlets.config import CONFIG
 from pamphlets.models import Placement, Video, utcnow
 from pamphlets.services import graph
-from pamphlets.services.embeds import embed_for, youtube_id
+from pamphlets.services.embeds import embed_for
 from pamphlets.services.graph import leaflets
 from tests.test_graph import canvas, node_for  # noqa: F401
 
+ORIGIN = quote(CONFIG.public_url.rstrip("/"), safe="")
+FRAME = "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?enablejsapi=1&rel=0&autoplay=0&origin=" + ORIGIN
+
 
 @pytest.mark.parametrize("url, kind, src", [
-    ("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10", "youtube", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"),
-    ("https://youtu.be/dQw4w9WgXcQ", "youtube", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"),
-    ("https://youtube.com/shorts/dQw4w9WgXcQ", "youtube", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"),
-    ("https://vimeo.com/76979871", "vimeo", "https://player.vimeo.com/video/76979871"),
+    # Claimed by the YouTube plugin the suite installs, and played in its player.
+    ("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10", "frame", FRAME),
+    ("https://youtu.be/dQw4w9WgXcQ", "frame", FRAME),
+    ("https://youtube.com/shorts/dQw4w9WgXcQ", "frame", FRAME),
+    # No plugin claims it: Pamphlets has no Vimeo of its own.
+    ("https://vimeo.com/76979871", "link", "https://vimeo.com/76979871"),
     ("https://example.org/clip.MP4", "file", "https://example.org/clip.MP4"),
     ("https://example.org/watch/42", "link", "https://example.org/watch/42"),
+    ("javascript:alert(1)", "", ""),
     ("", "", ""),
 ])
-def test_an_address_is_played_the_way_its_host_allows(url, kind, src):
+def test_an_address_is_played_the_way_a_plugin_or_the_browser_can(db, url, kind, src):
     found = embed_for(url)
     assert (found.kind, found.src) == (kind, src)
 
 
-def test_not_every_youtube_looking_address_is_a_video():
-    assert youtube_id("https://www.youtube.com/@somebody") == ""
-    assert youtube_id("https://www.youtube.com/watch?v=short") == ""
+def test_not_every_youtube_looking_address_is_a_video(db):
+    assert embed_for("https://www.youtube.com/@somebody").kind == "link"
+    assert embed_for("https://www.youtube.com/watch?v=short").kind == "link"
+
+
+def test_with_its_plugin_off_an_address_is_only_a_link(db):
+    from pamphlets.plugins import registry
+
+    registry.set_paused("youtube", paused=True)
+    try:
+        assert embed_for("https://youtu.be/dQw4w9WgXcQ").kind == "link"
+    finally:
+        registry.set_paused("youtube", paused=False)
 
 
 def _paper(session):
@@ -48,7 +68,9 @@ def test_it_takes_an_address_or_a_feed(canvas, db):
         assert leaflets.words(video, {}) == "plays youtu.be"
         paper_pk = paper.id
     page = canvas.get(f"/pamphlets/{paper_pk}").text
-    assert 'src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"' in page and "Tonight" in page
+    assert f'src="{FRAME}"'.replace("&", "&amp;") in page and "Tonight" in page
+    # Sandboxed: another origin's page, which cannot navigate this one.
+    assert 'sandbox="allow-scripts allow-same-origin allow-presentation' in page
 
 
 def test_wired_to_a_feed_it_plays_the_newest_or_newest_unwatched(canvas, db):

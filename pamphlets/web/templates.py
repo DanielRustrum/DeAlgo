@@ -16,6 +16,7 @@ from ..models import (
     Playlist,
 )
 from ..plugins.publisher import publishing_plugin
+from ..plugins.registry.players import SANDBOX
 from ..services import connections
 from ..services import charting
 from ..services import graph as graph_service
@@ -225,3 +226,6 @@ def publishing_offline(owner: OwnerId = None) -> Context | None:
 TEMPLATES.env.globals["chart_number"] = charting.shown
 # Which leaflets are charts: one for each kind of chart.
 TEMPLATES.env.globals["chart_kinds"] = graph_service.leaflets.CHART_KINDS
+
+# Every plugin player's frame, wherever one is drawn (plugins/registry/players.py).
+TEMPLATES.env.globals["player_sandbox"] = SANDBOX

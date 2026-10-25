@@ -86,8 +86,8 @@ CHARTS: tuple[tuple[str, str], ...] = (
 
 #: Where a Link leaflet can go.
 GOES: tuple[tuple[str, str], ...] = (
-    ("focus", "Focus on a feed"),
-    ("feed", "Open a feed"),
+    ("focus", "Open a feed in Content view"),
+    ("feed", "Open a feed in List view"),
     ("url", "An address"),
 )
 
@@ -281,7 +281,7 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
         goes = given("goes")
         if goes is not None:
             if goes not in dict(GOES):
-                raise GraphError("A link goes to a feed, Focus, or an address.")
+                raise GraphError("A link goes to a feed, Content view, or an address.")
             said["goes"] = goes
         feed()
         url = given("url")
@@ -372,7 +372,7 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
             return str(said["url"]) or "open it and give an address"
         named = feed_named()
         if goes == "focus":
-            return f"Focus on “{named}”" if named else "Focus on everything"
+            return f"Content view of “{named}”" if named else "Content view of everything"
         return f"open “{named}”" if named else "wire a feed into it"
     return ""
 

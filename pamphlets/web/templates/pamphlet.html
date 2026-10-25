@@ -90,9 +90,11 @@
     {% set embed = said.embed %}
     {% if said.frozen_feed %}
       <p class="paper-note">❄ “{{ said.frozen_feed }}” is frozen: nothing from it plays until its canvas thaws.</p>
-    {% elif embed.kind in ('youtube', 'vimeo') %}
+    {% elif embed.kind == 'frame' %}
+      {#- A plugin's player: another origin's page, sandboxed (plugins/registry/players.py). -#}
       <div class="paper-video">
         <iframe src="{{ embed.src }}" title="{{ said.video_title or said.heading or 'Video' }}" loading="lazy"
+                sandbox="{{ player_sandbox }}"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
       </div>
@@ -240,7 +242,7 @@
     {% elif goes == 'focus' %}
       <a class="paper-turn is-focus"
          href="/focus{{ '?playlist=' ~ said.playlist.id if said.playlist }}">
-        {{ said.label or ('Read ' ~ said.playlist.title ~ ' in Focus' if said.playlist else 'Read everything in Focus') }} ▶</a>
+        {{ said.label or ('Read ' ~ said.playlist.title ~ ' in Content view' if said.playlist else 'Read everything in Content view') }} ▶</a>
     {% else %}
       <p class="paper-note">This link goes nowhere yet. Open it on the canvas and say where.</p>
     {% endif %}

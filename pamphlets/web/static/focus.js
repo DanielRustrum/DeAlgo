@@ -15,8 +15,7 @@ function finishFocusSitting(sitting) {
     elements.remaining.textContent = "0";
     elements.count.textContent = "0";
     setFocusStatus(sitting, "");
-    if (sitting.player)
-        sitting.player.stopVideo();
+    tellFocusPlayer(sitting, "stop");
 }
 /** The form the server is asked for the next item with. */
 function focusAdvanceBody(sitting, markWatched) {
@@ -52,8 +51,10 @@ function advanceFocus(sitting, markWatched) {
         return response.json();
     })
         .then((data) => {
+        var _a;
         sitting.advancing = false;
         setFocusStatus(sitting, "");
+        Object.assign(sitting.players, (_a = data.players) !== null && _a !== void 0 ? _a : {});
         if (!data.next) {
             finishFocusSitting(sitting);
             return;
@@ -127,94 +128,172 @@ function readFocusQueue() {
         return [];
     return JSON.parse((_a = script.textContent) !== null && _a !== void 0 ? _a : "[]");
 }
+/** The players the page was given, by source kind. */
+function readFocusPlayers() {
+    var _a;
+    const script = document.getElementById("focus-frames");
+    if (!script)
+        return {};
+    return JSON.parse((_a = script.textContent) !== null && _a !== void 0 ? _a : "{}");
+}
 /** Say something after the title, or clear it with an empty string. */
 function setFocusStatus(sitting, message) {
     sitting.elements.status.textContent = message ? ` · ${message}` : "";
 }
 
 "use strict";
-// The built-in "youtube" player (registry PLAYERS), and waiting for its API.
+// A source plugin's player: its frame, and the messages it is talked to with.
 //
-// Part of Focus mode; see main.ts.
-/** Attach YouTube's player to the existing iframe, once, when the API is here. */
-function buildFocusPlayer(sitting) {
-    const api = window.YT;
-    if (sitting.player || !sitting.elements.frame || !api || !api.Player)
-        return;
-    // Attaching to the existing iframe keeps our allow list. Letting the API
-    // build its own would re-add the pop-out button over fullscreen.
-    sitting.player = new api.Player("focus-player", {
-        events: {
-            onReady: () => {
-                sitting.ready = true;
-                setFocusStatus(sitting, "");
-                // Opened on a post: the player is loaded but must stay quiet.
-                if (focusIsRead(sitting.current) && sitting.player)
-                    sitting.player.pauseVideo();
-            },
-            onStateChange: (event) => {
-                // Stopping and starting again is what engagement is counted from.
-                if (event.data === api.PlayerState.PLAYING)
-                    sitting.seen.playing = true;
-                if (event.data === api.PlayerState.PAUSED && sitting.seen.playing) {
-                    sitting.seen.pauses += 1;
-                    sitting.seen.playing = false;
-                }
-                noteFocusPosition(sitting);
-                if (event.data === api.PlayerState.ENDED && !focusIsRead(sitting.current)) {
-                    advanceFocus(sitting, true);
-                }
-            },
-            onError: () => {
-                // Private, deleted or not embeddable: do not strand the queue on it.
-                if (focusIsRead(sitting.current))
-                    return;
-                setFocusStatus(sitting, "this one would not play — skipping");
-                advanceFocus(sitting, false);
-            },
-        },
-    });
+// Part of Content view; see main.ts.
+//
+// Pamphlets has no player of its own, and loads no player's script. A plugin
+// declares one as data (plugins/registry/players.py): the frame's address on
+// one https origin, the messages to say to it, and which messages heard back
+// mean playing, paused, ended or failed. The frame is sandboxed and from
+// another origin, so it can reach nothing of this page. Messages go only to
+// that origin, and only messages from that frame and that origin are heard;
+// what they say is read at the paths the plugin named and compared, never
+// drawn or run.
+/** A video's key as it may go into a frame's address (players.py KEY). */
+function focusKeyIsPlain(key) {
+    return /^[A-Za-z0-9_.~-]{1,128}$/.test(key) && key !== "." && key !== "..";
 }
-/**
- * Attach the player once YouTube's API is here, however it arrives.
- *
- * Getting hold of the API is the fiddly part, because this page is usually
- * reached through an hx-boost swap rather than a page load:
- *
- *   * a script htmx inserts does not honour `defer`, so load order is not
- *     guaranteed and the API can run before the callback below exists;
- *   * YT calls onYouTubeIframeAPIReady exactly once per document, so on a
- *     second visit within the same document it never fires at all.
- *
- * Either way the player would stay null, the queue would stop advancing, and
- * the video on screen would simply keep playing. So: take the API if it is
- * already here, ask to be told if it is not, and poll as well, since neither
- * signal is reliable on its own.
- */
-function awaitYouTubeApi(sitting) {
+/** The frame's address for one video, the way players.py fills it in. */
+function focusFrameUrl(player, key, autoplay) {
+    if (!focusKeyIsPlain(key))
+        return "";
+    return player.frame
+        .split("{key}").join(encodeURIComponent(key))
+        .split("{autoplay}").join(autoplay ? "1" : "0")
+        .split("{origin}").join(encodeURIComponent(window.location.origin));
+}
+/** One field of what a player said, by its dotted path. */
+function focusHeardAt(said, path) {
+    let here = said;
+    for (const part of path.split(".")) {
+        if (here === null || typeof here !== "object")
+            return undefined;
+        here = here[part];
+    }
+    return here;
+}
+/** Whether what was heard is any of the ways a state is said. */
+function focusHeardAs(said, ways) {
+    return (ways !== null && ways !== void 0 ? ways : []).some((fields) => Object.entries(fields).every(([path, value]) => focusHeardAt(said, path) === value));
+}
+/** Say one of the plugin's messages to the frame, at its origin only. */
+function tellFocusPlayer(sitting, what) {
+    const playing = sitting.playing;
+    const frame = sitting.elements.frame;
+    const message = playing === null || playing === void 0 ? void 0 : playing.player.say[what];
+    if (!playing || !frame || !frame.contentWindow || !message)
+        return;
+    frame.contentWindow.postMessage(message, playing.player.origin);
+}
+/** Say hello until the player answers: some only talk once told someone
+ *  is listening, and a frame still loading hears nothing. */
+function greetFocusPlayer(sitting, playing) {
+    const frame = sitting.elements.frame;
+    if (!frame || playing.player.hello.length === 0)
+        return;
+    let tries = 0;
+    const greeting = window.setInterval(() => {
+        tries += 1;
+        if (sitting.playing !== playing || playing.heard || tries > 40) {
+            window.clearInterval(greeting);
+            return;
+        }
+        playing.player.hello.forEach((message) => {
+            var _a;
+            (_a = frame.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, playing.player.origin);
+        });
+    }, 250);
+}
+/** Play one item in its source's player, in the page's one frame. */
+function playInFocusFrame(sitting, item, autoplay) {
+    const frame = sitting.elements.frame;
+    const player = sitting.players[item.player];
+    if (!frame || !player)
+        return false;
+    const src = focusFrameUrl(player, item.video_id, autoplay);
+    if (!src)
+        return false;
+    const playing = { player, itemId: item.id, heard: false, ended: false, time: 0, duration: 0 };
+    sitting.playing = playing;
+    frame.addEventListener("load", () => greetFocusPlayer(sitting, playing), { once: true });
+    frame.src = src;
+    return true;
+}
+/** What the player in the frame says, if it is that player saying it. */
+function hearFocusPlayer(sitting, event) {
+    const playing = sitting.playing;
+    const frame = sitting.elements.frame;
+    if (!playing || !frame || event.source !== frame.contentWindow || event.origin !== playing.player.origin)
+        return;
+    let said = event.data;
+    if (typeof said === "string") {
+        // The most of one message that is read at all.
+        if (said.length > 65536)
+            return;
+        try {
+            said = JSON.parse(said);
+        }
+        catch (_a) {
+            return;
+        }
+    }
+    if (said === null || typeof said !== "object")
+        return;
+    const hears = playing.player.hears;
+    if (!playing.heard) {
+        playing.heard = true;
+        sitting.ready = true;
+        setFocusStatus(sitting, "");
+        // Opened on something read: the player is there for what comes next,
+        // and must stay quiet.
+        if (focusIsRead(sitting.current))
+            tellFocusPlayer(sitting, "pause");
+    }
+    const time = hears.time ? focusHeardAt(said, hears.time) : undefined;
+    if (typeof time === "number" && Number.isFinite(time))
+        playing.time = time;
+    const duration = hears.duration ? focusHeardAt(said, hears.duration) : undefined;
+    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0)
+        playing.duration = duration;
+    noteFocusPosition(sitting);
+    // Stopping and starting again is what engagement is counted from.
+    if (focusHeardAs(said, hears.playing))
+        sitting.seen.playing = true;
+    if (focusHeardAs(said, hears.paused) && sitting.seen.playing) {
+        sitting.seen.pauses += 1;
+        sitting.seen.playing = false;
+    }
+    if (playing.itemId !== sitting.current.id || focusIsRead(sitting.current) || playing.ended)
+        return;
+    if (focusHeardAs(said, hears.ended)) {
+        playing.ended = true;
+        advanceFocus(sitting, true);
+    }
+    else if (focusHeardAs(said, hears.failed)) {
+        // Private, deleted or not embeddable: do not strand the queue on it.
+        playing.ended = true;
+        setFocusStatus(sitting, "this one would not play — skipping");
+        advanceFocus(sitting, false);
+    }
+}
+/** Listen to the frame for as long as this sitting's page is the one shown. */
+function listenToFocusPlayer(sitting) {
     if (!sitting.elements.frame)
         return;
-    let waited = 0;
-    const waiting = window.setInterval(() => {
-        buildFocusPlayer(sitting);
-        waited += 200;
-        if (sitting.player || waited > 15000)
-            window.clearInterval(waiting);
-    }, 200);
-    const earlier = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-        if (typeof earlier === "function")
-            earlier();
-        buildFocusPlayer(sitting);
+    const hearing = (event) => {
+        // htmx swapped another page in: this sitting is over.
+        if (!document.body.contains(sitting.elements.root)) {
+            window.removeEventListener("message", hearing);
+            return;
+        }
+        hearFocusPlayer(sitting, event);
     };
-    // Load the API ourselves, after the callback exists. Adding it twice is
-    // harmless: the browser reuses the script it already has.
-    if (!window.YT) {
-        const script = document.createElement("script");
-        script.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(script);
-    }
-    buildFocusPlayer(sitting);
+    window.addEventListener("message", hearing);
 }
 
 "use strict";
@@ -273,11 +352,6 @@ function paintFocusQueue(sitting, items) {
 // Showing one item: a video in the player, or a post on its own.
 //
 // Part of Focus mode; see main.ts.
-/** The privacy-enhanced embed address for a video, set to autoplay. */
-function focusEmbedUrl(videoId) {
-    const origin = encodeURIComponent(window.location.origin);
-    return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&rel=0&origin=${origin}`;
-}
 /** One picture from a post, linking to itself. */
 function buildFocusTile(url) {
     const link = document.createElement("a");
@@ -294,11 +368,11 @@ function buildFocusTile(url) {
     return link;
 }
 /** Whether this is read rather than played. Asked as "has no player" so a
- *  source that chose none is read by default, which is the safe way round:
+ *  source that gives none is read by default, which is the safe way round:
  *  the worst case is a reading timer on something, not an empty player
- *  nobody can advance. "youtube" is the one player built in. */
+ *  nobody can advance. */
 function focusIsRead(item) {
-    return item.player !== "youtube";
+    return item.player === "";
 }
 /** Whether this one is on the clock at all.
  *
@@ -330,29 +404,24 @@ function showFocusPost(sitting, item) {
     elements.post.hidden = false;
     elements.timer.hidden = !focusIsTimed(item);
     elements.stage.hidden = true;
-    if (sitting.player)
-        sitting.player.pauseVideo();
+    tellFocusPlayer(sitting, "pause");
     if (focusIsTimed(item))
         startFocusTimer(sitting, item);
     else
         stopFocusTimer(sitting);
 }
-/** Show a video in the player, or reload the iframe if the API never came. */
+/** Show a video in its source's player. */
 function showFocusVideo(sitting, item) {
     stopFocusTimer(sitting);
     const elements = sitting.elements;
     elements.post.hidden = true;
     elements.timer.hidden = true;
     elements.stage.hidden = false;
-    if (sitting.player) {
-        sitting.player.loadVideoById(item.video_id);
-        return;
+    if (!playInFocusFrame(sitting, item, true)) {
+        // Its plugin was switched off since, or the frame is not on this page:
+        // read it instead, rather than show a player that will never play.
+        showFocusPost(sitting, item);
     }
-    // No API attached — reload the iframe itself. Advancing must work even when
-    // YouTube's script never arrives, or the queue is stuck on whatever happens
-    // to be on screen.
-    if (elements.frame)
-        elements.frame.src = focusEmbedUrl(item.video_id);
 }
 /** Show the next item, of whichever kind, and update the counts and links. */
 function showFocusItem(sitting, item, remaining) {
@@ -497,16 +566,15 @@ function toggleFocusTimer(sitting) {
 // each time it swaps the Focus page in, and a top-level `const` or `class` would throw "already declared"
 // on the second visit. Everything a sitting needs to remember therefore lives
 // in one FocusSitting object, passed explicitly rather than captured.
-/** Load the first video, with the origin the page is actually served from. */
+/** Load the first video, if a video is what opens: played, with the origin
+ *  the page is actually served from rather than whatever PAMPHLETS_PUBLIC_URL
+ *  happens to say. Opening on something read leaves the frame empty until a
+ *  video comes, so nothing plays underneath the reading. */
 function pointFrameAtFirstVideo(sitting) {
-    var _a;
-    const frame = sitting.elements.frame;
-    if (!frame)
+    if (focusIsRead(sitting.current))
         return;
-    // The origin has to be the host actually browsed to, not whatever
-    // PAMPHLETS_PUBLIC_URL happens to say.
-    const source = (_a = frame.dataset["src"]) !== null && _a !== void 0 ? _a : "";
-    frame.src = `${source}&origin=${encodeURIComponent(window.location.origin)}`;
+    if (!playInFocusFrame(sitting, sitting.current, true))
+        showFocusPost(sitting, sitting.current);
 }
 /** Wire up Next, Skip and the timer's pause button. */
 function bindFocusControls(sitting) {
@@ -520,8 +588,8 @@ function warnIfPlayerNeverWakes(sitting) {
     window.setTimeout(() => {
         if (sitting.ready)
             return;
-        setFocusStatus(sitting, sitting.player
-            ? "the player is not responding — try Reload"
+        setFocusStatus(sitting, sitting.playing
+            ? "the player is not responding — Done · next still works, or try Reload"
             : "auto-advance is unavailable — Done · next still works");
     }, 8000);
 }
@@ -537,7 +605,8 @@ function newFocusSitting(root, opening) {
         locked: false,
         current: opening,
         passedOver: [],
-        player: null,
+        players: readFocusPlayers(),
+        playing: null,
         ready: false,
         advancing: false,
         timerId: null,
@@ -556,18 +625,13 @@ function focusPickedId(opening) {
 function freshFocusSeen(pickedId) {
     return { shownAt: Date.now(), pauses: 0, reached: 0, duration: 0, playing: false, pickedId };
 }
-/** Read how far the player got, while it can still be asked. */
+/** How far the player got, as far as it has said. */
 function noteFocusPosition(sitting) {
-    const player = sitting.player;
-    if (player === null || focusIsRead(sitting.current))
+    const playing = sitting.playing;
+    if (playing === null || playing.itemId !== sitting.current.id || focusIsRead(sitting.current))
         return;
-    try {
-        sitting.seen.reached = Math.max(sitting.seen.reached, player.getCurrentTime() || 0);
-        sitting.seen.duration = player.getDuration() || sitting.seen.duration;
-    }
-    catch (_a) {
-        // A player not ready yet has nothing to say.
-    }
+    sitting.seen.reached = Math.max(sitting.seen.reached, playing.time);
+    sitting.seen.duration = playing.duration || sitting.seen.duration;
 }
 /** How the open item went, as form fields. */
 function focusSeenFields(sitting, body) {
@@ -602,8 +666,8 @@ function initFocusMode() {
     const sitting = newFocusSitting(root, opening);
     bindFocusControls(sitting);
     sayFocusSeenOnLeaving(sitting);
+    listenToFocusPlayer(sitting);
     pointFrameAtFirstVideo(sitting);
-    awaitYouTubeApi(sitting);
     // The opening item laid out by its plugin is asked for now; the server
     // drew only its title.
     if (focusIsRead(sitting.current) && sitting.current.view) {

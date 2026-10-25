@@ -484,7 +484,7 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
     form.appendChild(graphLabelled("Video's address", graphLeafletText("leaflet_url", said("url"), "https://www.youtube.com/watch?v=…")));
     form.appendChild(graphElement("p", "hint",
-      "YouTube and Vimeo play in their own player, and a .mp4, .webm or .ogg file in the browser's. Anything else is a link to it."));
+      "An address an installed plugin knows as one of its videos plays in that plugin's player, and a .mp4, .webm or .ogg file in the browser's. Anything else is a link to it."));
     fromWire();
     const picks: GraphChoice[] = [
       { name: "newest", label: "The newest in it" },
@@ -504,7 +504,7 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     fromWire();
     form.appendChild(graphLabelled("Address", graphLeafletText("leaflet_url", said("url"), "https://")));
     form.appendChild(graphLabelled("Says", graphLeafletText("leaflet_label", said("label"), "worked out from where it goes")));
-    form.appendChild(graphElement("p", "hint", "Focus with no feed wired in goes through everything."));
+    form.appendChild(graphElement("p", "hint", "Content view with no feed wired in goes through everything."));
   }
 }
 

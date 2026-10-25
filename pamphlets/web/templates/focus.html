@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Pamphlets — Focus{% endblock %}
+{% block title %}Pamphlets — Content view{% endblock %}
 {% block content %}
 
-{# Played in the built-in YouTube player: what its source's plugin chose. #}
-{% set clip = queue | selectattr('player', 'equalto', 'youtube') | first %}
+{# Anything here played rather than read: in its source plugin's player. #}
+{% set clip = queue | selectattr('player') | first %}
 {# Back to the whole list. Carrying the playlist through would filter the feed
    page down to the one feed just watched, which reads as the others having
    vanished. Order and show were passed too, and the page has ignored both
    since each feed started keeping its own. #}
 <p class="crumbs">
-  <a href="/feed">← Feed</a>
+  <a href="/feed">← List view</a>
   {% if playlist_title %} · {{ playlist_title }}{% endif %}
 </p>
 
@@ -18,30 +18,28 @@
          data-order="{{ order }}" data-playlist="{{ playlist }}"
          data-post-seconds="{{ post_seconds }}">
   <script type="application/json" id="focus-queue">{{ queue_json | safe }}</script>
+  <script type="application/json" id="focus-frames">{{ players_json | safe }}</script>
 
   {# Hidden for anything read rather than played. Asked as "has a player" so
      a source with none hides the stage rather than showing an empty one. #}
   <div class="focus-stage" id="focus-stage" {{ 'hidden' if not queue[0].player }}>
     {% if clip %}
-    {# The player is our own iframe rather than one the IFrame API builds: left
-       to itself it sets allow="…; picture-in-picture; web-share", putting the
-       browser's pop-out button back over the fullscreen control. The API
-       attaches to an existing iframe when it finds one, and allowfullscreen
-       here is what keeps fullscreen working.
-
-       focus.js fills in src, so the origin matches whatever host you browsed
-       to rather than whatever PAMPHLETS_PUBLIC_URL happens to say. Autoplay is on
-       only when a video is what opens: starting on a post must not play audio
-       underneath the reading. #}
+    {# A source plugin's player: a frame from the one https origin its plugin
+       declared, sandboxed, with nothing of ours in it. focus.js points it at
+       each video — so the origin it is told is the host actually browsed to
+       — and talks to it only by postMessage, with the plugin's own messages
+       (plugins/registry/players.py). No player's script is loaded here.
+       Fullscreen stays; picture-in-picture is left out of `allow`, which
+       keeps the browser's pop-out button off the fullscreen control. #}
     <iframe id="focus-player"
-            data-src="https://www.youtube-nocookie.com/embed/{{ clip.video_id }}?enablejsapi=1&amp;autoplay={{ 1 if queue[0].player else 0 }}&amp;rel=0"
             title="{{ clip.title }}"
+            sandbox="{{ player_sandbox }}"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
             referrerpolicy="strict-origin-when-cross-origin"
             allowfullscreen></iframe>
     {% endif %}
     <noscript>
-      <p class="empty">Focus mode needs JavaScript. <a href="/feed">Use the feed instead.</a></p>
+      <p class="empty">Content view needs JavaScript. <a href="/feed">Use List view instead.</a></p>
     </noscript>
   </div>
 
@@ -94,7 +92,7 @@
     </div>
     <div class="focus-actions">
       {# A real page load, not a boosted swap: the point is to rebuild the
-         player from scratch, and the YouTube API only initialises on load. #}
+         player from scratch. #}
       <a class="btn btn-quiet" id="focus-reload" hx-boost="false"
          href="/focus?start={{ queue[0].id }}&order={{ order }}&playlist={{ playlist }}"
          title="Rebuild the player on this one, keeping your place in the queue">Reload</a>
@@ -124,9 +122,6 @@
   </div>
 </section>
 
-{# focus.js loads the IFrame API itself. A script tag here would be inserted
-   by htmx on a boosted navigation, where `defer` no longer orders anything,
-   and could run before the ready callback exists. #}
 <script src="/static/focus.js?v={{ asset_version }}" defer></script>
 {% else %}
 <section class="panel">

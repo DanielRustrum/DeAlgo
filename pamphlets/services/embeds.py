@@ -1,19 +1,16 @@
 """A video's address, as something a page can play.
 
-YouTube and Vimeo give a player of their own to put in a frame: YouTube's
-from youtube-nocookie.com, as Focus mode's is, so watching on a pamphlet sets
-no cookie until play is pressed. A file — .mp4, .webm, .ogg — plays in the
-browser's own player. Anything else is a link to where it is.
+Pamphlets knows no video service. An address one of the installed plugins
+claims as one of its videos (`player.videos`) plays in that plugin's player
+frame (plugins/registry/players.py). A file — .mp4, .webm, .ogg — plays in
+the browser's own player. Anything else is a link to where it is.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
-#: A YouTube video's id: eleven of these.
-YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 #: Files a browser plays by itself.
 FILES = (".mp4", ".webm", ".ogg", ".ogv", ".mov", ".m4v")
 
@@ -22,7 +19,7 @@ FILES = (".mp4", ".webm", ".ogg", ".ogv", ".mov", ".m4v")
 class Embed:
     """How a page shows one video."""
 
-    #: "youtube" or "vimeo" for a frame, "file" for the browser's player,
+    #: "frame" for a plugin's player, "file" for the browser's player,
     #: "link" for neither, "" for no video at all.
     kind: str
     #: What goes in the frame or the player; the address itself for a link.
@@ -31,37 +28,40 @@ class Embed:
     page: str
 
 
-def youtube_id(url: str) -> str:
-    """A YouTube video's id from any of the ways its address is written, or ""."""
-    parts = urlparse(url)
-    host = (parts.hostname or "").lower().removeprefix("www.").removeprefix("m.")
-    found = ""
-    if host == "youtu.be":
-        found = parts.path.strip("/").split("/")[0]
-    elif host in ("youtube.com", "youtube-nocookie.com", "music.youtube.com"):
-        if parts.path == "/watch":
-            found = (parse_qs(parts.query).get("v") or [""])[0]
-        else:
-            bits = [one for one in parts.path.split("/") if one]
-            if len(bits) >= 2 and bits[0] in ("embed", "shorts", "live", "v"):
-                found = bits[1]
-    return found if YOUTUBE_ID.match(found) else ""
+def _origin() -> str:
+    """Where Pamphlets is, for a player that asks: a page's own browser may
+    know better, but a page drawn on the server has only this to say."""
+    from ..config import CONFIG
+
+    found = urlparse(CONFIG.public_url)
+    return f"{found.scheme}://{found.netloc}"
+
+
+def embed_for_item(source_kind: str, key: str, page: str) -> Embed:
+    """How to show one item: in its source's player if its plugin gives one,
+    else as its address would be."""
+    from ..plugins import registry
+
+    player = registry.current().player(source_kind)
+    src = player.src(key, autoplay=False, origin=_origin()) if player is not None else ""
+    return Embed("frame", src, page) if src else embed_for(page)
 
 
 def embed_for(url: str) -> Embed:
     """How to show the video at `url`."""
+    from ..plugins import registry
+
     url = (url or "").strip()
     if not url:
         return Embed("", "", "")
-    found = youtube_id(url)
-    if found:
-        return Embed("youtube", f"https://www.youtube-nocookie.com/embed/{found}?rel=0", url)
     parts = urlparse(url)
-    host = (parts.hostname or "").lower().removeprefix("www.")
-    if host in ("vimeo.com", "player.vimeo.com"):
-        number = next((one for one in parts.path.split("/") if one.isdigit()), "")
-        if number:
-            return Embed("vimeo", f"https://player.vimeo.com/video/{number}", url)
+    if parts.scheme not in ("http", "https"):
+        return Embed("", "", "")
+    claimed = registry.current().video_at(url)
+    if claimed is not None:
+        player, key = claimed
+        # Not started until it is pressed: a page of them must not all play.
+        return Embed("frame", player.src(key, autoplay=False, origin=_origin()), url)
     if parts.path.lower().endswith(FILES):
         return Embed("file", url, url)
     return Embed("link", url, url)

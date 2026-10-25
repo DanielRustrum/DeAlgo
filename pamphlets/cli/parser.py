@@ -16,7 +16,7 @@ from .watching import cmd_remove_watched, cmd_watched
 
 def build_parser() -> argparse.ArgumentParser:
     """The command line: one subcommand per `cmd_*` function."""
-    parser = argparse.ArgumentParser(prog="pamphlets", description="A YouTube feed that is yours, not the algorithm's.")
+    parser = argparse.ArgumentParser(prog="pamphlets", description="Your feeds, wired by you. No algorithm in the loop.")
     parser.add_argument("--version", action="version", version=f"pamphlets {__version__}")
     sub = parser.add_subparsers(dest="command")
 
@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     add = sub.add_parser("add", help="watch a channel")
     add.add_argument(
         "reference",
-        help="a YouTube @handle, URL or UC… id; an r/community; a Bluesky handle; or a feed address",
+        help="a feed address, or anything an installed plugin recognises",
     )
     add.set_defaults(func=cmd_add)
 

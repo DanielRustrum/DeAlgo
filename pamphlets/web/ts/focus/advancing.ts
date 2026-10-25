@@ -15,7 +15,7 @@ function finishFocusSitting(sitting: FocusSitting): void {
   elements.remaining.textContent = "0";
   elements.count.textContent = "0";
   setFocusStatus(sitting, "");
-  if (sitting.player) sitting.player.stopVideo();
+  tellFocusPlayer(sitting, "stop");
 }
 
 /** The form the server is asked for the next item with. */
@@ -55,6 +55,7 @@ function advanceFocus(sitting: FocusSitting, markWatched: boolean): void {
     .then((data): void => {
       sitting.advancing = false;
       setFocusStatus(sitting, "");
+      Object.assign(sitting.players, data.players ?? {});
       if (!data.next) {
         finishFocusSitting(sitting);
         return;

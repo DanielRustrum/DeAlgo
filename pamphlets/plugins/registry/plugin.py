@@ -13,6 +13,7 @@ from .. import permissions
 # an `__all__`, which would also hide every function here from the reference.
 from ..runtime import Sandbox
 from .connect import Connect
+from .players import Player
 from .settings import Settings
 from .storage import home_of
 
@@ -85,9 +86,10 @@ class SourceKind:
     #: Whether a second address for its feed is worth offering. False for a
     #: service that never refuses a reader.
     mirrors: bool = True
-    #: Which of `PLAYERS` plays its videos in Focus mode; "" for none, and
-    #: then they are read rather than played.
-    player: str = ""
+    #: The frame its videos play in, in Content view and on pamphlets, and
+    #: how to talk to it (players.py); None for none, and then they are read
+    #: rather than played.
+    player: Player | None = None
     #: The CSS its view is styled with, scoped to that view (plugin_views.py).
     style: str = ""
     _recognise: Any = None
@@ -97,6 +99,8 @@ class SourceKind:
     _refine: Any = None
     _posts: Any = None
     _home: Any = None
+    #: Which addresses are its videos: `videos(address)` gives the key.
+    _videos: Any = None
     #: Which of `takes` one item is.
     _classify: Any = None
     #: How one of its items is laid out in Focus mode: XML (plugin_views.py).
@@ -169,15 +173,6 @@ AUGMENTS: dict[str, str] = {"filter": "keep", "sort": "rank", "transform": "tran
 SOURCE_COLOURS: tuple[str, ...] = ("green", "moss", "jade", "sky", "pink", "red", "slate")
 
 
-#: The players Focus mode has built in, by name. A source picks one with
-#: `player = "…"`, and its items of kind "video" are played in it; anything
-#: else is read rather than played.
-#:
-#: Built in rather than a plugin's own, because a player is code that runs in
-#: the browser with the signed-in person's session, and a plugin is Lua that
-#: is never handed one. Each is the one place a service's embed lives:
-#: `web/templates/focus.html` and `web/ts/focus/player.ts` for "youtube".
-PLAYERS: tuple[str, ...] = ("youtube",)
 
 
 @dataclass(frozen=True)
