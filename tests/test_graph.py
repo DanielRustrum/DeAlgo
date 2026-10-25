@@ -1534,15 +1534,18 @@ def test_the_palette_folds_away_what_is_optional(canvas):
 
     assert "<summary>Operations</summary>" in body
     assert "<summary>Triggers</summary>" in body
-    # Operations, Augmentations, Triggers, Plugins, Pamphlets, Charts, Layout. The plugins one
+    # Operations, Augmentations, Triggers, Plugins, Pamphlets — Charts folded
+    # inside it, a leaflet for each kind of chart — and Layout. The plugins one
     # is there because a shipped plugin offers augmentations; a plugin
     # offering none adds nothing.
     #
     # The conditions are filed under Augmentations rather than apart from
     # them: they are the same sort of thing, and two folds said they were not.
     assert '<summary>Conditions</summary>' not in body
-    assert body.count('<details class="palette-group">') == 7
+    assert body.count('<details class="palette-group">') == 6
     assert "<summary>Charts</summary>" in body
+    pamphlets = body.split("<summary>Pamphlets</summary>", 1)[1].split("<summary>Layout</summary>", 1)[0]
+    assert "<summary>Charts</summary>" in pamphlets
     assert "<summary>Plugins</summary>" in body
     assert "palette-group\" open" not in body
 
