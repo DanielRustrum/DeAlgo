@@ -2,24 +2,14 @@
 
 Plugins add kinds of [source](Nodes/Sources.md), [conditions](Nodes/Filter.md) and
 [transformations](Nodes/Transform.md) to everyone's palette, and can lay their items out their own way in
-[Focus mode](Focus%20Mode.md). They are written in Lua and run inside a sandbox. Managing them is **admin only**: **Admin → Plugins**.
+[Content view](Content%20View.md). They are written in Lua and run inside a sandbox. Managing them is **admin only**: **Admin → Plugins**.
 
 ![Admin → Plugins: an installed plugin, and adding one from a repository](images/plugins.png)
 
-None come with Pamphlets: every plugin is installed, from a repository or a file. Those that used to
-come with it each live in a repository of their own:
-
-| Plugin | Repository |
-| --- | --- |
-| **Reddit** | `https://repo.home.app/Rusty/Pamphlets-Reddit-Plugin.git` |
-| **Bluesky** | `https://repo.home.app/Rusty/Pamphlets-Bluesky-Plugin.git` |
-| **Substack** | `https://repo.home.app/Rusty/Pamphlets-Substack-Plugin.git` |
-| **YouTube** | `https://repo.home.app/Rusty/Pamplets-YouTube-Plugin.git` |
-| **Shape** | *(no repository yet)* |
-
-Each installs under the id its sources and conditions were stored against — `reddit`, `youtube` — so
-a setup made while they came with Pamphlets works again as soon as they are installed. Until then,
-its sources are not read and its conditions do nothing.
+None come with Pamphlets: every plugin is installed, from a repository or a file. A source or
+condition is stored against its plugin's id, so a setup that uses a plugin works again as soon as a
+plugin with that id is installed. Until then, its sources are not read and its conditions do
+nothing.
 
 ## The list
 

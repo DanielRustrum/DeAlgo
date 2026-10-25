@@ -12,12 +12,12 @@ the [Table of Contents](Table%20of%20Contents.md).
 - [Environment Variables](Environment%20Variables.md) — every setting read at start-up.
 - [Running in Production](Running%20in%20Production.md) — reverse proxies, clusters, Portainer.
 - [Accounts](Accounts.md) — sign-in, the admin, and members.
-- [Connecting YouTube](Connecting%20YouTube.md) — only needed to write to real YouTube playlists.
+- [Connecting an Account](Connecting%20an%20Account.md) — only needed for a plugin that writes back to its service.
 
 ## Reading
 
-- [The Feed Page](The%20Feed%20Page.md) — where you browse what arrived.
-- [Focus Mode](Focus%20Mode.md) — watch and read one item after another.
+- [List View](List%20View.md) — where you browse what arrived.
+- [Content View](Content%20View.md) — watch and read one item after another.
 - [Watched Items](Watched%20Items.md) — marking items done and clearing them out.
 - [The Raw List](The%20Raw%20List.md) — every item Pamphlets has seen, and why it went where it did.
 
@@ -56,7 +56,7 @@ Every box and piece on the canvas. See [Nodes](Nodes/README.md).
 
 - [Settings](Settings.md) — what each account can change.
 - [Theming](Theming.md) — your own colours, type, corners and spacing.
-- [Quota](Quota.md) — YouTube's daily API allowance.
+- [Quota](Quota.md) — a service's daily allowance, kept count of.
 - [Backup and Restore](Backup%20and%20Restore.md) — save and reload your own setup.
 - [Moving an Instance](Moving%20an%20Instance.md) — every account, encrypted, to another machine.
 - [Plugins](Plugins.md) — add, fetch, permit and pause plugins (admin only).

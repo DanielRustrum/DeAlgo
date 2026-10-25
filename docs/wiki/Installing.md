@@ -44,8 +44,8 @@ python -m venv .venv
    [The Configuration Canvas](The%20Configuration%20Canvas.md).
 3. [Switch the source on](Nodes/Sources.md#adding-one) — new sources start paused.
 
-A Google account is optional. You only need one to write into real YouTube playlists — see
-[Connecting YouTube](Connecting%20YouTube.md).
+No account anywhere else is needed. A plugin that writes back to its service asks for one — see
+[Connecting an Account](Connecting%20an%20Account.md).
 
 ## Where data lives
 

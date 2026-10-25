@@ -12,7 +12,7 @@ The [API reference](autodoc/README.md) has the rest.
 
 | Folder | What it is | Modules |
 | --- | --- | --- |
-| `pamphlets/` | Pamphlets — a YouTube feed that answers to you, not the algorithm. | `__main__`, `config`, `outgoing`, `scheduler`, `cli/`, `db/`, `models/`, `plugins/`, `services/`, `sources/`, `web/` |
+| `pamphlets/` | Pamphlets — your feeds, wired by you, answering to you and not the algorithm. | `__main__`, `config`, `outgoing`, `scheduler`, `cli/`, `db/`, `models/`, `plugins/`, `services/`, `sources/`, `web/` |
 | `pamphlets/cli/` | The command line's commands, one module per subject. | `backups`, `logs`, `parser`, `serving`, `sources`, `status`, `syncing`, `watching` |
 | `pamphlets/db/` | The database: engine, sessions, and bringing the schema up to date. | `engine`, `rows`, `startup`, `migrations/` |
 | `pamphlets/db/migrations/` | Every change to the schema since the first release. | `columns`, `feeds`, `pieces`, `uniqueness`, `wires` |
@@ -35,7 +35,7 @@ The [API reference](autodoc/README.md) has the rest.
 | `pamphlets/sources/kinds/` | What a reference turns out to be, asked of the plugins that know. | `addresses`, `resolving`, `vocabulary` |
 | `pamphlets/sources/syndication/` | Reading a feed, whichever of the two shapes it is written in. | `atom`, `entries`, `feed`, `pictures`, `rss`, `text` |
 | `pamphlets/web/` | The web app: one FastAPI app, its server-rendered pages, and the scripts and styles they load. | `app`, `contexts`, `guard`, `responses`, `scripts`, `styles`, `templates`, `routes/` |
-| `pamphlets/web/routes/` | Every page and endpoint, one module per part of the app. | `activity`, `admin`, `configuration`, `feed`, `feeds`, `focus`, `google`, `home`, `plugins`, `settings`, `shell`, `signing_in`, `sources`, `videos`, `canvas/` |
+| `pamphlets/web/routes/` | Every page and endpoint, one module per part of the app. | `activity`, `admin`, `configuration`, `feed`, `feeds`, `focus`, `connections`, `home`, `plugins`, `settings`, `shell`, `signing_in`, `sources`, `videos`, `canvas/` |
 | `pamphlets/web/routes/canvas/` | The canvas's API. | `editing`, `facts`, `groups`, `notes`, `payload`, `running`, `saving`, `trying` |
 
 ## Everything else
@@ -45,7 +45,6 @@ pamphlets/web/templates/      Jinja2 pages; files starting _ are partials
 pamphlets/web/styles/         Stylesheet sources for Tailwind; tokens.css is the theme, graph/ the canvas
 pamphlets/web/ts/             Browser scripts; graph/ and focus/ are scripts written as parts
 pamphlets/web/static/         Compiled app.css and *.js (committed), fonts, icons, htmx
-pamphlets/plugins/builtin/    Shipped plugins: youtube, reddit, bluesky, substack, shape
 ops/                       DevOps scripts: build CSS, join scripts, docs TOC, screenshots, publish the wiki and releases
 tests/                     pytest suite, fakes.py, and Node harnesses for the scripts
 docs/wiki/                 User wiki (Nodes/ and Creating A Plugin/ inside)

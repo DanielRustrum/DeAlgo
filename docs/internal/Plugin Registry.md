@@ -9,7 +9,7 @@ Beside it: `permissions.py` (the vocabulary), `capabilities/` (what a plugin is 
 
 | Folder | Trust | Notes |
 | --- | --- | --- |
-| `pamphlets/plugins/builtin/<id>/plugin.lua` | Shipped: granted what it asks for until the admin changes it | youtube, reddit, bluesky, substack, shape |
+| `pamphlets/plugins/builtin/<id>/plugin.lua` | Shipped: granted what it asks for until the admin changes it | None ship; the folder is not there. The suite points it at `tests/plugins/` |
 | `<DATA_DIR>/plugins/<id>/plugin.lua` | Granted only what the admin ticked | Uploads and fetches |
 
 The id is the **folder name**, never anything the file says. Later folders win, so a data-folder
@@ -60,7 +60,7 @@ way to hand a kind to a replacement.
 | `keeps(ref, item, settings)` | `decide` | augmentation `keep` |
 | `ranks(ref, item, settings)` | `reorder` | augmentation `rank` |
 | `transforms(ref, data, settings, params, owner)` | `formatting.transformed`, for a plugin's piece under a Transform | augmentation `transform` (inside `acting_for(owner)`) |
-| `has_view(kind)` / `view(kind, item, settings, owner)` / `act(kind, item, values, settings, owner)` | `web/routes/focus.py`, for an item opened in Focus mode | the source's `view` and `act`, answering XML; its `style` is read once, with the manifest |
+| `has_view(kind)` / `view(kind, item, settings, owner)` / `act(kind, item, values, settings, owner)` | `web/routes/focus.py`, for an item opened in Content view | the source's `view` and `act`, answering XML; its `style` is read once, with the manifest |
 | `augmentations()` / `augmentation(ref)` | canvas palette, `piece_hosts` | — |
 | `home`, `item_url`, `mirror` | UI links, mirrors | `home`, `item_url`, `mirror` |
 
@@ -77,7 +77,7 @@ Built per plugin per load by `capabilities.granted_to`; absent unless granted.
 | `log` | `log` | prefixed with the plugin name |
 | `read` | `pamphlets.sources/feeds/queue` | owner-scoped; `queue(name)` is a form's submissions |
 | `manage` | `pamphlets.pause/watch` | owner-scoped |
-| `account` | `account.send` | Google API hosts only, 30 calls/call, cost 1–100 each, 4 MiB |
+| `account` | `account.send` | the plugin's own `connect.hosts` only, 30 calls/call, cost 1–100 each, 4 MiB |
 | *(always)* | `settings` (`app`, `user`) | The plugin's own values only; `user` for the owner in hand, else defaults |
 
 ## Acting for an owner

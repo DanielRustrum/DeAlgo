@@ -9,7 +9,7 @@ its feed for you.
 2. Type its address: `platformer.news`, `https://www.platformer.news/archive` — any page on the site.
 3. Save, then wire it and switch it on like any [source](Sources.md).
 
-It works with Substack, Ghost, beehiiv, Buttondown, WordPress and most sites that publish a feed.
+It works with most newsletter platforms and blogs — anywhere that publishes a feed.
 
 ## How the feed is found
 

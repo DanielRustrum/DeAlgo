@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | The operator | The host, environment, data volume | — |
 | The admin account | Accounts, plugins, instance migration | Read other accounts' data |
-| A member account | Their own sources, feeds, Google grant | See or change anyone else's |
+| A member account | Their own sources, feeds, sign-in grants | See or change anyone else's |
 | A plugin | Exactly the capabilities granted | Reach Python, files, other plugins, tokens, or other owners' data |
 | A fetched archive, a feed, a web page | Nothing | Write outside its folder, execute, exhaust memory |
 
@@ -51,14 +51,18 @@ Code from outside the project, running in-process. Defences, in order:
    call.
 4. **Capabilities** are absent unless granted and individually capped (requests, bytes, headers,
    calls, cost).
-5. **Credentials never enter Lua.** `account.send` signs requests host-side, only for Google API
+5. **Credentials never enter Lua.** `account.send` signs requests host-side, only for the plugin's own
    hosts.
 6. **Fetching** never runs git; archives are size-, count- and path-checked; only text files kept.
-7. **Views are rebuilt, not trusted.** A plugin's Focus-mode XML is parsed (no DOCTYPE or entities,
+7. **Views are rebuilt, not trusted.** A plugin's Content-view XML is parsed (no DOCTYPE or entities,
    200 KB) and rebuilt as HTML from a fixed set of components (`services/plugin_views.py`): every
    other tag and attribute is dropped, addresses kept to http(s). Its CSS is read rule by rule —
    statement at-rules, `@font-face`, `expression()`, `javascript:`, non-web `url()` dropped — and
    every selector is scoped under `.pv-root[data-pv="<id>"]`, so it styles nothing outside the view.
+8. **Players are declared, not loaded.** A source's player is data (`registry/players.py`): one
+   https frame origin fixed by the plugin, only a plain key filled in, JSON messages checked at load.
+   The frame is sandboxed (no top navigation), messages go only to its origin, and only that frame
+   from that origin is heard — read at declared paths, compared, never drawn or run.
 
 See [Plugin Runtime](Plugin%20Runtime.md) and [Plugin Registry](Plugin%20Registry.md).
 
@@ -68,8 +72,8 @@ See [Plugin Runtime](Plugin%20Runtime.md) and [Plugin Registry](Plugin%20Registr
 | --- | --- | --- |
 | Password hashes | `user.password_hash` | Never |
 | Session tokens | SHA-256 only | Never |
-| Google refresh/access tokens | `oauth_token`, plaintext in the DB | Never |
-| Google client id/secret, API key | `settings`, plaintext in the DB | Never |
+| Sign-in refresh/access tokens | `oauth_token`, plaintext in the DB | Never |
+| OAuth client id/secret, API key | `settings`, plaintext in the DB | Never |
 
 The database file is therefore sensitive: protect the data volume. Instance migration files are
 encrypted (scrypt N = 2¹⁵ → Fernet) and still carry no secrets. See

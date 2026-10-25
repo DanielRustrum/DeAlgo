@@ -1,6 +1,6 @@
 # Testing a Flow
 
-See what a run would do, without doing it. Nothing is written, nothing is sent to YouTube, and no
+See what a run would do, without doing it. Nothing is written, nothing is sent to any service, and no
 quota is spent.
 
 Press **Test** on a [trigger](Nodes/Triggers.md). It takes up to 30 recent items from the sources that

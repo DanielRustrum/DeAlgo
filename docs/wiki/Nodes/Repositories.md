@@ -34,6 +34,6 @@ A Deposit and a Withdraw are joined only by sharing a name. Names ignore case an
 
 - Items are filtered on the way in and can be filtered again after the Withdraw.
 - A pull happens at the end of a run, so it includes what that run just deposited.
-- Depositing needs no quota, so it still happens when YouTube's quota is spent.
+- Depositing needs no quota, so it still happens when a service's quota is spent.
 
 **Related:** [Triggers](Triggers.md) · [Sources](Sources.md) · [Feeds](Feeds.md)

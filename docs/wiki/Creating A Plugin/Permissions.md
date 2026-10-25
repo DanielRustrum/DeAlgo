@@ -24,7 +24,7 @@ for. Asking for the same permission twice is an error.
 | `log` | The `log` object: write to Pamphlets's log | [Clock and Log](Clock%20and%20Log.md) |
 | `read` | `pamphlets.sources()` and `pamphlets.feeds()` answer | [The pamphlets Object](The%20pamphlets%20Object.md) |
 | `manage` | `pamphlets.watch()` and `pamphlets.pause()` work | [The pamphlets Object](The%20pamphlets%20Object.md) |
-| `account` | The `account` object: requests to Google as the connected account | [Account](Account.md) |
+| `account` | The `account` object: requests to its service as the connected account | [Account](Account.md) |
 
 A name not in this list is shown to the admin as unknown and can never be granted.
 

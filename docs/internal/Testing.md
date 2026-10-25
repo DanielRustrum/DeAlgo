@@ -16,7 +16,7 @@ CI runs both on every push before building the image.
 | no-posts guard (autouse) | Stubs `Registry.posts` to `[]` so no test scrapes a real page; opt out with `@pytest.mark.reads_pages` |
 | `world` | A channel wired to a playlist, `syndication.fetch` serving `state["entries"]`, `FakeYouTube` as the publisher (patched in `sync.run.build_client`), quota metered |
 
-`PAMPHLETS_DATA_DIR` is set to `/tmp/pamphlets-tests` and Google variables are cleared **before**
+`PAMPHLETS_DATA_DIR` is set to `/tmp/pamphlets-tests` and every `PAMPHLETS_PLUGIN_*` and OAuth variable is cleared **before**
 `pamphlets.config` is imported.
 
 ## Fakes — `tests/fakes.py`
@@ -28,7 +28,7 @@ CI runs both on every push before building the image.
 - `use_config(monkeypatch, config)` — run under another configuration (sign-in on, another
   database) in every module that reads `CONFIG`, rather than in a hand-picked few.
 
-No test talks to YouTube or the network: feeds are served by monkeypatching `syndication.fetch`,
+No test talks to any service or the network: feeds are served by monkeypatching `syndication.fetch`,
 the publisher by `FakeYouTube`, and anything else by patching `outgoing.client`, the one place
 every outgoing request starts.
 

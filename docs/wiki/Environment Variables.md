@@ -9,9 +9,6 @@ Read once at start-up. Change one and restart. Everything else is set in the app
 | `PAMPHLETS_SESSION_DAYS` | `30` | How long a sign-in lasts. |
 | `PAMPHLETS_PUBLIC_URL` | `http://localhost:8080` | The address people open. A plugin's sign-in redirect URI is this plus `/oauth/callback`. |
 | `PAMPHLETS_PLUGIN_<PLUGIN>_<SETTING>` | — | Any plugin's setting for everyone, while its card under Admin → Plugins leaves it blank. Upper case, with anything but letters and digits as `_`. |
-| `PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID` | — | The YouTube plugin's Google OAuth client id. |
-| `PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_SECRET` | — | Its client secret. |
-| `PAMPHLETS_PLUGIN_YOUTUBE_API_KEY` | — | Optional Google API key, for looking up `@handles` before anyone has signed in. |
 | `PAMPHLETS_DATA_DIR` | `./data` (`/data` in Docker) | Where the database and your own plugins live. |
 | `PAMPHLETS_DATABASE_URL` | SQLite in the data dir | Any SQLAlchemy URL. Only SQLite is tested — see note below. |
 | `PAMPHLETS_HOST` | `0.0.0.0` | Listen address inside the container. |
@@ -38,7 +35,8 @@ PostgreSQL's strict length checks. Use SQLite.
 
 ## Renamed
 
-`PAMPHLETS_CLIENT_ID`, `PAMPHLETS_CLIENT_SECRET` and `PAMPHLETS_API_KEY` are no longer read: they are the
-YouTube plugin's settings now. The first start after upgrading copies any values they held, and any
-the Settings page held, into the plugin's settings for everyone, and says so in the log. Rename them
-to `PAMPHLETS_PLUGIN_YOUTUBE_CLIENT_ID` and so on, or remove them and use the plugin's card.
+`PAMPHLETS_CLIENT_ID`, `PAMPHLETS_CLIENT_SECRET` and `PAMPHLETS_API_KEY` are no longer read: they
+belong to the plugin that signs in now. The first start after upgrading copies any values they held,
+and any the Settings page held, into that plugin's settings for everyone, and says so in the log.
+Rename them to `PAMPHLETS_PLUGIN_<PLUGIN>_CLIENT_ID` and so on, or remove them and use the plugin's
+card.

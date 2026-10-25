@@ -1,10 +1,10 @@
 # Publishing
 
-A plugin can teach Pamphlets to write back to its service — for YouTube: look channels up, read video
-details, and fill playlists. This is how YouTube-backed [feeds](../Nodes/Feeds.md) work.
+A plugin can teach Pamphlets to write back to its service — look sources up, read item details, and
+fill playlists there. This is how [feeds](../Nodes/Feeds.md) backed by a service work.
 
 The `publisher` table is consulted only for a plugin with a source kind marked `playlistable = true`.
-Only one plugin publishes; today that is YouTube. Your functions build requests and read answers;
+Only one plugin publishes at a time. Your functions build requests and read answers;
 the actual signed calls go through [`account.send`](Account.md).
 
 ## The table
@@ -68,7 +68,7 @@ you pass to `account.send` for each request.
 A function that errors is treated as that operation failing. A failed `add` is retried on later runs,
 up to 3 attempts.
 
-See `publisher.lua` in the YouTube plugin (a copy is in `tests/plugins/youtube/`) for a complete publisher, and `api.lua` beside it
-for the Data API calls it makes.
+The example plugins in `tests/plugins/` include a complete publisher, `publisher.lua`, and the API
+calls it makes beside it.
 
 **Related:** [Account](Account.md) · [Sources](Sources.md)

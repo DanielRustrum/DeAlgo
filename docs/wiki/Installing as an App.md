@@ -17,7 +17,7 @@ installs nothing and caches nothing. Put it behind a reverse proxy with a certif
 - Panels that cannot refresh keep what they show, tagged **not refreshed — offline**.
 
 **Changes do not.** Marking watched, running, editing — these need the server. A banner appears when
-the connection drops, and buttons that cannot work are disabled. Videos stream from YouTube, so they
+the connection drops, and buttons that cannot work are disabled. Videos stream from where they live, so they
 do not play offline either.
 
 Cached images are capped at a few hundred, and a new version of Pamphlets replaces the old cache.
@@ -27,4 +27,4 @@ Cached images are capped at a few hundred, and a new version of Pamphlets replac
 Below tablet width the tabs move into a menu behind the ☰ button. Touch screens get larger targets
 and always-visible card actions. It all works with JavaScript off.
 
-**Related:** [The Feed Page](The%20Feed%20Page.md) · [Running in Production](Running%20in%20Production.md)
+**Related:** [List View](List%20View.md) · [Running in Production](Running%20in%20Production.md)

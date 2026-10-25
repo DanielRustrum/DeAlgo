@@ -33,20 +33,20 @@ items, placements or a client id still restore.
 **Export** (`build_site_export(passphrase)`):
 
 1. For every user, plus the implicit owner if it has data: username, `is_admin`, `enabled`, the
-   per-account `setup` (as above), settings (no credentials), and `had_google`.
+   per-account `setup` (as above), settings (no credentials), and `had_google` (whether it had signed in to the publishing plugin's service).
 2. JSON → encrypted: 16-byte random salt; key = scrypt(passphrase, N = 2¹⁵, r = 8, p = 1) → Fernet
    (AES-128-CBC + HMAC-SHA256). Salt travels in the clear beside the ciphertext. Passphrase ≥ 12
    characters.
 
 **Restore** (`restore_site`): decrypt (a wrong passphrase or tampered file fails, never half-restores);
 create or match users by name, **without passwords** — the admin sets new ones; apply settings; run
-the per-account `restore` for each setup. Each person reconnects Google themselves.
+the per-account `restore` for each setup. Each person reconnects their own accounts elsewhere.
 
 Losing the passphrase loses the file. No recovery, by design.
 
 ## Why no secrets travel
 
-Backup files live in Downloads folders and email for years. Password hashes, Google tokens, client
+Backup files live in Downloads folders and email for years. Password hashes, sign-in tokens, client
 secrets and API keys are all re-enterable in a minute, and any that had travelled would need rotating
 anyway.
 

@@ -33,7 +33,7 @@ request
 | --- | --- | --- |
 | `/` | Redirects to `/feed` | — |
 | `/feed`, `/feeds/{id}` | Feed list and one feed | `feed.html`, `feed_detail.html` |
-| `/focus`, `/watch` | Focus mode | `focus.html` |
+| `/focus`, `/watch` | Content view | `focus.html` |
 | `/channels` | Configuration (canvas, stats, sources) | `channels.html` |
 | `/channels/{id}` | One source | `channel_detail.html` |
 | `/videos` | Raw list (no nav link) | `videos.html` |

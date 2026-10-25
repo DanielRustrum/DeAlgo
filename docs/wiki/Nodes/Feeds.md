@@ -1,21 +1,21 @@
 # Feeds
 
-A feed is where items end up. You read feeds on [The Feed Page](../The%20Feed%20Page.md) and in
-[Focus Mode](../Focus%20Mode.md).
+A feed is where items end up. You read feeds in [List view](../List%20View.md) and in
+[Content view](../Content%20View.md).
 
 ## Two kinds
 
-| | Lives in Pamphlets | Backed by a YouTube playlist |
+| | Lives in Pamphlets | Backed by a playlist on a service |
 | --- | --- | --- |
-| Make it | Drag **Feed** from the palette and name it | **Settings → Plugins → YouTube → Feeds on YouTube** |
-| Holds | Anything: videos, posts, Reddit, RSS, newsletters | YouTube videos only |
-| Needs | Nothing | A connected Google account and [quota](../Quota.md) |
+| Make it | Drag **Feed** from the palette and name it | The plugin's block under **Settings → Plugins** |
+| Holds | Anything: videos, posts, articles, newsletters | Only that plugin's own items |
+| Needs | Nothing | A plugin that publishes, a [connected account](../Connecting%20an%20Account.md), and [quota](../Quota.md) |
 
-A YouTube-backed feed can be a new playlist (private, unlisted or public) or one you already have.
-Non-YouTube items reaching it are turned away with a reason.
+A feed backed by a service can be a new playlist there or one you already have. Items from anywhere
+else reaching it are turned away with a reason.
 
-Without a connected account a YouTube-backed feed is marked *local only* and collects inside Pamphlets.
-Its items are written to the playlist after you [connect](../Connecting%20YouTube.md).
+Without a connected account such a feed is marked *local only* and collects inside Pamphlets.
+Its items are written to the playlist after you [connect](../Connecting%20an%20Account.md).
 
 ## Limits
 
@@ -28,19 +28,20 @@ Set on the feed's box or its page. `0` means no limit.
 
 Open a feed box's panel and follow its link, or go to `/feeds/<id>`.
 
-- **Rename** — also renames the YouTube playlist (50 quota units). If YouTube refuses, the name
-  still changes here and says so.
-- **Tags** — free-form labels. The Feed page's search matches them.
+- **Rename** — also renames the playlist behind it, if there is one (which spends quota). If the
+  service refuses, the name still changes here and says so.
+- **Tags** — free-form labels. List view's search matches them.
 - **Filling** — pause or resume the feed without touching what is in it; set its limits.
 - **Filled by** — tick a source to wire it straight to this feed; untick to remove its wires. Only
   direct wires show here; a source reaching this feed through a [Filter](Filter.md) does not.
-- **Unlink from YouTube** — keep the feed and its items, drop the playlist behind it. The playlist
-  on YouTube is left as it is.
-- **Remove feed** — delete the feed and its record of what went in. A YouTube playlist is left as it is.
+- **Unlink** — keep the feed and its items, drop the playlist behind it. The playlist on the service
+  is left as it is.
+- **Remove feed** — delete the feed and its record of what went in. A playlist behind it is left as
+  it is.
 
 ## When one item reaches several feeds
 
-It is placed in each. In YouTube-backed feeds that costs 50 quota units per playlist. Pamphlets
+It is placed in each. In feeds backed by a service each placement spends quota. Pamphlets
 records every placement, so an item is never added to the same feed twice.
 
 ## Fill order

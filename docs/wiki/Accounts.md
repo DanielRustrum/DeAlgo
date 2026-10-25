@@ -45,7 +45,7 @@ The admin alone manages **accounts**, [plugins](Plugins.md) and
 Under **Admin → Algorithms**, the admin can switch everyone's [algorithm](Nodes/Aggregation.md) off.
 Each account's algorithm learns and predicts on this machine's processor, on every run; on a small
 machine that can be more than it should carry. Switched off, Aggregation pieces do nothing and nothing
-is learned. What Focus mode remembers is kept, so switching back on picks up where it was.
+is learned. What Content view remembers is kept, so switching back on picks up where it was.
 
 ## Maps
 

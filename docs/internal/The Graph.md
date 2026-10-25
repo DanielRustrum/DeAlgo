@@ -26,7 +26,8 @@ for routes and never reads wiring directly.
 `connect()` also refuses:
 
 - a wire to itself;
-- a non-YouTube source straight into a YouTube playlist (it could never carry anything);
+- a source the publishing plugin cannot hold straight into a playlist on its service (it could never
+  carry anything);
 - a loop — `_reaches(target, source)` walks forward from the target first.
 
 Duplicate wires return the existing edge.

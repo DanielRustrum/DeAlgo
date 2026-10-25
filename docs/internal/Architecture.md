@@ -17,7 +17,7 @@ and storing everything in one SQL database. No queue, no cache server, no worker
                 │         services/graph/     sources/* ──▶ outgoing ──▶ web │
                 │                                 │                          │
                 │         plugins/registry ──▶ Lua sandbox (lupa)            │
-                │              │ publisher/account ──▶ YouTube Data API      │
+                │              │ publisher/account ──▶ the service's API     │
                 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,10 +55,10 @@ readers do not block the writer.
 4. **Decide.** Each pending item is judged per route: channel defaults, Filter conditions,
    plugin conditions.
 5. **Place.** Accepted items get a `Placement` per feed — a local id for Pamphlets feeds, or a real
-   playlist item via the YouTube plugin. Deposits go to `RepositoryItem`.
+   playlist item via the publishing plugin. Deposits go to `RepositoryItem`.
 6. **Stamp.** Decay, Expire and Tag boxes on the route leave their marks.
 7. **Sweep.** Expired placements are withdrawn; due Withdraw boxes pull from repositories.
-8. **Read.** The Feed page and Focus mode render placements, gated by the feed's reading window.
+8. **Read.** List view and Content view render placements, gated by the feed's reading window.
 
 ## Where state lives
 

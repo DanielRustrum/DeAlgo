@@ -1,7 +1,8 @@
 # Sources
 
-A source is somewhere Pamphlets watches: a YouTube channel, a subreddit, a newsletter, any RSS or Atom
-feed. On the canvas, each source is a box that items flow out of.
+A source is somewhere Pamphlets watches: any RSS or Atom feed, a newsletter, a JSON API, a form's
+queue — or anything a plugin knows how to read. On the canvas, each source is a box that items flow
+out of.
 
 Reading sources is free and needs no account: every one of them is read as the feed it publishes.
 
@@ -13,10 +14,7 @@ Reading sources is free and needs no account: every one of them is read as the f
 | **Newsletter** | Where a newsletter lives, e.g. `platformer.news` | Built in. Finds the feed for you. See [Newsletters](Newsletters.md). |
 | **REST API** | The address of a JSON API that lists things | Built in. Say which fields hold what, or let it guess. See [REST API](REST%20API.md). |
 | **Input** | A queue's name, e.g. `feedback` | Built in. Takes what [Form leaflets](Pamphlets.md#forms) send into that queue, each submission once, as an item each time it is polled — wire a Pulse into it. Its panel says which field is each item's title (the first one filled in, otherwise); every field is in the item's words, and its `{ }` port gives every submission as a row. |
-| **YouTube channel** | `@handle`, a channel URL, or a `UC…` id | YouTube plugin. `@handle` and custom URLs need a [connected account](../Connecting%20YouTube.md); a `UC…` id or `/channel/` URL does not. |
-| **Subreddit** | `r/python`, a subreddit URL, or just `python` | Reddit plugin. |
-| **Bluesky account** | `@name.bsky.social` or a profile URL | Bluesky plugin. |
-| **Newsletter** *(Substack)* | `name.substack.com` | Substack plugin. Same box name as the built-in one; the built-in Newsletter box also handles Substack. |
+| *A plugin's* | Whatever its plugin says, shown in the box | Each plugin's own. Some lookups need a [connected account](../Connecting%20an%20Account.md). |
 
 Plugin kinds appear under **Plugins** in the palette, grouped by plugin. An admin can add more —
 see [Plugins](../Plugins.md).
@@ -32,19 +30,17 @@ see [Plugins](../Plugins.md).
    tick **Active**, and save.
 6. Wire a [trigger](Triggers.md) into it, or it is never checked.
 
-A feed only lists its newest items (YouTube about 15), so a long backfill reaches that far and no further.
+A feed only lists its newest items — often 10 to 20 — so a long backfill reaches that far and no further.
 
 ## The source's panel
 
 - **Active** — on or off.
 - **Takes** — which kinds of content to take at all, where the source's plugin publishes more than
-  one. YouTube's are **Videos**, **Shorts**, **Live** (streams and premieres) and **Posts** (community
-  posts); new channels take Videos and Posts, not Shorts or Live. How long a video can be and still
-  count as a Short is yours to set, in the YouTube block under Settings → Plugins (60 seconds by
-  default). Turning a kind back on also re-queues what it skipped. A source that publishes one kind of
+  one, each a switch; the plugin may start some of them off, and may let you say what counts as
+  which under Settings → Plugins. Turning a kind back on also re-queues what it skipped. A source that publishes one kind of
   thing takes everything; narrow it with a [Filter](Filter.md).
 - **Mirror** *(where offered)* — a second address for the same feed, used only when the source refuses
-  you. Reddit suggests one.
+  you. The source's plugin may suggest one.
 - **Rename** — see the note on two boxes below.
 
 ## How much arrives per run
@@ -58,13 +54,14 @@ You can draw the same source twice to send it down two paths. Both boxes share o
 read once — but each has its own name, its own Active switch and its own wires. A run started by a
 trigger only fills the paths out of the boxes that trigger is wired to.
 
-## YouTube community posts
+## What a source keeps outside its feed
 
-There is no API for them, so Pamphlets reads the channel's Posts page:
+A plugin can also read what a source publishes somewhere its feed does not carry — a page of posts,
+say. Where that has no API, the plugin reads the page itself, so:
 
-- costs no quota and no account, but can stop working if YouTube changes the page;
-- dates are approximate (YouTube only says "5 days ago");
-- a post can never go into a YouTube playlist, only into a feed that lives in Pamphlets.
+- it costs no quota and no account, but can stop working if the site changes the page;
+- dates may be approximate, when the page only says "5 days ago";
+- what it finds goes only into a feed that lives in Pamphlets.
 
 ## Removing one
 

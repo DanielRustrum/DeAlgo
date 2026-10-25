@@ -15,7 +15,7 @@ sources.resolve(typed, within)            # sources/kinds/ — no network
   ├─ no kind                 → registry.recognise(typed)           (certain answers beat guesses)
   └─ unclaimed URL           → RSS; anything else → UnknownSource
 then
-  needs_host     → host-side resolution (YouTube @handle → channel id needs the account)
+  needs_host     → host-side resolution (a lookup only the signed-in account can make)
   needs_finding  → newsletter.find(site)
   otherwise      → syndication.fetch(feed_url) once, to prove it is a feed
   → Channel row (channel_id = key, source_kind, source_url, feed_url)
@@ -61,7 +61,7 @@ Per-host advice, in memory, keyed by hostname:
 | `X-RateLimit-Remaining` ≤ 0 | `X-RateLimit-Reset`, else 60 s |
 | Status 403, 429 or 503 with neither | 60 s |
 
-- Read on **every** response, including successes: Reddit announces an empty budget on a 200.
+- Read on **every** response, including successes: some services announce an empty budget on a 200.
 - The longest wait wins; capped at one hour.
 - `hold()` raises `RateLimited`, which the sync engine reports as waiting, not failing.
 - Lost on restart, deliberately: a fresh process has spent nothing.

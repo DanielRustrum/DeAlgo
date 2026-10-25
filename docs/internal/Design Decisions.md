@@ -53,14 +53,14 @@ on a path, pieces in a chain, sorts).
 **Why:** One rule, used everywhere, that matches reading the canvas left to right.
 
 ## Every service is a plugin, except the floor
-**Chosen:** YouTube, Reddit, Bluesky and Substack are Lua plugins. RSS and Newsletter are built in.
+**Chosen:** Every service is a Lua plugin. RSS, Newsletter, REST API and Input are built in.
 **Why:** Service knowledge (URL shapes, endpoints, prices) changes without notice and belongs outside
 the core. RSS and Newsletter belong to no service.
-**Cost:** A sandbox to maintain; YouTube publishing goes through a capability layer.
+**Cost:** A sandbox to maintain; publishing goes through a capability layer.
 
 ## No plugin comes with the app
-**Chosen:** YouTube, Reddit, Bluesky, Substack and Shape live in repositories of their own and are
-installed from Admin → Plugins like anybody's; the image ships none. The suite keeps copies in
+**Chosen:** Plugins live in repositories of their own and are installed from Admin → Plugins, every
+one the same way; the image ships none. The suite keeps copies in
 `tests/plugins/` and reads them as it once read the shipped folder.
 **Why:** They are released on their own schedule, and installing one is the same act for every plugin.
 **Cost:** A fresh install understands only feed addresses, newsletters and REST APIs until plugins are
@@ -83,7 +83,7 @@ bounded.
 **Why:** One code path for single-user and multi-user; a missed filter is the easy thing not to write.
 
 ## Pessimistic quota
-**Chosen:** Charge before knowing the outcome; trust Google's "exhausted" over the ledger.
+**Chosen:** Charge before knowing the outcome; trust the service's "exhausted" over the ledger.
 **Why:** Stopping slightly early beats being refused halfway through a playlist.
 
 ## Restartable runs
@@ -99,7 +99,7 @@ bounded.
 **Why:** Files that travel get leaked; credentials are cheap to re-enter.
 
 ## Large scripts written as parts, shipped as one
-**Chosen:** The canvas and Focus mode are folders of TypeScript parts, compiled together and joined
+**Chosen:** The canvas and Content view are folders of TypeScript parts, compiled together and joined
 into one script each (`ops/join_scripts.py`).
 **Why:** Readable parts for whoever edits them; one file for the browser, because htmx re-inserts a
 page's scripts and does not promise to run several in order.
@@ -112,3 +112,13 @@ page's scripts and does not promise to run several in order.
 ## Writing style in code
 **Chosen:** Comments and docstrings explain *why*, in plain sentences; names say *what*.
 **Why:** The reasons are what get lost. The autodoc reference is built from these docstrings.
+
+## Players are declared, never loaded
+**Chosen:** A source plugin declares its player as data — a frame address on one https origin, JSON
+messages to say, fields to listen for (`plugins/registry/players.py`). The page sandboxes the frame,
+talks to it only by `postMessage` to that origin, and hears only that frame from that origin.
+**Why:** A built-in player put a service's script into the page every account signs in to, and a
+service into the core. Declared, a player is the service's own page kept at arm's length, and no
+code of the plugin's or the service's runs with the session.
+**Cost:** Only what a player says by `postMessage` can be heard; a service with no such protocol
+plays, but the person moves on by hand.

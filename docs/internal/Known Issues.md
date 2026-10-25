@@ -22,8 +22,8 @@ the signed-in account, and the allowance is the install's by design. What is lef
 `sync.placements.still_queued` counts waiting items across every account (only in a message).
 **Fix:** pass `owner` through; add a tenancy test.
 
-### 3. The YouTube playlist cache is shared between accounts
-`web/contexts.py` caches the connected account's YouTube playlists in one module-level slot for two
+### 3. The service playlist cache is shared between accounts
+`web/contexts.py` caches the connected account's playlists on the publishing plugin's service in one module-level slot for two
 minutes. Within that time another account's Settings and feed forms show the first account's
 playlists.
 **Fix:** key the cache by owner.
@@ -51,19 +51,15 @@ delete duplicates in a migration; have `adopt_unowned` drop implicit settings ro
 has, as it does for `oauth_token`.
 
 ### 5. Per-account backups predate the canvas
-`services/backup/` exports no nodes, wires, pieces, triggers or positions, and no `source_kind`,
-`source_url` or `mirror_url`. A restored non-YouTube source comes back as YouTube and cannot be read.
+`services/backup/` exports no nodes, wires, pieces, triggers or positions, and no `mirror_url`. A
+source's kind and feed address are carried.
 Instance migration reuses the same `setup`, so it has the same gaps.
 **Fix:** bump `FORMAT_VERSION`; export the graph by service ids and names, as `export_group` does.
 
 ### 6. New sources stay paused after wiring
-Sources added on the canvas start disabled; only the feed page's chips call `follow_feed_links` to
+Sources added on the canvas start disabled; only List view's chips call `follow_feed_links` to
 enable them. The panel hint says it "stays paused until it is wired", which is not what happens.
 **Fix:** enable on first wire into a path, or correct the hint and surface the switch.
-
-### 7. Group export loses source kind
-`export_group` / `import_group` carry channel ids but not `source_kind`/`source_url`; non-YouTube
-sources import as YouTube.
 
 ### 8. Column lengths too short outside SQLite
 `graph_node.kind` is `VARCHAR(8)` but kinds such as `shorter-than` are 12 characters;
@@ -77,11 +73,11 @@ Due-ness is checked every `poll_interval_minutes` (30). A 5-minute pulse fires e
 The heartbeat is no longer editable in the UI.
 
 ### 10. Sort only orders the batch
-A Sort box orders insertion within a run. The Feed page and Focus mode order by publish date, so the
+A Sort box orders insertion within a run. List view and Content view order by publish date, so the
 sort is invisible there for Pamphlets feeds.
 
-### 11. Focus mode ignores reading windows; Decay ignores videos
-Focus does not consult Timer/Reset/Alive. Decay timers apply only to non-video items.
+### 11. Content view ignores reading windows; Decay ignores videos
+Content view does not consult Timer/Reset/Alive. Decay timers apply only to non-video items.
 `Settings.post_seconds` is effectively unused.
 
 ### 12. No UI for fill order
@@ -90,9 +86,6 @@ Focus does not consult Timer/Reset/Alive. Decay timers apply only to non-video i
 ### 13. CLI acts on the implicit owner
 `pamphlets add/export/channels/watched/remove-watched` (and `make backup`) operate on unowned rows,
 which are empty once sign-in is on. Only `sync` and `serve` are useful there.
-
-### 15. Two "Newsletter" boxes
-The Substack plugin's box is labelled Newsletter, as is the built-in Newsletter box.
 
 ## Security hardening
 
@@ -126,5 +119,5 @@ A fetched plugin left unconfirmed stays in `plugins/.staged/` until the next fet
 ## Housekeeping
 
 ### 25. Stray hand-uploaded plugin on the live instance
-`/data/plugins/plugin/plugin.lua` (id `plugin`) duplicates the shipped YouTube plugin and shows
-"“youtube” is already provided by YouTube". Remove it from Admin → Plugins.
+`/data/plugins/plugin/plugin.lua` (id `plugin`) declares a source kind another installed plugin
+already provides, and shows "already provided by …". Remove it from Admin → Plugins.

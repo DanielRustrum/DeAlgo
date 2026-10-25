@@ -6,7 +6,7 @@
   write everything twice and fight over locks. The compose file pins `replicas: 1` and stops the
   old container before starting a new one.
 - **Set `PAMPHLETS_PUBLIC_URL` to the public address** (e.g. `https://pamphlets.example.com`) and register
-  `<that>/oauth/callback` with Google. Pamphlets builds the redirect from this, not from the request.
+  `<that>/oauth/callback` with the service a plugin signs in to. Pamphlets builds the redirect from this, not from the request.
 - **Use a subdomain, not a subpath.** Pages and assets are served from `/`.
 - **Keep `/data` on local disk.** SQLite over network filesystems corrupts.
 - **Use HTTPS** if you want the [installable app and offline reading](Installing%20as%20an%20App.md).

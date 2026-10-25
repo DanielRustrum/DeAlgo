@@ -1,7 +1,7 @@
 # Decay
 
 A Decay box sets how long you get with each item that passes through it, in
-[Focus Mode](../Focus%20Mode.md). It turns nothing away.
+[Content view](../Content%20View.md). It turns nothing away.
 
 ```
 [Source] ──▶ [Decay] ──▶ [Feed]
@@ -14,10 +14,10 @@ countdown cannot be held or paused.
 
 ## How it behaves
 
-- Applies to **posts and articles** in Focus mode: a countdown runs and moves on when it ends.
+- Applies to **posts and articles** in Content view: a countdown runs and moves on when it ends.
   Videos are not timed; they always play to the end.
 - Belongs to the item, not to one feed.
 - If several Decay boxes apply to one item, the **shortest** time wins.
 - The card shows the time, with `· no pause` when locked.
 
-**Related:** [Focus Mode](../Focus%20Mode.md) · [Augmentations](Augmentations.md) · [Expire](Expire.md)
+**Related:** [Content view](../Content%20View.md) · [Augmentations](Augmentations.md) · [Expire](Expire.md)

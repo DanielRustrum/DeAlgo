@@ -3,7 +3,7 @@
 ## The complete backup: copy the database
 
 Everything Pamphlets knows is in one SQLite file — your canvas, sources, feeds, history, settings and
-Google grant. Copy it while Pamphlets is stopped:
+sign-in grants. Copy it while Pamphlets is stopped:
 
 ```bash
 make down
@@ -26,7 +26,7 @@ Restoring **merges**: what the file names is created or updated, matched by each
 feed's own identifier, and nothing is deleted. Restoring twice changes nothing the second time.
 Sources come back as never checked, so their backfill applies again on the first run.
 
-No credentials are included — no Google grant, no client id or secret.
+No credentials are included — no sign-in grant, no client id or secret.
 
 ### What the setup file does not keep yet
 
@@ -35,7 +35,8 @@ It predates the canvas. It does **not** include:
 - the canvas itself: [triggers](Nodes/Triggers.md), [filters](Nodes/Filter.md) and their conditions, [sorts](Nodes/Sort.md),
   [tags](Nodes/Tag.md), [Decay](Nodes/Decay.md), [Expire](Nodes/Expire.md), [repositories](Nodes/Repositories.md),
   [augmentations](Nodes/Augmentations.md), [groups](Nodes/Groups.md) and box positions;
-- each source's kind and feed address, so **only YouTube channels restore correctly**;
+- each source's kind, id and feed address — a source whose plugin is not installed comes back, but
+  is not read until it is;
 - your item history.
 
 After restoring, sources are wired straight to the feeds they filled, with no triggers — so nothing

@@ -38,7 +38,7 @@ Each box takes one data wire in; a second replaces it.
 
 - From a [REST API](REST%20API.md) source: the endpoint's last whole answer, kept each time the source
   is checked (up to 2 MB). Opening the editor before it has been checked reads it once.
-- From any other source (YouTube, Reddit, RSS, …): its newest 1,000 items as JSON, each with `id`,
+- From any other source (a feed address, a newsletter, a plugin's): its newest 1,000 items as JSON, each with `id`,
   `title`, `link`, `kind`, `source`, `published`, `arrived`, `duration` (seconds), `views`, `likes`,
   `tags`, `status`, `watched` (true or false) and `watched_at`.
 
@@ -67,7 +67,7 @@ fields into Rows, Label or The number, and watch the bars it gives change before
 - Posts per day from a source: label `published`, group **by day**, combine **count**.
 - Minutes watched per channel: label `source`, number `duration`, combine **add up**, from a source's
   items — or which tags turn up most: label `tags`, combine **count**.
-- Score by author from a Reddit-style API: rows `data.children`, label `data.author`, number
+- Score by author from an API that wraps each row as `{"data": {…}}`: rows `data.children`, label `data.author`, number
   `data.score`, combine **add up**.
 
 **Related:** [Pamphlets](Pamphlets.md) · [REST API](REST%20API.md)

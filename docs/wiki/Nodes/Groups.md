@@ -26,9 +26,8 @@ This is also what travels in a [`.pam` file](Canvases%20and%20Relays.md#saving-a
 which carries a whole canvas the same way.
 
 
-- Sources travel as their identifiers. Missing ones are created, paused. **Only YouTube channels
-  import correctly for now**: a Reddit, RSS or newsletter source arrives without its kind or
-  feed address, so re-add those by hand.
+- Sources travel as their kind, identifier and feed address. Missing ones are created, paused; a
+  source whose plugin is not installed does nothing until it is.
 - Feeds travel as names, and are always created new as feeds inside Pamphlets.
 - Filters, sorts, marking boxes, repositories, triggers, and every augmentation, with their settings.
 - Only wires with both ends inside the group.

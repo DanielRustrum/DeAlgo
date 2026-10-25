@@ -9,7 +9,7 @@ through only if **every** condition agrees.
 ```
 [Source] ──▶ [Filter] ──▶ [Feed]
                ├ Longer than 10 minutes
-               └ No Shorts            (YouTube)
+               └ Title lacks "sponsored"
 ```
 
 ## Adding a condition
@@ -33,9 +33,9 @@ Filter box. Open it to set its value. See [Augmentations](Augmentations.md) for 
 text, but characters like `.`, `?`, `(` and `|` are regex syntax — `cats|dogs` matches either.
 Videos are matched on their title; posts on their whole text; articles on title and summary.
 
-**Lengths** are known only for YouTube videos, and only after their details are read — which needs a
-[connected account](../Connecting%20YouTube.md) or an API key. An item with no known length passes
-length conditions.
+**Lengths** are known only for items whose source gives one — some only once a plugin has read their
+details, which may need a [connected account](../Connecting%20an%20Account.md). An item with no known
+length passes length conditions.
 
 **Tags:** **Has tag** and **Lacks tag** see tags from a [Tag](Tag.md) box anywhere on the same path,
 as well as tags the item already has — from a box or put on by hand. Type them with commas between,
@@ -44,24 +44,10 @@ carries. Capitals and extra spaces don't matter.
 
 ## Plugin conditions
 
-The plugins that used to come with Pamphlets add these, once installed (see [Plugins](../Plugins.md)). A source plugin's conditions judge only that source's items and let
-everything else through; Shape's judge every item.
-
-| Plugin | Condition | Lets through | Default |
-| --- | --- | --- | --- |
-| YouTube | No videos / No Shorts / No live / No posts | Everything except that kind | |
-| YouTube | Only Shorts | Shorts only | |
-| YouTube | Watched enough | Videos with at least N views | 1000 |
-| YouTube | Well liked | Videos with at least N likes | 100 |
-| Reddit | Self posts | Posts with at least N characters of writing | 80 |
-| Reddit | Asks a question | Posts that ask something, with or without a `?` | |
-| Bluesky | Said something | Posts with at least N characters, so not bare link shares | 24 |
-| Substack | Long read | Pieces with at least N characters | 1200 |
-| Shape | Long enough | Items at least N minutes long | 5 |
-| Shape | Has words | Items whose title and text reach N characters | 40 |
-| Shape | Not shouting | Titles with at most N% capitals | 60 |
-
-A view or like count nobody has read yet counts as unknown, and passes.
+Plugins can add conditions of their own, listed under **Plugins** in the palette once installed (see
+[Plugins](../Plugins.md)), each with its own value to set. A condition from a source plugin judges
+only that plugin's items and lets everything else through; one from a plugin with no sources judges
+every item. A count nobody has read yet — views, likes — counts as unknown, and passes.
 
 ## When conditions overlap
 

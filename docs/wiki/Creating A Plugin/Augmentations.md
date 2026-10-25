@@ -70,7 +70,7 @@ all.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `source` | string | The source kind it came from, e.g. `"youtube"`, `"reddit"` |
+| `source` | string | The source kind it came from, e.g. `"rss"`, or a plugin's own kind |
 | `kind` | string | `"video"`, `"post"` or `"link"` |
 | `title` | string | |
 | `words` | string | Its text; `""` if none |
@@ -81,9 +81,9 @@ all.
 | `hint` | string | What its source's `refine` said about it; `""` if nothing |
 | `live` | string | `"live"` or `"upcoming"` for a broadcast; `"none"`; `""` if unknown |
 
-Lengths and counts are known only for YouTube videos whose details were read. Treat `0` as "nobody
-knows", not as "none" — otherwise you will hold back everything from an account with no Google
-connection.
+Lengths and counts are known only for items whose source gives them — some only once a plugin has
+read their details as a signed-in account. Treat `0` as "nobody knows", not as "none" — otherwise
+you will hold back everything from an account that has not connected.
 
 ## Judging only your own
 

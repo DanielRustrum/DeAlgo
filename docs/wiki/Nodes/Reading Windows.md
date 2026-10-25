@@ -4,7 +4,7 @@ Limit when a feed may be read, by slotting augmentations under its box.
 
 | Piece | Means |
 | --- | --- |
-| **Timer** | How long you get once you start reading. Counted from when you open the Feed page. |
+| **Timer** | How long you get once you start reading. Counted from when you open List view. |
 | **Reset** | When you get another session — a cron expression, in UTC. |
 | **Alive** | The hours of the day the feed may be read, `HH:MM` to `HH:MM`, in UTC. |
 
@@ -21,15 +21,15 @@ Limit when a feed may be read, by slotting augmentations under its box.
 
 ## A shut feed
 
-The Feed page shows it as shut — never hidden — with the rule you set and when it opens again.
+List view shows it as shut — never hidden — with the rule you set and when it opens again.
 
-Your session starts when you open the Feed page. A page refreshing itself after a run does not
+Your session starts when you open List view. A page refreshing itself after a run does not
 start one.
 
 ## Limits
 
 - Times are **UTC**, not your local time.
-- [Focus Mode](../Focus%20Mode.md) does not yet respect reading windows.
+- [Content view](../Content%20View.md) does not yet respect reading windows.
 
-**Related:** [Augmentations](Augmentations.md) · [The Feed Page](../The%20Feed%20Page.md) ·
+**Related:** [Augmentations](Augmentations.md) · [List view](../List%20View.md) ·
 [Triggers](Triggers.md)

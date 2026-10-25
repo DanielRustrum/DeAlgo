@@ -41,7 +41,7 @@ beside.
 | **Feed** | The first few unwatched items of the feed wired into it, as stories, in that feed's own order — or the feed as one tile: a small stack of papers, its newest item on the front page and a sheet behind for every few more waiting | Shows as (stories or a tile), how many (up to 60), a heading |
 | **Charts** | A leaflet for each kind of chart — see [Charts](#charts) below — showing the data wired into it, or, with nothing wired in, watched each day, arrived each day, filtered out each day, what each feed holds, or the counts | A heading; with data wired in, the rest in its editor; without, which built-in chart and how many days (2–90) |
 | **Text** | A heading and your own words. A blank line starts a new paragraph — or, with a [Text](Text.md) box wired in, what its model wrote | Heading, words |
-| **Link** | A line to turn to: Focus on the feed wired in (or everything), open it, or go to an address | Where it goes, what it says |
+| **Link** | A line to turn to: the feed wired in (or everything) in Content view, the feed in List view, or an address | Where it goes, what it says |
 | **Map** | A dot on a map for each row of the data wired into it that has a latitude and a longitude — see [Maps](#maps) | A heading; the rest in its editor |
 
 ## Wiring a feed in
@@ -50,7 +50,7 @@ A Feed box has a second port on its right, marked with a **sheet of print**. Wir
 Link leaflet's port (the same sheet, on the leaflet's left) to say which feed that leaflet shows.
 These wires are dashed and green: they carry a feed onto a page, not items down a path, and change
 nothing about what is collected. A leaflet shows one feed; wiring a second in replaces the first.
-A Link leaflet set to Focus with no feed wired in goes through everything.
+A Link leaflet set to Content view with no feed wired in goes through everything.
 
 A Feed leaflet follows the feed's [reading windows](Reading%20Windows.md): a shut feed shows as shut.
 Opening a pamphlet does **not** start a reading window's sitting; opening the feed itself does.
@@ -142,10 +142,9 @@ as the area's edges, so showing the map never looks anything up, and a reader's 
 
 A **Video leaflet** plays one video on the page, as wide as its column.
 
-- **Give it a video's address** in its panel. A YouTube address — a watch link, `youtu.be`, a Short
-  or an embed link — plays in YouTube's own player, from `youtube-nocookie.com` as Focus mode's does,
-  so nothing is stored by YouTube until you press play. A Vimeo address plays in Vimeo's. A file
-  ending `.mp4`, `.webm` or `.ogg` plays in the browser's own player. Anything else becomes a
+- **Give it a video's address** in its panel. An address an installed plugin knows as one of its
+  videos plays in that plugin's player — the service's own, in a frame kept apart from the page. A
+  file ending `.mp4`, `.webm` or `.ogg` plays in the browser's own player. Anything else becomes a
   **Watch ↗** link.
 - **Or wire a feed into it**, from a Feed box's page port, and it plays the feed's newest video —
   or, with **From a wired feed, play** set so, the newest you have not watched yet. An address, when
@@ -187,7 +186,7 @@ A pamphlet is set like a newspaper: its name as the masthead, the date and how m
 inside on the dateline, then its leaflets in columns divided by thin rules. A Feed leaflet's first
 item leads, with its picture across the column; the rest follow as headlines with a byline and a
 small picture. A Text leaflet's heading is a headline, and its words open with a drop cap. Click a
-story to read it in Focus mode.
+story to read it in Content view.
 
 ## The Pamphlets tab
 
@@ -201,4 +200,4 @@ of the page.
 Pamphlets travel in [groups](Groups.md) like any other box. A Feed leaflet pointing at a feed in
 the same group stays wired to the loaded copy of that feed.
 
-**Related:** [Feeds](Feeds.md) · [Augmentations](Augmentations.md) · [The Feed Page](../The%20Feed%20Page.md)
+**Related:** [Feeds](Feeds.md) · [Augmentations](Augmentations.md) · [List View](../List%20View.md)

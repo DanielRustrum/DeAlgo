@@ -49,6 +49,6 @@ local images = net.find(post, "thumbnails")
 ## Not available
 
 There is no way to send a body, use other methods, set cookies or read response headers. For signed
-requests to Google, see [Account](Account.md).
+requests to your service as the signed-in account, see [Account](Account.md).
 
 **Related:** [Permissions](Permissions.md) · [Sources](Sources.md)

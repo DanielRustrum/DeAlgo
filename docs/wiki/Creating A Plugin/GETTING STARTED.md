@@ -7,10 +7,11 @@ working plugin in five minutes. The rest of this folder is the reference.
 ## What a plugin can and cannot do
 
 **It can** tell Pamphlets how to recognise a source and where its feed is, add to what Pamphlets reads
-from that feed, judge, rank or transform items and data, lay its items out in Focus mode with
+from that feed, judge, rank or transform items and data, lay its items out in Content view with
 [XML and CSS of its own](Sources.md#view-item-settings-act-and-style) — and, with permission, fetch
 pages, read the time, read and change the running account's sources and form submissions, and talk
-to Google as that account.
+to its own service as that account. A source can also declare a [player](Sources.md#player) its videos
+play in.
 
 **It cannot** touch files, run programs, import modules or see the host. It runs in a sandbox with a
 memory and time limit, and everything beyond pure Lua must be granted by the admin. Pamphlets does the
@@ -111,14 +112,11 @@ its row on the Plugins page says why, with a line number.
 | [The pamphlets Object](The%20pamphlets%20Object.md) | Reading and changing the running account's setup |
 | [Network](Network.md) | Fetching pages and pulling JSON out of them |
 | [Clock and Log](Clock%20and%20Log.md) | The time, and writing to the log |
-| [Account](Account.md) | Calling Google as the connected account |
+| [Account](Account.md) | Calling your service as the connected account |
 | [Publishing](Publishing.md) | Writing items back into the service, e.g. playlists |
 | [Distributing](Distributing.md) | Publishing your plugin in a git repository |
 | [Testing and Debugging](Testing%20and%20Debugging.md) | Finding out why it does not work |
 
-The five plugins that used to come with Pamphlets are complete examples — each in a repository of its
-own (see [Plugins](../Plugins.md)), with copies the test suite runs against in `tests/plugins/` — each split
-into a file per job: `plugin.lua` says who it is and requires the rest. Start with `reddit/` (a source
-with a mirror and two conditions: `references.lua`, `source.lua`, `conditions.lua`) and `shape/`
-(conditions and an ordering, no source). `youtube/` is the full set: sign-in, settings, a Data API
-client and a publisher, each in its own file.
+The test suite runs against complete example plugins, in `tests/plugins/`, each split into a file per
+job: `plugin.lua` says who it is and requires the rest — references, the source, its conditions, its
+player, sign-in, settings, a publisher. Read one alongside these pages.

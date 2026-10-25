@@ -6,13 +6,13 @@ wires, and land in every feed they can reach. Boxes in between narrow, order or 
 ![The Configuration canvas: sources wired through a filter and a sort into feeds, a Transform with Lua, a pamphlet and a frozen canvas](images/canvas.png)
 
 ```
-[Pulse] ──▶ [YouTube channel] ──▶ [Filter] ──▶ [Feed]
+[Pulse] ──▶ [Feed address] ──▶ [Filter] ──▶ [Feed]
                                      └ Longer than 10 min
 ```
 
 At the top are the **counts** (sources watched, items placed, watched, pending, filtered out,
 failed). Each opens [The Raw List](The%20Raw%20List.md) filtered to it. Setup warnings — such as a
-Google grant that needs renewing — appear under them.
+sign-in grant that needs renewing — appear under them.
 
 ## The palette
 
@@ -39,7 +39,7 @@ The bar down a box's left edge says what kind of box it is. The palette uses the
 | Colour | Kind |
 | --- | --- |
 | Violet | Triggers — Pulse, Schedule, Activation — and Activate and Return |
-| Green | Sources — channels, newsletters, feed addresses. A plugin may give its sources one of a few [other colours](Creating%20A%20Plugin/Sources.md#colour) instead: YouTube's are red, Bluesky's sky blue |
+| Green | Sources — channels, newsletters, feed addresses. A plugin may give its sources one of a few [other colours](Creating%20A%20Plugin/Sources.md#colour) instead |
 | Amber | Filter |
 | Blue | Sort |
 | Teal | Tag, Decay, Expire — they mark what passes and turn nothing away |

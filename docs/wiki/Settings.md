@@ -31,7 +31,7 @@ written.
 ## Your algorithm
 
 Also on the AI model page: an algorithm of your own, which an [Aggregation](Nodes/Aggregation.md)
-piece puts to work. **Learn from how I watch in Focus mode** turns it on or off — off, Focus mode
+piece puts to work. **Learn from how I watch in Content view** turns it on or off — off, Content view
 remembers nothing. Choose how many days back it learns from, how many items it needs before it says
 anything, and whether it learns again every run or once a day. For each of interest, retention and
 engagement, the page shows how many items it learned from, how well it did on items it was not
@@ -45,14 +45,14 @@ account sets for itself. Click one to open it. Each is marked with the plugin's 
 under Admin → Plugins. Your values and sign-ins are yours; changing them changes nothing for anyone
 else. Plugins the admin has switched off are not listed.
 
-**Signing in.** A plugin that writes back to its service as you — YouTube, filling playlists — has
+**Signing in.** A plugin that writes back to its service as you — filling playlists there, say — has
 **Connect … account**, **Reconnect** after a grant expires, and **Disconnect**. Disconnecting keeps
 your history and stops writing to that service. Where the service has a daily allowance, the block
 shows how much of it is spent today, for everyone on this Pamphlets. See
-[Connecting YouTube](Connecting%20YouTube.md) and [Quota](Quota.md).
+[Connecting an Account](Connecting%20an%20Account.md) and [Quota](Quota.md).
 
-**Feeds on YouTube.** The plugin feeds are published through (YouTube) also has a section for
-making a feed backed by a new or existing playlist on that service. Needs a connected account. See
+**Feeds on the service.** A plugin that publishes feeds to its service also has a section for
+making a feed backed by a new or existing playlist there. Needs a connected account. See
 [Feeds](Nodes/Feeds.md).
 
 Settings that apply to everyone, such as a plugin's OAuth client, are the admin's, on the plugin's

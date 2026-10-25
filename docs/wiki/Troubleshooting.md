@@ -15,36 +15,36 @@ Use [Testing a Flow](Testing%20a%20Flow.md) to see where items would go.
 5. **Did a filter hold it?** [The Raw List](The%20Raw%20List.md) shows *skipped* items with the reason.
 6. **Is it just slow?** Each source delivers at most 5 new items per run.
 
-## A YouTube channel takes no Shorts or live streams
+## A source leaves some of what it publishes out
 
-New channels take Videos and Posts only. Turn on **Shorts** or **Live** under **Takes** in the
-source's panel.
+A plugin can sort what a source publishes into kinds, each a switch under **Takes** in the source's
+panel, and start some of them off. Turn on the ones you want.
 
 ## A source says it is waiting
 
-The site asked Pamphlets to slow down (Reddit does this). Pamphlets waits as asked and tries again; the
-source's page says how long. For Reddit, set a **Mirror** in the source's panel.
+The site asked Pamphlets to slow down. Pamphlets waits as asked and tries again; the source's page
+says how long. Where the source's plugin offers one, set a **Mirror** in the source's panel.
 
-## Items never reach YouTube
+## Items never reach a feed on a service
 
-- **Not signed in to Google** (Settings → Plugins → YouTube), or the grant expired — see [Connecting YouTube](Connecting%20YouTube.md).
-- **Quota spent** — writing resumes after midnight Pacific. See [Quota](Quota.md).
-- **Not a YouTube video** — only YouTube videos can go into a YouTube playlist; others are skipped.
+- **Not signed in** (Settings → Plugins), or the grant expired — see [Connecting an Account](Connecting%20an%20Account.md).
+- **Quota spent** — writing resumes when the service's day starts again. See [Quota](Quota.md).
+- **Not that service's item** — only the plugin's own items can go into a playlist on its service; others are skipped.
 
 ## A condition does nothing
 
 - Its **plugin is switched off** — the piece says so. See [Plugins](Plugins.md).
-- **Length** conditions need video details, which need a connected account or API key.
+- **Length** conditions need an item's length, which some sources only give a plugin that is signed in.
 - Two conditions of the same kind under one Filter: only the nearest applies. See [Filter](Nodes/Filter.md).
 - It is **loose** — slotted into nothing. Drag it onto a box.
 
 ## A feed is shut
 
-It has [reading windows](Nodes/Reading%20Windows.md). The Feed page says when it opens. Times are UTC.
+It has [reading windows](Nodes/Reading%20Windows.md). List view says when it opens. Times are UTC.
 
-## Google sign-in fails
+## Signing in to a service fails
 
-See [Connecting YouTube](Connecting%20YouTube.md#if-google-refuses-the-sign-in).
+See [Connecting an Account](Connecting%20an%20Account.md#if-the-service-refuses-the-sign-in).
 
 ## Locked out
 

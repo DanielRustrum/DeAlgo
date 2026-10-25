@@ -33,7 +33,7 @@ Each field is a path into the JSON, with dots between the steps and numbers for 
 **Leave a field empty to have it guessed.** The list is looked for under the usual names (`items`,
 `results`, `data`, `entries`, `hits` and others), one level in, or as the whole answer. Each field
 is looked for the same way: `title` or `name`; `url` or `link`; `published_at`, `created_at` or
-`created_utc`; and so on. Items wrapped as `{"data": {…}}`, like Reddit's, are looked inside.
+`created_utc`; and so on. Items wrapped as `{"data": {…}}` are looked inside.
 After **Try it**, an empty field shows what was guessed, so you can type it in to keep it.
 
 ## How it reads things

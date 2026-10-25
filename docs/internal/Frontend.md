@@ -10,7 +10,7 @@ No framework, no bundler, no Node at runtime.
 | `web/styles/app.css` + files, and the templates' utility classes | `web/static/app.css` | All styles; `tokens.css` holds the theme and dark mode; `graph/` the canvas |
 | `@fontsource-variable/*` in `node_modules` | `static/fonts/*.woff2` | The two typefaces, served by the app (`make fonts`) |
 | `web/ts/graph/` (18 parts) | `static/graph.js` | The Configuration canvas |
-| `web/ts/focus/` (8 parts) | `static/focus.js` | Focus mode: one item at a time, timers |
+| `web/ts/focus/` (8 parts) | `static/focus.js` | Content view: one item at a time, timers, players |
 | `web/ts/sections.ts` | `static/sections.js` | Collapsible sections |
 | `web/ts/menu.ts` | `static/menu.js` | Menus |
 | `web/ts/toast.ts` | `static/toast.js` | Flash messages as toasts |
@@ -177,18 +177,22 @@ The only local state is in-flight interaction:
 The palette lists host boxes and pieces, plus each loaded plugin's augmentations with the boxes
 they fit under (as pills).
 
-## Focus mode — `web/ts/focus/`
+## Content view — `web/ts/focus/`
 
 Shows one item at a time. A Decay timer counts down per item (`view_seconds`); the reader can pause
 it unless a Lock piece set `view_locked`. When it runs out, or the reader moves on, it POSTs
 `/focus/{id}/finished`. Parts: `model`, `page`, `timer`, `showing`, `queue`, `advancing`, `player`,
 `main`.
 
-**Players are built in.** An item is played only when its source's plugin named one of
-`registry.plugin.PLAYERS` (`player = "youtube"`); every other item is read. A player is browser code
-running with the signed-in session, which a plugin is never handed, so each lives here: the
-`youtube` player is the iframe in `focus.html`, the embed in `showing.ts` and the IFrame API in
-`player.ts`. Adding a player means adding its name to `PLAYERS` and its code in those three places.
+**Players are declared, not built in.** An item is played only when its source's plugin declares a
+`player` (`plugins/registry/players.py`); every other item is read. The page is handed each player as
+data in `#focus-frames` (and with each advance): the frame address with `{key}`, `{autoplay}` and
+`{origin}` to fill, the messages to say, and which heard fields mean which state. `player.ts` fills
+the address (a key must be plain), points the page's one sandboxed iframe at it, says the plugin's
+`hello` until the frame answers, and listens only to messages whose `source` is that frame and whose
+`origin` is the declared one — parsed as JSON, read at the declared paths, compared, never drawn.
+It posts `say.pause`/`say.stop` to that origin only. No player's script is ever loaded into the
+page, so a plugin's player runs nothing with the signed-in session behind it.
 
 ## Service worker — `sw.ts`
 

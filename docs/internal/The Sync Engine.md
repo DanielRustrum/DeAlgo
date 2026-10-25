@@ -55,15 +55,15 @@ Channels added by bare id get avatar, handle and description from the publisher 
 ### 3. Filling — `filing.publish`, `placing.Placing`
 
 `publish` reads as these steps; placing each item is a `Placing` object (`placing.py`) that carries
-the run's counts, each YouTube playlist's contents (read once) and whether quota ran out.
+the run's counts, each service playlist's contents (read once) and whether quota ran out.
 
 1. `retry_deferred` (`owed.py`): finish owed placements (no item id, not removed, attempts left). Stops the run
    here if quota runs out again.
-2. `reconsider_routing`: revive `skipped` items whose only refusal was "not a YouTube video" if a
-   Pamphlets feed or repository now reaches their channel.
+2. `reconsider_routing`: revive `skipped` items whose only refusal was being the wrong kind for a
+   service's playlist, if a Pamphlets feed or repository now reaches their channel.
 3. Load `pending` items ordered by channel priority, then publish date.
 4. Compute routes once; keep those in `sources` (if given) and whose feed is enabled.
-5. Fetch video details for YouTube videos (duration, counts, live state) when affordable.
+5. Fetch item details from the publishing plugin (duration, counts, live state) when affordable.
 6. `reorder`: apply Sort boxes (see [Algorithms](Algorithms.md#batch-ordering)).
 7. For each item, `Placing.file`:
    - No routes → stays `pending`.
@@ -74,23 +74,23 @@ the run's counts, each YouTube playlist's contents (read once) and whether quota
    - Posts → `place_locally` (no API).
    - Other items → each target feed, deduplicated, in feed `priority` order:
      - already placed → skip;
-     - Pamphlets feed, or no Google account → local placement (`generic:` id), subject to
+     - Pamphlets feed, or no connected account → local placement (`generic:` id), subject to
        `max_per_run`;
-     - YouTube playlist → adopt if already present in the playlist, else check quota, else insert.
+     - A service's playlist → adopt if already present in it, else check quota, else insert.
        Quota stop → `defer` owed placements for every remaining target and stop the loop.
-     (`_place`, `_place_here`, `_place_on_youtube`, `_owe`)
+     (`_place`, `_place_here`, `_place_published`, `_owe`)
    - `stamp_expiry` on placements made down routes with Expire boxes.
    - Status (`_settle`): `added` if it landed anywhere; stays `pending` if only deferred;
      otherwise `attempts += 1`, `failed` after 3.
-8. `prune`: trim each feed to `max_items` (oldest first), on YouTube or locally.
+8. `prune`: trim each feed to `max_items` (oldest first), on the service or locally.
 
-If no Google account is connected, YouTube feeds collect inside Pamphlets. If quota is already spent,
-filing still runs but YouTube writes are deferred.
+If no account is connected, a service's feeds collect inside Pamphlets. If quota is already spent,
+filing still runs but writes to the service are deferred.
 
 ### 4. Stamping and sweeping
 
 - `stamp_what_is_already_here`: give existing placements under a newly wired Expire box their end.
-- `sweep_expired`: withdraw placements whose `expires_at` has passed (from YouTube if needed).
+- `sweep_expired`: withdraw placements whose `expires_at` has passed (from the service if needed).
 
 ### 5. Withdrawing — `withdraw_what_is_due`
 
@@ -107,7 +107,7 @@ Counts, `ok`, and `quota_spent` are written to `sync_run`; old run logs are prun
 In order, first refusal wins:
 
 1. **Carrying** — the route's `tagged` condition, counting tags this route would add.
-2. **Wrong kind** — a non-YouTube item into a YouTube playlist.
+2. **Wrong kind** — an item the publishing plugin cannot hold, into a playlist on its service.
 3. **Plugin conditions** — each `rule` in `route.checks`, inside `capabilities.acting_for(owner)`. `keep`
    returning false refuses with *held by <piece title>*. A plugin that is off or gone, or that
    errors, has no opinion.

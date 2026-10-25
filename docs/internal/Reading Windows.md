@@ -40,11 +40,11 @@ else                              → shut, opens_at = soonest next Reset
 | Call | Starts a sitting? | Used by |
 | --- | --- | --- |
 | `is_open(pieces, now)` | No | Canvas, feed list badges |
-| `window_state` + `begin_sitting` | Yes | Opening the feed page |
+| `window_state` + `begin_sitting` | Yes | Opening List view |
 
 `begin_sitting` stamps `last_fired_at` on the anchor only when the feed actually opens, so a sitting
 is never spent while something else holds the feed shut.
 
 ## Not covered
 
-Focus mode does not consult reading windows. See [Known Issues](Known%20Issues.md).
+Content view does not consult reading windows. See [Known Issues](Known%20Issues.md).

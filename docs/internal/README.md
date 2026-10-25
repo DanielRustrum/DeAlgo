@@ -26,7 +26,7 @@ Every page and section: [Table of Contents](Table%20of%20Contents.md).
 | [Sources and Parsing](Sources%20and%20Parsing.md) | Resolving references, reading feeds, newsletters, rate limits |
 | [Plugin Runtime](Plugin%20Runtime.md) | The Lua sandbox and its ceilings |
 | [Plugin Registry](Plugin%20Registry.md) | Loading, judging, granting, fetching, installing |
-| [Publishing and Quota](Publishing%20and%20Quota.md) | Writing to YouTube and keeping the ledger |
+| [Publishing and Quota](Publishing%20and%20Quota.md) | Writing to a service's playlists and keeping the ledger |
 | [Web Layer](Web%20Layer.md) | FastAPI, routing, templates, htmx |
 | [Frontend](Frontend.md) | TypeScript, SCSS, the canvas, the service worker |
 | [Database and Migrations](Database%20and%20Migrations.md) | Engine, sessions, hand-rolled migrations |

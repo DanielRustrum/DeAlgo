@@ -1,6 +1,6 @@
 # Signing In
 
-A plugin that writes back to its service as a person — YouTube filling a playlist — needs that
+A plugin that writes back to its service as a person — filling a playlist there, say — needs that
 person's permission: an OAuth 2.0 sign-in. The plugin says how its service does it, in a `connect`
 table; **Pamphlets** does the sign-in, keeps the token, refreshes it, and attaches it to the plugin's
 [`account.send`](Account.md) requests. The plugin never sees it.
@@ -18,21 +18,21 @@ settings = {
 },
 
 connect = {
-  name = "Google",                                         -- "Connect Google account"
-  authorize = "https://accounts.google.com/o/oauth2/v2/auth",
-  token = "https://oauth2.googleapis.com/token",
-  revoke = "https://oauth2.googleapis.com/revoke",         -- optional
-  scopes = { "https://www.googleapis.com/auth/youtube" },
+  name = "Example",                                        -- "Connect Example account"
+  authorize = "https://accounts.example.com/oauth2/authorize",
+  token = "https://accounts.example.com/oauth2/token",
+  revoke = "https://accounts.example.com/oauth2/revoke",   -- optional
+  scopes = { "playlists.write" },
   params = { access_type = "offline", prompt = "consent" },
-  hosts = { "googleapis.com" },                            -- where the token may go
+  hosts = { "api.example.com" },                           -- where the token may go
   client_id = "client_id", client_secret = "client_secret", api_key = "api_key",
-  allowance = { daily = "daily_quota", reserve = 0, timezone = "America/Los_Angeles",
+  allowance = { daily = "daily_quota", reserve = 0, timezone = "UTC",
                 unit = "units", exhausted = "quotaExceeded" },
   refusal = function(answer) … return reason end,           -- optional
   about = "A few sentences for the plugin's block under Settings.",
   notices = {                                                -- optional
-    connect = "Connect your Google account so …",
-    reconnect = "Google needs you to sign in again …",
+    connect = "Connect your Example account so …",
+    reconnect = "Example needs you to sign in again …",
     setup = "Writing needs an OAuth client, which the admin sets on this plugin's card.",
   },
 },
@@ -40,7 +40,7 @@ connect = {
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `name` | **yes** | What the account is called: "Connect **Google** account". |
+| `name` | **yes** | What the account is called: "Connect **Example** account". |
 | `authorize`, `token` | **yes** | The service's consent page and token endpoint. `https://` only. |
 | `revoke` | no | Where a token is revoked on disconnect. |
 | `scopes` | no | Scopes to ask for, joined with spaces. |

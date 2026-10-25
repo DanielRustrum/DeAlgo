@@ -3,9 +3,9 @@
 Nothing of anybody's own appears in them: a fresh data folder is seeded with
 made-up sources, feeds, a canvas, a pamphlet and a small plugin, the app is
 started on it, and headless Chrome is driven over its DevTools protocol to
-take each page. The pictures items carry are drawn here, as SVG, and served
-from a little server of this script's own, so nothing is fetched from
-anywhere but the embedded video.
+take each page. The pictures items carry are drawn here, as SVG, and the
+pamphlet's video made by ffmpeg, both served from a little server of this
+script's own, so nothing is fetched from anywhere else.
 
 Writes `docs/wiki/images/<name>.png`, one per shot, and
 `docs/wiki/images/carousel.svg`: every highlight cross-faded in turn by CSS
@@ -98,6 +98,19 @@ def picture(number: int, motif: str) -> str:
     )
 
 
+def clip(into: Path) -> None:
+    """A made-up video for the pamphlet's Video leaflet: a few seconds of a
+    fractal, made by ffmpeg — no video service, and nothing of anybody's.
+    Without ffmpeg the leaflet shows a link instead."""
+    if shutil.which("ffmpeg") is None:
+        return
+    subprocess.run(
+        ["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "mandelbrot=size=640x360:rate=12",
+         "-t", "4", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "30", str(into / "clip.mp4")],
+        check=False, capture_output=True,
+    )
+
+
 @contextlib.contextmanager
 def serving(folder: Path) -> Iterator[str]:
     """Serve a folder over HTTP for the run, answering its address."""
@@ -117,7 +130,7 @@ class _Quiet(SimpleHTTPRequestHandler):
 # -- the demo -------------------------------------------------------------------------
 
 KITCHEN = r'''
--- A demo source plugin whose items lay themselves out in Focus mode.
+-- A demo source plugin whose items lay themselves out in Content view.
 local function esc(text)
   return (tostring(text or ""):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"))
 end
@@ -334,7 +347,7 @@ def seed(data_dir: Path, assets: str) -> Demo:
                                 "leaflet_days": "10", "leaflet_fill": "area", "leaflet_curve": "smooth"}, set())
         video = graph.add_piece(session, kind="leaflet-video", host=chart, side="beside")
         leaflets.save(video, {"leaflet_heading": "Something to watch",
-                              "leaflet_url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ"}, set())
+                              "leaflet_url": f"{assets}/clip.mp4"}, set())
         form = graph.add_piece(session, kind="leaflet-form", host=video)
         leaflets.save(form, {"leaflet_heading": "Suggest a source", "leaflet_queue": "suggestions",
                              "leaflet_button": "Suggest it", "leaflet_thanks": "Thanks — it's in the queue."}, set())
@@ -541,11 +554,11 @@ def take_pamphlet(tab: Tab, app: str, demo: Demo) -> None:
     tab.open(f"{app}/pamphlets/{demo.canvas['paper']}", settle=4)
 
 
-def take_shelf(tab: Tab, app: str, demo: Demo) -> None:
+def take_list(tab: Tab, app: str, demo: Demo) -> None:
     tab.open(f"{app}/feed", settle=3)
 
 
-def take_focus(tab: Tab, app: str, demo: Demo) -> None:
+def take_content(tab: Tab, app: str, demo: Demo) -> None:
     item = demo.items["Roasted squash and miso soup"]
     tab.open(f"{app}/focus?playlist={demo.feeds['Weekend Cooking']}&start={item}", settle=4)
 
@@ -564,8 +577,8 @@ def take_plugins(tab: Tab, app: str, demo: Demo) -> None:
 SHOTS: tuple[Shot, ...] = (
     Shot("canvas", "Wire sources to feeds on the Configuration canvas", take_canvas),
     Shot("pamphlet", "Pamphlets: pages of your own, with feeds, charts, video and forms", take_pamphlet),
-    Shot("shelf", "Every feed on one shelf", take_shelf),
-    Shot("focus", "Focus mode, laid out by the source's own plugin", take_focus, dark=True),
+    Shot("list", "List view: every feed on one shelf", take_list),
+    Shot("content", "Content view, laid out by the source's own plugin", take_content, dark=True),
     Shot("lua", "Transform data with Lua of your own", take_lua),
     Shot("frozen", "Freeze a canvas while you think it over", take_frozen),
     Shot("theming", "Your own colours, type and corners", take_theming, highlight=False),
@@ -642,6 +655,7 @@ def main(argv: list[str]) -> int:
     data_dir, IMAGES_TMP = work / "data", work / "pictures"
     data_dir.mkdir()
     IMAGES_TMP.mkdir()
+    clip(IMAGES_TMP)
     port = free_port()
     environment = clean_environment(data_dir, port)
     server: subprocess.Popen[bytes] | None = None

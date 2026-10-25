@@ -6,7 +6,7 @@ yours, learning only from you, and only on this machine. Slot it under a **Filte
 
 ## What it predicts
 
-Your algorithm learns three things from how you go through items in [Focus mode](../Focus%20Mode.md):
+Your algorithm learns three things from how you go through items in [Content view](../Content%20View.md):
 
 | Signal | It predicts | Learned from |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Your algorithm learns three things from how you go through items in [Focus mode]
 **Saturation** is not learned: it is worked out as it goes, for the feed the item is on its way to.
 100% means the feed holds no more of it than you take in; lower, the feed is already fuller of it
 than you would choose. Set **Saturation of** to *Its source*, or to *A tag* and name the tag; an item
-without that tag has all the room it wants. It needs as many items opened in Focus mode as the
+without that tag has all the room it wants. It needs as many items opened in Content view as the
 other signals do before it says anything.
 
 Each prediction is 0–100%. It learns from an item's **source**, **kind**, **tags**, **title words**,

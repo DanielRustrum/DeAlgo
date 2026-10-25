@@ -1,6 +1,6 @@
 # Multi-Tenancy
 
-One instance serves several accounts. Each account's sources, feeds, canvas, settings, Google grant,
+One instance serves several accounts. Each account's sources, feeds, canvas, settings, sign-in grants,
 quota and run log are its own. The admin manages accounts but cannot see their data.
 
 ## Two modes, one code path

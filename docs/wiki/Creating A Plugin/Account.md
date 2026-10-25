@@ -16,7 +16,7 @@ Check it before doing work that needs one.
 
 ```lua
 local page = account.send("GET",
-  "https://www.googleapis.com/youtube/v3/channels?part=snippet&id=UC…", nil, 1)
+  "https://api.example.com/v1/channels?id=" .. key, nil, 1)
 if not page then return {} end
 for _, item in ipairs(page.items or {}) do … end
 ```

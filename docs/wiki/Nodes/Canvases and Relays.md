@@ -7,7 +7,7 @@ the canvas, and say what it is for. A [group](Groups.md) is the fourth.
 
 A **Canvas** box is a canvas of its own: a room for part of your setup. **Double-click** it, or press
 **Open** in its panel, and the canvas shows what is inside it. A trail across the top —
-**Configuration › Ingest › YouTube** — says where you are; press any step of it to go back out.
+**Configuration › Ingest › Videos** — says where you are; press any step of it to go back out.
 
 - **It keeps to itself.** A box inside is wired only to boxes beside it, in the same canvas, and a
   piece slots only under a box in the same canvas. Nothing is wired to the Canvas box itself.
@@ -51,7 +51,7 @@ Nor can anything in it be read:
   naming the frozen canvas in place of its leaflets, and its tile on the Pamphlets tab says so too.
   A leaflet elsewhere that shows a frozen feed says the feed is frozen instead of showing it.
 - **A feed in it is disabled.** On the Feed tab its tile is iced over and marked *frozen*, and is
-  not a way in; opening it by its address goes back to the shelf saying why, and Focus mode leaves
+  not a way in; opening it by its address goes back to the shelf saying why, and Content view leaves
   it out. Its settings page still opens, marked frozen. A feed with a box in a canvas that is not
   frozen is not frozen: it still fills there.
 
@@ -96,7 +96,7 @@ refused if it would take canvases more than five deep where it is loaded.
   is said as that; one installed from a file rather than a repository has nowhere to be fetched
   from, so ask whoever sent the file. Only an admin installs plugins; anybody else is told to ask
   one.
-- Each source keeps its kind — a subreddit comes in as a subreddit.
+- Each source keeps its kind — a plugin's source comes in as that plugin's.
 
 ## Relay
 

@@ -10,7 +10,7 @@ tidied, so `Long  Reads` and `long reads` are the same tag.
 - A [Filter](Filter.md) with a **Has tag** condition lets through only items with that tag, and
   one with **Lacks tag** holds them back. The tag counts from a Tag box anywhere on the same path,
   before or after the Filter.
-- Tags appear as pills on the item's card on [The Feed Page](../The%20Feed%20Page.md).
+- Tags appear as pills on the item's card on [List view](../List%20View.md).
 
 A tag belongs to the item, not to one feed: an item tagged on one path shows the tag everywhere.
 Only paths that actually take the item tag it.
