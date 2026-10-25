@@ -9,6 +9,7 @@ tests run them.
 | `vendor_fonts.py` | Copies the typefaces from `node_modules` into `pamphlets/web/static/fonts/` | `make fonts` |
 | `vendor_libraries.py` | Copies the browser libraries (Chart.js, Leaflet) from `node_modules` into `pamphlets/web/static/vendor/`, with their licences | `make vendor` |
 | `join_scripts.py` | Joins scripts written as parts (`web/ts/graph/`, `web/ts/focus/`) into one file each, after `tsc` | `make js` |
+| `screenshots.py` | Seeds a demo instance with made-up sources, a canvas, a pamphlet and a plugin, and takes the docs' screenshots of it in headless Chrome into `docs/wiki/images/`, with the README's carousel (`carousel.svg`) | `make screenshots` |
 | `build_toc.py` | Writes the Table of Contents for `docs/wiki` and `docs/internal` | `make toc` |
 | `publish_wiki.py` | Builds `docs/wiki` into Forgejo wiki pages, and publishes them | `make wiki` (preview), `.gitea/workflows/wiki.yml` |
 | `publish_release.py` | Builds the Docker image as files per platform, and attaches them to a tag's release; or, with `local`, builds this checkout into `releases/<version>/` | `make release` (local), `make release-image` (build only, as CI), `.gitea/workflows/release.yml` |

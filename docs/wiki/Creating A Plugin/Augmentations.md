@@ -1,11 +1,12 @@
 # Augmentations
 
-An augmentation is a piece users slot under one of Pamphlets's own boxes. A plugin can add two kinds:
+An augmentation is a piece users slot under one of Pamphlets's own boxes. A plugin can add three kinds:
 
 | `under` | Box | Your function | Answers |
 | --- | --- | --- | --- |
 | `"filter"` (default) | Filter | `keep(item, settings)` | `true` to let the item through, `false` to hold it |
 | `"sort"` | Sort | `rank(item, settings)` | A number; bigger comes first |
+| `"transform"` | [Transform](../Nodes/Transform.md) | `transform(data, settings, params)` | What the Transform gives out, as JSON-like tables |
 
 Each appears under **Plugins** in the palette, marked as an augmentation.
 
@@ -34,8 +35,36 @@ augmentations = {
 },
 ```
 
-An augmentation under a filter without `keep`, or under a sort without `rank`, stops the plugin
-loading. `under` must be `"filter"` or `"sort"`.
+An augmentation under a filter without `keep`, under a sort without `rank`, or under a transform
+without `transform`, stops the plugin loading. `under` must be `"filter"`, `"sort"` or
+`"transform"`.
+
+## Transformations
+
+Under a Transform, `transform(data, settings, params)` is handed what comes into the Transform —
+`data`, a list of rows, or one value; the piece's own fields as `settings`; and as `params` the
+values the flow was [activated](../Nodes/Triggers.md#activation-and-activate) with (empty when it was
+not). What it returns is what the Transform gives out:
+
+```lua
+{
+  kind = "top-five",
+  label = "Top five",
+  under = "transform",
+  fields = { { name = "by", label = "Most of", default = "views" } },
+  transform = function(data, settings, params)
+    table.sort(data, function(a, b) return (a[settings.by] or 0) > (b[settings.by] or 0) end)
+    local out = {}
+    for i = 1, math.min(5, #data) do out[i] = data[i] end
+    return out
+  end,
+},
+```
+
+One that throws gives out nothing, and the error goes to the log. It runs for the account whose
+Transform it is, so `pamphlets.sources()` and the rest answer about that account. A person can also
+write a transformation of their own, in a [Lua piece](../Nodes/Transform.md#lua), with no plugin at
+all.
 
 ## The item
 

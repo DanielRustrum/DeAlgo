@@ -2,6 +2,8 @@
 
 Go through unwatched items one after another, without choosing what is next.
 
+![Focus mode showing a recipe, laid out by its source's plugin, with a form to rate it](images/focus.png)
+
 Start it from **Focus ▶** on the Feed page (every feed), from a feed's section (that feed), or by
 clicking a card (starting there, in that feed's order).
 
@@ -11,6 +13,10 @@ clicking a card (starting there, in that feed's order).
   YouTube's does; a video from anywhere else is shown like an article, with a link to watch it there.
 - A **post** or **article** is laid out as its images and text. Click an image to open it full size,
   or **Open it on …** to read it at its source.
+- A source's plugin may **lay its items out itself** — pictures, players, tables, its own styling,
+  even a form you fill in right there, which the plugin answers. What it draws is made safe first:
+  only a fixed set of plain components, web addresses only, and its styles reach nothing outside the
+  item. See [Creating A Plugin › Sources](Creating%20A%20Plugin/Sources.md#view-item-settings-act-and-style).
 - **Done · next** marks the item watched and moves on.
 - **Skip** moves on without marking it. Skipped items come back next sitting.
 

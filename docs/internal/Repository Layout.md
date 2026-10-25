@@ -46,7 +46,7 @@ pamphlets/web/styles/         Stylesheet sources for Tailwind; tokens.css is the
 pamphlets/web/ts/             Browser scripts; graph/ and focus/ are scripts written as parts
 pamphlets/web/static/         Compiled app.css and *.js (committed), fonts, icons, htmx
 pamphlets/plugins/builtin/    Shipped plugins: youtube, reddit, bluesky, substack, shape
-ops/                       DevOps scripts: build CSS, join scripts, docs TOC, publish the wiki and releases
+ops/                       DevOps scripts: build CSS, join scripts, docs TOC, screenshots, publish the wiki and releases
 tests/                     pytest suite, fakes.py, and Node harnesses for the scripts
 docs/wiki/                 User wiki (Nodes/ and Creating A Plugin/ inside)
 docs/internal/             These pages, and autodoc/ for the generated reference

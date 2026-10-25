@@ -54,6 +54,11 @@ Code from outside the project, running in-process. Defences, in order:
 5. **Credentials never enter Lua.** `account.send` signs requests host-side, only for Google API
    hosts.
 6. **Fetching** never runs git; archives are size-, count- and path-checked; only text files kept.
+7. **Views are rebuilt, not trusted.** A plugin's Focus-mode XML is parsed (no DOCTYPE or entities,
+   200 KB) and rebuilt as HTML from a fixed set of components (`services/plugin_views.py`): every
+   other tag and attribute is dropped, addresses kept to http(s). Its CSS is read rule by rule —
+   statement at-rules, `@font-face`, `expression()`, `javascript:`, non-web `url()` dropped — and
+   every selector is scoped under `.pv-root[data-pv="<id>"]`, so it styles nothing outside the view.
 
 See [Plugin Runtime](Plugin%20Runtime.md) and [Plugin Registry](Plugin%20Registry.md).
 

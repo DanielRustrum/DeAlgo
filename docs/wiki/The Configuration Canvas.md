@@ -3,6 +3,8 @@
 **Configuration** is your whole setup, drawn as boxes and wires. Items enter at a source, follow the
 wires, and land in every feed they can reach. Boxes in between narrow, order or mark them.
 
+![The Configuration canvas: sources wired through a filter and a sort into feeds, a Transform with Lua, a pamphlet and a frozen canvas](images/canvas.png)
+
 ```
 [Pulse] ──▶ [YouTube channel] ──▶ [Filter] ──▶ [Feed]
                                      └ Longer than 10 min

@@ -32,6 +32,8 @@ no trigger fires (Run now and Backfill refuse), no source is polled for it, no i
 its boxes or lands in a feed inside it, no Withdraw pulls and no Text box writes. A source whose
 only trigger is inside is left alone, as if nothing were wired to it.
 
+![Inside a frozen canvas: icicles and snow at the corners, a few boxes iced over](../images/frozen.png)
+
 Everything is still there to change. The box is **snowed in and iced over**: a low layer of
 snow lies along its top and its bottom, following its rounded corners, with short drips and a pale
 blue underside; a fringe of icicles hangs from the top snow into the box, longer ones from the

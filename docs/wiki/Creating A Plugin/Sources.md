@@ -44,7 +44,7 @@ name it. Pick one of these, or leave it out for green. `color` works too.
 Only these, because each is drawn for both light and dark themes, and none is a colour the canvas
 already uses for another kind of box: violet triggers, amber filters, blue sorts, teal stamps, brown
 repositories, terracotta feeds. Anything else stops the plugin loading, with a message listing the
-allowed names. The shipped plugins use `red` (YouTube) and `sky` (Bluesky).
+allowed names. The YouTube plugin uses `red`, and the Bluesky plugin `sky`.
 
 ## recognise(reference) — required
 
@@ -140,6 +140,76 @@ exists. Without one, every item is read rather than played: shown with its pictu
 link out. A player is browser code that runs with the signed-in person's session, so it cannot be a
 plugin's own; anything not on the list stops the plugin loading.
 
+## view(item, settings), act and style
+
+How one of your items looks when it is opened in [Focus mode](../Focus%20Mode.md), instead of
+Pamphlets's own pictures-and-words layout. `view` answers **XML**, made of the components below;
+`style` is **CSS** to dress them; `act` answers a form in the view.
+
+![A plugin's own layout for a recipe in Focus mode](../images/focus.png)
+
+```lua
+style = [[
+  heading { color: var(--accent); }
+  .score { font-weight: bold; }
+  row { gap: 16px; }
+]],
+view = function(item, settings)
+  return '<view>'
+    .. '<heading level="1">' .. item.title .. '</heading>'
+    .. '<row><image src="' .. (item.images[1] or "") .. '" alt=""/>'
+    ..   '<paragraph>' .. item.words .. '</paragraph></row>'
+    .. '<form><label>Rate it <input name="score" type="range" min="1" max="5"/></label>'
+    ..   '<button>Rate</button></form>'
+    .. '</view>'
+end,
+act = function(item, values, settings)
+  return '<view><text class="score">You gave it ' .. values.score .. '</text></view>'
+end,
+```
+
+**The item** is a table of `title`, `kind`, `words`, `link`, `images` (a list), `thumbnail`,
+`duration`, `views`, `likes`, `published` (ISO 8601), `author` (the source's name), `source` (its
+kind), `key`, `tags` (a list) and `hint`.
+
+**Components.** Anything else is dropped — what is written inside it is kept, as text — and so is
+any attribute not listed. Every component also takes `class` and `title`.
+
+| Component | Becomes | Attributes |
+| --- | --- | --- |
+| `view`, `box`, `column` | A stack | |
+| `row` | Side by side, wrapping | |
+| `grid` | A grid of equal cells | |
+| `spacer`, `divider`, `break` | Space; a rule; a line break | |
+| `heading` | A heading | `level`, 1–4 |
+| `text`, `paragraph` (`p`), `strong`, `em`, `small`, `code`, `pre`, `quote`, `badge` | Words | |
+| `link` | A link, opening in a new tab | `href` |
+| `image` | A picture | `src`, `alt`, `width`, `height` |
+| `video`, `audio` | The browser's player | `src`, `poster`, `loop`, `muted` |
+| `embed` | A YouTube or Vimeo player, or a video file | `src` |
+| `list` and `item` | A list | `ordered` on `list` |
+| `table`, `table-row`, `cell`, `header-cell` | A table | `span` on cells |
+| `details` and `summary` | A part that opens and closes | `open` |
+| `progress` | A bar | `value`, `max` |
+| `form`, `label`, `input`, `textarea`, `select`, `option`, `button` | A form | `name`, `type` (text, number, date, email, url, checkbox, radio, range, color, time, hidden), `value`, `placeholder`, `min`, `max`, `step`, `required`, `pattern`, `checked`, `rows`, `selected`; `href` on a `button` makes it a link |
+
+Addresses — `href`, `src`, `poster` — are kept only if they start `http://` or `https://`. Up to
+200 KB of XML; no `DOCTYPE` or entities.
+
+**CSS.** Write selectors with the components' names — `heading`, `row`, `badge` — or your own
+classes. Every rule is scoped to your view and reaches nothing outside it. `@media`, `@supports` and
+`@keyframes` are kept; every other at-rule is dropped, and so is any declaration with
+`expression(`, `javascript:` or a `url(…)` that is not `https://` or an image `data:` address. The
+theme's variables — `var(--accent)`, `var(--text)`, `var(--panel)` — follow the person's theme.
+
+**Forms.** A `form` in the view is sent to `act(item, values, settings)`, `values` being its fields
+by name. Answer the view as it should look now; it replaces the old one. Without `act`, a form does
+nothing.
+
+`view` and `act` run for the account whose item it is: `pamphlets.sources()`,
+`pamphlets.queue(name)` and the rest answer about it, with the permissions granted. One that throws
+or answers XML that cannot be read leaves the item in Pamphlets's own layout, with the reason above it.
+
 ## mirror(key)
 
 A second address serving the same feed, offered when your source rate-limits readers. It is shown as a
@@ -168,6 +238,7 @@ permission to fetch something — see [Network](Network.md). YouTube's community
 | `recognise`, `accept` | When somebody adds a source | No |
 | `refine`, `posts` | On every check of the source | `posts` only |
 | `home`, `item_url`, `mirror` | When pages are drawn | No |
+| `view`, `act` | When one of its items is opened in Focus mode, and when a form in it is sent | Yes |
 
 See [The pamphlets Object](The%20pamphlets%20Object.md) for why.
 

@@ -7,6 +7,8 @@ that has become hard to read.
 
 Press **Save theme** to keep your changes. The page reloads in the new look.
 
+![Theming: the looks to start from, and a preview by day and by night](images/theming.png)
+
 Every section folds: click its heading to open or close it. Only *Start from* is open the first
 time; after that, the page remembers in this browser which sections you had open, and opens a
 section on its own when you upload something to it. A closed section's settings are still saved

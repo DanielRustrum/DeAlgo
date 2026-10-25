@@ -9,6 +9,7 @@ it is working for.
 | `pamphlets.permissions()` | none | Your permissions — see [Permissions](Permissions.md). |
 | `pamphlets.sources()` | `read` | A list of `{ key, title, kind, enabled }`. |
 | `pamphlets.feeds()` | `read` | A list of `{ title, generic, enabled, sources }` — `sources` is a count. |
+| `pamphlets.queue(name)` | `read` | What [Form leaflets](../Nodes/Pamphlets.md#forms) sent into the queue `name`, newest first: each a table of its fields by name, and `submitted`, when it was sent (ISO 8601). |
 | `pamphlets.watch(reference)` | `manage` | Starts watching `reference`, as if typed by the user. Returns its key, or `nil`. |
 | `pamphlets.pause(key, on)` | `manage` | Sets the source's **on** state to `on`: `pause(key, false)` switches it off, `pause(key, true)` on. Returns `true` if found. |
 

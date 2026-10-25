@@ -115,7 +115,10 @@ def _relink(match: re.Match[str], source: Path, blob_url: str) -> str:
         return f"{opening}{page_name(found)}{suffix}{closing}"
     if REPO_ROOT in found.parents and found.exists():
         where = urllib.parse.quote(found.relative_to(REPO_ROOT).as_posix())
-        return f"{opening}{blob_url}/{where}{suffix}{closing}"
+        # An image is shown, so it is linked as the file itself, not the
+        # forge's page about it.
+        base = blob_url.replace("/src/branch/", "/raw/branch/", 1) if opening.startswith("!") else blob_url
+        return f"{opening}{base}/{where}{suffix}{closing}"
     return match.group(0)
 
 

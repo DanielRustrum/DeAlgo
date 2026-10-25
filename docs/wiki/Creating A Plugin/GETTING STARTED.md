@@ -7,8 +7,10 @@ working plugin in five minutes. The rest of this folder is the reference.
 ## What a plugin can and cannot do
 
 **It can** tell Pamphlets how to recognise a source and where its feed is, add to what Pamphlets reads
-from that feed, judge or rank items, and — with permission — fetch pages, read the time, read and
-change the running account's sources, and talk to Google as that account.
+from that feed, judge, rank or transform items and data, lay its items out in Focus mode with
+[XML and CSS of its own](Sources.md#view-item-settings-act-and-style) — and, with permission, fetch
+pages, read the time, read and change the running account's sources and form submissions, and talk
+to Google as that account.
 
 **It cannot** touch files, run programs, import modules or see the host. It runs in a sandbox with a
 memory and time limit, and everything beyond pure Lua must be granted by the admin. Pamphlets does the

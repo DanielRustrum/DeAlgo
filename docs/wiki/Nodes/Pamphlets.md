@@ -3,6 +3,8 @@
 A **Pamphlet** box is a page of your own, shown under the **Pamphlets** tab. What is on the page is
 whatever **leaflets** you slot under the box, laid out the way they sit on the canvas.
 
+![A pamphlet: a feed's stories, a bar chart from a Lua transform, a line chart, a video and a form](../images/pamphlet.png)
+
 ## Laying out a page
 
 Drag a **Pamphlet** box out of the palette (under **Pamphlets**), then drag leaflets onto it:

@@ -12,7 +12,7 @@ URL     ?= http://localhost:8080
 PY      ?= .venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts vendor docs toc wiki release-image release push-release dev clean
+.PHONY: help config publish publish-multiarch backup build up down restart logs ps shell sync add channels watched remove-watched info test typecheck css js assets watch-css watch-js fonts vendor docs toc screenshots wiki release-image release push-release dev clean
 
 help: ## Show this help
 	@echo "Pamphlets — usage: make <target>"
@@ -136,6 +136,9 @@ docs: ## Generate the API reference from code comments into docs/internal/autodo
 
 toc: ## Rebuild the Table of Contents in docs/wiki and docs/internal
 	$(PY) ops/build_toc.py
+
+screenshots: ## Retake the docs' screenshots and the README's carousel, from a demo instance (needs Chrome or docker)
+	$(PY) -W ignore ops/screenshots.py
 
 wiki: ## Build the Forgejo wiki pages from docs/wiki into build/wiki, to preview (CI publishes them)
 	@rm -rf build/wiki

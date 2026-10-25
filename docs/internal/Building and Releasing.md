@@ -61,6 +61,19 @@ own token. A reverse proxy in front of Forgejo must accept uploads of about 80 M
 
 GitHub Actions syntax, except the release API calls, which are Forgejo's.
 
+## Screenshots — `ops/screenshots.py`
+
+`make screenshots` retakes every picture in `docs/wiki/images/` and the README's `carousel.svg`. It
+seeds a throwaway data folder with a made-up demo (sources, items, a canvas, a pamphlet, a frozen
+canvas and a small `kitchen` plugin with a Focus-mode view), serves the items' pictures — drawn as
+SVG — from a server of its own, starts the app on a free port with no sign-in, and drives headless
+Chrome over its DevTools protocol: the one at `--chrome` if it answers, else a `zenika/alpine-chrome`
+container for the run. Each tab bypasses the service worker and cache, so it shows this checkout.
+
+The carousel is an SVG because a README can hold no `<style>` or script: its slides are JPEGs
+embedded as data, cross-faded by CSS keyframes inside the SVG, which forges draw as an image.
+`--only <name>…` retakes some shots without the carousel; `--keep` leaves the demo's data to look at.
+
 ## The wiki — `.gitea/workflows/wiki.yml`
 
 On a push to `main` that touches `docs/wiki/`, or by hand, `ops/publish_wiki.py publish` makes the
@@ -70,7 +83,7 @@ repository's Forgejo wiki a copy of `docs/wiki`:
   served, so the tree is flattened: `README.md` → `Home`, `Nodes/Filter.md` → `Nodes-Filter`, a
   folder's `README.md` or `GETTING STARTED.md` → the folder's name.
 - Every link between pages is rewritten to its new page; a link to any other file in the repository
-  becomes a link to that file. A sidebar (the home page's index) and a footer are added.
+  becomes a link to that file — its raw form, for an image, so it is shown rather than linked. A sidebar (the home page's index) and a footer are added.
 - The wiki's whole content is replaced, so edits made in the wiki itself are lost on the next
   publish — the footer says where to edit.
 - A push cannot create a wiki that has never had a page, so the script adds one through the API

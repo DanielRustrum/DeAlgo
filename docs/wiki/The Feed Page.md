@@ -3,6 +3,8 @@
 **Feed** is where you read. `/` opens it. It has two levels: a shelf of every feed, and each feed's
 own page.
 
+![The shelf: a tile for each feed, a mosaic of its newest items](images/shelf.png)
+
 ## The shelf
 
 Every feed is a tile. A tile shows:

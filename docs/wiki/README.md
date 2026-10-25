@@ -44,6 +44,13 @@ Every box and piece on the canvas. See [Nodes](Nodes/README.md).
 - [Augmentations](Nodes/Augmentations.md) — pieces that slot under a box and change what it does.
 - [Reading Windows](Nodes/Reading%20Windows.md) — limit when a feed can be read (Timer, Reset, Alive).
 - [Groups](Nodes/Groups.md) — arrange the canvas and share setups.
+- [Canvases and Relays](Nodes/Canvases%20and%20Relays.md) — canvases inside canvases, freezing one, relays and comments.
+- [REST API](Nodes/REST%20API.md) — read any JSON API as a source.
+- [Aggregation](Nodes/Aggregation.md) — your own algorithm, at work.
+- [Pamphlets](Nodes/Pamphlets.md) — pages of your own: feeds, words, charts, maps, videos and forms.
+- [Format](Nodes/Format.md) — reshape a source's JSON for a chart.
+- [Transform](Nodes/Transform.md) — turn items or data into data: a count, your own Lua, or a plugin's.
+- [Text](Nodes/Text.md) — have your AI model write for a pamphlet.
 
 ## Managing
 

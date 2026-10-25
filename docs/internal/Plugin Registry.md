@@ -59,6 +59,8 @@ way to hand a kind to a replacement.
 | `posts(kind, key)` / `has_extras` | sync polling | `posts` (≤ 200) |
 | `keeps(ref, item, settings)` | `decide` | augmentation `keep` |
 | `ranks(ref, item, settings)` | `reorder` | augmentation `rank` |
+| `transforms(ref, data, settings, params, owner)` | `formatting.transformed`, for a plugin's piece under a Transform | augmentation `transform` (inside `acting_for(owner)`) |
+| `has_view(kind)` / `view(kind, item, settings, owner)` / `act(kind, item, values, settings, owner)` | `web/routes/focus.py`, for an item opened in Focus mode | the source's `view` and `act`, answering XML; its `style` is read once, with the manifest |
 | `augmentations()` / `augmentation(ref)` | canvas palette, `piece_hosts` | — |
 | `home`, `item_url`, `mirror` | UI links, mirrors | `home`, `item_url`, `mirror` |
 
@@ -73,7 +75,7 @@ Built per plugin per load by `capabilities.granted_to`; absent unless granted.
 | `network` | `net` (`get`, `embedded`, `find`) | 4 requests/call, 2 MiB/response, header allow-list (`user-agent`, `accept`, `accept-language`, `referer`), honours `patience` |
 | `clock` | `clock` | — |
 | `log` | `log` | prefixed with the plugin name |
-| `read` | `pamphlets.sources/feeds` | owner-scoped |
+| `read` | `pamphlets.sources/feeds/queue` | owner-scoped; `queue(name)` is a form's submissions |
 | `manage` | `pamphlets.pause/watch` | owner-scoped |
 | `account` | `account.send` | Google API hosts only, 30 calls/call, cost 1–100 each, 4 MiB |
 | *(always)* | `settings` (`app`, `user`) | The plugin's own values only; `user` for the owner in hand, else defaults |
