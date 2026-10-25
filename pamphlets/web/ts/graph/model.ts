@@ -7,6 +7,8 @@ type GraphNodeKind =
   | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
   // The end of a path that sets an Activation trigger off.
   | "activate"
+  // A form on a pamphlet's page, and the fields slotted under it.
+  | "leaflet-form" | "input-text" | "input-long" | "input-number" | "input-date" | "input-choice" | "input-check"
   // A page under the Pamphlets tab, laid out by the leaflets slotted under
   // it. On no path: nothing is wired into or out of one.
   | "pamphlet"
@@ -118,6 +120,10 @@ interface GraphNodeView {
   polled: string | null;
   /** Trigger boxes only. */
   trigger: GraphTrigger | null;
+  /** Input pieces only: the form field's settings. */
+  field: GraphField | null;
+  /** Input sources only: its queue, the field that titles its items, and the fields to choose from. */
+  input: GraphInput | null;
   /** Activation triggers only: the parameters it takes, and what it was last set off with. */
   activation: GraphActivation | null;
   /** Activate boxes only: which Activation it sets off, with what, and which it could. */
@@ -274,6 +280,26 @@ interface GraphEvery {
 }
 
 /** A trigger box's schedule, window and last firing. */
+/** A form field: what it is filed under, asked as, and must be. */
+interface GraphField {
+  name: string;
+  label: string;
+  required: boolean;
+  pattern: string;
+  hint: string;
+  placeholder: string;
+  options: string;
+  min: string;
+  max: string;
+}
+
+/** An Input source: the queue it takes from, and which field titles an item. */
+interface GraphInput {
+  queue: string;
+  titleField: string;
+  fields: string[];
+}
+
 /** What an Activation trigger takes. */
 interface GraphActivation {
   params: { name: string; default: string }[];

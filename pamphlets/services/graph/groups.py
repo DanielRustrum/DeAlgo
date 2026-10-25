@@ -42,7 +42,7 @@ from .leaflets import LEAFLET_KINDS
 from .pieces import attach
 from .units import DEFAULT_CRON, DEFAULT_EVERY_MINUTES
 from .reading import edges, nodes
-from .vocabulary import AUGMENTATIONS, GROUP_LEAST, GROUP_SIZE, STAMPS
+from .vocabulary import AUGMENTATIONS, GROUP_LEAST, GROUP_SIZE, INPUT_KINDS, STAMPS
 from .wiring import connect, refresh_membership
 
 # Bumped if the shape changes in a way a reader would need to know about.
@@ -150,6 +150,9 @@ def pack_nodes(
             entry["writing"] = writing.settings(node)
         if node.kind == "canvas" and node.frozen:
             entry["frozen"] = True
+        if node.kind in INPUT_KINDS and node.form_field:
+            # A form's field: what it is filed as, asked as, and must be.
+            entry["form_field"] = json.loads(node.form_field)
         if node.kind in ("trigger", "activate") and node.activation:
             # An Activation's parameters; an Activate box's values, and the
             # Activation it sets off — by its place in this copy when it is
@@ -443,6 +446,8 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
         # A source or feed is switched through its channel or playlist.
         node.enabled = bool(entry["enabled"])
     kind = node.kind
+    if kind in INPUT_KINDS and isinstance(entry.get("form_field"), dict):
+        node.form_field = json.dumps(entry["form_field"], sort_keys=True)
     if kind == "canvas" and "frozen" in entry:
         node.frozen = entry["frozen"] is True
     if kind == "canvas" and isinstance(entry.get("plugins"), list):

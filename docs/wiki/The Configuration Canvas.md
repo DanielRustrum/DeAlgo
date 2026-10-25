@@ -19,12 +19,12 @@ middle of the view.
 
 | Section | Contains |
 | --- | --- |
-| *(top)* | **Newsletter**, **Feed address**, **Feed** |
+| *(top)* | **Newsletter**, **Input**, **REST API**, **Feed address**, **Feed** |
 | Operations | [Filter](Nodes/Filter.md), [Sort](Nodes/Sort.md), [Tag](Nodes/Tag.md), [Decay](Nodes/Decay.md), [Expire](Nodes/Expire.md), [Deposit and Withdraw](Nodes/Repositories.md), [Activate](Nodes/Triggers.md#activation-and-activate) |
 | Augmentations | [Timer, Reset, Alive, Lock](Nodes/Reading%20Windows.md) and the [conditions](Nodes/Filter.md) |
 | Triggers | [Pulse, Schedule and Activation](Nodes/Triggers.md) |
 | Plugins | Each plugin's [sources](Nodes/Sources.md) and conditions |
-| Pamphlets | [Pamphlet and its leaflets](Nodes/Pamphlets.md), with **Charts** — a leaflet for each kind of chart — folded inside |
+| Pamphlets | [Pamphlet and its leaflets](Nodes/Pamphlets.md), with **Form inputs** — the fields of a [Form leaflet](Nodes/Pamphlets.md#forms) — and **Charts**, a leaflet for each kind of chart, folded inside |
 | Layout | [Group](Nodes/Groups.md), [Canvas, Relay and Comment](Nodes/Canvases%20and%20Relays.md) |
 
 Rows marked with a tab icon are [augmentations](Nodes/Augmentations.md); the pills under them name the

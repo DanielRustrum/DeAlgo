@@ -181,6 +181,13 @@ async def graph_save_node(
         if box_form == "1":
             _switch(session, node, on=active == "1", owner=owner)
 
+        if node.kind == "source" and node.channel is not None and node.channel.source_kind == "input":
+            # Which field of a submission titles its item.
+            given = await request.form()
+            if "input_title_field" in given:
+                node.channel.source_options = json.dumps(
+                    {"title_field": str(given.get("input_title_field") or "").strip().lower()[:40]}
+                )
         if node.kind == "feed" and node.playlist is not None and box_form == "1":
             _save_feed(node.playlist, max_items=max_items, max_per_run=feed_max_per_run)
         elif node.kind == "source" and node.channel is not None and box_form == "1":
@@ -214,6 +221,12 @@ async def graph_save_node(
             # the app's own Order piece does.
             if orders(node):
                 node.sort_dir = "asc" if sort_dir == "asc" else "desc"
+        elif node.kind in graph_service.INPUT_KINDS:
+            given = await request.form()
+            try:
+                graph_service.forms.save_field(node, {str(k): str(v) for k, v in given.items()})
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
         elif node.kind in graph_service.AUGMENTATIONS:
             answer = _save_piece(
                 node, alive_from=alive_from, alive_to=alive_to,

@@ -96,6 +96,18 @@ REST = SourceKind(
 )
 
 
+#: What Form leaflets on the pamphlets send, by the queue they share
+#: (services/graph/forms.py). Nothing is fetched: it reads its own queue.
+INPUT = SourceKind(
+    "input", "Input", "a queue's name, like feedback",
+    plugin="",
+    noun="Input",
+    blurb="What a Form leaflet sends, by the queue they share — each submission an item, once.",
+    colour="pink",
+    mirrors=False,
+)
+
+
 def all_kinds() -> tuple[SourceKind, ...]:
     """Every kind of somewhere that can be watched, plugins first.
 
@@ -123,7 +135,7 @@ def all_kinds() -> tuple[SourceKind, ...]:
         )
         for kind in registry.current().source_kinds()
     )
-    return offered + (REST, NEWSLETTER, RSS)
+    return offered + (INPUT, REST, NEWSLETTER, RSS)
 
 
 def describe(kind: str) -> SourceKind:

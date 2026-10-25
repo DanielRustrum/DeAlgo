@@ -1704,6 +1704,10 @@ function graphKindLabel(kind) {
         return "Source";
     if (kind === "activate")
         return "Activate";
+    if (kind === "leaflet-form")
+        return "Form leaflet";
+    if (kind.startsWith("input-"))
+        return "Input";
     if (kind === "deposit")
         return "Deposit";
     if (kind === "withdraw")
@@ -4062,7 +4066,11 @@ function snowGraphView(state, width) {
 /** Whether this kind is a leaflet. */
 function graphIsLeaflet(kind) {
     return (kind === "leaflet-feed" || graphTakesData(kind) ||
-        kind === "leaflet-text" || kind === "leaflet-link");
+        kind === "leaflet-text" || kind === "leaflet-link" || kind === "leaflet-form");
+}
+/** A form's field, slotted under a Form leaflet. */
+function graphIsInput(kind) {
+    return kind.startsWith("input-");
 }
 /** Whether this kind of leaflet shows the data wired into it: a chart, or the map. */
 function graphTakesData(kind) {
@@ -4169,7 +4177,7 @@ function graphHanging(state) {
 }
 /** The room around and between leaflets inside a Pamphlet box. */
 function graphLeafletSpacing() {
-    return { pad: 10, gap: 8 };
+    return { pad: 16, gap: 22 };
 }
 /** Lay out every pamphlet's leaflets inside it, as a small picture of the
  *  page: the box's own title at the top, then its leaflets as cards — a
@@ -4235,6 +4243,9 @@ function placeGraphLeaflets(state) {
                 walk.y = top;
             }
             let reached = top + box.offsetHeight;
+            // A Form leaflet's fields, stacked inside its column under it.
+            if (walk.kind === "leaflet-form")
+                reached = placeGraphFormFields(state, walk, x, reached, across, held);
             if (below !== undefined)
                 reached = placeRow(below, x, reached + gap, depth + 1);
             bottom = Math.max(bottom, reached);
@@ -4262,6 +4273,52 @@ function placeGraphLeaflets(state) {
         box.style.width = `${Math.max(box.offsetWidth, inset + pad * 2 + rowWidth(first, 0))}px`;
         box.style.height = `${bottom - node.y + pad}px`;
     }
+}
+/** A Form leaflet's fields, in the order they are stacked under it. */
+function graphFormFields(state, form) {
+    var _a;
+    var _b;
+    const under = new Map();
+    for (const node of [...state.nodes].sort((a, b) => a.id - b.id)) {
+        const host = (_a = node.piece) === null || _a === void 0 ? void 0 : _a.under;
+        if (!graphIsInput(node.kind) || host === undefined || host === null)
+            continue;
+        under.set(host, [...((_b = under.get(host)) !== null && _b !== void 0 ? _b : []), node]);
+    }
+    const found = [];
+    const seen = new Set();
+    const walk = (host) => {
+        var _a;
+        for (const one of (_a = under.get(host)) !== null && _a !== void 0 ? _a : []) {
+            if (seen.has(one.id))
+                continue;
+            seen.add(one.id);
+            found.push(one);
+            walk(one.id);
+        }
+    };
+    walk(form.id);
+    return found;
+}
+/** Stack a Form leaflet's fields under it, a little in from its edge, and
+ *  answer how far down they reach. */
+function placeGraphFormFields(state, form, left, top, width, held) {
+    let reached = top;
+    for (const field of graphFormFields(state, form)) {
+        const box = state.boxes.get(field.id);
+        if (box === undefined)
+            continue;
+        box.dataset["host"] = "pamphlet";
+        if (field.id !== held) {
+            box.style.width = `${Math.max(120, width - 14)}px`;
+            box.style.left = `${left + 14}px`;
+            box.style.top = `${reached}px`;
+            field.x = left + 14;
+            field.y = reached;
+        }
+        reached += box.offsetHeight;
+    }
+    return reached;
 }
 /** Every empty edge a leaflet could be dropped on: below a pamphlet with
  *  nothing under it yet, and below or beside any leaflet already on one. */
@@ -4429,6 +4486,13 @@ function graphLeafletFields(form, node) {
         body.value = said("body");
         form.appendChild(graphLabelled("Words", body));
         form.appendChild(graphElement("p", "hint", "A blank line starts a new paragraph."));
+    }
+    else if (node.kind === "leaflet-form") {
+        form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
+        form.appendChild(graphLabelled("Sends into", graphLeafletText("leaflet_queue", said("queue"), "a queue's name, like feedback")));
+        form.appendChild(graphLabelled("Button", graphLeafletText("leaflet_button", said("button"), "Send")));
+        form.appendChild(graphLabelled("Once sent", graphLeafletText("leaflet_thanks", said("thanks"), "Sent — thank you.")));
+        form.appendChild(graphElement("p", "hint", "Its fields are the Input pieces stacked under it. What is sent waits in the queue until an Input source of the same name takes it."));
     }
     else if (node.kind === "leaflet-link") {
         form.appendChild(graphLabelled("Goes to", graphLeafletSelect("leaflet_goes", leaflet.goes, said("goes"))));
@@ -4976,6 +5040,7 @@ function graphPieceGoesUnder(box, under) {
  *  wants before anything is known about what is being dragged. */
 function graphSlots(state, held = false, under = "", moving = -1) {
     var _a, _b;
+    var _c;
     const below = new Map();
     for (const node of state.nodes) {
         const host = (_a = node.piece) === null || _a === void 0 ? void 0 : _a.under;
@@ -5026,6 +5091,19 @@ function graphSlots(state, held = false, under = "", moving = -1) {
     }
     if (!held || graphPieceGoesUnder("pamphlet", under))
         found.push(...graphLeafletSlots(state, moving));
+    // A form's field goes at the bottom of its Form leaflet's fields.
+    if (held && graphPieceGoesUnder("leaflet-form", under)) {
+        for (const node of state.nodes) {
+            if (node.kind !== "leaflet-form")
+                continue;
+            const fields = graphFormFields(state, node).filter((one) => one.id !== moving);
+            const last = (_c = fields[fields.length - 1]) !== null && _c !== void 0 ? _c : node;
+            const box = state.boxes.get(last.id);
+            if (box === undefined)
+                continue;
+            found.push({ under: last.id, side: "below", x: last.x, y: last.y + box.offsetHeight, width: box.offsetWidth, height: 0 });
+        }
+    }
     return found;
 }
 /** The slot a piece being dragged would drop into, if any. */
@@ -6204,6 +6282,10 @@ function graphPieceFields(form, node) {
     const piece = node.piece;
     if (piece === null)
         return;
+    if (graphIsInput(node.kind)) {
+        graphInputFields(form, node);
+        return;
+    }
     if (node.kind === "count") {
         form.appendChild(graphElement("p", "hint", piece.under === null
             ? "Loose on the canvas. Drop it on a Transform box to count what comes into it."
@@ -6342,6 +6424,63 @@ function graphTagChoosingFields(form, node, said) {
     form.appendChild(fixed);
     form.appendChild(choose);
 }
+/** A form field: what it is filed under and asked as, whether it must be
+ *  filled in, and the pattern — a regular expression — it must match. */
+function graphInputFields(form, node) {
+    var _a;
+    const said = node.field;
+    if (said === null)
+        return;
+    if (((_a = node.piece) === null || _a === void 0 ? void 0 : _a.under) == null) {
+        form.appendChild(graphElement("p", "hint", "Loose on the canvas. Drop it under a Form leaflet to make it one of its fields."));
+    }
+    const text = (name, value, placeholder = "") => {
+        const field = document.createElement("input");
+        field.type = "text";
+        field.name = `field_${name}`;
+        field.value = value;
+        field.placeholder = placeholder;
+        field.spellcheck = false;
+        return field;
+    };
+    form.appendChild(graphLabelled("Asked as", text("label", said.label)));
+    form.appendChild(graphLabelled("Filed as", text("name", said.name, "a name, like email")));
+    const carried = document.createElement("input");
+    carried.type = "hidden";
+    carried.name = "field_form";
+    carried.value = "1";
+    form.appendChild(carried);
+    const needed = graphElement("label", "graph-switch");
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.name = "field_required";
+    tick.value = "1";
+    tick.checked = said.required;
+    needed.appendChild(tick);
+    needed.appendChild(graphElement("span", "graph-switch-name", "Must be filled in"));
+    form.appendChild(needed);
+    if (node.kind === "input-choice") {
+        const options = document.createElement("textarea");
+        options.name = "field_options";
+        options.rows = 4;
+        options.value = said.options;
+        form.appendChild(graphLabelled("Options, one a line", options));
+    }
+    if (node.kind === "input-number") {
+        const pair = graphElement("div", "graph-pair");
+        pair.appendChild(text("min", said.min, "least"));
+        pair.appendChild(text("max", said.max, "most"));
+        form.appendChild(graphLabelled("Between", pair));
+    }
+    if (node.kind !== "input-check" && node.kind !== "input-choice") {
+        form.appendChild(graphLabelled("Placeholder", text("placeholder", said.placeholder)));
+    }
+    if (node.kind !== "input-check") {
+        form.appendChild(graphLabelled("Must match", text("pattern", said.pattern, "a regular expression, like [A-Z]{2}\\d{4}")));
+        form.appendChild(graphLabelled("Says when it does not", text("hint", said.hint, "That is not in the form this asks for.")));
+        form.appendChild(graphElement("p", "hint", "The whole of what is typed must match. Checked in the browser, and again when it arrives."));
+    }
+}
 
 "use strict";
 // Reading what the server said: a checked shape for everything the canvas draws.
@@ -6360,6 +6499,13 @@ function asGraphRecord(value) {
 function asGraphNodeKind(value) {
     if (value === "trigger" ||
         value === "activate" ||
+        value === "leaflet-form" ||
+        value === "input-text" ||
+        value === "input-long" ||
+        value === "input-number" ||
+        value === "input-date" ||
+        value === "input-choice" ||
+        value === "input-check" ||
         value === "source" ||
         value === "filter" ||
         value === "sort" ||
@@ -6469,6 +6615,8 @@ function asGraphNode(value) {
         polled: typeof polled === "string" ? polled : null,
         trigger: asGraphTrigger(raw["trigger"]),
         activation: asGraphActivation(raw["activation"]),
+        field: asGraphField(raw["field"]),
+        input: asGraphInput(raw["input"]),
         activate: asGraphActivate(raw["activate"]),
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
@@ -6759,6 +6907,29 @@ function asGraphStrings(value) {
             found[key] = one;
     }
     return found;
+}
+/** A form field's settings. */
+function asGraphField(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const text = (key) => (typeof raw[key] === "string" ? String(raw[key]) : "");
+    return {
+        name: text("name"), label: text("label"), required: raw["required"] === true,
+        pattern: text("pattern"), hint: text("hint"), placeholder: text("placeholder"),
+        options: text("options"), min: text("min"), max: text("max"),
+    };
+}
+/** An Input source's queue, its title field, and the fields its forms ask. */
+function asGraphInput(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    return {
+        queue: typeof raw["queue"] === "string" ? raw["queue"] : "",
+        titleField: typeof raw["titleField"] === "string" ? raw["titleField"] : "",
+        fields: Array.isArray(raw["fields"]) ? raw["fields"].filter((one) => typeof one === "string") : [],
+    };
 }
 /** An Activation's parameters and last values. */
 function asGraphActivation(value) {
@@ -7577,6 +7748,8 @@ function graphChannelFields(state, form, node) {
     form.appendChild(graphChecks(node, channel));
     if (channel.rest !== null)
         form.appendChild(graphRestFields(node, channel, channel.rest));
+    if (node.input !== null)
+        graphInputSourceFields(form, node.input);
     if (channel.mirrors)
         form.appendChild(graphMirror(channel));
     form.appendChild(graphChannelCounts(node, channel));
@@ -7870,6 +8043,26 @@ async function tryGraphRest(nodeId, group, inputs, said) {
         }
     }
     said.replaceChildren(graphElement("p", "hint", `Read ${count} item${count === 1 ? "" : "s"}. The first few, as they will arrive:`), list);
+}
+/** An Input source: the queue it takes from, and which field of what is sent
+ *  titles the item it becomes. */
+function graphInputSourceFields(form, input) {
+    form.appendChild(graphElement("p", "hint", `Takes what Form leaflets send into “${input.queue}”, each time it is polled — once each. Wire a Pulse into it to say how often.`));
+    const pick = document.createElement("select");
+    pick.name = "input_title_field";
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = "The first field filled in";
+    pick.appendChild(first);
+    const names = input.fields.includes(input.titleField) || input.titleField === "" ? input.fields : [...input.fields, input.titleField];
+    for (const name of names) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        option.selected = name === input.titleField;
+        pick.appendChild(option);
+    }
+    form.appendChild(graphLabelled("Item's title from", pick));
 }
 
 "use strict";

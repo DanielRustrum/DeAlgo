@@ -17,6 +17,7 @@ only fill a feed that lives inside Pamphlets.
 
 from .kinds import (
     NEWSLETTER,
+    INPUT,
     REST,
     RSS,
     Resolved,
@@ -43,6 +44,7 @@ __all__ = [
     "patience",
     "syndication",
     "NEWSLETTER",
+    "INPUT",
     "REST",
     "RSS",
     "Resolved",

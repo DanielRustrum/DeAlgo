@@ -14,6 +14,8 @@ function graphElement(tag: string, className: string, text?: string): HTMLElemen
 function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "source") return "Source";
   if (kind === "activate") return "Activate";
+  if (kind === "leaflet-form") return "Form leaflet";
+  if (kind.startsWith("input-")) return "Input";
   if (kind === "deposit") return "Deposit";
   if (kind === "withdraw") return "Withdraw";
   if (kind === "timer") return "Timer";

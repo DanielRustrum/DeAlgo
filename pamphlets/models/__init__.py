@@ -10,6 +10,7 @@ from __future__ import annotations
 from .account import LoginSession, User
 from .base import Base
 from .canvas import CONDITION_LABELS, CURRENT_INSIDE, LEAFLET_LABELS, GraphEdge, GraphNode
+from .form import FormSubmission
 from .feed import (
     GENERIC_ITEM_PREFIX,
     GENERIC_PLAYLIST_PREFIX,
@@ -32,6 +33,7 @@ from .times import to_naive_utc, utcnow
 
 __all__ = [
     "AlgorithmModel",
+    "FormSubmission",
     "Base",
     "Channel",
     "Consumption",

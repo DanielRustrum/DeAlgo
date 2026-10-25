@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from .vocabulary import NEWSLETTER, REST, RSS, Resolved, UnknownSource, describe
+from .vocabulary import NEWSLETTER, INPUT, REST, RSS, Resolved, UnknownSource, describe
 
 
 def resolve(reference: str, *, within: str = "") -> Resolved:
@@ -28,7 +28,7 @@ def resolve(reference: str, *, within: str = "") -> Resolved:
 
     #: The two kinds the host owns itself. Everything else is a plugin's, and
     #: is asked of the plugin that offered it.
-    if within and within not in (RSS.name, NEWSLETTER.name, REST.name):
+    if within and within not in (RSS.name, NEWSLETTER.name, REST.name, INPUT.name):
         said = registry.current().accept(within, typed)
         if said is not None:
             return Resolved(
@@ -59,6 +59,11 @@ def resolve(reference: str, *, within: str = "") -> Resolved:
             feed_url="",
             title=(urlparse(site).hostname or site),
         )
+
+    if within == INPUT.name:
+        # A queue's name, as a Form leaflet names it: nothing to fetch.
+        queue = " ".join(typed.split()).lower()[:60]
+        return Resolved(kind=INPUT.name, key=f"input:{queue}", feed_url=f"input:{queue}", title=f"Input: {queue}")
 
     if within == REST.name:
         # An endpoint is taken at its word too; whether it lists anything is

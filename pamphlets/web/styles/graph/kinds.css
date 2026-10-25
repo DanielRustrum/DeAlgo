@@ -45,6 +45,12 @@
   &.kind-lacks-tag,
   &.kind-at-most,
   &.kind-order,
+  &.kind-input-text,
+  &.kind-input-long,
+  &.kind-input-number,
+  &.kind-input-date,
+  &.kind-input-choice,
+  &.kind-input-check,
   &.kind-rule { --kind-colour: var(--kind-piece); }
 }
 

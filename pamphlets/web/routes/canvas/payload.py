@@ -184,6 +184,25 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
             "params": graph_service.activations.params(node),
             "last": graph_service.activations.last(node),
         }
+    elif node.kind in graph_service.INPUT_KINDS:
+        # A form's field: its settings, for its panel.
+        drawn["field"] = graph_service.forms.field(node)
+    elif node.kind == "source" and node.channel is not None and node.channel.source_kind == "input":
+        from ....services.sync.polling import input_title_field
+
+        held_in = object_session(node)
+        queue = graph_service.forms.queue_of_key(node.channel.channel_id)
+        # Which field titles its items, and the fields its forms ask, to choose from.
+        names: list[str] = []
+        if held_in is not None:
+            every = graph_service.nodes(held_in, node.owner_pk)
+            for form in every:
+                if form.kind == "leaflet-form" and graph_service.leaflets.settings(form).get("queue") == queue:
+                    for one in graph_service.forms.fields_of(every, form):
+                        name = graph_service.forms.field(one)["name"]
+                        if name not in names:
+                            names.append(name)
+        drawn["input"] = {"queue": queue, "titleField": input_title_field(node.channel), "fields": names}
     elif node.kind == "activate":
         held_in = object_session(node)
         target = graph_service.activations.target_of(held_in, node) if held_in is not None else None

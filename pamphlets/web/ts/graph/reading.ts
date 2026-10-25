@@ -17,6 +17,13 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
   if (
     value === "trigger" ||
     value === "activate" ||
+    value === "leaflet-form" ||
+    value === "input-text" ||
+    value === "input-long" ||
+    value === "input-number" ||
+    value === "input-date" ||
+    value === "input-choice" ||
+    value === "input-check" ||
     value === "source" ||
     value === "filter" ||
     value === "sort" ||
@@ -126,6 +133,8 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     polled: typeof polled === "string" ? polled : null,
     trigger: asGraphTrigger(raw["trigger"]),
     activation: asGraphActivation(raw["activation"]),
+    field: asGraphField(raw["field"]),
+    input: asGraphInput(raw["input"]),
     activate: asGraphActivate(raw["activate"]),
     sort: asGraphSort(raw["sort"]),
     size: asGraphSize(raw["size"]),
@@ -416,6 +425,29 @@ function asGraphStrings(value: unknown): Record<string, string> {
     if (typeof one === "string") found[key] = one;
   }
   return found;
+}
+
+/** A form field's settings. */
+function asGraphField(value: unknown): GraphField | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const text = (key: string): string => (typeof raw[key] === "string" ? String(raw[key]) : "");
+  return {
+    name: text("name"), label: text("label"), required: raw["required"] === true,
+    pattern: text("pattern"), hint: text("hint"), placeholder: text("placeholder"),
+    options: text("options"), min: text("min"), max: text("max"),
+  };
+}
+
+/** An Input source's queue, its title field, and the fields its forms ask. */
+function asGraphInput(value: unknown): GraphInput | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  return {
+    queue: typeof raw["queue"] === "string" ? raw["queue"] : "",
+    titleField: typeof raw["titleField"] === "string" ? raw["titleField"] : "",
+    fields: Array.isArray(raw["fields"]) ? raw["fields"].filter((one): one is string => typeof one === "string") : [],
+  };
 }
 
 /** An Activation's parameters and last values. */

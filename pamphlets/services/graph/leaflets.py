@@ -40,7 +40,7 @@ MAP = "leaflet-map"
 #: The leaflets a data wire goes into: the charts, and the map.
 DATA_LEAFLETS: tuple[str, ...] = (*CHART_KINDS, MAP)
 
-LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", *DATA_LEAFLETS, "leaflet-text", "leaflet-link")
+LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", *DATA_LEAFLETS, "leaflet-text", "leaflet-link", "leaflet-form")
 
 #: The one Chart leaflet there was before each chart had its own, read only
 #: to turn it into one of those (`current_kind`).
@@ -113,6 +113,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
           "focus": "", "bounds": "", "moves": "free"},
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
+    # A form, its fields the Input pieces under it (forms.py): what it sends
+    # goes into the queue an Input source of the same name takes from.
+    "leaflet-form": {"heading": "", "queue": "", "button": "Send", "thanks": "Sent — thank you."},
 }
 
 
@@ -275,6 +278,16 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
             if url and urlparse(url).scheme not in ("http", "https"):
                 raise GraphError("An address starts with http:// or https://.")
             said["url"] = url[:2000]
+    elif node.kind == "leaflet-form":
+        from .names import store_name
+
+        for name, most in (("heading", 200), ("button", 60), ("thanks", 300)):
+            if given(name) is not None:
+                said[name] = str(given(name))[:most]
+        queue = given("queue")
+        if queue is not None:
+            said["queue"] = store_name(queue)
+        said["button"] = said["button"] or "Send"
     else:
         raise GraphError(f"A {node.kind} box is not a leaflet.")
     node.leaflet = json.dumps(said, sort_keys=True)
@@ -296,6 +309,9 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
             return ""
         return feed_titles.get(int(said["feed"]), "a feed that has gone")
 
+    if node.kind == "leaflet-form":
+        queue = str(said.get("queue") or "")
+        return f"sends into “{queue}”" if queue else "open it and name the queue it sends into"
     if node.kind == "leaflet-feed":
         named = feed_named()
         if not named:

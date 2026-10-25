@@ -99,6 +99,9 @@ def _read_feed(channel: Channel, http: httpx.Client) -> syndication.Feed:
     A mirror that also refuses is not worth a second complaint — the original
     refusal is the one worth reporting, so that is the one that is raised.
     """
+    if channel.source_kind == "input":
+        # A queue Form leaflets send into: what is waiting, taken once.
+        return _read_queue(channel)
     if channel.source_kind == "rest":
         # A JSON API, read by the mapping set on its box. No mirror: nobody
         # keeps a copy of somebody's API.
@@ -128,6 +131,40 @@ def _read_feed(channel: Channel, http: httpx.Client) -> syndication.Feed:
             return syndication.fetch(mirror, http)
         except Exception:  # refused, unreachable, or not a feed at all
             raise refused from None
+
+
+def _read_queue(channel: Channel) -> syndication.Feed:
+    """An Input source's waiting submissions, as entries: titled by the
+    field its box says, every field listed in its words."""
+    from ..graph import forms
+
+    session = object_session(channel)
+    if session is None:
+        return syndication.Feed(title=channel.title, items=[])
+    queue = forms.queue_of_key(channel.channel_id)
+    titled_by = input_title_field(channel)
+    entries = []
+    for sent in forms.take(session, channel.owner_pk, queue):
+        values = forms.values_of(sent)
+        first = next((value for value in values.values() if value), "")
+        title = values.get(titled_by) or first or f"Sent to {queue}"
+        entries.append(syndication.Item(
+            guid=f"form-{sent.id}",
+            title=title[:300],
+            link=None,
+            published_at=sent.submitted_at,
+            summary="\n".join(f"{name}: {value}" for name, value in values.items()),
+        ))
+    return syndication.Feed(title=channel.title, items=entries)
+
+
+def input_title_field(channel: Channel) -> str:
+    """Which field of a submission an Input source titles its item with."""
+    try:
+        said = json.loads(channel.source_options or "{}")
+    except ValueError:
+        return ""
+    return str(said.get("title_field") or "") if isinstance(said, dict) else ""
 
 
 def _is_a_refusal(exc: Exception) -> bool:

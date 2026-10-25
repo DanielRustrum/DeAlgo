@@ -337,3 +337,16 @@
 .pamphlet-leaflet.is-frozen .paper-note::first-letter { font-style: normal; }
 .pamphlet-tile.is-frozen { border-color: var(--ice); }
 .pamphlet-tile.is-frozen .pamphlet-tile-meta { color: var(--muted); }
+
+/* A Form leaflet's form: a field a row, its error under it. */
+.paper-form { display: grid; gap: 14px; max-width: 46rem; }
+.paper-field { display: grid; gap: 4px; }
+.paper-field label { font-weight: 600; font-size: 0.95em; }
+.paper-field :is(input, textarea, select) { width: 100%; }
+.paper-field.is-check input { width: auto; margin-right: 6px; }
+.paper-check { display: flex; align-items: center; font-weight: 500; }
+.paper-required { color: var(--bad); }
+.paper-field-hint { margin: 0; color: var(--muted); font-size: 0.9em; }
+.paper-field-wrong { margin: 0; color: var(--bad); font-size: 0.9em; }
+.paper-field.is-wrong :is(input, textarea, select) { border-color: var(--bad); }
+.paper-form .btn { justify-self: start; }

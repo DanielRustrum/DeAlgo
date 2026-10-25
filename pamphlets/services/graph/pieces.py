@@ -15,7 +15,7 @@ from .conditions import CONDITIONS, RULE
 from .leaflets import LEAFLET_KINDS, SIDES, side_of
 from .errors import GraphError
 from .reading import nodes
-from .vocabulary import AUGMENTATIONS, BOX_NAMES
+from .vocabulary import AUGMENTATIONS, BOX_NAMES, INPUT_KINDS
 
 #: Which boxes each augmentation may be slotted under. An Alive under a
 #: Filter would be a piece nobody ever reads, so it is refused at the drop
@@ -41,6 +41,8 @@ PIECE_HOSTS: dict[str, tuple[str, ...]] = {
     **{kind: ("pamphlet",) for kind in LEAFLET_KINDS},
     # What a Transform does with what comes in.
     "count": ("transform",),
+    # A form's fields, stacked under its Form leaflet.
+    **{kind: ("leaflet-form",) for kind in INPUT_KINDS},
     # The algorithm of one's own: narrows, orders, or shortens a lifetime.
     "aggregation": ("filter", "sort", "expire"),
 }
@@ -119,6 +121,14 @@ def attach(
     # box at the top of it, so what matters is that box and not whatever the
     # piece was dropped directly onto.
     wanted = piece_hosts(piece)
+    if wanted is not None and piece.kind in INPUT_KINDS:
+        # A form's field goes under its Form leaflet, or under another field
+        # of it: what it belongs to is the form, not the pamphlet above.
+        from .forms import form_of
+
+        if form_of(nodes(session, owner), host) is None:
+            raise GraphError(f"{piece.title} goes under a Form leaflet.")
+        wanted = None
     if wanted is not None:
         landing = host if host.kind not in AUGMENTATIONS else host_of(nodes(session, owner), host)
         if landing is None or landing.kind not in wanted:

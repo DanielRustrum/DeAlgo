@@ -84,6 +84,51 @@
       <p class="paper-note">{{ said.writing_error or 'Nothing written yet. On the canvas, open the Text box and press Write now.' }}</p>
     {% endif %}
 
+  {% elif node.kind == 'leaflet-form' %}
+    {#- A form, its fields the Input pieces under it on the canvas. Checked
+        here by the browser, and again when it arrives. -#}
+    {% if said.heading %}<h2 class="paper-headline">{{ said.heading }}</h2>{% endif %}
+    {% if not said.queue %}
+      <p class="paper-note">This form sends nowhere yet: on the canvas, name the queue it sends into.</p>
+    {% elif not said.fields %}
+      <p class="paper-note">No fields yet: on the canvas, slot Input pieces under this Form leaflet.</p>
+    {% else %}
+    <form class="paper-form" method="post" action="/pamphlets/{{ pamphlet.id }}/forms/{{ node.id }}">
+      {% for one in said.fields %}
+      {% set value = said['values'].get(one.name, '') %}
+      {% set wrong = said['wrong'].get(one.name) %}
+      {% set id = 'form-' ~ node.id ~ '-' ~ one.name %}
+      <div class="paper-field {{ 'is-wrong' if wrong }} is-{{ one.kind[6:] }}">
+        {% if one.kind == 'input-check' %}
+          <label class="paper-check" for="{{ id }}">
+            <input type="checkbox" id="{{ id }}" name="{{ one.name }}" value="yes" {{ 'checked' if value == 'yes' }} {{ 'required' if one.required }}>
+            {{ one.label }}{% if one.required %} <span class="paper-required" aria-hidden="true">*</span>{% endif %}
+          </label>
+        {% else %}
+          <label for="{{ id }}">{{ one.label }}{% if one.required %} <span class="paper-required" aria-hidden="true">*</span>{% endif %}</label>
+          {% if one.kind == 'input-long' %}
+            <textarea id="{{ id }}" name="{{ one.name }}" rows="4" placeholder="{{ one.placeholder }}" {{ 'required' if one.required }}>{{ value }}</textarea>
+          {% elif one.kind == 'input-choice' %}
+            <select id="{{ id }}" name="{{ one.name }}" {{ 'required' if one.required }}>
+              <option value="">Choose…</option>
+              {% for option in one.options_list %}<option value="{{ option }}" {{ 'selected' if option == value }}>{{ option }}</option>{% endfor %}
+            </select>
+          {% else %}
+            <input id="{{ id }}" name="{{ one.name }}" value="{{ value }}" placeholder="{{ one.placeholder }}"
+                   type="{{ 'number' if one.kind == 'input-number' else 'date' if one.kind == 'input-date' else 'text' }}"
+                   {% if one.min %}min="{{ one.min }}"{% endif %} {% if one.max %}max="{{ one.max }}"{% endif %}
+                   {% if one.kind == 'input-number' %}step="any"{% endif %}
+                   {% if one.pattern %}pattern="{{ one.pattern }}"{% endif %} {{ 'required' if one.required }}>
+          {% endif %}
+        {% endif %}
+        {% if wrong %}<p class="paper-field-wrong">{{ wrong }}</p>
+        {% elif one.hint %}<p class="paper-field-hint">{{ one.hint }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      <button class="btn btn-primary" type="submit">{{ said.button or 'Send' }}</button>
+    </form>
+    {% endif %}
+
   {% elif node.kind == 'leaflet-text' %}
     {% if said.heading %}<h2 class="paper-headline">{{ said.heading }}</h2>{% endif %}
     {% if said.body %}

@@ -72,6 +72,7 @@ OWNED_TABLES: tuple[tuple[str, str | None], ...] = (
     ("plugin_user_setting", "key"),
     ("user_theme", "slot"),
     ("user_image", "slot"),
+    ("form_submission", None),
 )
 
 

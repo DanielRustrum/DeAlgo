@@ -34,6 +34,12 @@ ONE_INPUT = WIRED_LEAFLETS + ("format", *DATA_LEAFLETS)
 #: what comes in — items or data — into data, as these say.
 TRANSFORMS: tuple[str, ...] = ("count",)
 
+#: The fields of a Form leaflet: a piece each, stacked under it in the order
+#: they are asked (forms.py).
+INPUT_KINDS: tuple[str, ...] = (
+    "input-text", "input-long", "input-number", "input-date", "input-choice", "input-check",
+)
+
 
 #: The augmentations, as against the boxes. An augmentation is not on any
 #: path and has no wires: it is slotted under a box and changes what that box
@@ -46,7 +52,7 @@ TRANSFORMS: tuple[str, ...] = ("count",)
 #: "piece" is what one looks like.
 AUGMENTATIONS: tuple[str, ...] = (
     ("timer", "reset", "alive", "lock", "after-watch") + CONDITION_KINDS + (RULE,)
-    + LEAFLET_KINDS + TRANSFORMS + ("aggregation",)
+    + LEAFLET_KINDS + TRANSFORMS + ("aggregation",) + INPUT_KINDS
 )
 
 
@@ -55,6 +61,7 @@ BOX_NAMES: dict[str, str] = {
     "feed": "Feed", "filter": "Filter", "sort": "Sort",
     "decay": "Decay", "expire": "Expire", "pamphlet": "Pamphlet", "format": "Format",
     "transform": "Transform", "text": "Text", "activate": "Activate",
+    "leaflet-form": "Form leaflet",
 }
 
 
@@ -98,6 +105,8 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     # runs through it: what it shows, it reads when the page is opened.
     "pamphlet": (),
     **{kind: () for kind in LEAFLET_KINDS},
+    # A form's fields are slotted, not wired.
+    **{kind: () for kind in INPUT_KINDS},
     # Into a channel it says when to poll; into a feed it says when that feed
     # may be read; into a withdraw it says when to pull. A trigger carries no
     # content any of those ways.

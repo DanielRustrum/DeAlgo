@@ -28,6 +28,7 @@ from .addresses import feed_url, home_url, item_url, suggest_mirror
 from .resolving import resolve
 from .vocabulary import (
     NEWSLETTER,
+    INPUT,
     REST,
     RSS,
     Resolved,
@@ -45,6 +46,7 @@ __all__ = [
     "item_url",
     "NEWSLETTER",
     "resolve",
+    "INPUT",
     "REST",
     "Resolved",
     "RSS",

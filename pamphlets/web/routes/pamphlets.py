@@ -91,7 +91,10 @@ def default_pamphlet(session: Session, owner: OwnerId) -> GraphNode | None:
     )
 
 
-def show_pamphlet(request: Request, session: Session, owner: OwnerId, pamphlet: GraphNode) -> Response:
+def show_pamphlet(
+    request: Request, session: Session, owner: OwnerId, pamphlet: GraphNode,
+    sent: Mapping[int, Context] | None = None,
+) -> Response:
     """A pamphlet's page — at its own address, or at the front door.
 
     One in a frozen canvas is blank, under a note saying so: nothing on it
@@ -100,6 +103,10 @@ def show_pamphlet(request: Request, session: Session, owner: OwnerId, pamphlet: 
     rows = [] if frozen is not None else graph_service.leaflets.layout(graph_service.nodes(session, owner), pamphlet)
     shown: dict[int, Context] = {}
     _fill(session, owner, rows, shown)
+    # A form sent back with something wrong: what was typed, and what is wrong.
+    for leaflet_pk, state in (sent or {}).items():
+        if leaflet_pk in shown:
+            shown[leaflet_pk].update(state)
     return render(request, "pamphlet.html", {
         "pamphlet": pamphlet,
         "frozen": frozen.title if frozen is not None else "",
@@ -114,6 +121,40 @@ def show_pamphlet(request: Request, session: Session, owner: OwnerId, pamphlet: 
             for one in shown.values()
         ),
     })
+
+
+@router.post("/pamphlets/{node_pk}/forms/{form_pk}")
+async def send_form(request: Request, node_pk: int, form_pk: int) -> Response:
+    """Send a Form leaflet: checked against its fields, then into its queue.
+    With something wrong, the page again, with what was typed and what is
+    wrong under each field."""
+    owner = owner_of(request)
+    given = await request.form()
+    with session_scope() as session:
+        pamphlet = session.scalar(
+            owned(select(GraphNode), GraphNode, owner)
+            .where(GraphNode.id == node_pk, GraphNode.kind == "pamphlet")
+        )
+        form = session.scalar(
+            owned(select(GraphNode), GraphNode, owner)
+            .where(GraphNode.id == form_pk, GraphNode.kind == "leaflet-form")
+        )
+        if pamphlet is None or form is None:
+            return redirect("/pamphlets", err="That form is not here.")
+        if pamphlet.frozen_by is not None or not form.enabled:
+            return redirect(f"/pamphlets/{node_pk}", err="That form is not taking anything just now.")
+        fields = graph_service.forms.fields_of(graph_service.nodes(session, owner), form)
+        values, wrong = graph_service.forms.check(fields, {str(k): str(v) for k, v in given.items()})
+        if wrong:
+            return show_pamphlet(request, session, owner, pamphlet, sent={
+                form.id: {"values": values, "wrong": wrong},
+            })
+        try:
+            graph_service.forms.submit(session, owner, form, values)
+        except graph_service.GraphError as exc:
+            return redirect(f"/pamphlets/{node_pk}", err=str(exc))
+        thanks = str(graph_service.leaflets.settings(form).get("thanks") or "Sent — thank you.")
+    return redirect(f"/pamphlets/{node_pk}", ok=thanks)
 
 
 @router.post("/pamphlets/{node_pk}/default")
@@ -178,6 +219,14 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             )
             shown["section"] = section
             shown["videos"] = section["videos"][: int(said["count"])]
+    elif node.kind == "leaflet-form":
+        every = graph_service.nodes(session, owner)
+        shown["fields"] = [
+            {**graph_service.forms.field(one), "options_list": graph_service.forms.options(graph_service.forms.field(one))}
+            for one in graph_service.forms.fields_of(every, node)
+        ]
+        shown["values"] = {}
+        shown["wrong"] = {}
     elif node.kind == graph_service.leaflets.MAP:
         heading, placed = map_for(session, owner, node, said)
         shown["map_label"] = heading

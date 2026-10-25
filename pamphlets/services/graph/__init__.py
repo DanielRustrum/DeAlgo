@@ -71,7 +71,7 @@ from .names import store_name, tag_name, tag_names
 from . import formatting, leaflets
 from .leaflets import LEAFLET_KINDS
 from .insides import MOST_DEPTH, add_canvas, add_relay
-from . import activations, allowing, canvas_files, clipboard, comments, looks
+from . import activations, allowing, canvas_files, clipboard, comments, forms, looks
 from .comments import add_comment
 from .pieces import attach, detach, host_boxes, host_of, hosts_for, pieces_of, pieces_under
 from .reading import channels_of, edges, nodes
@@ -100,7 +100,7 @@ from .units import (
     split_every,
     split_length,
 )
-from .vocabulary import AUGMENTATIONS, BOX_NAMES, GROUP_SIZE, SLOTTED, STAMPS, TRIGGER_KINDS
+from .vocabulary import AUGMENTATIONS, BOX_NAMES, GROUP_SIZE, INPUT_KINDS, SLOTTED, STAMPS, TRIGGER_KINDS
 from .windows import begin_sitting, consumption, is_open, window_state
 from .wiring import connect, disconnect, only_data, wires
 from .words import condition_words, piece_note, piece_words, stamp_words, window_words
@@ -210,6 +210,7 @@ __all__ = [
     "TRIGGER_COLUMN",
     "TRIGGER_GAP",
     "TRIGGER_KINDS",
+    "INPUT_KINDS",
     "try_it",
     "When",
     "window_state",

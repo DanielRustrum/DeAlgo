@@ -225,6 +225,15 @@
               <span class="palette-blurb">A newsletter by where it lives. Its feed is found by asking the site.</span>
             </span>
           </li>
+          {# What Form leaflets send, by the queue they share (graph/forms.py). #}
+          <li class="palette-item" data-palette="source" data-source-kind="input"
+              tabindex="0" role="button">
+            <span class="palette-swatch kind-source" data-colour="pink"></span>
+            <span class="palette-text">
+              <strong>Input</strong>
+              <span class="palette-blurb">What a Form leaflet sends, by the queue they share: each submission an item, once.</span>
+            </span>
+          </li>
           {# Any JSON API, read the way its box's fields say (sources/rest.py). #}
           <li class="palette-item" data-palette="source" data-source-kind="rest"
               tabindex="0" role="button">
@@ -337,8 +346,22 @@
             {{ node_row('leaflet-text', 'Text leaflet', 'A heading and words of your own.') }}
             {{ node_row('leaflet-link', 'Link leaflet', 'A button: Focus on a feed, open one, or go to an address.') }}
             {{ node_row('leaflet-map', 'Map leaflet', 'A dot on a map for each row with a latitude and a longitude.') }}
+            {{ node_row('leaflet-form', 'Form leaflet', 'A form to fill in and send, its fields the Inputs under it. What is sent goes into a queue an Input source takes from.') }}
           </ul>
           <p class="hint">Below another leaflet is the next thing down its column; beside one is the next column.</p>
+          {# A form's fields, each slotted under a Form leaflet. #}
+          <details class="palette-group palette-nested">
+            <summary>Form inputs</summary>
+            <ul class="palette-list">
+              {{ node_row('input-text', 'Text', 'One line of words.') }}
+              {{ node_row('input-long', 'Long text', 'A box for paragraphs.') }}
+              {{ node_row('input-number', 'Number', 'A number, between a least and a most if you like.') }}
+              {{ node_row('input-date', 'Date', 'A day, picked from a calendar.') }}
+              {{ node_row('input-choice', 'Choice', 'One of a list of options.') }}
+              {{ node_row('input-check', 'Checkbox', 'A yes or a no.') }}
+            </ul>
+            <p class="hint">Each can be required, and checked against a pattern — a regular expression.</p>
+          </details>
           {# Inside Pamphlets, since each is a leaflet: one for each kind of
              chart, drawn by Chart.js in the theme's chart colours. Each takes
              data down its { } port; with none, the drawn ones show one of

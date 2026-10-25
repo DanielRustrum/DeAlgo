@@ -136,6 +136,34 @@ A place's name is looked up on OpenStreetMap's Nominatim — or the server the a
 Pamphlets itself, only when **Find** is pressed, and at most once a second. What is chosen is kept
 as the area's edges, so showing the map never looks anything up, and a reader's browser never asks.
 
+## Forms
+
+A **Form leaflet** puts a form on the page for you to fill in and send. Its fields are **Input**
+pieces — under **Pamphlets › Form inputs** in the palette — stacked under it on the canvas, and
+asked in that order. Drop the first on the Form leaflet and each next one under the last.
+
+| Input | Asks for |
+| --- | --- |
+| **Text** | One line of words |
+| **Long text** | Paragraphs |
+| **Number** | A number — between a least and a most, if you set them |
+| **Date** | A day, from a calendar |
+| **Choice** | One of its options, written one a line |
+| **Checkbox** | A yes or a no |
+
+Each field has a label (**Asked as**), the name it is filed under (**Filed as** — letters, digits
+and `_`), **Must be filled in**, and **Must match**: a regular expression the whole of what is typed
+has to match, with **Says when it does not** for the words shown when it does not —
+`[A-Z]{2}\d{4}` for two capitals and four digits, say. The browser checks all of it before the
+form is sent, and Pamphlets checks it again when it arrives; anything wrong comes back with what was
+typed kept and what is wrong under each field.
+
+The Form leaflet's panel says its **Heading**, the **queue** it **Sends into** — a name, like
+`feedback` — its **Button**, and what it says **Once sent**. What is sent waits in that queue for an
+[Input source](Sources.md#kinds) of the same name, which takes each submission once, the next time it
+is polled, and sends it down its paths as an item. Several forms can send into one queue; a form for
+each purpose can have its own.
+
 ## The page
 
 A pamphlet is set like a newspaper: its name as the masthead, the date and how many stories are

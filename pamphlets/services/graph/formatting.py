@@ -178,6 +178,11 @@ def data_for(session: Session, source: GraphNode) -> Any:
     channel = source.channel
     if channel is None:
         return None
+    if channel.source_kind == "input":
+        # Every submission to its queue, as rows: what each field said.
+        from .forms import queue_of_key, rows
+
+        return rows(session, channel.owner_pk, queue_of_key(channel.channel_id))
     if channel.source_kind == "rest":
         if not channel.raw_snapshot:
             return None

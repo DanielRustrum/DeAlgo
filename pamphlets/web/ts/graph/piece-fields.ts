@@ -145,6 +145,10 @@ function graphTagFields(form: HTMLElement, said: GraphCondition): void {
 function graphPieceFields(form: HTMLElement, node: GraphNodeView): void {
   const piece = node.piece;
   if (piece === null) return;
+  if (graphIsInput(node.kind)) {
+    graphInputFields(form, node);
+    return;
+  }
 
   if (node.kind === "count") {
     form.appendChild(
@@ -329,4 +333,60 @@ function graphTagChoosingFields(form: HTMLElement, node: GraphNodeView, said: Gr
   show();
   form.appendChild(fixed);
   form.appendChild(choose);
+}
+
+/** A form field: what it is filed under and asked as, whether it must be
+ *  filled in, and the pattern — a regular expression — it must match. */
+function graphInputFields(form: HTMLElement, node: GraphNodeView): void {
+  const said = node.field;
+  if (said === null) return;
+  if (node.piece?.under == null) {
+    form.appendChild(graphElement("p", "hint", "Loose on the canvas. Drop it under a Form leaflet to make it one of its fields."));
+  }
+  const text = (name: string, value: string, placeholder = ""): HTMLInputElement => {
+    const field = document.createElement("input");
+    field.type = "text";
+    field.name = `field_${name}`;
+    field.value = value;
+    field.placeholder = placeholder;
+    field.spellcheck = false;
+    return field;
+  };
+  form.appendChild(graphLabelled("Asked as", text("label", said.label)));
+  form.appendChild(graphLabelled("Filed as", text("name", said.name, "a name, like email")));
+  const carried = document.createElement("input");
+  carried.type = "hidden";
+  carried.name = "field_form";
+  carried.value = "1";
+  form.appendChild(carried);
+  const needed = graphElement("label", "graph-switch");
+  const tick = document.createElement("input");
+  tick.type = "checkbox";
+  tick.name = "field_required";
+  tick.value = "1";
+  tick.checked = said.required;
+  needed.appendChild(tick);
+  needed.appendChild(graphElement("span", "graph-switch-name", "Must be filled in"));
+  form.appendChild(needed);
+  if (node.kind === "input-choice") {
+    const options = document.createElement("textarea");
+    options.name = "field_options";
+    options.rows = 4;
+    options.value = said.options;
+    form.appendChild(graphLabelled("Options, one a line", options));
+  }
+  if (node.kind === "input-number") {
+    const pair = graphElement("div", "graph-pair");
+    pair.appendChild(text("min", said.min, "least"));
+    pair.appendChild(text("max", said.max, "most"));
+    form.appendChild(graphLabelled("Between", pair));
+  }
+  if (node.kind !== "input-check" && node.kind !== "input-choice") {
+    form.appendChild(graphLabelled("Placeholder", text("placeholder", said.placeholder)));
+  }
+  if (node.kind !== "input-check") {
+    form.appendChild(graphLabelled("Must match", text("pattern", said.pattern, "a regular expression, like [A-Z]{2}\\d{4}")));
+    form.appendChild(graphLabelled("Says when it does not", text("hint", said.hint, "That is not in the form this asks for.")));
+    form.appendChild(graphElement("p", "hint", "The whole of what is typed must match. Checked in the browser, and again when it arrives."));
+  }
 }

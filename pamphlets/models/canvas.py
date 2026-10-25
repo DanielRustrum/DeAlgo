@@ -57,6 +57,13 @@ LEAFLET_LABELS: dict[str, str] = {
     "leaflet-map": "Map leaflet",
     "leaflet-text": "Text leaflet",
     "leaflet-link": "Link leaflet",
+    "leaflet-form": "Form leaflet",
+    "input-text": "Text input",
+    "input-long": "Long text input",
+    "input-number": "Number input",
+    "input-date": "Date input",
+    "input-choice": "Choice input",
+    "input-check": "Checkbox input",
 }
 
 
@@ -126,6 +133,9 @@ class GraphNode(Base):
     # the values it was last set off with; which Activation an Activate box
     # sets off, and what it fills each parameter with.
     activation: Mapped[Optional[str]] = mapped_column(Text)
+    # Input pieces only, as JSON — see services/graph/forms.py: the field's
+    # name, its label, whether it is required, the pattern it must match.
+    form_field: Mapped[Optional[str]] = mapped_column(Text)
 
     x: Mapped[int] = mapped_column(Integer, default=0)
     y: Mapped[int] = mapped_column(Integer, default=0)

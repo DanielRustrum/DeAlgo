@@ -12,6 +12,7 @@ Reading sources is free and needs no account: every one of them is read as the f
 | **Feed address** | The address of any RSS or Atom feed | Built in. The address must be the feed itself. |
 | **Newsletter** | Where a newsletter lives, e.g. `platformer.news` | Built in. Finds the feed for you. See [Newsletters](Newsletters.md). |
 | **REST API** | The address of a JSON API that lists things | Built in. Say which fields hold what, or let it guess. See [REST API](REST%20API.md). |
+| **Input** | A queue's name, e.g. `feedback` | Built in. Takes what [Form leaflets](Pamphlets.md#forms) send into that queue, each submission once, as an item each time it is polled — wire a Pulse into it. Its panel says which field is each item's title (the first one filled in, otherwise); every field is in the item's words, and its `{ }` port gives every submission as a row. |
 | **YouTube channel** | `@handle`, a channel URL, or a `UC…` id | YouTube plugin. `@handle` and custom URLs need a [connected account](../Connecting%20YouTube.md); a `UC…` id or `/channel/` URL does not. |
 | **Subreddit** | `r/python`, a subreddit URL, or just `python` | Reddit plugin. |
 | **Bluesky account** | `@name.bsky.social` or a profile URL | Bluesky plugin. |

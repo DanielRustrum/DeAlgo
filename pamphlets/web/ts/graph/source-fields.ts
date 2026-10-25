@@ -72,6 +72,7 @@ function graphChannelFields(
   form.appendChild(graphTakes(channel));
   form.appendChild(graphChecks(node, channel));
   if (channel.rest !== null) form.appendChild(graphRestFields(node, channel, channel.rest));
+  if (node.input !== null) graphInputSourceFields(form, node.input);
   if (channel.mirrors) form.appendChild(graphMirror(channel));
   form.appendChild(graphChannelCounts(node, channel));
 }
@@ -411,4 +412,26 @@ async function tryGraphRest(
     graphElement("p", "hint", `Read ${count} item${count === 1 ? "" : "s"}. The first few, as they will arrive:`),
     list,
   );
+}
+
+/** An Input source: the queue it takes from, and which field of what is sent
+ *  titles the item it becomes. */
+function graphInputSourceFields(form: HTMLElement, input: GraphInput): void {
+  form.appendChild(graphElement("p", "hint",
+    `Takes what Form leaflets send into “${input.queue}”, each time it is polled — once each. Wire a Pulse into it to say how often.`));
+  const pick = document.createElement("select");
+  pick.name = "input_title_field";
+  const first = document.createElement("option");
+  first.value = "";
+  first.textContent = "The first field filled in";
+  pick.appendChild(first);
+  const names = input.fields.includes(input.titleField) || input.titleField === "" ? input.fields : [...input.fields, input.titleField];
+  for (const name of names) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    option.selected = name === input.titleField;
+    pick.appendChild(option);
+  }
+  form.appendChild(graphLabelled("Item's title from", pick));
 }

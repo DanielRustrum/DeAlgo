@@ -30,6 +30,10 @@ def piece_note(piece: GraphNode, host: GraphNode | None) -> str:
         from .. import algorithm
 
         return algorithm.words(piece, host)
+    from .forms import is_input, words as field_words
+
+    if is_input(piece):
+        return field_words(piece)
     said = piece_words(piece)
     if piece.kind != "timer":
         return said

@@ -176,6 +176,17 @@ function graphSlots(
     });
   }
   if (!held || graphPieceGoesUnder("pamphlet", under)) found.push(...graphLeafletSlots(state, moving));
+  // A form's field goes at the bottom of its Form leaflet's fields.
+  if (held && graphPieceGoesUnder("leaflet-form", under)) {
+    for (const node of state.nodes) {
+      if (node.kind !== "leaflet-form") continue;
+      const fields = graphFormFields(state, node).filter((one): boolean => one.id !== moving);
+      const last = fields[fields.length - 1] ?? node;
+      const box = state.boxes.get(last.id);
+      if (box === undefined) continue;
+      found.push({ under: last.id, side: "below", x: last.x, y: last.y + box.offsetHeight, width: box.offsetWidth, height: 0 });
+    }
+  }
   return found;
 }
 

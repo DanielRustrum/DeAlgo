@@ -42,8 +42,13 @@ interface GraphPamphlet {
 function graphIsLeaflet(kind: GraphNodeKind): boolean {
   return (
     kind === "leaflet-feed" || graphTakesData(kind) ||
-    kind === "leaflet-text" || kind === "leaflet-link"
+    kind === "leaflet-text" || kind === "leaflet-link" || kind === "leaflet-form"
   );
+}
+
+/** A form's field, slotted under a Form leaflet. */
+function graphIsInput(kind: GraphNodeKind): boolean {
+  return kind.startsWith("input-");
 }
 
 /** Whether this kind of leaflet shows the data wired into it: a chart, or the map. */
@@ -150,7 +155,7 @@ function graphHanging(state: GraphState): Map<string, GraphNodeView> {
 
 /** The room around and between leaflets inside a Pamphlet box. */
 function graphLeafletSpacing(): { pad: number; gap: number } {
-  return { pad: 10, gap: 8 };
+  return { pad: 16, gap: 22 };
 }
 
 /** Lay out every pamphlet's leaflets inside it, as a small picture of the
@@ -217,6 +222,8 @@ function placeGraphLeaflets(state: GraphState): void {
         walk.y = top;
       }
       let reached = top + box.offsetHeight;
+      // A Form leaflet's fields, stacked inside its column under it.
+      if (walk.kind === "leaflet-form") reached = placeGraphFormFields(state, walk, x, reached, across, held);
       if (below !== undefined) reached = placeRow(below, x, reached + gap, depth + 1);
       bottom = Math.max(bottom, reached);
       x += across + gap;
@@ -241,6 +248,50 @@ function placeGraphLeaflets(state: GraphState): void {
     box.style.width = `${Math.max(box.offsetWidth, inset + pad * 2 + rowWidth(first, 0))}px`;
     box.style.height = `${bottom - node.y + pad}px`;
   }
+}
+
+/** A Form leaflet's fields, in the order they are stacked under it. */
+function graphFormFields(state: GraphState, form: GraphNodeView): GraphNodeView[] {
+  const under = new Map<number, GraphNodeView[]>();
+  for (const node of [...state.nodes].sort((a, b): number => a.id - b.id)) {
+    const host = node.piece?.under;
+    if (!graphIsInput(node.kind) || host === undefined || host === null) continue;
+    under.set(host, [...(under.get(host) ?? []), node]);
+  }
+  const found: GraphNodeView[] = [];
+  const seen = new Set<number>();
+  const walk = (host: number): void => {
+    for (const one of under.get(host) ?? []) {
+      if (seen.has(one.id)) continue;
+      seen.add(one.id);
+      found.push(one);
+      walk(one.id);
+    }
+  };
+  walk(form.id);
+  return found;
+}
+
+/** Stack a Form leaflet's fields under it, a little in from its edge, and
+ *  answer how far down they reach. */
+function placeGraphFormFields(
+  state: GraphState, form: GraphNodeView, left: number, top: number, width: number, held: number,
+): number {
+  let reached = top;
+  for (const field of graphFormFields(state, form)) {
+    const box = state.boxes.get(field.id);
+    if (box === undefined) continue;
+    box.dataset["host"] = "pamphlet";
+    if (field.id !== held) {
+      box.style.width = `${Math.max(120, width - 14)}px`;
+      box.style.left = `${left + 14}px`;
+      box.style.top = `${reached}px`;
+      field.x = left + 14;
+      field.y = reached;
+    }
+    reached += box.offsetHeight;
+  }
+  return reached;
 }
 
 /** Every empty edge a leaflet could be dropped on: below a pamphlet with
@@ -426,6 +477,13 @@ function graphLeafletFields(form: HTMLElement, node: GraphNodeView): void {
     body.value = said("body");
     form.appendChild(graphLabelled("Words", body));
     form.appendChild(graphElement("p", "hint", "A blank line starts a new paragraph."));
+  } else if (node.kind === "leaflet-form") {
+    form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
+    form.appendChild(graphLabelled("Sends into", graphLeafletText("leaflet_queue", said("queue"), "a queue's name, like feedback")));
+    form.appendChild(graphLabelled("Button", graphLeafletText("leaflet_button", said("button"), "Send")));
+    form.appendChild(graphLabelled("Once sent", graphLeafletText("leaflet_thanks", said("thanks"), "Sent — thank you.")));
+    form.appendChild(graphElement("p", "hint",
+      "Its fields are the Input pieces stacked under it. What is sent waits in the queue until an Input source of the same name takes it."));
   } else if (node.kind === "leaflet-link") {
     form.appendChild(graphLabelled("Goes to", graphLeafletSelect("leaflet_goes", leaflet.goes, said("goes"))));
     fromWire();

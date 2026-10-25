@@ -94,6 +94,14 @@ def add_source(
     if existing is not None:
         raise ChannelError(f"{existing.title or found.key} is already being watched")
 
+    if found.kind == sources.INPUT.name:
+        # A queue on this install: there is nothing to read until a form is
+        # sent, and a queue nobody has sent to yet is still a queue.
+        return _keep(
+            session, found, feed_url=found.feed_url, title=found.title,
+            backfill_days=backfill_days, owner=owner,
+        )
+
     if found.kind == sources.REST.name:
         # Kept even when the first read fails. An API often needs its key, or
         # its list pointed out, before it answers usefully — and those are set
