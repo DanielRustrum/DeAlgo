@@ -93,7 +93,9 @@ def _filter_note(pieces: list[GraphNode]) -> str:
     plugin's said by the name that plugin gave it."""
     said: list[str] = []
     for one in pieces:
-        if not one.enabled:
+        # Switched off, not merely frozen: a frozen canvas's filter still
+        # says what it would narrow by.
+        if not one.switched_on:
             continue
         if one.kind in graph_service.CONDITION_KINDS:
             said.append(graph_service.condition_words(one))

@@ -3000,7 +3000,7 @@ function graphEditorSettings(form, node) {
         });
     }
     else if (node.kind === "transform") {
-        form.appendChild(graphElement("p", "hint", "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, as one number. With none, it gives what came in."));
+        form.appendChild(graphElement("p", "hint", "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, Lua does whatever you write, a plugin's does what it says. With none, it gives what came in."));
     }
 }
 /** Every setting a field can be put into: text boxes and longer text. */
@@ -5556,7 +5556,7 @@ function graphNodeForm(state, node) {
     else if (node.kind === "text")
         graphTextBoxFields(form, node);
     else if (node.kind === "transform") {
-        form.appendChild(graphElement("p", "hint", "Wire items (▶) or data ({ }) into this — one or the other — and slot a piece under it to say what it makes of them. Count gives how many came in, as one number. What it gives out is data: for a Chart leaflet, a Format box, or another operation."));
+        form.appendChild(graphElement("p", "hint", "Wire items (▶) or data ({ }) into this — one or the other — and slot a piece under it to say what it makes of them. Count gives how many came in; Lua, whatever you write; a plugin's, what it says. What it gives out is data: for a Chart leaflet, a Format box, or another operation."));
     }
     else if (node.stamp !== null)
         graphStampFields(form, node);
@@ -6548,7 +6548,7 @@ function graphLuaFields(form, node) {
         code.selectionStart = code.selectionEnd = at + 2;
     });
     form.appendChild(graphLabelled("Lua", code));
-    form.appendChild(graphElement("p", "hint", "`data` is what comes in — a list of rows, or one value — and `params` the values its flow was activated with. What it returns is what the Transform gives out. `json.decode` and `json.encode` read and write JSON text. Double-click the Transform to see what it makes."));
+    form.appendChild(graphElement("p", "hint", "data is what comes in — a list of rows, or one value — and params the values its flow was activated with. What it returns is what the Transform gives out. json.decode and json.encode read and write JSON text. Double-click the Transform to see what it makes."));
 }
 
 "use strict";

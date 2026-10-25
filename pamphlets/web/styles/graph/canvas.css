@@ -50,7 +50,8 @@
 /* Everything drawn, moved as one. Zero-sized on purpose: its children are
    placed against its origin, which may be anywhere at all. */
 .graph-scene { position: absolute; top: 0; left: 0; width: 0; height: 0; }
-.graph-wires { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+/* A point the wires spill out of: sized, since a browser may paint nothing of an SVG with no width, as the page-wide max-width would leave it. */
+.graph-wires { position: absolute; top: 0; left: 0; width: 1px; height: 1px; max-width: none; overflow: visible; pointer-events: none; }
 /* The boxes are painted over the wires. Only the boxes themselves answer a
    pointer; everything else falls through to the wire or the canvas beneath,
    which is what lets a wire be clicked at all. */

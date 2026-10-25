@@ -297,7 +297,7 @@ function graphEditorSettings(form: HTMLFormElement, node: GraphNodeView): void {
     });
   } else if (node.kind === "transform") {
     form.appendChild(graphElement("p", "hint",
-      "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, as one number. With none, it gives what came in."));
+      "What it does is said by the pieces slotted under it on the canvas — Count gives how many came in, Lua does whatever you write, a plugin's does what it says. With none, it gives what came in."));
   }
 }
 

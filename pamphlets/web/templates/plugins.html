@@ -96,16 +96,16 @@
   </div>
 
   <p class="hint">
-    A plugin is one <code>.lua</code> file. It says what a reference like
-    <code>r/python</code> or <code>@handle</code> is and where that source's
-    feed lives; Pamphlets does the fetching, so a plugin never touches the
-    network, your credentials, or anyone else's data.
+    A plugin is a folder with a <code>plugin.lua</code> in it, added from a
+    repository or a file. It can bring kinds of source, conditions,
+    transformations, and its own layout for its items in Focus mode. It runs
+    in a sandbox, and reaches the network, your accounts or your data only as
+    far as the permissions granted to it allow.
   </p>
   <p class="hint">
-    <strong>Switching one off</strong> leaves the file where it is and stops
-    it being asked anything. Sources already being watched keep their own
-    feed address and carry on — what stops is recognising new ones. It is
-    the only way to turn off a plugin that ships with Pamphlets.
+    <strong>Switching one off</strong> leaves it installed and stops it being
+    asked anything. Sources already being watched keep their own feed address
+    and carry on — what stops is recognising new ones.
   </p>
 
   {% if plugins %}

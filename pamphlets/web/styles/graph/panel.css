@@ -18,6 +18,8 @@
   pointer-events: auto;
   z-index: 3;
 }
+/* Code is read a line at a time: wide enough for one. */
+.graph-pop:has(.graph-code) { width: 500px; }
 .graph-pop::before {
   content: "";
   position: absolute;

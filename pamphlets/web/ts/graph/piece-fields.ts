@@ -417,5 +417,5 @@ function graphLuaFields(form: HTMLElement, node: GraphNodeView): void {
   });
   form.appendChild(graphLabelled("Lua", code));
   form.appendChild(graphElement("p", "hint",
-    "`data` is what comes in — a list of rows, or one value — and `params` the values its flow was activated with. What it returns is what the Transform gives out. `json.decode` and `json.encode` read and write JSON text. Double-click the Transform to see what it makes."));
+    "data is what comes in — a list of rows, or one value — and params the values its flow was activated with. What it returns is what the Transform gives out. json.decode and json.encode read and write JSON text. Double-click the Transform to see what it makes."));
 }
