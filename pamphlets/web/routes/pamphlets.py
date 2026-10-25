@@ -13,12 +13,12 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ...db import get_settings, session_scope
-from ...models import GraphNode, Playlist, utcnow
+from ...models import GraphNode, Placement, Playlist, Video, utcnow
 from ...services import graph as graph_service
-from ...services import charting, mapping
+from ...services import charting, embeds, mapping
 from ...services import pamphlet_charts as charts
 from ...services import playlists as playlist_service
 from ...services import writing
@@ -219,6 +219,8 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
             )
             shown["section"] = section
             shown["videos"] = section["videos"][: int(said["count"])]
+    elif node.kind == "leaflet-video":
+        shown.update(_video(session, owner, said))
     elif node.kind == "leaflet-form":
         every = graph_service.nodes(session, owner)
         shown["fields"] = [
@@ -238,6 +240,34 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
         if counts is not None:
             shown["counts"] = counts
     return shown
+
+
+def _video(session: Session, owner: OwnerId, said: Mapping[str, Any]) -> Context:
+    """What a Video leaflet plays: the address it was given, or else the
+    newest video — or newest unwatched — in the feed wired into it."""
+    url = str(said.get("url") or "")
+    title = ""
+    feed = None if url else _feed(session, owner, said.get("feed"))
+    if feed is not None:
+        if feed.id in graph_service.insides.frozen_feeds(session, owner):
+            return {"embed": embeds.Embed("", "", ""), "video_title": "", "frozen_feed": feed.title}
+        query = (
+            owned(select(Video), Video, owner)
+            .join(Placement, Placement.video_pk == Video.id)
+            .options(selectinload(Video.channel))
+            .where(Placement.playlist_pk == feed.id, Placement.removed_at.is_(None), Video.kind == "video")
+            .order_by(Video.published_at.desc(), Video.id.desc())
+        )
+        if said.get("pick") == "unwatched":
+            query = query.where(Video.watched_at.is_(None))
+        video = session.scalars(query.limit(1)).first()
+        if video is not None:
+            title = video.title or ""
+            url = video.link or (
+                f"https://www.youtube.com/watch?v={video.video_id}"
+                if video.channel is not None and video.channel.source_kind == "youtube" else ""
+            )
+    return {"embed": embeds.embed_for(url), "video_title": title, "from_feed": feed.title if feed else ""}
 
 
 def _feed(session: Session, owner: OwnerId, pk: Any) -> Playlist | None:

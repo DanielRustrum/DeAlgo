@@ -136,6 +136,21 @@ A place's name is looked up on OpenStreetMap's Nominatim — or the server the a
 Pamphlets itself, only when **Find** is pressed, and at most once a second. What is chosen is kept
 as the area's edges, so showing the map never looks anything up, and a reader's browser never asks.
 
+## Videos
+
+A **Video leaflet** plays one video on the page, as wide as its column.
+
+- **Give it a video's address** in its panel. A YouTube address — a watch link, `youtu.be`, a Short
+  or an embed link — plays in YouTube's own player, from `youtube-nocookie.com` as Focus mode's does,
+  so nothing is stored by YouTube until you press play. A Vimeo address plays in Vimeo's. A file
+  ending `.mp4`, `.webm` or `.ogg` plays in the browser's own player. Anything else becomes a
+  **Watch ↗** link.
+- **Or wire a feed into it**, from a Feed box's page port, and it plays the feed's newest video —
+  or, with **From a wired feed, play** set so, the newest you have not watched yet. An address, when
+  it has one, is played instead.
+- A feed [frozen](Canvases%20and%20Relays.md#freezing-a-canvas) with its canvas plays nothing until it
+  thaws.
+
 ## Forms
 
 A **Form leaflet** puts a form on the page for you to fill in and send. Its fields are **Input**

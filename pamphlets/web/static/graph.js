@@ -1794,6 +1794,8 @@ function graphKindLabel(kind) {
         return "Text leaflet";
     if (kind === "leaflet-link")
         return "Link leaflet";
+    if (kind === "leaflet-video")
+        return "Video leaflet";
     if (kind === "carrying")
         return "Has tag";
     if (kind === "lacks-tag")
@@ -4084,7 +4086,7 @@ function snowGraphView(state, width) {
 /** Whether this kind is a leaflet. */
 function graphIsLeaflet(kind) {
     return (kind === "leaflet-feed" || graphTakesData(kind) ||
-        kind === "leaflet-text" || kind === "leaflet-link" || kind === "leaflet-form");
+        kind === "leaflet-text" || kind === "leaflet-link" || kind === "leaflet-video" || kind === "leaflet-form");
 }
 /** A form's field, slotted under a Form leaflet. */
 function graphIsInput(kind) {
@@ -4412,6 +4414,9 @@ function drawGraphLeafletParts(box, node) {
     if (node.kind === "leaflet-feed" || node.kind === "leaflet-link") {
         box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to show what it holds."));
     }
+    if (node.kind === "leaflet-video") {
+        box.appendChild(graphPort("in", "page", "Takes a feed: wire a Feed box here to play its newest video."));
+    }
     if (node.kind === "leaflet-text") {
         box.appendChild(graphPort("in", "page", "Takes words: wire a Text box here to show what it wrote."));
     }
@@ -4504,6 +4509,18 @@ function graphLeafletFields(form, node) {
         body.value = said("body");
         form.appendChild(graphLabelled("Words", body));
         form.appendChild(graphElement("p", "hint", "A blank line starts a new paragraph."));
+    }
+    else if (node.kind === "leaflet-video") {
+        form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
+        form.appendChild(graphLabelled("Video's address", graphLeafletText("leaflet_url", said("url"), "https://www.youtube.com/watch?v=…")));
+        form.appendChild(graphElement("p", "hint", "YouTube and Vimeo play in their own player, and a .mp4, .webm or .ogg file in the browser's. Anything else is a link to it."));
+        fromWire();
+        const picks = [
+            { name: "newest", label: "The newest in it" },
+            { name: "unwatched", label: "The newest not yet watched" },
+        ];
+        form.appendChild(graphLabelled("From a wired feed, play", graphLeafletSelect("leaflet_pick", picks, said("pick") || "newest")));
+        form.appendChild(graphElement("p", "hint", "An address, when there is one, is played instead of the feed."));
     }
     else if (node.kind === "leaflet-form") {
         form.appendChild(graphLabelled("Heading", graphLeafletText("leaflet_heading", said("heading"))));
@@ -6554,6 +6571,7 @@ function asGraphNodeKind(value) {
         value === "leaflet-map" ||
         value === "leaflet-text" ||
         value === "leaflet-link" ||
+        value === "leaflet-video" ||
         value === "deposit" ||
         value === "withdraw" ||
         value === "timer" ||

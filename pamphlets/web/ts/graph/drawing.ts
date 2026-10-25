@@ -57,6 +57,7 @@ function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "leaflet-map") return "Map leaflet";
   if (kind === "leaflet-text") return "Text leaflet";
   if (kind === "leaflet-link") return "Link leaflet";
+  if (kind === "leaflet-video") return "Video leaflet";
   if (kind === "carrying") return "Has tag";
   if (kind === "lacks-tag") return "Lacks tag";
   if (kind === "at-most") return "At most";

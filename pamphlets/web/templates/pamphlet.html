@@ -84,6 +84,29 @@
       <p class="paper-note">{{ said.writing_error or 'Nothing written yet. On the canvas, open the Text box and press Write now.' }}</p>
     {% endif %}
 
+  {% elif node.kind == 'leaflet-video' %}
+    {#- One video: in its own player, in the browser's, or as a link. -#}
+    {% if said.heading %}<h2 class="paper-headline">{{ said.heading }}</h2>{% endif %}
+    {% set embed = said.embed %}
+    {% if said.frozen_feed %}
+      <p class="paper-note">❄ “{{ said.frozen_feed }}” is frozen: nothing from it plays until its canvas thaws.</p>
+    {% elif embed.kind in ('youtube', 'vimeo') %}
+      <div class="paper-video">
+        <iframe src="{{ embed.src }}" title="{{ said.video_title or said.heading or 'Video' }}" loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+    {% elif embed.kind == 'file' %}
+      <div class="paper-video"><video src="{{ embed.src }}" controls preload="metadata"></video></div>
+    {% elif embed.kind == 'link' %}
+      <p><a class="paper-link" href="{{ embed.src }}" target="_blank" rel="noopener">Watch ↗</a></p>
+    {% elif said.from_feed %}
+      <p class="paper-note">No video in “{{ said.from_feed }}” to play yet.</p>
+    {% else %}
+      <p class="paper-note">No video yet: on the canvas, give this leaflet a video's address, or wire a feed into it.</p>
+    {% endif %}
+    {% if said.video_title %}<p class="paper-byline">{{ said.video_title }}{% if embed.page %} · <a href="{{ embed.page }}" target="_blank" rel="noopener">open ↗</a>{% endif %}</p>{% endif %}
+
   {% elif node.kind == 'leaflet-form' %}
     {#- A form, its fields the Input pieces under it on the canvas. Checked
         here by the browser, and again when it arrives. -#}

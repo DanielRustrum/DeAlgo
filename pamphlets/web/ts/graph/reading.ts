@@ -52,6 +52,7 @@ function asGraphNodeKind(value: unknown): GraphNodeKind | null {
     value === "leaflet-map" ||
     value === "leaflet-text" ||
     value === "leaflet-link" ||
+    value === "leaflet-video" ||
     value === "deposit" ||
     value === "withdraw" ||
     value === "timer" ||

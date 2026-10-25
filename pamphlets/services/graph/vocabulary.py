@@ -22,7 +22,7 @@ STAMPS = ("decay", "expire", "tag")
 
 
 #: The leaflets a feed can be wired into: what they show is that feed's.
-WIRED_LEAFLETS = ("leaflet-feed", "leaflet-link")
+WIRED_LEAFLETS = ("leaflet-feed", "leaflet-link", "leaflet-video")
 
 #: What takes one wire in only — a second wired in replaces the first: a
 #: leaflet shows one feed, a Format box reshapes one source, a chart draws

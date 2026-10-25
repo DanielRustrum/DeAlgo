@@ -45,6 +45,8 @@ type GraphNodeKind =
   | "leaflet-map"
   | "leaflet-text"
   | "leaflet-link"
+  // One video, played on the page.
+  | "leaflet-video"
   // The two ends of a named repository. A deposit ends a path the way a feed
   // does; a withdraw starts one the way a source does.
   | "deposit"

@@ -350,3 +350,7 @@
 .paper-field-wrong { margin: 0; color: var(--bad); font-size: 0.9em; }
 .paper-field.is-wrong :is(input, textarea, select) { border-color: var(--bad); }
 .paper-form .btn { justify-self: start; }
+
+/* A Video leaflet: the player at 16:9, as wide as its column. */
+.paper-video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: #000; }
+.paper-video :is(iframe, video) { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }

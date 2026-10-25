@@ -40,7 +40,15 @@ MAP = "leaflet-map"
 #: The leaflets a data wire goes into: the charts, and the map.
 DATA_LEAFLETS: tuple[str, ...] = (*CHART_KINDS, MAP)
 
-LEAFLET_KINDS: tuple[str, ...] = ("leaflet-feed", *DATA_LEAFLETS, "leaflet-text", "leaflet-link", "leaflet-form")
+LEAFLET_KINDS: tuple[str, ...] = (
+    "leaflet-feed", *DATA_LEAFLETS, "leaflet-text", "leaflet-link", "leaflet-video", "leaflet-form",
+)
+
+#: Which video a Video leaflet plays from a feed wired into it.
+VIDEO_PICKS: tuple[tuple[str, str], ...] = (
+    ("newest", "The newest in it"),
+    ("unwatched", "The newest not yet watched"),
+)
 
 #: The one Chart leaflet there was before each chart had its own, read only
 #: to turn it into one of those (`current_kind`).
@@ -113,6 +121,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
           "focus": "", "bounds": "", "moves": "free"},
     "leaflet-text": {"heading": "", "body": ""},
     "leaflet-link": {"label": "", "goes": "focus", "feed": None, "url": ""},
+    # One video, played on the page: the address given, or else the newest
+    # in a feed wired into it (services/embeds.py).
+    "leaflet-video": {"heading": "", "url": "", "feed": None, "pick": "newest"},
     # A form, its fields the Input pieces under it (forms.py): what it sends
     # goes into the queue an Input source of the same name takes from.
     "leaflet-form": {"heading": "", "queue": "", "button": "Send", "thanks": "Sent — thank you."},
@@ -278,6 +289,21 @@ def save(node: GraphNode, form: Mapping[str, str], feeds: set[int]) -> None:
             if url and urlparse(url).scheme not in ("http", "https"):
                 raise GraphError("An address starts with http:// or https://.")
             said["url"] = url[:2000]
+    elif node.kind == "leaflet-video":
+        if given("heading") is not None:
+            said["heading"] = str(given("heading"))[:200]
+        url = given("url")
+        if url is not None:
+            url = url.strip()
+            if url and urlparse(url).scheme not in ("http", "https"):
+                raise GraphError("A video's address starts with http:// or https://.")
+            said["url"] = url[:2000]
+        pick = given("pick")
+        if pick is not None:
+            if pick not in dict(VIDEO_PICKS):
+                raise GraphError("A Video leaflet plays the newest, or the newest not yet watched.")
+            said["pick"] = pick
+        feed()
     elif node.kind == "leaflet-form":
         from .names import store_name
 
@@ -309,6 +335,15 @@ def words(node: GraphNode, feed_titles: Mapping[int, str]) -> str:
             return ""
         return feed_titles.get(int(said["feed"]), "a feed that has gone")
 
+    if node.kind == "leaflet-video":
+        url = str(said.get("url") or "")
+        if url:
+            return f"plays {urlparse(url).hostname or url}"
+        named = feed_named()
+        if named:
+            pick = "the newest not yet watched" if said.get("pick") == "unwatched" else "the newest"
+            return f"plays {pick} in “{named}”"
+        return "open it and give a video's address, or wire a feed in"
     if node.kind == "leaflet-form":
         queue = str(said.get("queue") or "")
         return f"sends into “{queue}”" if queue else "open it and name the queue it sends into"

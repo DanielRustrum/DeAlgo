@@ -57,6 +57,7 @@ LEAFLET_LABELS: dict[str, str] = {
     "leaflet-map": "Map leaflet",
     "leaflet-text": "Text leaflet",
     "leaflet-link": "Link leaflet",
+    "leaflet-video": "Video leaflet",
     "leaflet-form": "Form leaflet",
     "input-text": "Text input",
     "input-long": "Long text input",
