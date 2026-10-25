@@ -6,16 +6,48 @@ automatically.
 Wire a trigger into one or more [sources](Sources.md), or into a [Withdraw](Repositories.md) box to
 say when to release a repository.
 
-## Two kinds
+## Three kinds
 
 | Trigger | Says | Example |
 | --- | --- | --- |
 | **Pulse** | Every so often, counted from the last check | every 2 hours |
 | **Schedule** | At set times, as a cron expression in **UTC** | `0 9 * * 1-5` — 09:00 on weekdays |
+| **Activation** | When an [Activate](#activation-and-activate) box sets it off — one flow starting another | with `city` = “Tucson” |
 
 A Pulse of `0` means every run. A source never checked before is always due.
 
 When several triggers are wired into one source, it is checked when **any** of them is due.
+
+## Activation and Activate
+
+An **Activation** trigger has no clock. It starts its flow — the sources and Withdraw boxes it is
+wired to — only when an **Activate** box sets it off, or when you press **Run now** on it.
+
+- **It takes parameters.** In its panel, give each a name — letters, digits and `_` — and a
+  default. **Add a parameter** adds a row; ✕ takes one away. The panel also says what it was last
+  set off with.
+- **Its flow reads them** as `{{ params.name }}`: in a [REST API](REST%20API.md) source's address
+  and header, and in a [Text](Text.md) box's instructions. A Text box in the flow writes as soon as
+  the flow is set off, whatever its own timing says.
+- **Its `{ }` port gives them out** as one row of data — `city`, `days` — for a Format box, a
+  Transform, a Text box or a chart.
+
+An **Activate** box is under **Operations**. It ends a path, as a feed or a Deposit does, and
+takes items (▶) and data (`{ }`).
+
+- **It sets off any Activation**, in any canvas — that is how one canvas can start another. Pick
+  one under **Sets off**; the Activation's parameters appear below it.
+- **Fill each parameter** with words, `{{ fields }}` of the first item to reach it — `{{ title }}`,
+  `{{ link }}`, `{{ words }}`, `{{ source }}`, `{{ tags }}` — the data wired into its `{ }` port as
+  `{{ data… }}`, or the values of the Activation that started *its* flow as `{{ params… }}`. A
+  parameter left empty takes its default.
+- **Once per run.** When a run gets anything down a path to it — something that arrived in that
+  run and got through the filters on the way — it sets the Activation off once, with the first such
+  item's fields, and the Activation's flow runs straight after.
+- **Five deep.** Flows that set each other off stop after five in a row.
+- An Activation that is switched off, or in a [frozen canvas](Canvases%20and%20Relays.md#freezing-a-canvas),
+  is not set off. Copies and `.pam` files keep its parameters, and an Activate box copied with its
+  Activation points at the copy.
 
 ## How often triggers are looked at
 

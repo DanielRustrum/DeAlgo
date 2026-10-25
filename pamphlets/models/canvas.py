@@ -121,6 +121,11 @@ class GraphNode(Base):
     # Canvas nodes only: which plugins' boxes it offers, as a JSON list of
     # plugin ids; empty for every one. See services/graph/allowing.py.
     plugins: Mapped[Optional[str]] = mapped_column(Text)
+    # Activation triggers and Activate boxes only, as JSON — see
+    # services/graph/activations.py: the parameters an Activation takes and
+    # the values it was last set off with; which Activation an Activate box
+    # sets off, and what it fills each parameter with.
+    activation: Mapped[Optional[str]] = mapped_column(Text)
 
     x: Mapped[int] = mapped_column(Integer, default=0)
     y: Mapped[int] = mapped_column(Integer, default=0)
@@ -306,7 +311,9 @@ class GraphNode(Base):
         if self.kind == "feed" and self.playlist is not None:
             return self.playlist.title or self.playlist.playlist_id
         if self.kind == "trigger":
-            return "Schedule" if self.trigger_kind == "schedule" else "Pulse"
+            return {"schedule": "Schedule", "activation": "Activation"}.get(self.trigger_kind or "", "Pulse")
+        if self.kind == "activate":
+            return "Activate"
         if self.kind == "sort":
             return "Sort"
         if self.kind == "canvas":

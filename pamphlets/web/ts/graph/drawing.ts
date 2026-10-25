@@ -13,6 +13,7 @@ function graphElement(tag: string, className: string, text?: string): HTMLElemen
 /** A kind's name as the canvas shows it. */
 function graphKindLabel(kind: GraphNodeKind): string {
   if (kind === "source") return "Source";
+  if (kind === "activate") return "Activate";
   if (kind === "deposit") return "Deposit";
   if (kind === "withdraw") return "Withdraw";
   if (kind === "timer") return "Timer";
@@ -393,7 +394,7 @@ function drawGraphNode(state: GraphState, node: GraphNodeView): HTMLElement {
     if (graphIsLeaflet(node.kind)) drawGraphLeafletParts(box, node);
     return box;
   }
-  const ports = graphPortKinds(node.kind, node.dataOnly);
+  const ports = graphPortKinds(node.kind, node.dataOnly, node.trigger?.kind ?? "");
   for (const takes of ports.in) {
     box.appendChild(graphPort("in", takes, graphPortSays(node.kind, "in", takes)));
   }
@@ -449,9 +450,13 @@ function graphDataOps(): GraphNodeKind[] {
  *  The same answer the server's wiring table gives, side by side: an
  *  operation box passes items and data, separately, at the same time. */
 function graphPortKinds(
-  kind: GraphNodeKind, dataOnly = false,
+  kind: GraphNodeKind, dataOnly = false, triggerKind = "",
 ): { in: GraphCarries[]; out: GraphCarries[] } {
+  // An Activation gives a signal to what it starts, and its values as data.
+  if (kind === "trigger" && triggerKind === "activation") return { in: [], out: ["signal", "data"] };
   if (kind === "trigger") return { in: [], out: ["signal"] };
+  // The end of a path that sets an Activation off: items in, and data for its values.
+  if (kind === "activate") return { in: ["content", "data"], out: [] };
   // A REST API answers with records and numbers: data, and no items.
   if (kind === "source" && dataOnly) return { in: ["signal"], out: ["data"] };
   // Items or data in; data out, as the piece under it says.
@@ -471,6 +476,14 @@ function graphPortKinds(
 
 /** What one port takes in or gives out, in a sentence. */
 function graphPortSays(kind: GraphNodeKind, where: "in" | "out", carries: GraphCarries): string {
+  if (kind === "trigger" && carries === "data") {
+    return "Gives out the values it was set off with, as one row of data.";
+  }
+  if (kind === "activate") {
+    return carries === "content"
+      ? "Takes items: once a run gets anything here, it sets its Activation off."
+      : "Takes data, for its values to read as {{ data… }}.";
+  }
   if (carries === "page" && kind === "text") return "Gives out what it wrote, onto a page: wire it to a Text leaflet.";
   if (carries === "page") return "Gives out what it holds, onto a page: wire it to a Feed or Link leaflet.";
   if (kind === "text") {
@@ -549,7 +562,9 @@ function graphMarkIdlePorts(state: GraphState): void {
 
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node: GraphNodeView): string {
-  if (node.trigger !== null) return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+  if (node.trigger !== null) {
+    return node.trigger.kind === "pulse" ? "Pulse" : node.trigger.kind === "activation" ? "Activation" : "Schedule";
+  }
   // A source box says where it watches rather than that it is a source box.
   // Which of the two it is, is the thing somebody chose when they dragged it
   // out; "Channel" said the same for a subreddit and a YouTube channel and

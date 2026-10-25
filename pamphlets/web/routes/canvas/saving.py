@@ -223,10 +223,35 @@ async def graph_save_node(
                 return answer
         elif node.kind in ("deposit", "withdraw"):
             _save_store(node, repository=repository, takes_how_many=takes_how_many)
+        elif node.kind == "trigger" and node.trigger_kind == "activation":
+            # What it takes: a name and a default for each parameter.
+            given = await request.form()
+            try:
+                graph_service.activations.set_params(
+                    node,
+                    [str(one) for one in given.getlist("param_name")],
+                    [str(one) for one in given.getlist("param_default")],
+                )
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
         elif node.kind == "trigger":
             answer = _save_trigger(node, every_minutes, every_unit, cron, duration_minutes)
             if answer is not None:
                 return answer
+        elif node.kind == "activate":
+            # Which Activation it sets off, and what each parameter is filled with.
+            given = await request.form()
+            wanted = str(given.get("activate_target") or "").strip()
+            values = {
+                str(key)[len("activate_value_"):]: str(value)
+                for key, value in given.items() if str(key).startswith("activate_value_")
+            }
+            try:
+                graph_service.activations.set_activate(
+                    session, node, int(wanted) if wanted.isdigit() else None, values,
+                )
+            except graph_service.GraphError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
 
         session.flush()
         return JSONResponse(graph_payload(session, owner))

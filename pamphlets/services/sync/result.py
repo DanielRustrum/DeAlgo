@@ -30,6 +30,9 @@ class SyncResult:
     quota_spent: int = 0
     stopped_on_quota: bool = False
     messages: list[str] = field(default_factory=list)
+    #: The Activation triggers this run set off — an Activate box something
+    #: reached — whose flows run next (graph/activations.py).
+    activated: list[int] = field(default_factory=list)
 
     @property
     def message(self) -> str:

@@ -19,6 +19,7 @@ from ...models import (
 from .. import ordering
 from ..scope import OwnerId, owned
 from .adding import (
+    add_activate,
     add_format,
     add_pamphlet,
     add_feed,
@@ -149,6 +150,18 @@ def pack_nodes(
             entry["writing"] = writing.settings(node)
         if node.kind == "canvas" and node.frozen:
             entry["frozen"] = True
+        if node.kind in ("trigger", "activate") and node.activation:
+            # An Activation's parameters; an Activate box's values, and the
+            # Activation it sets off — by its place in this copy when it is
+            # in it, since an id means nothing to an account loading a file.
+            said = json.loads(node.activation)
+            if node.kind == "activate":
+                target = said.pop("target", None)
+                if target in refs:
+                    said["target_ref"] = refs[target]
+                elif isinstance(target, int):
+                    said["target_id"] = target
+            entry["activation"] = said
         if node.kind == "canvas" and node.width:
             entry["width"], entry["height"] = node.width, node.height
         if node.kind == "canvas" and node.plugins:
@@ -347,6 +360,32 @@ def _slot(
         return
 
 
+def _point_activates(session: Session, payload: dict[str, Any], made: dict[int, GraphNode]) -> None:
+    """Each Activate box made from a copy or a file, pointed at its Activation:
+    the copy of it, when that came too; else the one it pointed at, if it is
+    an Activation of this account's. Its values come with it either way."""
+    from .activations import set_activate
+
+    for entry in payload.get("nodes") or []:
+        if not isinstance(entry, dict) or entry.get("kind") != "activate":
+            continue
+        box = made.get(int(entry.get("ref", -1)))
+        said = entry.get("activation")
+        if box is None or not isinstance(said, dict):
+            continue
+        target = None
+        if isinstance(said.get("target_ref"), int) and said["target_ref"] in made:
+            target = made[said["target_ref"]].id
+        elif isinstance(said.get("target_id"), int):
+            target = said["target_id"]
+        given = said.get("values")
+        values = {str(k): str(v) for k, v in given.items()} if isinstance(given, dict) else {}
+        try:
+            set_activate(session, box, target, values)
+        except GraphError:
+            set_activate(session, box, None, values)
+
+
 def slot_and_wire(
     session: Session,
     payload: dict[str, Any],
@@ -367,6 +406,7 @@ def slot_and_wire(
             if isinstance(entry, dict):
                 _slot(session, entry, made, owner)
         session.flush()
+    _point_activates(session, payload, made)
     # Round again while any go in: a wire out of a relay can only be drawn
     # once the wire into it is, and the file need not list that one first.
     waiting = [pair for pair in payload.get("wires") or [] if isinstance(pair, list) and 2 <= len(pair) <= 6]
@@ -489,9 +529,16 @@ def apply(session: Session, node: GraphNode, entry: dict[str, Any], owner: Owner
     elif kind == "trigger":
         # Only what belongs to its kind, as making one keeps it: a pulse its
         # gap, a schedule its time. One the file leaves out keeps the default.
-        node.trigger_kind = "schedule" if entry.get("trigger_kind") == "schedule" else "pulse"
+        wanted = entry.get("trigger_kind")
+        node.trigger_kind = wanted if wanted in ("schedule", "activation") else "pulse"
         every, cron = entry.get("every_minutes"), entry.get("cron")
-        if node.trigger_kind == "pulse":
+        if node.trigger_kind == "activation":
+            # On no clock: what it takes is all there is to it.
+            node.every_minutes = node.cron = None
+            given = entry.get("activation")
+            if isinstance(given, dict):
+                node.activation = json.dumps({"params": given.get("params") or []})
+        elif node.trigger_kind == "pulse":
             node.cron = None
             if isinstance(every, int) and every > 0:
                 node.every_minutes = every
@@ -765,6 +812,9 @@ def unpack(
     if kind == "canvas":
         # Made in the canvas being worked in, as everything else is.
         return add_canvas(session, owner, label=label, x=x, y=y)
+
+    if kind == "activate":
+        return add_activate(session, owner, label=label, x=x, y=y)
 
     if kind == "trigger":
         return add_trigger(

@@ -5,6 +5,8 @@
 /** Every kind of box and piece the canvas draws. */
 type GraphNodeKind =
   | "trigger" | "source" | "filter" | "sort" | "feed" | "group"
+  // The end of a path that sets an Activation trigger off.
+  | "activate"
   // A page under the Pamphlets tab, laid out by the leaflets slotted under
   // it. On no path: nothing is wired into or out of one.
   | "pamphlet"
@@ -116,6 +118,10 @@ interface GraphNodeView {
   polled: string | null;
   /** Trigger boxes only. */
   trigger: GraphTrigger | null;
+  /** Activation triggers only: the parameters it takes, and what it was last set off with. */
+  activation: GraphActivation | null;
+  /** Activate boxes only: which Activation it sets off, with what, and which it could. */
+  activate: GraphActivate | null;
   /** Sort boxes only. */
   sort: GraphSort | null;
   /** What a plugin's augmentation is, when this is one. Null otherwise. */
@@ -268,8 +274,22 @@ interface GraphEvery {
 }
 
 /** A trigger box's schedule, window and last firing. */
+/** What an Activation trigger takes. */
+interface GraphActivation {
+  params: { name: string; default: string }[];
+  last: Record<string, string>;
+}
+
+/** What an Activate box sets off, and with what. */
+interface GraphActivate {
+  target: number | null;
+  values: Record<string, string>;
+  /** Every Activation it could set off, in any canvas. */
+  choices: { id: number; title: string; where: string; params: string[] }[];
+}
+
 interface GraphTrigger {
-  kind: "schedule" | "pulse";
+  kind: "schedule" | "pulse" | "activation";
   /** A pulse's gap, in minutes, and the same gap said in a larger unit. */
   everyMinutes: number | null;
   every: GraphEvery;

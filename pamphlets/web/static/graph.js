@@ -213,6 +213,99 @@ function graphFilterFields(form, node) {
         ? "Slot an Order piece under this to say what to put the batch in order by. Without one it orders nothing."
         : "Slot conditions under this — Title has, Longer than, At most — one piece each. Everything they all agree on gets past. Without any it narrows nothing."));
 }
+/** An Activation's parameters: a name and a default each, as many as it
+ *  takes. An Activate box elsewhere fills them; its flow reads them as
+ *  {{ params.name }}, and from its { } port. */
+function graphActivationFields(form, node) {
+    var _a, _b, _c;
+    var _d, _e, _f;
+    form.appendChild(graphElement("p", "hint", "Set off by an Activate box elsewhere — or Run now, with the defaults. Its flow reads each value as {{ params.name }}, and its { } port gives them out as one row."));
+    const list = graphElement("div", "graph-params");
+    const row = (name, fallback) => {
+        const line = graphElement("div", "graph-param");
+        const named = document.createElement("input");
+        named.type = "text";
+        named.name = "param_name";
+        named.value = name;
+        named.placeholder = "name";
+        named.spellcheck = false;
+        named.setAttribute("aria-label", "Parameter name");
+        const given = document.createElement("input");
+        given.type = "text";
+        given.name = "param_default";
+        given.value = fallback;
+        given.placeholder = "default";
+        given.setAttribute("aria-label", "Default value");
+        const drop = graphElement("button", "btn btn-quiet graph-param-drop", "✕");
+        drop.setAttribute("type", "button");
+        drop.title = "Take this parameter away";
+        drop.addEventListener("click", () => line.remove());
+        line.appendChild(named);
+        line.appendChild(given);
+        line.appendChild(drop);
+        list.appendChild(line);
+    };
+    for (const one of (_d = (_a = node.activation) === null || _a === void 0 ? void 0 : _a.params) !== null && _d !== void 0 ? _d : [])
+        row(one.name, one.default);
+    if (((_e = (_b = node.activation) === null || _b === void 0 ? void 0 : _b.params) !== null && _e !== void 0 ? _e : []).length === 0)
+        row("", "");
+    form.appendChild(graphLabelled("Parameters", list));
+    const more = graphElement("button", "btn btn-quiet", "Add a parameter");
+    more.setAttribute("type", "button");
+    more.addEventListener("click", () => row("", ""));
+    form.appendChild(more);
+    const last = (_f = (_c = node.activation) === null || _c === void 0 ? void 0 : _c.last) !== null && _f !== void 0 ? _f : {};
+    const names = Object.keys(last);
+    if (names.length > 0) {
+        form.appendChild(graphElement("p", "hint", "Last set off with: " + names.map((one) => { var _a; return `${one} = “${(_a = last[one]) !== null && _a !== void 0 ? _a : ""}”`; }).join(", ")));
+    }
+}
+/** An Activate box: which Activation it sets off — in any canvas — and what
+ *  it fills each of that Activation's parameters with. */
+function graphActivateFields(form, node) {
+    var _a;
+    const said = node.activate;
+    form.appendChild(graphElement("p", "hint", "Once a run gets anything here, it sets the Activation off. Fill each value with words, or {{ fields }} of the first item to arrive — {{ title }}, {{ link }} — or of the data wired into its { } port, as {{ data… }}."));
+    const pick = document.createElement("select");
+    pick.name = "activate_target";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = (said === null || said === void 0 ? void 0 : said.choices.length) ? "Choose an Activation…" : "No Activation triggers yet";
+    pick.appendChild(none);
+    for (const choice of (_a = said === null || said === void 0 ? void 0 : said.choices) !== null && _a !== void 0 ? _a : []) {
+        const option = document.createElement("option");
+        option.value = String(choice.id);
+        option.textContent = choice.where ? `${choice.title} — ${choice.where}` : choice.title;
+        option.selected = choice.id === (said === null || said === void 0 ? void 0 : said.target);
+        pick.appendChild(option);
+    }
+    form.appendChild(graphLabelled("Sets off", pick));
+    const values = graphElement("div", "graph-params");
+    form.appendChild(values);
+    // One field per parameter of the Activation chosen, drawn again on a new choice.
+    const draw = () => {
+        var _a, _b;
+        values.replaceChildren();
+        const chosen = ((_a = said === null || said === void 0 ? void 0 : said.choices) !== null && _a !== void 0 ? _a : []).find((one) => String(one.id) === pick.value);
+        if (chosen === undefined)
+            return;
+        if (chosen.params.length === 0) {
+            values.appendChild(graphElement("p", "hint", "It takes no parameters: it is simply set off."));
+            return;
+        }
+        for (const name of chosen.params) {
+            const field = document.createElement("input");
+            field.type = "text";
+            field.name = `activate_value_${name}`;
+            field.value = (_b = said === null || said === void 0 ? void 0 : said.values[name]) !== null && _b !== void 0 ? _b : "";
+            field.placeholder = "its default";
+            field.spellcheck = false;
+            values.appendChild(graphLabelled(name, field));
+        }
+    };
+    pick.addEventListener("change", draw);
+    draw();
+}
 
 "use strict";
 // Chart leaflets: one for each kind of chart — bar, line, pie, radar, polar
@@ -1609,6 +1702,8 @@ function graphElement(tag, className, text) {
 function graphKindLabel(kind) {
     if (kind === "source")
         return "Source";
+    if (kind === "activate")
+        return "Activate";
     if (kind === "deposit")
         return "Deposit";
     if (kind === "withdraw")
@@ -1868,8 +1963,8 @@ function graphPadlock(shut) {
 }
 /** One box or piece: its title, note, ports and buttons. */
 function drawGraphNode(state, node) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
-    var _l, _m, _o, _p, _q, _r, _s, _t, _u, _v;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    var _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
     const box = graphElement("div", `graph-node kind-${node.kind}`);
     box.dataset["node"] = String(node.id);
     box.style.left = `${node.x}px`;
@@ -1884,17 +1979,17 @@ function drawGraphNode(state, node) {
     if (node.frozen)
         box.classList.add("is-frozen");
     // A source wears the colour its plugin chose (kinds.css reads it).
-    const colour = (_m = (_l = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _l !== void 0 ? _l : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _m !== void 0 ? _m : "";
+    const colour = (_o = (_m = (_a = node.channel) === null || _a === void 0 ? void 0 : _a.colour) !== null && _m !== void 0 ? _m : (_b = node.asks) === null || _b === void 0 ? void 0 : _b.colour) !== null && _o !== void 0 ? _o : "";
     if (colour !== "")
         box.dataset["colour"] = colour;
     if (node.kind === "comment") {
         // A note left on the canvas: its words, in its colour, as big as it was
         // made — and a corner to make it bigger by. Double-clicked, written in.
-        const words = (_o = (_c = node.comment) === null || _c === void 0 ? void 0 : _c.text) !== null && _o !== void 0 ? _o : "";
+        const words = (_p = (_c = node.comment) === null || _c === void 0 ? void 0 : _c.text) !== null && _p !== void 0 ? _p : "";
         box.classList.add("is-comment");
-        box.dataset["shade"] = (_p = (_d = node.comment) === null || _d === void 0 ? void 0 : _d.colour) !== null && _p !== void 0 ? _p : "paper";
-        box.style.width = `${(_q = (_e = node.size) === null || _e === void 0 ? void 0 : _e.width) !== null && _q !== void 0 ? _q : 260}px`;
-        box.style.height = `${(_r = (_f = node.size) === null || _f === void 0 ? void 0 : _f.height) !== null && _r !== void 0 ? _r : 140}px`;
+        box.dataset["shade"] = (_q = (_d = node.comment) === null || _d === void 0 ? void 0 : _d.colour) !== null && _q !== void 0 ? _q : "paper";
+        box.style.width = `${(_r = (_e = node.size) === null || _e === void 0 ? void 0 : _e.width) !== null && _r !== void 0 ? _r : 260}px`;
+        box.style.height = `${(_s = (_f = node.size) === null || _f === void 0 ? void 0 : _f.height) !== null && _s !== void 0 ? _s : 140}px`;
         box.setAttribute("aria-label", `Comment: ${words.slice(0, 80) || "empty"}`);
         // Written in Markdown, and shown the way it reads; the words as typed
         // come back while it is being written in.
@@ -1911,12 +2006,12 @@ function drawGraphNode(state, node) {
     if (node.kind === "relay") {
         // A point a wire passes through: a dot, with a way in and a way out of
         // whatever kind is wired into it — or, with nothing yet, of any kind.
-        const carried = (_s = (_g = node.relay) === null || _g === void 0 ? void 0 : _g.carries) !== null && _s !== void 0 ? _s : "";
+        const carried = (_t = (_g = node.relay) === null || _g === void 0 ? void 0 : _g.carries) !== null && _t !== void 0 ? _t : "";
         const carries = carried === "signal" || carried === "data" || carried === "page" ? carried : "content";
         box.classList.add("is-relay");
-        box.dataset["in"] = (_t = (_h = node.relay) === null || _h === void 0 ? void 0 : _h.in) !== null && _t !== void 0 ? _t : "left";
-        box.dataset["out"] = (_u = (_j = node.relay) === null || _j === void 0 ? void 0 : _j.out) !== null && _u !== void 0 ? _u : "right";
-        box.dataset["line"] = (_v = (_k = node.relay) === null || _k === void 0 ? void 0 : _k.colour) !== null && _v !== void 0 ? _v : "default";
+        box.dataset["in"] = (_u = (_h = node.relay) === null || _h === void 0 ? void 0 : _h.in) !== null && _u !== void 0 ? _u : "left";
+        box.dataset["out"] = (_v = (_j = node.relay) === null || _j === void 0 ? void 0 : _j.out) !== null && _v !== void 0 ? _v : "right";
+        box.dataset["line"] = (_w = (_k = node.relay) === null || _k === void 0 ? void 0 : _k.colour) !== null && _w !== void 0 ? _w : "default";
         if (carried === "")
             box.classList.add("is-empty");
         box.title = carried === "" ? "A relay: wire anything into it, and on from it." : "A relay: it passes on what is wired into it.";
@@ -1938,7 +2033,7 @@ function drawGraphNode(state, node) {
             drawGraphLeafletParts(box, node);
         return box;
     }
-    const ports = graphPortKinds(node.kind, node.dataOnly);
+    const ports = graphPortKinds(node.kind, node.dataOnly, (_x = (_l = node.trigger) === null || _l === void 0 ? void 0 : _l.kind) !== null && _x !== void 0 ? _x : "");
     for (const takes of ports.in) {
         box.appendChild(graphPort("in", takes, graphPortSays(node.kind, "in", takes)));
     }
@@ -1993,9 +2088,15 @@ function graphDataOps() {
 /** Which kinds of wire a box takes in, and gives out — a port for each.
  *  The same answer the server's wiring table gives, side by side: an
  *  operation box passes items and data, separately, at the same time. */
-function graphPortKinds(kind, dataOnly = false) {
+function graphPortKinds(kind, dataOnly = false, triggerKind = "") {
+    // An Activation gives a signal to what it starts, and its values as data.
+    if (kind === "trigger" && triggerKind === "activation")
+        return { in: [], out: ["signal", "data"] };
     if (kind === "trigger")
         return { in: [], out: ["signal"] };
+    // The end of a path that sets an Activation off: items in, and data for its values.
+    if (kind === "activate")
+        return { in: ["content", "data"], out: [] };
     // A REST API answers with records and numbers: data, and no items.
     if (kind === "source" && dataOnly)
         return { in: ["signal"], out: ["data"] };
@@ -2022,6 +2123,14 @@ function graphPortKinds(kind, dataOnly = false) {
 }
 /** What one port takes in or gives out, in a sentence. */
 function graphPortSays(kind, where, carries) {
+    if (kind === "trigger" && carries === "data") {
+        return "Gives out the values it was set off with, as one row of data.";
+    }
+    if (kind === "activate") {
+        return carries === "content"
+            ? "Takes items: once a run gets anything here, it sets its Activation off."
+            : "Takes data, for its values to read as {{ data… }}.";
+    }
     if (carries === "page" && kind === "text")
         return "Gives out what it wrote, onto a page: wire it to a Text leaflet.";
     if (carries === "page")
@@ -2102,8 +2211,9 @@ function graphMarkIdlePorts(state) {
 }
 /** A trigger says which of the two it is, since they behave nothing alike. */
 function graphTriggerLabel(node) {
-    if (node.trigger !== null)
-        return node.trigger.kind === "pulse" ? "Pulse" : "Schedule";
+    if (node.trigger !== null) {
+        return node.trigger.kind === "pulse" ? "Pulse" : node.trigger.kind === "activation" ? "Activation" : "Schedule";
+    }
     // A source box says where it watches rather than that it is a source box.
     // Which of the two it is, is the thing somebody chose when they dragged it
     // out; "Channel" said the same for a subreddit and a YouTube channel and
@@ -4806,7 +4916,7 @@ function moveGraphGhost(ghost, event) {
 }
 /** A pulse and a schedule are both trigger boxes, and look like one. */
 function graphPaletteKind(kind) {
-    if (kind === "pulse" || kind === "schedule")
+    if (kind === "pulse" || kind === "schedule" || kind === "activation")
         return "trigger";
     return kind;
 }
@@ -4824,6 +4934,10 @@ function graphPaletteName(kind) {
         return "Sort";
     if (kind === "group")
         return "Group";
+    if (kind === "activate")
+        return "Activate";
+    if (kind === "activation")
+        return "Activation";
     return kind === "pulse" ? "Pulse" : "Schedule";
 }
 /** The box under the pointer, for a piece being dropped onto one.
@@ -5282,6 +5396,7 @@ function placeGraphPopover(state, node, box, pop) {
 }
 /** One form per box. Every kind has a name; what else it has depends. */
 function graphNodeForm(state, node) {
+    var _a;
     const form = document.createElement("form");
     form.className = "graph-form";
     form.dataset["save"] = String(node.id);
@@ -5336,8 +5451,12 @@ function graphNodeForm(state, node) {
         graphChannelFields(state, form, node);
     else if (node.kind === "feed")
         graphFeedFields(form, node);
+    else if (((_a = node.trigger) === null || _a === void 0 ? void 0 : _a.kind) === "activation")
+        graphActivationFields(form, node);
     else if (node.trigger !== null)
         graphTriggerFields(form, node);
+    else if (node.kind === "activate")
+        graphActivateFields(form, node);
     else if (node.kind === "canvas") {
         form.appendChild(graphElement("p", "hint", node.frozen
             ? "Frozen: nothing inside it runs — no trigger fires, nothing is polled, nothing reaches a feed — however deep. Thaw it to put everything back as it was."
@@ -6240,6 +6359,7 @@ function asGraphRecord(value) {
 /** A kind the canvas knows how to draw, or null. */
 function asGraphNodeKind(value) {
     if (value === "trigger" ||
+        value === "activate" ||
         value === "source" ||
         value === "filter" ||
         value === "sort" ||
@@ -6348,6 +6468,8 @@ function asGraphNode(value) {
         enabled: raw["enabled"] !== false,
         polled: typeof polled === "string" ? polled : null,
         trigger: asGraphTrigger(raw["trigger"]),
+        activation: asGraphActivation(raw["activation"]),
+        activate: asGraphActivate(raw["activate"]),
         sort: asGraphSort(raw["sort"]),
         size: asGraphSize(raw["size"]),
         locked: raw["locked"] === true,
@@ -6625,6 +6747,56 @@ function asGraphEvery(value) {
         units,
     };
 }
+/** Strings by name, from whatever came. */
+function asGraphStrings(value) {
+    const raw = asGraphRecord(value);
+    const found = {};
+    if (raw === null)
+        return found;
+    for (const key of Object.keys(raw)) {
+        const one = raw[key];
+        if (typeof one === "string")
+            found[key] = one;
+    }
+    return found;
+}
+/** An Activation's parameters and last values. */
+function asGraphActivation(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const params = [];
+    for (const entry of Array.isArray(raw["params"]) ? raw["params"] : []) {
+        const one = asGraphRecord(entry);
+        if (one === null || typeof one["name"] !== "string")
+            continue;
+        params.push({ name: one["name"], default: typeof one["default"] === "string" ? one["default"] : "" });
+    }
+    return { params, last: asGraphStrings(raw["last"]) };
+}
+/** An Activate box's target, values and choices. */
+function asGraphActivate(value) {
+    const raw = asGraphRecord(value);
+    if (raw === null)
+        return null;
+    const choices = [];
+    for (const entry of Array.isArray(raw["choices"]) ? raw["choices"] : []) {
+        const one = asGraphRecord(entry);
+        if (one === null || typeof one["id"] !== "number")
+            continue;
+        choices.push({
+            id: one["id"],
+            title: typeof one["title"] === "string" ? one["title"] : "",
+            where: typeof one["where"] === "string" ? one["where"] : "",
+            params: Array.isArray(one["params"]) ? one["params"].filter((p) => typeof p === "string") : [],
+        });
+    }
+    return {
+        target: typeof raw["target"] === "number" ? raw["target"] : null,
+        values: asGraphStrings(raw["values"]),
+        choices,
+    };
+}
 /** A trigger's schedule, window and last firing. */
 function asGraphTrigger(value) {
     const raw = asGraphRecord(value);
@@ -6635,7 +6807,7 @@ function asGraphTrigger(value) {
     const next = raw["next"];
     const fired = raw["last_fired"];
     return {
-        kind: raw["kind"] === "schedule" ? "schedule" : "pulse",
+        kind: raw["kind"] === "schedule" ? "schedule" : raw["kind"] === "activation" ? "activation" : "pulse",
         everyMinutes: typeof every === "number" ? every : null,
         every: asGraphEvery(raw["every"]),
         cron: typeof cron === "string" ? cron : null,

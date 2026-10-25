@@ -45,6 +45,15 @@ def connect(
     carries = carries if carries is not None and said else carries_between(source.kind, target.kind)
     if not said and carries == "content" and only_data(source):
         carries = "data"
+    if source.kind == "trigger":
+        from .activations import is_activation
+
+        # An Activation gives a signal to what it starts and its values, as
+        # data, to anything that reads data. No other trigger gives data.
+        if not said and is_activation(source) and target.kind not in WIRING["signal"]["trigger"]:
+            carries = "data"
+        if carries == "data" and not is_activation(source):
+            raise GraphError("Only an Activation trigger gives data: the values it was set off with.")
     if only_data(source) and (
         carries == "content" or target.kind not in WIRING["data"].get(source.kind, ())
     ):

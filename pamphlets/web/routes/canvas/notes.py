@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sqlalchemy.orm import object_session
+
 from .... import sources
 from ....models import (
     GraphNode,
@@ -41,12 +43,23 @@ def node_note(
         return _store_note(node, store or {})
     if node.kind == "trigger":
         return _trigger_note(node, opening)
+    if node.kind == "activate":
+        return _activate_note(node)
     if node.kind == "source":
         return _source_note(node)
     if node.kind == "feed":
         return _feed_note(node)
     count = len(node.overrides)
     return f"{count} rule{'s' if count != 1 else ''}" if count else "passes everything"
+
+
+def _activate_note(node: GraphNode) -> str:
+    """Which Activation it sets off, once per run that reaches it."""
+    session = object_session(node)
+    target = graph_service.activations.target_of(session, node) if session is not None else None
+    if target is None:
+        return "open it and choose an Activation to set off"
+    return f"sets off “{target.title}”"
 
 
 def _rule_note(node: GraphNode) -> str:
@@ -108,6 +121,12 @@ def _trigger_note(node: GraphNode, opening: set[int] | None) -> str:
         return graph_service.window_words(node)
     if node.trigger_kind == "schedule":
         return node.cron or graph_service.DEFAULT_CRON
+    if node.trigger_kind == "activation":
+        taken = graph_service.activations.params(node)
+        said = "when an Activate box sets it off"
+        if taken:
+            said += " · takes " + ", ".join(one["name"] for one in taken)
+        return said
     every = node.every_minutes or graph_service.DEFAULT_EVERY_MINUTES
     return f"every {graph_service.every_words(every)}"
 

@@ -483,3 +483,9 @@
   pointer-events: none; overflow: visible;
 }
 .graph-frost-ridge { fill: var(--ice); }
+
+/* An Activation's parameters, and an Activate box's values: a row each. */
+.graph-params { display: grid; gap: 6px; }
+.graph-param { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.graph-param input { min-width: 0; }
+.graph-param-drop { padding: 4px 8px; }

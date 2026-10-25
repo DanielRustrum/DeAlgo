@@ -61,7 +61,7 @@ function moveGraphGhost(ghost: HTMLElement, event: PointerEvent): void {
 
 /** A pulse and a schedule are both trigger boxes, and look like one. */
 function graphPaletteKind(kind: string): string {
-  if (kind === "pulse" || kind === "schedule") return "trigger";
+  if (kind === "pulse" || kind === "schedule" || kind === "activation") return "trigger";
   return kind;
 }
 
@@ -73,6 +73,8 @@ function graphPaletteName(kind: string): string {
   if (kind === "filter") return "Filter";
   if (kind === "sort") return "Sort";
   if (kind === "group") return "Group";
+  if (kind === "activate") return "Activate";
+  if (kind === "activation") return "Activation";
   return kind === "pulse" ? "Pulse" : "Schedule";
 }
 

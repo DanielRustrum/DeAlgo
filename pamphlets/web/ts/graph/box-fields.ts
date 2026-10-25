@@ -251,3 +251,94 @@ function graphFilterFields(form: HTMLElement, node: GraphNodeView): void {
     ),
   );
 }
+
+/** An Activation's parameters: a name and a default each, as many as it
+ *  takes. An Activate box elsewhere fills them; its flow reads them as
+ *  {{ params.name }}, and from its { } port. */
+function graphActivationFields(form: HTMLElement, node: GraphNodeView): void {
+  form.appendChild(graphElement("p", "hint",
+    "Set off by an Activate box elsewhere — or Run now, with the defaults. Its flow reads each value as {{ params.name }}, and its { } port gives them out as one row."));
+  const list = graphElement("div", "graph-params");
+  const row = (name: string, fallback: string): void => {
+    const line = graphElement("div", "graph-param");
+    const named = document.createElement("input");
+    named.type = "text";
+    named.name = "param_name";
+    named.value = name;
+    named.placeholder = "name";
+    named.spellcheck = false;
+    named.setAttribute("aria-label", "Parameter name");
+    const given = document.createElement("input");
+    given.type = "text";
+    given.name = "param_default";
+    given.value = fallback;
+    given.placeholder = "default";
+    given.setAttribute("aria-label", "Default value");
+    const drop = graphElement("button", "btn btn-quiet graph-param-drop", "✕");
+    drop.setAttribute("type", "button");
+    drop.title = "Take this parameter away";
+    drop.addEventListener("click", (): void => line.remove());
+    line.appendChild(named);
+    line.appendChild(given);
+    line.appendChild(drop);
+    list.appendChild(line);
+  };
+  for (const one of node.activation?.params ?? []) row(one.name, one.default);
+  if ((node.activation?.params ?? []).length === 0) row("", "");
+  form.appendChild(graphLabelled("Parameters", list));
+  const more = graphElement("button", "btn btn-quiet", "Add a parameter");
+  more.setAttribute("type", "button");
+  more.addEventListener("click", (): void => row("", ""));
+  form.appendChild(more);
+  const last = node.activation?.last ?? {};
+  const names = Object.keys(last);
+  if (names.length > 0) {
+    form.appendChild(graphElement("p", "hint",
+      "Last set off with: " + names.map((one): string => `${one} = “${last[one] ?? ""}”`).join(", ")));
+  }
+}
+
+/** An Activate box: which Activation it sets off — in any canvas — and what
+ *  it fills each of that Activation's parameters with. */
+function graphActivateFields(form: HTMLElement, node: GraphNodeView): void {
+  const said = node.activate;
+  form.appendChild(graphElement("p", "hint",
+    "Once a run gets anything here, it sets the Activation off. Fill each value with words, or {{ fields }} of the first item to arrive — {{ title }}, {{ link }} — or of the data wired into its { } port, as {{ data… }}."));
+  const pick = document.createElement("select");
+  pick.name = "activate_target";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = said?.choices.length ? "Choose an Activation…" : "No Activation triggers yet";
+  pick.appendChild(none);
+  for (const choice of said?.choices ?? []) {
+    const option = document.createElement("option");
+    option.value = String(choice.id);
+    option.textContent = choice.where ? `${choice.title} — ${choice.where}` : choice.title;
+    option.selected = choice.id === said?.target;
+    pick.appendChild(option);
+  }
+  form.appendChild(graphLabelled("Sets off", pick));
+  const values = graphElement("div", "graph-params");
+  form.appendChild(values);
+  // One field per parameter of the Activation chosen, drawn again on a new choice.
+  const draw = (): void => {
+    values.replaceChildren();
+    const chosen = (said?.choices ?? []).find((one): boolean => String(one.id) === pick.value);
+    if (chosen === undefined) return;
+    if (chosen.params.length === 0) {
+      values.appendChild(graphElement("p", "hint", "It takes no parameters: it is simply set off."));
+      return;
+    }
+    for (const name of chosen.params) {
+      const field = document.createElement("input");
+      field.type = "text";
+      field.name = `activate_value_${name}`;
+      field.value = said?.values[name] ?? "";
+      field.placeholder = "its default";
+      field.spellcheck = false;
+      values.appendChild(graphLabelled(name, field));
+    }
+  };
+  pick.addEventListener("change", draw);
+  draw();
+}

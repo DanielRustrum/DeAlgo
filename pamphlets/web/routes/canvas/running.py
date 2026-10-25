@@ -83,9 +83,13 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
 
         if node is not None:
             node.last_fired_at = utcnow()
+            if graph_service.activations.is_activation(node):
+                # Set off by hand: with what it takes by default.
+                graph_service.activations.set_off(node, {})
         session.flush()
         payload = graph_payload(session, owner)
         pulled = [one.id for one in pulling]
+        node_kind = node.trigger_kind if node is not None else ""
 
     if sync_service.is_running():
         return JSONResponse({**payload, "said": "A sync is already running."})
@@ -95,6 +99,8 @@ def _set_off(request: Request, node_pk: int, *, reach_back: int | None) -> JSONR
     # going. Without the claim it would be told about the previous run, which
     # reads as this one having finished instantly.
     trigger = "pulse" if reach_back is None else "backfill"
+    if reach_back is None and node_kind == "activation":
+        trigger = "activation"
     if not targets:
         # Nothing to poll, so nothing to run in a thread: pull now and answer
         # with what came out.

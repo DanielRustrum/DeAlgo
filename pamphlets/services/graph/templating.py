@@ -27,12 +27,14 @@ def path_of(setting: Any) -> str:
     return found.group(1) if found is not None else text
 
 
-def fill(text: str, data: Any) -> str:
+def fill(text: str, data: Any, params: Any = None) -> str:
     """Words with each `{{ field }}` replaced by that field of the data.
 
     The field is looked for in the data as it is, then in its first row, so
     `{{ count }}` reads a count and `{{ title }}` the first item's title.
-    One that is not there is left blank.
+    `{{ params.name }}` reads the values of the Activation whose flow this
+    is, when `params` are given (activations.py). One that is not there is
+    left blank.
     """
     if "{{" not in text:
         return text
@@ -40,6 +42,8 @@ def fill(text: str, data: Any) -> str:
 
     def value(match: re.Match[str]) -> str:
         path = match.group(1)
+        if params is not None and (path == "params" or path.startswith("params.")):
+            return _written(_walk({"params": params}, path))
         found = _walk(data, path)
         if found is None and first is not None:
             found = _walk(first, path)

@@ -13,6 +13,7 @@ from ... import outgoing
 from ...db import get_settings, session_scope
 from ...models import (
     Channel,
+    GraphNode,
     Playlist,
     Settings,
     SyncRun,
@@ -46,6 +47,7 @@ def run_sync(
     reach_back: int | None = None,
     withdrawals: Collection[int] | None = None,
     token: int | None = None,
+    depth: int = 0,
 ) -> SyncResult:
     """Run one account's sync pass. Returns at once if a pass is in flight.
 
@@ -89,7 +91,7 @@ def run_sync(
     try:
         with playlist_lock():
             with outgoing.client() as http, session_scope() as session:
-                return _run(
+                result = _run(
                     session, http, trigger, force=force, owner=owner, only=only,
                     sources=sources, fired_by=fired_by, reach_back=reach_back,
                     withdrawals=withdrawals,
@@ -103,6 +105,30 @@ def run_sync(
         # However it ended — done, refused the lock, or thrown out of — a run
         # that is over has to say so, or the canvas watches it for ever.
         finish(mine)
+    # The flows this run set off, each a run of its own once this one is over
+    # — five deep at most, so flows that set each other off stop.
+    if depth < graph.activations.MOST_DEPTH:
+        for activation in result.activated:
+            run_activation(activation, owner=owner, depth=depth + 1)
+    elif result.activated:
+        log.warning("activations stopped %d deep", depth)
+    return result
+
+
+def run_activation(activation: int, *, owner: OwnerId = None, depth: int = 1) -> SyncResult | None:
+    """Run the flow an Activation trigger starts: poll the sources it is
+    wired to and fill their paths, and pull its Withdraw boxes."""
+    with session_scope() as session:
+        node = session.get(GraphNode, activation)
+        if node is None or not node.enabled:
+            return None
+        channels, boxes, pulling = graph.activations.what_it_starts(session, node, owner)
+    if not channels and not pulling:
+        return None
+    return run_sync(
+        "activation", force=True, owner=owner, only=frozenset(channels), sources=frozenset(boxes),
+        fired_by=activation, withdrawals=pulling, depth=depth,
+    )
 
 
 def owners_with_channels(session: Session) -> list[OwnerId]:
@@ -193,6 +219,15 @@ def _run(
     _fill(session, client, settings, result, owner, pen, sources)
     _keep_feeds_current(session, client, result, owner, pen, withdrawals)
     session.commit()
+
+    # An Activate box that anything reached sets its Activation off, once.
+    result.activated = graph.activations.fire_reached(session, owner, run.started_at, sources, pen)
+    session.commit()
+    # A flow an Activation started writes its Text boxes with what it was set
+    # off with, whatever their own timing says.
+    if trigger == "activation" and fired_by is not None:
+        _write_activated(session, settings, owner, pen, fired_by)
+        session.commit()
 
     # Text boxes that write by themselves, and are due. Only on a whole run:
     # a run for one channel is somebody waiting on that channel.
@@ -323,6 +358,20 @@ def _record(run: SyncRun, result: SyncResult, *, quota_spent: int) -> None:
     result.quota_spent = run.quota_spent
     run.message = result.message or None
     result.ok = run.ok
+
+
+def _write_activated(session: Session, settings: Settings, owner: OwnerId, pen: runlog.Pen, fired_by: int) -> None:
+    """Have every Text box in the flow an Activation started write now."""
+    for box in graph.nodes(session, owner):
+        if box.kind != "text" or not box.enabled:
+            continue
+        if fired_by not in graph.activations.started_by(session, box, owner):
+            continue
+        done = writing.run(session, box, owner, settings)
+        pen.write(
+            f"Text box “{box.title}”: "
+            + (f"could not write — {done.error}" if done.error else "wrote, as activated")
+        )
 
 
 def _write_due(session: Session, settings: Settings, owner: OwnerId, pen: runlog.Pen) -> None:

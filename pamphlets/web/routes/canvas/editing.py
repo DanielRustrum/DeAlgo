@@ -193,6 +193,8 @@ def graph_add_node(
             graph_service.add_comment(session, owner, text=title, x=x, y=y)
         elif kind == "pamphlet":
             graph_service.add_pamphlet(session, owner, label=title.strip(), x=x, y=y)
+        elif kind == "activate":
+            graph_service.add_activate(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "format":
             graph_service.add_format(session, owner, label=title.strip(), x=x, y=y)
         elif kind == "transform":

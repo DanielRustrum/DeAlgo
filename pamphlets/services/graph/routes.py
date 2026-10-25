@@ -211,6 +211,7 @@ def _walk(
     source: GraphNode | None = None,
     marked: list[GraphNode] | None = None,
     passed: list[GraphNode] | None = None,
+    activating: bool = False,
 ) -> None:
     """Depth-first from a start, collecting what it passes until an end.
 
@@ -264,6 +265,20 @@ def _walk(
                         finish=target,
                     )
                 )
+        elif target.kind == "activate" and activating and target.enabled:
+            # Asked for only when the run looks for what reached an Activate
+            # box: no item is filed there, so the filing never sees these.
+            found.append(
+                Route(
+                    channel=channel,
+                    filters=list(carried),
+                    sorts=list(ordered),
+                    stamps=list(marked),
+                    walked=list(passed),
+                    source=source,
+                    finish=target,
+                )
+            )
         elif target.kind in MIDDLE and target.enabled:
             # A box that is switched off is not a box that passes everything:
             # nothing goes through it at all, so the path ends.
@@ -279,7 +294,26 @@ def _walk(
                 source,
                 marked + [target] if target.kind in STAMPS else marked,
                 passed + [target],
+                activating,
             )
+
+
+def routes_to_activate(session: Session, owner: OwnerId = None) -> list[Route]:
+    """Every path from a source box to an Activate box, with what narrows it:
+    what an item has to get through to set the Activate box off."""
+    all_nodes, all_edges = load(session, owner)
+    by_id = {node.id: node for node in all_nodes}
+    out: dict[int, list[int]] = {}
+    for edge in all_edges:
+        out.setdefault(edge.source_pk, []).append(edge.target_pk)
+    found: list[Route] = []
+    for node in all_nodes:
+        if node.kind != "source" or not node.enabled:
+            continue
+        for channel in channels_of(session, node, owner):
+            _walk(node, by_id, out, channel, [], set(), found, source=node, activating=True)
+    ending = [path for path in slot_in(found, all_nodes) if path.finish is not None and path.finish.kind == "activate"]
+    return ending
 
 
 def paths_from(

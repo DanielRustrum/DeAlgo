@@ -178,6 +178,21 @@ def _node(node: GraphNode, canvas: _Canvas) -> Context:
             **graph_service.comments.settings(node),
             "colours": [{"name": n, "label": l} for n, l in graph_service.comments.COLOURS],
         }
+    elif node.kind == "trigger" and node.trigger_kind == "activation":
+        # What it takes, and what it was last set off with.
+        drawn["activation"] = {
+            "params": graph_service.activations.params(node),
+            "last": graph_service.activations.last(node),
+        }
+    elif node.kind == "activate":
+        held_in = object_session(node)
+        target = graph_service.activations.target_of(held_in, node) if held_in is not None else None
+        drawn["activate"] = {
+            "target": target.id if target is not None else None,
+            "values": graph_service.activations.values_of(node),
+            # Every Activation it could set off, in any canvas, and what each takes.
+            "choices": graph_service.activations.choices(held_in, node.owner_pk) if held_in is not None else [],
+        }
     elif node.kind == "canvas":
         held = sum(1 for one in canvas.nodes if one.inside_pk == node.id and one.attached_to is None)
         drawn["note"] = (f"{held} box{'es' if held != 1 else ''} inside · double-click to open"

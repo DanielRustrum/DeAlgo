@@ -40,6 +40,9 @@ class When:
 
     def due(self, last_checked: dt.datetime | None, now: dt.datetime) -> bool:
         """Whether a source last polled at `last_checked` is due at `now`."""
+        if self.kind == "activation":
+            # On no clock: only an Activate box sets it off.
+            return False
         if last_checked is None:
             # Never polled. Both kinds agree that is overdue.
             return True

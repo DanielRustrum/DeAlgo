@@ -279,7 +279,9 @@ function graphNodeForm(state: GraphState, node: GraphNodeView): HTMLElement {
   else if (node.store !== null) graphStoreFields(form, node.store);
   else if (node.kind === "source") graphChannelFields(state, form, node);
   else if (node.kind === "feed") graphFeedFields(form, node);
+  else if (node.trigger?.kind === "activation") graphActivationFields(form, node);
   else if (node.trigger !== null) graphTriggerFields(form, node);
+  else if (node.kind === "activate") graphActivateFields(form, node);
   else if (node.kind === "canvas") {
     form.appendChild(graphElement("p", "hint",
       node.frozen

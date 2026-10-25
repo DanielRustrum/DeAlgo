@@ -16,6 +16,7 @@ function asGraphRecord(value: unknown): Record<string, unknown> | null {
 function asGraphNodeKind(value: unknown): GraphNodeKind | null {
   if (
     value === "trigger" ||
+    value === "activate" ||
     value === "source" ||
     value === "filter" ||
     value === "sort" ||
@@ -124,6 +125,8 @@ function asGraphNode(value: unknown): GraphNodeView | null {
     enabled: raw["enabled"] !== false,
     polled: typeof polled === "string" ? polled : null,
     trigger: asGraphTrigger(raw["trigger"]),
+    activation: asGraphActivation(raw["activation"]),
+    activate: asGraphActivate(raw["activate"]),
     sort: asGraphSort(raw["sort"]),
     size: asGraphSize(raw["size"]),
     locked: raw["locked"] === true,
@@ -403,6 +406,53 @@ function asGraphEvery(value: unknown): GraphEvery {
   };
 }
 
+/** Strings by name, from whatever came. */
+function asGraphStrings(value: unknown): Record<string, string> {
+  const raw = asGraphRecord(value);
+  const found: Record<string, string> = {};
+  if (raw === null) return found;
+  for (const key of Object.keys(raw)) {
+    const one = raw[key];
+    if (typeof one === "string") found[key] = one;
+  }
+  return found;
+}
+
+/** An Activation's parameters and last values. */
+function asGraphActivation(value: unknown): GraphActivation | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const params: { name: string; default: string }[] = [];
+  for (const entry of Array.isArray(raw["params"]) ? raw["params"] : []) {
+    const one = asGraphRecord(entry);
+    if (one === null || typeof one["name"] !== "string") continue;
+    params.push({ name: one["name"], default: typeof one["default"] === "string" ? one["default"] : "" });
+  }
+  return { params, last: asGraphStrings(raw["last"]) };
+}
+
+/** An Activate box's target, values and choices. */
+function asGraphActivate(value: unknown): GraphActivate | null {
+  const raw = asGraphRecord(value);
+  if (raw === null) return null;
+  const choices: GraphActivate["choices"] = [];
+  for (const entry of Array.isArray(raw["choices"]) ? raw["choices"] : []) {
+    const one = asGraphRecord(entry);
+    if (one === null || typeof one["id"] !== "number") continue;
+    choices.push({
+      id: one["id"],
+      title: typeof one["title"] === "string" ? one["title"] : "",
+      where: typeof one["where"] === "string" ? one["where"] : "",
+      params: Array.isArray(one["params"]) ? one["params"].filter((p): p is string => typeof p === "string") : [],
+    });
+  }
+  return {
+    target: typeof raw["target"] === "number" ? raw["target"] : null,
+    values: asGraphStrings(raw["values"]),
+    choices,
+  };
+}
+
 /** A trigger's schedule, window and last firing. */
 function asGraphTrigger(value: unknown): GraphTrigger | null {
   const raw = asGraphRecord(value);
@@ -412,7 +462,7 @@ function asGraphTrigger(value: unknown): GraphTrigger | null {
   const next = raw["next"];
   const fired = raw["last_fired"];
   return {
-    kind: raw["kind"] === "schedule" ? "schedule" : "pulse",
+    kind: raw["kind"] === "schedule" ? "schedule" : raw["kind"] === "activation" ? "activation" : "pulse",
     everyMinutes: typeof every === "number" ? every : null,
     every: asGraphEvery(raw["every"]),
     cron: typeof cron === "string" ? cron : null,

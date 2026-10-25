@@ -5,6 +5,8 @@
 
 :is(.graph-node, .palette-swatch, .palette-pill) {
   &.kind-trigger { --kind-colour: var(--kind-trigger); }
+  /* It sets a trigger off, so it wears the triggers' colour. */
+  &.kind-activate { --kind-colour: var(--kind-trigger); }
   &.kind-source { --kind-colour: var(--kind-source); }
   &.kind-filter { --kind-colour: var(--kind-filter); }
   &.kind-sort { --kind-colour: var(--kind-sort); }

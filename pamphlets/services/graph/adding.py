@@ -292,6 +292,17 @@ def add_trigger(
     return node
 
 
+def add_activate(
+    session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
+) -> GraphNode:
+    """An Activate box: the end of a path, setting off the Activation it names
+    with what reaches it (activations.py)."""
+    node = GraphNode(owner_pk=owner, kind="activate", label=label.strip()[:120], x=x, y=y)
+    session.add(node)
+    session.flush()
+    return node
+
+
 def add_pamphlet(
     session: Session, owner: OwnerId = None, *, label: str = "", x: int = 0, y: int = 0
 ) -> GraphNode:

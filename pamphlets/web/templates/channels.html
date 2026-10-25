@@ -167,7 +167,7 @@
   <li class="palette-item" data-palette="{{ kind }}"
       {% if is_augmentation(kind) %}data-under="{{ host_kinds(kind) }}"{% endif %}
       tabindex="0" role="button">
-    <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule') else kind }}"></span>
+    <span class="palette-swatch kind-{{ 'trigger' if kind in ('pulse', 'schedule', 'activation') else kind }}"></span>
     <span class="palette-text">
       <strong>{{ name }}</strong>
       <span class="palette-blurb">{{ blurb }}</span>
@@ -255,6 +255,7 @@
             {{ node_row('expire', 'Expire', 'How long an item stays in the feed once it arrives. Takes a Timer.') }}
             {{ node_row('deposit', 'Deposit', 'Ends a path in a named repository. Nothing comes out until a Withdraw pulls it.') }}
             {{ node_row('withdraw', 'Withdraw', 'Starts a path from a named repository, when a trigger says to pull.') }}
+            {{ node_row('activate', 'Activate', 'Ends a path: once a run gets anything here, it sets an Activation off — in any canvas — with values of your choosing.') }}
             {{ node_row('text', 'Text', 'Has your AI model write from what comes in — a briefing, a summary — for a Text leaflet.') }}
             {{ node_row('transform', 'Transform', 'Turns items or data into data, as the piece under it says — a Count, to start with.') }}
             {{ node_row('format', 'Format', 'Reshapes a source’s JSON — an API’s answer, or its items — into bars for a Chart leaflet.') }}
@@ -295,6 +296,7 @@
           <ul class="palette-list">
             {{ node_row('pulse', 'Pulse', 'Polls a channel every so many minutes.') }}
             {{ node_row('schedule', 'Schedule', 'Polls a channel on a cron expression.') }}
+            {{ node_row('activation', 'Activation', 'Starts its flow when an Activate box sets it off, with the values it takes.') }}
           </ul>
         </details>
 

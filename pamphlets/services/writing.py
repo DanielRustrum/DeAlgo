@@ -311,8 +311,11 @@ def run(session: Session, node: GraphNode, owner: Any, account: Settings) -> Wri
         return _keep(node, "", "Nothing has come in to write about yet.")
     text_in, total, sent = material(value, int(said["items"]))
     try:
-        # What it is told can name fields of what came in: {{ count }}.
-        told = fill(str(said["instructions"]), value)
+        # What it is told can name fields of what came in: {{ count }} — and
+        # the values the flow was activated with: {{ params.topic }}.
+        from .graph.activations import params_for
+
+        told = fill(str(said["instructions"]), value, params_for(session, node, owner))
         text = write(model, told, text_in, counted=(total, sent))
     except WritingError as exc:
         return _keep(node, "", str(exc))

@@ -6,11 +6,12 @@ import datetime as dt
 import json
 import logging
 from collections.abc import Collection
+from dataclasses import replace
 from hashlib import sha1
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from ...models import (
     Channel,
@@ -101,7 +102,19 @@ def _read_feed(channel: Channel, http: httpx.Client) -> syndication.Feed:
     if channel.source_kind == "rest":
         # A JSON API, read by the mapping set on its box. No mirror: nobody
         # keeps a copy of somebody's API.
-        found = rest.read(channel.feed_url, rest.Mapping.loads(channel.source_options), http)
+        # Its address and header can name the values the flow was activated
+        # with: {{ params.city }}.
+        mapping = rest.Mapping.loads(channel.source_options)
+        address = channel.feed_url
+        session = object_session(channel)
+        if session is not None and ("{{" in address or "{{" in mapping.header_value):
+            from ..graph.activations import params_for_channel
+            from ..graph.templating import fill
+
+            values = params_for_channel(session, channel)
+            address = fill(address, None, values)
+            mapping = replace(mapping, header_value=fill(mapping.header_value, None, values))
+        found = rest.read(address, mapping, http)
         keep_snapshot(channel, found.data)
         return found.feed
     try:
