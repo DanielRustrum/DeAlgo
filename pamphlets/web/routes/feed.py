@@ -337,6 +337,11 @@ def one_feed_page(request: Request, playlist_pk: int) -> Response:
         target = _owned_feed(session, owner, playlist_pk)
         if target is None:
             return redirect("/feed", err="That feed is not here.")
+        frozen = graph_service.insides.frozen_feeds(session, owner).get(target.id)
+        if frozen is not None:
+            return redirect(
+                "/feed", err=f"“{target.title}” is frozen with {frozen}: thaw that canvas on the Configuration page to read it.",
+            )
         context = _feed_view_context(session, target, owner, sitting=True)
         return render(request, "feed_view.html", context)
 
@@ -348,7 +353,7 @@ def partial_one_feed(request: Request, playlist_pk: int) -> HTMLResponse:
     owner = owner_of(request)
     with session_scope() as session:
         target = _owned_feed(session, owner, playlist_pk)
-        if target is None:
+        if target is None or target.id in graph_service.insides.frozen_feeds(session, owner):
             return HTMLResponse("", status_code=404)
         context = _feed_view_context(session, target, owner, sitting=False)
         return fragment(request, "_feed_section.html", context)

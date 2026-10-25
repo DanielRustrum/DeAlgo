@@ -82,6 +82,24 @@ def everything_inside(all_nodes: list[GraphNode], canvas_pk: int) -> list[GraphN
     return found
 
 
+def frozen_feeds(session: Session, owner: OwnerId = None) -> dict[int, str]:
+    """The feeds that are frozen, by playlist key, with the canvas each is
+    frozen in: those every one of whose boxes is in a frozen canvas. A feed
+    with a box anywhere that runs is not frozen — it still fills there."""
+    boxes: dict[int, list[GraphNode]] = {}
+    for node in nodes(session, owner):
+        if node.kind == "feed" and node.playlist_pk is not None:
+            boxes.setdefault(node.playlist_pk, []).append(node)
+    found: dict[int, str] = {}
+    for playlist_pk, theirs in boxes.items():
+        holders = [box.frozen_by for box in theirs]
+        if holders and all(holder is not None for holder in holders):
+            first = holders[0]
+            if first is not None:
+                found[playlist_pk] = first.title
+    return found
+
+
 def freeze(session: Session, node_pk: int, frozen: bool, owner: OwnerId = None) -> GraphNode:
     """Freeze a Canvas node, so nothing inside it runs — or thaw it."""
     node = session.get(GraphNode, node_pk)

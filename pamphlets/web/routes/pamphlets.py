@@ -58,6 +58,8 @@ def pamphlets_page(request: Request, all: str = "") -> Response:
                     if piece.kind in graph_service.LEAFLET_KINDS
                 ),
                 "default": one.id == chosen,
+                # The frozen canvas it is in, if it is in one: shown blank.
+                "frozen": frozen.title if (frozen := one.frozen_by) is not None else "",
             }
             for one in found
         ]
@@ -90,12 +92,17 @@ def default_pamphlet(session: Session, owner: OwnerId) -> GraphNode | None:
 
 
 def show_pamphlet(request: Request, session: Session, owner: OwnerId, pamphlet: GraphNode) -> Response:
-    """A pamphlet's page — at its own address, or at the front door."""
-    rows = graph_service.leaflets.layout(graph_service.nodes(session, owner), pamphlet)
+    """A pamphlet's page — at its own address, or at the front door.
+
+    One in a frozen canvas is blank, under a note saying so: nothing on it
+    is read until the canvas thaws."""
+    frozen = pamphlet.frozen_by
+    rows = [] if frozen is not None else graph_service.leaflets.layout(graph_service.nodes(session, owner), pamphlet)
     shown: dict[int, Context] = {}
     _fill(session, owner, rows, shown)
     return render(request, "pamphlet.html", {
         "pamphlet": pamphlet,
+        "frozen": frozen.title if frozen is not None else "",
         "rows": rows,
         "shown": shown,
         "is_default": get_settings(session, owner).default_pamphlet_pk == pamphlet.id,
@@ -156,6 +163,11 @@ def _leaflet(session: Session, owner: OwnerId, node: GraphNode) -> Context:
         return shown
     if node.kind in ("leaflet-feed", "leaflet-link"):
         feed = _feed(session, owner, said.get("feed"))
+        if feed is not None and feed.id in graph_service.insides.frozen_feeds(session, owner):
+            # A feed frozen with its canvas: named, but not shown or linked.
+            shown["frozen"] = graph_service.insides.frozen_feeds(session, owner)[feed.id]
+            shown["frozen_feed"] = feed.title
+            return shown
         shown["playlist"] = feed
         if node.kind == "leaflet-feed" and feed is not None and said.get("shape") == "tile":
             shown["tile"] = shelf_service.tile_for(session, feed, owner)

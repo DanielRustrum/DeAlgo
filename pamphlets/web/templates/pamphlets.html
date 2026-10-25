@@ -7,11 +7,12 @@
 {% if tiles %}
 <ul class="shelf-grid pamphlet-tiles">
   {% for tile in tiles %}
-  <li class="pamphlet-tile {{ 'is-default' if tile.default }}">
+  <li class="pamphlet-tile {{ 'is-default' if tile.default }} {{ 'is-frozen' if tile.frozen }}">
     <a class="pamphlet-tile-link" href="/pamphlets/{{ tile.node.id }}">
       <span class="pamphlet-tile-title">{{ tile.node.title }}</span>
       <span class="pamphlet-tile-meta">
-        {{ tile.leaflets }} leaflet{{ 's' if tile.leaflets != 1 }}{% if tile.default %} · opens first{% endif %}
+        {% if tile.frozen %}❄ frozen with {{ tile.frozen }} · disabled
+        {% else %}{{ tile.leaflets }} leaflet{{ 's' if tile.leaflets != 1 }}{% endif %}{% if tile.default %} · opens first{% endif %}
       </span>
     </a>
   </li>

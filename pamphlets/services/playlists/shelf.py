@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ...models import Placement, Playlist, Video, utcnow
-from ..graph import consumption, window_state
+from ..graph import consumption, insides, window_state
 from ..scope import OwnerId, owned
 from .listing import list_playlists
 
@@ -59,6 +59,9 @@ class Tile:
     #: Shut by a window on its second input, and when it opens again.
     shut: bool = False
     opens_at: dt.datetime | None = None
+    #: The frozen canvas it is in, when every box for it is in one: not to
+    #: be opened until that canvas thaws.
+    frozen: str = ""
 
 
 def _counts(
@@ -137,6 +140,9 @@ def shelf(
         _tile(session, playlist, totals, waiting, latest, windows.get(playlist.id, []), now)
         for playlist in playlists
     ]
+    frozen = insides.frozen_feeds(session, owner)
+    for tile in tiles:
+        tile.frozen = frozen.get(tile.playlist.id, "")
 
     tiles.sort(key=_sort_key(sort))
     favourites = [t for t in tiles if t.playlist.favorite]
@@ -148,7 +154,9 @@ def tile_for(session: Session, playlist: Playlist, owner: OwnerId = None) -> Til
     """One feed's tile, as the shelf would show it — for a pamphlet to show."""
     totals, waiting, latest = _counts(session, [playlist.id])
     windows = consumption(session, owner)
-    return _tile(session, playlist, totals, waiting, latest, windows.get(playlist.id, []), utcnow())
+    tile = _tile(session, playlist, totals, waiting, latest, windows.get(playlist.id, []), utcnow())
+    tile.frozen = insides.frozen_feeds(session, owner).get(playlist.id, "")
+    return tile
 
 
 def _tile(

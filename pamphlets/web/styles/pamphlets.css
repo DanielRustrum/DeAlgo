@@ -324,3 +324,16 @@
   margin: 10px 0 0; color: var(--muted); font-style: italic;
   font-size: calc(12px * var(--text-scale));
 }
+
+/* A pamphlet frozen with its canvas: blank, under a note saying why. */
+.paper-frozen { color: var(--text); }
+.pamphlet.is-frozen { padding: 48px 8px; text-align: center; }
+.paper-frozen-note {
+  max-width: 46ch; margin: 0 auto; padding: 18px 22px; border-radius: var(--radius);
+  color: var(--text); background: color-mix(in srgb, var(--ice) 22%, transparent);
+  border: 1px solid var(--ice);
+}
+.paper-frozen-note strong { display: block; margin-bottom: 6px; }
+.pamphlet-leaflet.is-frozen .paper-note::first-letter { font-style: normal; }
+.pamphlet-tile.is-frozen { border-color: var(--ice); }
+.pamphlet-tile.is-frozen .pamphlet-tile-meta { color: var(--muted); }

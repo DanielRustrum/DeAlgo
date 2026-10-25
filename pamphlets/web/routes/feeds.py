@@ -19,6 +19,7 @@ from ...models import (
     Video,
 )
 from ...services import channels as channel_service
+from ...services import graph as graph_service
 from ...services import playlists as playlist_service
 from ...services.scope import owned
 from ..responses import owner_of, redirect, render
@@ -142,6 +143,9 @@ def feed_detail(request: Request, playlist_pk: int, rename: str = "", q: str = "
             "total_feeds": len(order),
             "renaming": playlist_pk if rename == "1" else None,
             "state": connection_state(session, owner),
+            # Frozen with the canvas it is in: its settings are here, but it
+            # is not read or filled until that canvas thaws.
+            "frozen": graph_service.insides.frozen_feeds(session, owner).get(playlist_pk),
         }
     return render(request, "feed_detail.html", context)
 

@@ -9,6 +9,8 @@
 .pill-pending { color: var(--warn); border-color: var(--warn); }
 .pill-failed { color: var(--bad); border-color: var(--bad); }
 .pill-paused { color: var(--warn); border-color: var(--warn); margin-left: 6px; }
+/* Frozen with its canvas (Theming -> Frost). */
+.pill-frozen { color: var(--text); background: color-mix(in srgb, var(--ice) 35%, transparent); border-color: var(--ice-deep); margin-left: 6px; }
 .pill-post { color: var(--accent); border-color: var(--accent-dim); }
 
 /* What kind of somewhere a source is. Coloured so a list of them reads as a

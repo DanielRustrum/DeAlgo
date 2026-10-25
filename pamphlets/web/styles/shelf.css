@@ -92,6 +92,16 @@
   font-size: calc(15px * var(--text-scale));
 }
 .feed-tile.is-shut .tile-mosaic { filter: grayscale(0.8); opacity: 0.6; }
+/* Frozen with its canvas: shown, iced over, and not a way in. */
+.feed-tile.is-frozen { border-color: var(--ice); }
+.feed-tile.is-frozen .tile-link { cursor: not-allowed; }
+.feed-tile.is-frozen .tile-mosaic { position: relative; }
+.tile-frozen {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-weight: 600; letter-spacing: 0.04em; color: var(--text);
+  background: color-mix(in srgb, var(--ice) 45%, color-mix(in srgb, var(--panel) 40%, transparent));
+}
+.feed-tile.is-frozen .tile-meta { color: var(--muted); }
 
 .tile-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
 .tile-title {

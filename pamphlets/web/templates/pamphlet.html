@@ -10,7 +10,8 @@
   <h1 class="paper-title">{{ pamphlet.title }}</h1>
   <div class="paper-dateline">
     <span>{{ today }}</span>
-    <span>{{ waiting }} stor{{ 'y' if waiting == 1 else 'ies' }} inside</span>
+    {% if frozen %}<span class="paper-frozen">❄ Frozen · disabled</span>
+    {% else %}<span>{{ waiting }} stor{{ 'y' if waiting == 1 else 'ies' }} inside</span>{% endif %}
     <form method="post" action="/pamphlets/{{ pamphlet.id }}/default">
       <button class="paper-default" type="submit"
               title="{{ 'Stop opening the app on this one' if is_default else 'Open the app — and the Pamphlets tab — on this pamphlet' }}">
@@ -61,7 +62,11 @@
 {%- endmacro %}
 
 {% macro leaflet(node, said) -%}
-{% if said.on %}
+{% if said.on and said.frozen %}
+<section class="pamphlet-leaflet is-{{ node.kind[8:] }} is-frozen">
+  <p class="paper-note">❄ “{{ said.frozen_feed }}” is frozen with {{ said.frozen }}: nothing from it is shown until that canvas thaws.</p>
+</section>
+{% elif said.on %}
 <section class="pamphlet-leaflet is-{{ node.kind[8:] }}">
   {% if node.kind == 'leaflet-text' and said.blocks is defined %}
     {#- What a Text box wrote, set as copy: paragraphs, subheads, lists. -#}
@@ -176,7 +181,16 @@
 {% endif %}
 {%- endmacro %}
 
-{% if rows %}
+{% if frozen %}
+{#- Frozen with its canvas: a blank page, saying why. -#}
+<div class="pamphlet is-frozen">
+  <p class="paper-frozen-note">
+    <strong>❄ This pamphlet is frozen.</strong>
+    It is in <em>{{ frozen }}</em>, which is frozen, so nothing on it is read or shown.
+    Thaw that canvas on the <a href="/channels">Configuration</a> page to bring it back.
+  </p>
+</div>
+{% elif rows %}
 <div class="pamphlet">{{ row(rows) }}</div>
 {% else %}
 <p class="paper-note paper-empty">

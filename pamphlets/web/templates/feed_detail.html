@@ -27,6 +27,7 @@
           local only</span>
       {% endif %}
       {% if not playlist.enabled %}<span class="pill pill-paused">paused</span>{% endif %}
+      {% if frozen %}<span class="pill pill-frozen" title="Frozen with {{ frozen }}">frozen</span>{% endif %}
     </h2>
     <div class="row-buttons">
       <a class="btn btn-quiet" href="{{ back }}?rename=1">Rename</a>

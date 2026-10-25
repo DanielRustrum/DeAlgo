@@ -17,6 +17,7 @@ from ...models import (
     Video,
 )
 from ...services import algorithm
+from ...services import graph as graph_service
 from ...services import playlists as playlist_service
 from ...services import watched as watched_service
 from ...services.filters import format_duration
@@ -76,8 +77,10 @@ def _focus_queue(
 
     queue: list[Context] = []
     seen: set[int] = set()
+    # A feed frozen with its canvas is not read until the canvas thaws.
+    frozen = graph_service.insides.frozen_feeds(session, owner)
     for target in playlist_service.list_playlists(session, owner):
-        if not target.enabled or (wanted and target.id != wanted):
+        if not target.enabled or (wanted and target.id != wanted) or target.id in frozen:
             continue
         videos = session.scalars(
             owned(select(Video), Video, owner)

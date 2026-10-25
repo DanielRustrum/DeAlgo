@@ -43,6 +43,16 @@ slotted under it), never both, the same boxes every time — and the trail
 says *Frozen: nothing here runs*. Each box keeps its own **Active** switch, so
 **Thaw** puts everything back exactly as it was — a box you switched off stays off.
 
+Nor can anything in it be read:
+
+- **A pamphlet in it is blank.** Its page keeps its name and says *❄ Frozen · disabled*, with a note
+  naming the frozen canvas in place of its leaflets, and its tile on the Pamphlets tab says so too.
+  A leaflet elsewhere that shows a frozen feed says the feed is frozen instead of showing it.
+- **A feed in it is disabled.** On the Feed tab its tile is iced over and marked *frozen*, and is
+  not a way in; opening it by its address goes back to the shelf saying why, and Focus mode leaves
+  it out. Its settings page still opens, marked frozen. A feed with a box in a canvas that is not
+  frozen is not frozen: it still fills there.
+
 A frozen canvas copied, or saved as a file, stays frozen. A box copied out of one runs where it is
 pasted.
 
